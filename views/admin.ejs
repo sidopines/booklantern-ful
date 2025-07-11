@@ -1,12 +1,52 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Admin Panel - BookLantern</title>
-  <link rel="stylesheet" href="/css/style.css" />
+  <meta charset="UTF-8">
+  <title>Admin Dashboard - BookLantern</title>
+  <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-  <h1>Welcome, Admin</h1>
-  <p>You can manage users and content here.</p>
-  <a href="/">Back to Home</a>
+  <header>
+    <div>📚 BookLantern</div>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
+      <a href="/admin">Admin</a>
+      <a href="/login">Login</a>
+      <a href="/register">Register</a>
+    </nav>
+    <div class="toggle-container">
+      <label class="toggle-switch">
+        <input type="checkbox" id="darkModeToggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+  </header>
+
+  <main>
+    <h1>Admin Dashboard</h1>
+    <p>Welcome, Admin. From here, you will soon be able to manage content, view user registrations, and oversee the BookLantern platform.</p>
+
+    <section>
+      <h2>Quick Links</h2>
+      <ul>
+        <li><a href="#">🔧 Manage Users (coming soon)</a></li>
+        <li><a href="#">📚 Manage Content (coming soon)</a></li>
+        <li><a href="#">📈 Site Analytics (coming soon)</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    &copy; <%= new Date().getFullYear() %> BookLantern. Admin Panel.
+  </footer>
+
+  <script>
+    const toggle = document.getElementById('darkModeToggle');
+    toggle.addEventListener('change', () => {
+      document.body.classList.toggle('dark-mode', toggle.checked);
+    });
+  </script>
 </body>
 </html>
