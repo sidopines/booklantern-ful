@@ -2,15 +2,16 @@
 <html>
 <head>
   <title>Register - BookLantern</title>
+  <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
   <h1>Register</h1>
-  <form method="POST" action="/register">
-    <input type="text" name="name" placeholder="Name" required><br>
-    <input type="email" name="email" placeholder="Email" required><br>
-    <input type="password" name="password" placeholder="Password" required><br>
+  <form action="/register" method="POST">
+    <input type="text" name="name" placeholder="Name" required /><br />
+    <input type="email" name="email" placeholder="Email" required /><br />
+    <input type="text" name="country" placeholder="Country" required /><br />
+    <input type="password" name="password" placeholder="Password" required /><br />
     <button type="submit">Register</button>
   </form>
-  <a href="/">Back to Home</a>
 </body>
 </html>
