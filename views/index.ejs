@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Home - BookLantern</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
   <header>
@@ -13,6 +14,7 @@
       <a href="/about">About</a>
       <a href="/contact">Contact</a>
       <a href="/admin">Admin</a>
+      <a href="/watch">Watch</a>
       <a href="/login">Login</a>
       <a href="/register">Register</a>
     </nav>
@@ -27,6 +29,14 @@
   <main>
     <h1>Welcome to BookLantern.org</h1>
     <p>Your gateway to preserved knowledge and archived treasures.</p>
+    <section>
+      <h2>🚀 Coming Soon</h2>
+      <ul>
+        <li>🧠 Archive Proxy Access</li>
+        <li>🎞️ Digital Library View</li>
+        <li>📺 <a href="/watch">Streaming Archive (Watch Page)</a></li>
+      </ul>
+    </section>
   </main>
 
   <footer>
@@ -35,8 +45,15 @@
 
   <script>
     const toggle = document.getElementById('darkModeToggle');
+    const savedMode = localStorage.getItem('darkMode');
+    if (savedMode === 'true') {
+      document.body.classList.add('dark-mode');
+      toggle.checked = true;
+    }
+
     toggle.addEventListener('change', () => {
       document.body.classList.toggle('dark-mode', toggle.checked);
+      localStorage.setItem('darkMode', toggle.checked);
     });
   </script>
 </body>
