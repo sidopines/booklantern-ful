@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Contact - BookLantern</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
   <header>
@@ -26,8 +27,8 @@
 
   <main>
     <h1>Contact Us</h1>
-    <p>Email: support@booklantern.org</p>
-    <p>Twitter: @booklantern</p>
+    <p>Email: <a href="mailto:support@booklantern.org">support@booklantern.org</a></p>
+    <p>Twitter: <a href="https://twitter.com/booklantern" target="_blank">@booklantern</a></p>
     <p>We're here to help — feel free to reach out!</p>
   </main>
 
@@ -37,8 +38,15 @@
 
   <script>
     const toggle = document.getElementById('darkModeToggle');
+    const savedMode = localStorage.getItem('darkMode');
+    if (savedMode === 'true') {
+      document.body.classList.add('dark-mode');
+      toggle.checked = true;
+    }
+
     toggle.addEventListener('change', () => {
       document.body.classList.toggle('dark-mode', toggle.checked);
+      localStorage.setItem('darkMode', toggle.checked);
     });
   </script>
 </body>
