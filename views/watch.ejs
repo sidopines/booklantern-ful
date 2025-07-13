@@ -2,22 +2,63 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Watch - BookLantern</title>
   <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    .video-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+      padding: 2rem;
+    }
+
+    .video-card {
+      background-color: #1e1e1e;
+      padding: 1rem;
+      border-radius: 10px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      transition: transform 0.3s;
+    }
+
+    .video-card img {
+      width: 100%;
+      border-radius: 8px;
+    }
+
+    .video-card p {
+      color: white;
+      margin-top: 0.75rem;
+    }
+
+    .video-card:hover {
+      transform: scale(1.03);
+    }
+
+    body:not(.dark-mode) .video-card {
+      background-color: #fff;
+      color: #000;
+    }
+
+    body:not(.dark-mode) .video-card p {
+      color: #000;
+    }
+  </style>
 </head>
 <body>
   <header>
-    <h1>BookLantern</h1>
+    <div>📚 BookLantern</div>
     <nav>
       <a href="/">Home</a>
       <a href="/about">About</a>
       <a href="/contact">Contact</a>
       <a href="/admin">Admin</a>
+      <a href="/watch">Watch</a>
       <a href="/login">Login</a>
       <a href="/register">Register</a>
     </nav>
     <div class="toggle-container">
-      <span>🌙</span>
       <label class="toggle-switch">
         <input type="checkbox" id="darkModeToggle">
         <span class="slider"></span>
@@ -26,31 +67,38 @@
   </header>
 
   <main>
-    <h2>Watch Library</h2>
+    <h1 style="text-align: center;">🎬 Watch Library</h1>
     <div class="video-grid">
       <div class="video-card">
-        <img src="https://via.placeholder.com/300x180?text=Video+1" alt="Video 1">
+        <img src="https://via.placeholder.com/300x180?text=Book+Trailer+1" alt="Video 1">
         <p>Book Trailer 1</p>
       </div>
       <div class="video-card">
-        <img src="https://via.placeholder.com/300x180?text=Video+2" alt="Video 2">
+        <img src="https://via.placeholder.com/300x180?text=Book+Trailer+2" alt="Video 2">
         <p>Book Trailer 2</p>
       </div>
       <div class="video-card">
-        <img src="https://via.placeholder.com/300x180?text=Video+3" alt="Video 3">
+        <img src="https://via.placeholder.com/300x180?text=Book+Trailer+3" alt="Video 3">
         <p>Book Trailer 3</p>
       </div>
     </div>
   </main>
 
   <footer>
-    <p>&copy; 2025 BookLantern.org</p>
+    &copy; <%= new Date().getFullYear() %> BookLantern. All rights reserved.
   </footer>
 
   <script>
     const toggle = document.getElementById('darkModeToggle');
+    const savedMode = localStorage.getItem('darkMode');
+    if (savedMode === 'true') {
+      document.body.classList.add('dark-mode');
+      toggle.checked = true;
+    }
+
     toggle.addEventListener('change', () => {
-      document.body.classList.toggle('dark-mode');
+      document.body.classList.toggle('dark-mode', toggle.checked);
+      localStorage.setItem('darkMode', toggle.checked);
     });
   </script>
 </body>
