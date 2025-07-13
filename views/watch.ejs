@@ -3,71 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <title>Watch - BookLantern</title>
-  <link rel="stylesheet" href="/css/style.css">
-  <style>
-    .hero {
-      position: relative;
-      background-image: url('/images/banner.jpg'); /* Placeholder image */
-      background-size: cover;
-      background-position: center;
-      height: 400px;
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-    }
-
-    .hero h1 {
-      font-size: 3rem;
-      text-shadow: 2px 2px 5px #000;
-    }
-
-    .video-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
-      margin-top: 2rem;
-    }
-
-    .video-card {
-      background-color: #1f1f1f;
-      border-radius: 8px;
-      overflow: hidden;
-      transition: transform 0.3s;
-    }
-
-    .video-card:hover {
-      transform: scale(1.05);
-    }
-
-    .video-card img {
-      width: 100%;
-      height: auto;
-    }
-
-    .video-card .title {
-      padding: 0.5rem 1rem;
-      font-size: 1rem;
-      color: white;
-    }
-
-    body.dark-mode .video-card {
-      background-color: #333;
-    }
-  </style>
+  <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
   <header>
-    <div>📺 BookLantern Stream</div>
+    <h1>BookLantern</h1>
     <nav>
       <a href="/">Home</a>
       <a href="/about">About</a>
       <a href="/contact">Contact</a>
-      <a href="/watch">Watch</a>
+      <a href="/admin">Admin</a>
       <a href="/login">Login</a>
+      <a href="/register">Register</a>
     </nav>
     <div class="toggle-container">
+      <span>🌙</span>
       <label class="toggle-switch">
         <input type="checkbox" id="darkModeToggle">
         <span class="slider"></span>
@@ -76,39 +26,31 @@
   </header>
 
   <main>
-    <section class="hero">
-      <h1>Now Streaming: Watch the Best of BookLantern</h1>
-    </section>
-
-    <section class="video-grid">
+    <h2>Watch Library</h2>
+    <div class="video-grid">
       <div class="video-card">
-        <img src="/images/video1.jpg" alt="Video Thumbnail 1">
-        <div class="title">The Rise of Giants</div>
+        <img src="https://via.placeholder.com/300x180?text=Video+1" alt="Video 1">
+        <p>Book Trailer 1</p>
       </div>
       <div class="video-card">
-        <img src="/images/video2.jpg" alt="Video Thumbnail 2">
-        <div class="title">The Spirit of Sacrifice</div>
+        <img src="https://via.placeholder.com/300x180?text=Video+2" alt="Video 2">
+        <p>Book Trailer 2</p>
       </div>
       <div class="video-card">
-        <img src="/images/video3.jpg" alt="Video Thumbnail 3">
-        <div class="title">Lost Civilizations</div>
+        <img src="https://via.placeholder.com/300x180?text=Video+3" alt="Video 3">
+        <p>Book Trailer 3</p>
       </div>
-      <div class="video-card">
-        <img src="/images/video4.jpg" alt="Video Thumbnail 4">
-        <div class="title">Crow Who Taught Men</div>
-      </div>
-      <!-- Add more cards as needed -->
-    </section>
+    </div>
   </main>
 
   <footer>
-    &copy; <%= new Date().getFullYear() %> BookLantern. Watch Anywhere. Anytime.
+    <p>&copy; 2025 BookLantern.org</p>
   </footer>
 
   <script>
     const toggle = document.getElementById('darkModeToggle');
     toggle.addEventListener('change', () => {
-      document.body.classList.toggle('dark-mode', toggle.checked);
+      document.body.classList.toggle('dark-mode');
     });
   </script>
 </body>
