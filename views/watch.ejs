@@ -1,39 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Watch - BookLantern</title>
   <link rel="stylesheet" href="/css/styles.css">
   <style>
     .video-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 1.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 2rem;
       padding: 2rem;
     }
 
     .video-card {
       background-color: #1e1e1e;
-      padding: 1rem;
       border-radius: 10px;
-      text-align: center;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      transition: transform 0.3s;
+      overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
 
-    .video-card img {
+    .video-card iframe {
       width: 100%;
-      border-radius: 8px;
+      height: 180px;
+      border: none;
     }
 
     .video-card p {
       color: white;
-      margin-top: 0.75rem;
-    }
-
-    .video-card:hover {
-      transform: scale(1.03);
+      padding: 0.8rem;
+      font-size: 1rem;
+      text-align: center;
     }
 
     body:not(.dark-mode) .video-card {
@@ -70,16 +67,16 @@
     <h1 style="text-align: center;">🎬 Watch Library</h1>
     <div class="video-grid">
       <div class="video-card">
-        <img src="https://via.placeholder.com/300x180?text=Book+Trailer+1" alt="Video 1">
-        <p>Book Trailer 1</p>
+        <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="Video 1" allowfullscreen></iframe>
+        <p>📚 Book Trailer: Timeless Classics</p>
       </div>
       <div class="video-card">
-        <img src="https://via.placeholder.com/300x180?text=Book+Trailer+2" alt="Video 2">
-        <p>Book Trailer 2</p>
+        <iframe src="https://www.youtube.com/embed/BaW_jenozKc" title="Video 2" allowfullscreen></iframe>
+        <p>🎥 Literary Documentaries</p>
       </div>
       <div class="video-card">
-        <img src="https://via.placeholder.com/300x180?text=Book+Trailer+3" alt="Video 3">
-        <p>Book Trailer 3</p>
+        <iframe src="https://www.youtube.com/embed/aqz-KE-bpKQ" title="Video 3" allowfullscreen></iframe>
+        <p>🔍 Rare Books Explained</p>
       </div>
     </div>
   </main>
@@ -90,12 +87,11 @@
 
   <script>
     const toggle = document.getElementById('darkModeToggle');
-    const savedMode = localStorage.getItem('darkMode');
-    if (savedMode === 'true') {
+    const saved = localStorage.getItem('darkMode');
+    if (saved === 'true') {
       document.body.classList.add('dark-mode');
       toggle.checked = true;
     }
-
     toggle.addEventListener('change', () => {
       document.body.classList.toggle('dark-mode', toggle.checked);
       localStorage.setItem('darkMode', toggle.checked);
