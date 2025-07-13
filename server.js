@@ -13,6 +13,7 @@ app.get('/contact', (req, res) => res.render('contact'));
 app.get('/admin', (req, res) => res.render('admin'));
 app.get('/login', (req, res) => res.render('login'));
 app.get('/register', (req, res) => res.render('register'));
+app.get('/watch', (req, res) => res.render('watch'));
 
 app.post('/login', (req, res) => {
   const { email, password } = req.body;
