@@ -2,46 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Watch - BookLantern</title>
-  <link rel="stylesheet" href="/css/styles.css">
-  <style>
-    .video-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 2rem;
-      padding: 2rem;
-    }
-
-    .video-card {
-      background-color: #1e1e1e;
-      border-radius: 10px;
-      overflow: hidden;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    }
-
-    .video-card iframe {
-      width: 100%;
-      height: 180px;
-      border: none;
-    }
-
-    .video-card p {
-      color: white;
-      padding: 0.8rem;
-      font-size: 1rem;
-      text-align: center;
-    }
-
-    body:not(.dark-mode) .video-card {
-      background-color: #fff;
-      color: #000;
-    }
-
-    body:not(.dark-mode) .video-card p {
-      color: #000;
-    }
-  </style>
+  <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
   <header>
@@ -50,52 +12,77 @@
       <a href="/">Home</a>
       <a href="/about">About</a>
       <a href="/contact">Contact</a>
-      <a href="/admin">Admin</a>
       <a href="/watch">Watch</a>
+      <a href="/admin">Admin</a>
       <a href="/login">Login</a>
       <a href="/register">Register</a>
     </nav>
     <div class="toggle-container">
       <label class="toggle-switch">
-        <input type="checkbox" id="darkModeToggle">
+        <input type="checkbox" id="darkModeToggle" />
         <span class="slider"></span>
       </label>
     </div>
   </header>
 
   <main>
-    <h1 style="text-align: center;">🎬 Watch Library</h1>
-    <div class="video-grid">
-      <div class="video-card">
-        <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="Video 1" allowfullscreen></iframe>
-        <p>📚 Book Trailer: Timeless Classics</p>
-      </div>
-      <div class="video-card">
-        <iframe src="https://www.youtube.com/embed/BaW_jenozKc" title="Video 2" allowfullscreen></iframe>
-        <p>🎥 Literary Documentaries</p>
-      </div>
-      <div class="video-card">
-        <iframe src="https://www.youtube.com/embed/aqz-KE-bpKQ" title="Video 3" allowfullscreen></iframe>
-        <p>🔍 Rare Books Explained</p>
-      </div>
+    <h1>🎬 Watch Library</h1>
+
+    <!-- Search and Filter -->
+    <div class="filter-container">
+      <input type="text" id="searchInput" placeholder="Search videos..." />
+      <select id="genreFilter">
+        <option value="">All Genres</option>
+        <% genres.forEach(genre => { %>
+          <option value="<%= genre %>"><%= genre %></option>
+        <% }) %>
+      </select>
+    </div>
+
+    <!-- Video Grid -->
+    <div class="video-grid" id="videoGrid">
+      <% videos.forEach(video => { %>
+        <div class="video-card" data-title="<%= video.title.toLowerCase() %>" data-genre="<%= video.genre.toLowerCase() %>">
+          <iframe width="300" height="180" src="<%= video.youtubeUrl.replace('watch?v=', 'embed/') %>" frameborder="0" allowfullscreen></iframe>
+          <p><strong><%= video.title %></strong></p>
+          <p><%= video.genre %></p>
+        </div>
+      <% }) %>
     </div>
   </main>
 
   <footer>
-    &copy; <%= new Date().getFullYear() %> BookLantern. All rights reserved.
+    &copy; <%= new Date().getFullYear() %> BookLantern.org
   </footer>
 
   <script>
-    const toggle = document.getElementById('darkModeToggle');
-    const saved = localStorage.getItem('darkMode');
-    if (saved === 'true') {
-      document.body.classList.add('dark-mode');
-      toggle.checked = true;
-    }
-    toggle.addEventListener('change', () => {
-      document.body.classList.toggle('dark-mode', toggle.checked);
-      localStorage.setItem('darkMode', toggle.checked);
+    const toggle = document.getElementById("darkModeToggle");
+    toggle.addEventListener("change", () => {
+      document.body.classList.toggle("dark-mode", toggle.checked);
     });
+
+    // Genre filter and search logic
+    const searchInput = document.getElementById("searchInput");
+    const genreFilter = document.getElementById("genreFilter");
+    const videoCards = document.querySelectorAll(".video-card");
+
+    function filterVideos() {
+      const search = searchInput.value.toLowerCase();
+      const genre = genreFilter.value.toLowerCase();
+
+      videoCards.forEach(card => {
+        const title = card.dataset.title;
+        const cardGenre = card.dataset.genre;
+
+        const matchesSearch = title.includes(search);
+        const matchesGenre = !genre || cardGenre === genre;
+
+        card.style.display = matchesSearch && matchesGenre ? "block" : "none";
+      });
+    }
+
+    searchInput.addEventListener("input", filterVideos);
+    genreFilter.addEventListener("change", filterVideos);
   </script>
 </body>
 </html>
