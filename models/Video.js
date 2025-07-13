@@ -1,5 +1,3 @@
-// models/Video.js (new file to be created)
-
 const mongoose = require('mongoose');
 
 const videoSchema = new mongoose.Schema({
@@ -8,7 +6,8 @@ const videoSchema = new mongoose.Schema({
     required: true,
   },
   genre: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Genre',
     required: true,
   },
   youtubeUrl: {
