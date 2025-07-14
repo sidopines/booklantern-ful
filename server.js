@@ -53,6 +53,17 @@ app.get('/watch', async (req, res) => {
   }
   res.render('watch', { genres, videos });
 });
+// ===== PLAYER PAGE (View single video) =====
+app.get('/player/:id', async (req, res) => {
+  try {
+    const video = await Video.findById(req.params.id);
+    if (!video) return res.status(404).send('Video not found');
+    res.render('player', { video });
+  } catch (err) {
+    console.error('Error loading video:', err);
+    res.status(500).send('Internal Server Error');
+  }
+});
 
 // ===== AUTH (placeholder) =====
 app.post('/login', (req, res) => {
