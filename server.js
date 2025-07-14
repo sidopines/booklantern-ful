@@ -80,13 +80,23 @@ app.post('/register', (req, res) => {
 app.post('/admin/add-video', async (req, res) => {
   const { title, genre, youtubeUrl, thumbnail, description } = req.body;
   try {
+    if (!title || !genre || !youtubeUrl) {
+      return res.send("Title, Genre, and YouTube URL are required.");
+    }
+
+    const existingGenre = await Genre.findOne({ name: genre });
+    if (!existingGenre) {
+      return res.send("Genre not found. Please add it first.");
+    }
+
     await Video.create({ title, genre, youtubeUrl, thumbnail, description });
     res.redirect('/admin');
   } catch (err) {
-    console.error('Error adding video:', err);
-    res.send('Error adding video');
+    console.error('❌ Error adding video:', err);
+    res.status(500).send("An internal server error occurred. Check server logs.");
   }
 });
+
 
 app.post('/admin/delete-video/:id', async (req, res) => {
   try {
