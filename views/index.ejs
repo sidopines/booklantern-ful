@@ -1,60 +1,127 @@
+<!-- views/index.ejs -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Home - BookLantern</title>
-  <link rel="stylesheet" href="/css/styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BookLantern | Read, Watch, Discover</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background-color: #fdfcfb;
+      color: #333;
+    }
+    header {
+      background: #111;
+      color: white;
+      padding: 1.5rem 3rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header a {
+      color: white;
+      margin-left: 1.5rem;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 70vh;
+      text-align: center;
+      padding: 2rem;
+      background: linear-gradient(to right, #e3f2fd, #fce4ec);
+    }
+    .hero h1 {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+    .hero p {
+      font-size: 1.25rem;
+      max-width: 600px;
+    }
+    .explore-btn {
+      margin-top: 2rem;
+      padding: 0.8rem 1.8rem;
+      font-size: 1rem;
+      background: #111;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .explore-btn:hover {
+      background: #333;
+    }
+    .features {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      padding: 4rem 2rem;
+      gap: 2rem;
+    }
+    .feature-box {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+      padding: 2rem;
+      flex: 1;
+      min-width: 280px;
+      max-width: 400px;
+      text-align: center;
+    }
+    .feature-box h3 {
+      margin-bottom: 0.75rem;
+    }
+    footer {
+      text-align: center;
+      padding: 2rem;
+      background: #111;
+      color: white;
+    }
+  </style>
 </head>
 <body>
   <header>
-    <div>📚 BookLantern</div>
+    <div><strong>📚 BookLantern</strong></div>
     <nav>
       <a href="/">Home</a>
       <a href="/about">About</a>
       <a href="/contact">Contact</a>
-      <a href="/admin">Admin</a>
       <a href="/watch">Watch</a>
       <a href="/login">Login</a>
       <a href="/register">Register</a>
     </nav>
-    <div class="toggle-container">
-      <label class="toggle-switch">
-        <input type="checkbox" id="darkModeToggle">
-        <span class="slider"></span>
-      </label>
-    </div>
   </header>
 
-  <main>
-    <h1>Welcome to BookLantern.org</h1>
-    <p>Your gateway to preserved knowledge and archived treasures.</p>
-    <section>
-      <h2>🚀 Coming Soon</h2>
-      <ul>
-        <li>🧠 Archive Proxy Access</li>
-        <li>🎞️ Digital Library View</li>
-        <li>📺 <a href="/watch">Streaming Archive (Watch Page)</a></li>
-      </ul>
-    </section>
-  </main>
+  <div class="hero">
+    <h1>Discover a World of Free Knowledge</h1>
+    <p>Stream educational videos, read free books, and bookmark your favorites — all in one place, without knowing they're from open libraries like Archive.org.</p>
+    <a href="/register"><button class="explore-btn">Start Reading</button></a>
+  </div>
+
+  <div class="features">
+    <div class="feature-box">
+      <h3>📖 Free Books</h3>
+      <p>Access thousands of public domain and open-license books — from classic literature to modern learning.</p>
+    </div>
+    <div class="feature-box">
+      <h3>🎬 Watch Content</h3>
+      <p>Hand-curated educational videos hosted on our site with a Netflix-like viewing experience.</p>
+    </div>
+    <div class="feature-box">
+      <h3>🔐 One Account, Full Access</h3>
+      <p>Register once to unlock reading, watching, saving bookmarks, and customizing your learning space.</p>
+    </div>
+  </div>
 
   <footer>
-    &copy; <%= new Date().getFullYear() %> BookLantern. All rights reserved.
+    &copy; 2025 BookLantern. Powered by open access and curiosity.
   </footer>
-
-  <script>
-    const toggle = document.getElementById('darkModeToggle');
-    const savedMode = localStorage.getItem('darkMode');
-    if (savedMode === 'true') {
-      document.body.classList.add('dark-mode');
-      toggle.checked = true;
-    }
-
-    toggle.addEventListener('change', () => {
-      document.body.classList.toggle('dark-mode', toggle.checked);
-      localStorage.setItem('darkMode', toggle.checked);
-    });
-  </script>
 </body>
 </html>
