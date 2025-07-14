@@ -26,10 +26,10 @@
   <form action="/admin/add-video" method="POST">
     <input type="text" name="title" placeholder="Video Title" required />
     
-    <select name="genre" required>
+    <select class="form-input" id="genre" name="genre" required>
       <option value="">-- Select Genre --</option>
-      <% genres.forEach(genre => { %>
-        <option value="<%= genre.name %>"><%= genre.name %></option>
+      <% genres.forEach(function(g) { %>
+        <option value="<%= g._id %>"><%= g.name %></option>
       <% }) %>
     </select>
 
@@ -42,7 +42,7 @@
   <h2>All Videos</h2>
   <% videos.forEach(video => { %>
     <div class="video-card">
-      <h3><%= video.title %> (<%= video.genre %>)</h3>
+      <h3><%= video.title %> (<%= video.genre.name || "Unknown Genre" %>)</h3>
       <p><%= video.description %></p>
       <form action="/admin/delete-video/<%= video._id %>" method="POST" onsubmit="return confirm('Are you sure?');">
         <button type="submit">Delete</button>
