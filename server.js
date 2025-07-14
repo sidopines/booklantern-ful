@@ -1,6 +1,6 @@
 // server.js
 
-require('dotenv').config(); // Load environment variables (for local dev)
+require('dotenv').config(); // Load environment variables
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -11,10 +11,7 @@ const app = express();
 // ===== MONGODB CONNECTION =====
 const mongoURI = process.env.MONGODB_URI;
 mongoose
-  .connect(mongoURI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(mongoURI)
   .then(() => console.log('✅ Connected to MongoDB Atlas'))
   .catch((err) => console.error('❌ MongoDB connection error:', err));
 
@@ -33,30 +30,35 @@ const Genre = require('./models/Genre');
 app.get('/', (req, res) => res.render('index'));
 app.get('/about', (req, res) => res.render('about'));
 app.get('/contact', (req, res) => res.render('contact'));
-app.get('/admin', async (req, res) => {
-  const genres = await Genre.find({});
-  const videos = await Video.find({}).sort({ createdAt: -1 });
-  res.render('admin', { genres, videos });
-});
 app.get('/login', (req, res) => res.render('login'));
 app.get('/register', (req, res) => res.render('register'));
 
-// ===== WATCH PAGE (Dynamic) =====
+// ===== ADMIN PANEL =====
+app.get('/admin', async (req, res) => {
+  const genres = await Genre.find({});
+  const videos = await Video.find({}).populate('genre').sort({ createdAt: -1 });
+  res.render('admin', { genres, videos });
+});
+
+// ===== WATCH PAGE =====
 app.get('/watch', async (req, res) => {
   const genreFilter = req.query.genre;
   const genres = await Genre.find({});
   let videos;
+
   if (genreFilter) {
-    videos = await Video.find({ genre: genreFilter }).sort({ createdAt: -1 });
+    videos = await Video.find({ genre: genreFilter }).populate('genre').sort({ createdAt: -1 });
   } else {
-    videos = await Video.find({}).sort({ createdAt: -1 });
+    videos = await Video.find({}).populate('genre').sort({ createdAt: -1 });
   }
+
   res.render('watch', { genres, videos });
 });
-// ===== PLAYER PAGE (View single video) =====
+
+// ===== PLAYER PAGE =====
 app.get('/player/:id', async (req, res) => {
   try {
-    const video = await Video.findById(req.params.id);
+    const video = await Video.findById(req.params.id).populate('genre');
     if (!video) return res.status(404).send('Video not found');
     res.render('player', { video });
   } catch (err) {
@@ -65,7 +67,7 @@ app.get('/player/:id', async (req, res) => {
   }
 });
 
-// ===== AUTH (placeholder) =====
+// ===== AUTH PLACEHOLDER =====
 app.post('/login', (req, res) => {
   const { email, password } = req.body;
   res.send(`Login attempted for ${email}`);
@@ -76,17 +78,12 @@ app.post('/register', (req, res) => {
   res.send(`Registration attempted for ${name}`);
 });
 
-// ===== ADMIN: ADD/DELETE VIDEO =====
+// ===== ADMIN: ADD VIDEO =====
 app.post('/admin/add-video', async (req, res) => {
   const { title, genre, youtubeUrl, thumbnail, description } = req.body;
   try {
     if (!title || !genre || !youtubeUrl) {
       return res.send("Title, Genre, and YouTube URL are required.");
-    }
-
-    const existingGenre = await Genre.findOne({ name: genre });
-    if (!existingGenre) {
-      return res.send("Genre not found. Please add it first.");
     }
 
     await Video.create({ title, genre, youtubeUrl, thumbnail, description });
@@ -97,7 +94,7 @@ app.post('/admin/add-video', async (req, res) => {
   }
 });
 
-
+// ===== ADMIN: DELETE VIDEO =====
 app.post('/admin/delete-video/:id', async (req, res) => {
   try {
     await Video.findByIdAndDelete(req.params.id);
