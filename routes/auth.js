@@ -3,10 +3,19 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const User = require('../models/User');
 const sendVerificationEmail = require('../utils/sendVerification');
 
-// Register
+// Middleware to check if user is logged in
+function isAuthenticated(req, res, next) {
+  if (req.session && req.session.user) {
+    return next();
+  }
+  res.redirect('/login');
+}
+
+// Register Route
 router.post('/register', async (req, res) => {
   const { name, email, password } = req.body;
 
@@ -14,7 +23,8 @@ router.post('/register', async (req, res) => {
     const existingUser = await User.findOne({ email });
     if (existingUser) return res.send('User already exists.');
 
-    const newUser = new User({ name, email, password });
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const newUser = new User({ name, email, password: hashedPassword });
     const savedUser = await newUser.save();
 
     const token = jwt.sign({ id: savedUser._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
@@ -27,7 +37,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Email Verification
+// Email Verification Route
 router.get('/verify-email', async (req, res) => {
   const token = req.query.token;
 
@@ -48,27 +58,35 @@ router.get('/verify-email', async (req, res) => {
   }
 });
 
-// Login
+// Login Route
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {
     const user = await User.findOne({ email });
-    if (!user || user.password !== password) return res.send('Invalid credentials.');
+    if (!user) return res.send('Invalid credentials.');
     if (!user.verified) return res.send('Please verify your email before logging in.');
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.send('Invalid credentials.');
+
+    req.session.user = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    };
 
     if (user.role === 'admin') {
       return res.redirect('/admin');
     } else {
-      return res.redirect('/watch'); // subscriber dashboard
+      return res.redirect('/dashboard');
     }
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).send('Login failed.');
   }
 });
-
-module.exports = router;
 
 // Change Password Route
 router.post('/settings', isAuthenticated, async (req, res) => {
@@ -92,3 +110,4 @@ router.post('/settings', isAuthenticated, async (req, res) => {
   }
 });
 
+module.exports = router;
