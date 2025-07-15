@@ -1,0 +1,60 @@
+<!-- views/settings.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Account Settings | BookLantern</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      padding: 2rem;
+    }
+    .container {
+      background: white;
+      padding: 2rem;
+      border-radius: 10px;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #333;
+      text-align: center;
+    }
+    input {
+      width: 100%;
+      padding: 0.7rem;
+      margin: 0.5rem 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    button {
+      width: 100%;
+      padding: 0.7rem;
+      background: #333;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .back-link {
+      display: block;
+      text-align: center;
+      margin-top: 1rem;
+      color: #0077cc;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 Change Password</h1>
+    <form action="/settings" method="POST">
+      <input type="password" name="oldPassword" placeholder="Current Password" required />
+      <input type="password" name="newPassword" placeholder="New Password" required />
+      <button type="submit">Update Password</button>
+    </form>
+    <a href="/dashboard" class="back-link">← Back to Dashboard</a>
+  </div>
+</body>
+</html>
