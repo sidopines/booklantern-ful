@@ -1,4 +1,3 @@
-<!-- views/favorites.ejs -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,53 +5,67 @@
   <title>My Favorite Books | BookLantern</title>
   <style>
     body {
-      font-family: sans-serif;
-      background: #fafafa;
+      font-family: Arial, sans-serif;
       padding: 2rem;
+      background: #f8f8f8;
     }
     h1 {
-      color: #333;
-    }
-    .book {
-      background: white;
-      border-radius: 10px;
-      padding: 1rem;
       margin-bottom: 1rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
-    .book a {
-      font-size: 18px;
-      color: #0077cc;
+    .book-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.5rem;
+    }
+    .book-card {
+      background: white;
+      padding: 1rem;
+      border-radius: 10px;
+      box-shadow: 0 0 6px rgba(0, 0, 0, 0.1);
+    }
+    .book-card h3 {
+      font-size: 1.1rem;
+      margin-bottom: 0.5rem;
+    }
+    .book-card a {
+      display: inline-block;
+      margin-top: 0.5rem;
       text-decoration: none;
+      color: #0077cc;
     }
-    .book a:hover {
-      text-decoration: underline;
+    .book-card form {
+      margin-top: 0.5rem;
     }
-    .remove-btn {
-      float: right;
-      background: #ff5555;
+    .book-card button {
+      padding: 0.4rem 0.8rem;
+      background: crimson;
       color: white;
       border: none;
-      padding: 0.4rem 0.8rem;
-      border-radius: 5px;
+      border-radius: 4px;
       cursor: pointer;
+    }
+    .book-card button:hover {
+      background: darkred;
     }
   </style>
 </head>
 <body>
-  <h1>❤️ My Favorite Books</h1>
+  <h1>📚 My Favorite Books</h1>
 
   <% if (favorites.length === 0) { %>
-    <p>You have not added any books to favorites yet.</p>
+    <p>You haven’t added any books to your favorites yet.</p>
   <% } else { %>
-    <% favorites.forEach(fav => { %>
-      <div class="book">
-        <a href="/read/book/<%= fav.book._id %>"><%= fav.book.title %></a>
-        <form method="POST" action="/read/book/<%= fav.book._id %>/favorite" style="display:inline;">
-          <button class="remove-btn" type="submit">Remove</button>
-        </form>
-      </div>
-    <% }) %>
+    <div class="book-list">
+      <% favorites.forEach(fav => { %>
+        <div class="book-card">
+          <h3><%= fav.book.title %></h3>
+          <a href="/read/book/<%= fav.book._id %>">📖 Read Book</a>
+          <form action="/favorite/<%= fav.book._id %>/remove" method="POST">
+            <button type="submit">Remove</button>
+          </form>
+        </div>
+      <% }) %>
+    </div>
   <% } %>
 </body>
 </html>
