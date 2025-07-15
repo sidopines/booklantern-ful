@@ -235,6 +235,12 @@ app.post('/admin/add-genre', async (req, res) => {
   }
 });
 
+// ===== SERVE CUSTOM robots.txt =====
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain');
+  res.sendFile(path.join(__dirname, 'public', 'robots.txt'));
+});
+
 // ===== PORT =====
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
