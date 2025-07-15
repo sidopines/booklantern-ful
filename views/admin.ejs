@@ -7,10 +7,10 @@
   <style>
     body { font-family: Arial; padding: 2rem; background: #f2f2f2; }
     h1 { margin-bottom: 1rem; }
-    form, .video-card { background: white; padding: 1rem; border-radius: 10px; margin-bottom: 2rem; }
+    form, .video-card, .book-card { background: white; padding: 1rem; border-radius: 10px; margin-bottom: 2rem; }
     input, textarea, select { width: 100%; padding: 0.5rem; margin-bottom: 1rem; border-radius: 5px; border: 1px solid #ccc; }
     button { padding: 0.7rem 1.5rem; background-color: #333; color: white; border: none; border-radius: 5px; cursor: pointer; }
-    .video-card { margin-bottom: 1rem; }
+    .video-card, .book-card { margin-bottom: 1rem; }
   </style>
 </head>
 <body>
@@ -39,6 +39,12 @@
     <button type="submit">Add Video</button>
   </form>
 
+  <h2>Add Book from Archive.org</h2>
+  <form action="/admin/add-book" method="POST">
+    <input type="url" name="archiveUrl" placeholder="https://archive.org/details/..." required />
+    <button type="submit">Add Book</button>
+  </form>
+
   <h2>All Videos</h2>
   <% videos.forEach(video => { %>
     <div class="video-card">
@@ -49,5 +55,16 @@
       </form>
     </div>
   <% }) %>
+
+  <% if (typeof books !== 'undefined' && books.length > 0) { %>
+    <h2>Recently Added Books</h2>
+    <% books.forEach(book => { %>
+      <div class="book-card">
+        <h3><%= book.title %></h3>
+        <p><a href="/read/book/<%= book._id %>" target="_blank">View Book</a></p>
+      </div>
+    <% }) %>
+  <% } %>
+
 </body>
 </html>
