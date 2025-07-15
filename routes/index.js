@@ -1,33 +1,26 @@
 // routes/index.js
 const express = require('express');
 const router = express.Router();
-const sendContactEmail = require('../utils/sendContactEmail');
 
-// Home
 router.get('/', (req, res) => {
-  res.render('index');
+  res.render('index', {
+    pageTitle: 'Home',
+    pageDescription: 'Discover free books and knowledge on BookLantern.'
+  });
 });
 
-// About
 router.get('/about', (req, res) => {
-  res.render('about');
+  res.render('about', {
+    pageTitle: 'About',
+    pageDescription: 'Learn about BookLantern’s mission to make books accessible.'
+  });
 });
 
-// Contact - GET
 router.get('/contact', (req, res) => {
-  res.render('contact', { success: null, error: null });
-});
-
-// Contact - POST
-router.post('/contact', async (req, res) => {
-  const { name, email, message } = req.body;
-  try {
-    await sendContactEmail(name, email, message);
-    res.render('contact', { success: '✅ Your message has been sent successfully!', error: null });
-  } catch (err) {
-    console.error('Contact form error:', err);
-    res.render('contact', { error: '❌ Failed to send message. Please try again.', success: null });
-  }
+  res.render('contact', {
+    pageTitle: 'Contact',
+    pageDescription: 'Get in touch with the BookLantern team.'
+  });
 });
 
 module.exports = router;
