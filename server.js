@@ -42,9 +42,9 @@ const Genre = require('./models/Genre');
 const Book = require('./models/Book');
 const Bookmark = require('./models/Bookmark');
 
-// ===== AUTH ROUTES =====
-app.use('/', authRoutes);
-app.use('/', bookRoutes);
+// ===== ROUTES =====
+app.use('/', authRoutes);  // Auth routes (login/register/verify/settings)
+app.use('/', bookRoutes);  // Handles /admin/add-book etc.
 
 // ===== STATIC PAGES =====
 app.get('/', (req, res) => res.render('index'));
@@ -57,7 +57,8 @@ app.get('/register', (req, res) => res.render('register'));
 app.get('/admin', async (req, res) => {
   const genres = await Genre.find({});
   const videos = await Video.find({}).populate('genre').sort({ createdAt: -1 });
-  res.render('admin', { genres, videos });
+  const books = await Book.find({}).sort({ createdAt: -1 }).limit(5); // Pass recent books
+  res.render('admin', { genres, videos, books });
 });
 
 // ===== WATCH PAGE =====
@@ -87,7 +88,7 @@ app.get('/player/:id', async (req, res) => {
   }
 });
 
-// ===== READ PAGE (LIST ALL BOOKS) =====
+// ===== READ PAGE (List All Books) =====
 app.get('/read', async (req, res) => {
   try {
     const books = await Book.find({}).sort({ createdAt: -1 });
