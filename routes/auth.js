@@ -1,44 +1,71 @@
-const express = require('express');
-const bcrypt = require('bcryptjs');
-const User = require('../models/User');
-const jwt = require('jsonwebtoken');
-const sendVerification = require('../utils/sendVerification');
-const router = express.Router();
+// routes/auth.js
 
-// REGISTER
+const express = require('express');
+const router = express.Router();
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+const sendVerificationEmail = require('../utils/sendVerification');
+
+// Register
 router.post('/register', async (req, res) => {
   const { name, email, password } = req.body;
-  const hashed = await bcrypt.hash(password, 12);
-  const user = await User.create({ name, email, password: hashed });
-  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
-  await sendVerification(email, token);
-  res.send('Check your email for verification.');
+
+  try {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) return res.send('User already exists.');
+
+    const newUser = new User({ name, email, password });
+    const savedUser = await newUser.save();
+
+    const token = jwt.sign({ id: savedUser._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    await sendVerificationEmail(savedUser.email, token, process.env.BASE_URL);
+
+    res.send('✅ Registration successful. Please check your email to verify your account.');
+  } catch (err) {
+    console.error('Error in registration:', err);
+    res.status(500).send('Server error during registration.');
+  }
 });
 
-// VERIFY
-router.get('/verify', async (req, res) => {
-  const { token } = req.query;
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  await User.findByIdAndUpdate(decoded.id, { verified: true });
-  res.send('✅ Email verified! You can now log in.');
+// Email Verification
+router.get('/verify-email', async (req, res) => {
+  const token = req.query.token;
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (!user) return res.send('Invalid token.');
+    if (user.verified) return res.send('Email already verified.');
+
+    user.verified = true;
+    await user.save();
+
+    res.send('🎉 Email verified! You can now log in.');
+  } catch (err) {
+    console.error('Verification error:', err);
+    res.status(400).send('Invalid or expired token.');
+  }
 });
 
-// LOGIN
+// Login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  const user = await User.findOne({ email });
-  if (!user || !user.verified) return res.send('Invalid or unverified account');
 
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) return res.send('Wrong password');
+  try {
+    const user = await User.findOne({ email });
+    if (!user || user.password !== password) return res.send('Invalid credentials.');
+    if (!user.verified) return res.send('Please verify your email before logging in.');
 
-  req.session.user = {
-    id: user._id,
-    role: user.role
-  };
-
-  // Redirect based on role
-  return res.redirect(user.role === 'admin' ? '/admin' : '/dashboard');
+    if (user.role === 'admin') {
+      return res.redirect('/admin');
+    } else {
+      return res.redirect('/watch'); // subscriber dashboard
+    }
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).send('Login failed.');
+  }
 });
 
 module.exports = router;
