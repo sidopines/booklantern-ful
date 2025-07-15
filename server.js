@@ -7,8 +7,10 @@ const mongoose = require('mongoose');
 const path = require('path');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
+
 const authRoutes = require('./routes/auth');
 const bookRoutes = require('./routes/bookRoutes');
+const indexRoutes = require('./routes/index'); // ✅ Added
 
 const app = express();
 
@@ -44,15 +46,9 @@ const Bookmark = require('./models/Bookmark');
 const Favorite = require('./models/Favorite');
 
 // ===== ROUTES =====
+app.use('/', indexRoutes); // ✅ Use index routes for home, about, contact
 app.use('/', authRoutes);
 app.use('/', bookRoutes);
-
-// ===== STATIC PAGES =====
-app.get('/', (req, res) => res.render('index'));
-app.get('/about', (req, res) => res.render('about'));
-app.get('/contact', (req, res) => res.render('contact'));
-app.get('/login', (req, res) => res.render('login'));
-app.get('/register', (req, res) => res.render('register'));
 
 // ===== ADMIN PANEL =====
 app.get('/admin', async (req, res) => {
@@ -101,7 +97,14 @@ app.get('/read/book/:id', async (req, res) => {
   try {
     const book = await Book.findById(req.params.id);
     if (!book) return res.status(404).send('Book not found');
-    res.render('book-viewer', { book });
+
+    const isFavorite = req.session.user
+      ? await Favorite.exists({ user: req.session.user._id, book: book._id })
+      : false;
+
+    const user = req.session.user;
+
+    res.render('book-viewer', { book, isFavorite, user });
   } catch (err) {
     console.error('Error loading book:', err);
     res.status(500).send('Internal Server Error');
