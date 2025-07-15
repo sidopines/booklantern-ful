@@ -1,23 +1,14 @@
-<!-- views/book-viewer.ejs -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title><%= book.title %> | Read</title>
+  <title><%= book.title %> | Book Viewer</title>
   <style>
     body {
-      font-family: 'Georgia', serif;
+      font-family: Arial, sans-serif;
       background: #f4f4f4;
       margin: 0;
       padding: 2rem;
-    }
-    .container {
-      max-width: 900px;
-      margin: auto;
-      background: white;
-      padding: 2rem;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
     h1 {
       margin-bottom: 1rem;
@@ -25,26 +16,64 @@
     iframe {
       width: 100%;
       height: 80vh;
-      border: none;
+      border: 1px solid #ccc;
+      border-radius: 8px;
     }
-    .meta {
-      color: #555;
-      margin-bottom: 1rem;
-    }
-    a.back {
-      display: inline-block;
-      margin-bottom: 1.5rem;
-      text-decoration: none;
-      color: #007bff;
+    #bookmark-status {
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      color: green;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <a href="/read" class="back">← Back to All Books</a>
-    <h1><%= book.title %></h1>
-    <div class="meta">Author: <%= book.author || 'Unknown' %></div>
-    <iframe src="<%= book.archiveUrl %>&ui=embed" allowfullscreen></iframe>
-  </div>
+  <h1><%= book.title %></h1>
+
+  <iframe
+    id="book-frame"
+    src="https://archive.org/stream/<%= book.archiveId %>?ui=embed#page=1"
+    allowfullscreen
+  ></iframe>
+
+  <div id="bookmark-status">⏳ Loading last saved page...</div>
+
+  <script>
+    const userLoggedIn = <%= typeof user !== 'undefined' ? 'true' : 'false' %>;
+    const bookId = "<%= book._id %>";
+    const iframe = document.getElementById('book-frame');
+    const bookmarkStatus = document.getElementById('bookmark-status');
+
+    // Load last saved page
+    fetch(`/read/book/${bookId}/bookmark`)
+      .then(res => res.json())
+      .then(data => {
+        const page = data.page || 1;
+        iframe.src = `https://archive.org/stream/<%= book.archiveId %>?ui=embed#page=${page}`;
+        bookmarkStatus.textContent = `📖 Resuming from page ${page}`;
+      })
+      .catch(() => {
+        bookmarkStatus.textContent = "⚠️ Failed to load last bookmark.";
+      });
+
+    // Save bookmark on unload (rough approximation)
+    window.addEventListener('beforeunload', () => {
+      if (!userLoggedIn) return;
+      const currentPage = getCurrentPageFromHash(iframe.src);
+      if (currentPage) {
+        fetch(`/read/book/${bookId}/bookmark`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ page: currentPage })
+        });
+      }
+    });
+
+    function getCurrentPageFromHash(url) {
+      const match = url.match(/#page=(\d+)/);
+      return match ? parseInt(match[1], 10) : 1;
+    }
+  </script>
 </body>
 </html>
