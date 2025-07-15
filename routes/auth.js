@@ -69,3 +69,26 @@ router.post('/login', async (req, res) => {
 });
 
 module.exports = router;
+
+// Change Password Route
+router.post('/settings', isAuthenticated, async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+
+  try {
+    const user = await User.findById(req.session.user._id);
+    if (!user) return res.status(404).send("User not found");
+
+    const match = await bcrypt.compare(oldPassword, user.password);
+    if (!match) return res.send("❌ Incorrect current password");
+
+    const hashed = await bcrypt.hash(newPassword, 12);
+    user.password = hashed;
+    await user.save();
+
+    res.send("✅ Password updated successfully");
+  } catch (err) {
+    console.error("Error changing password:", err);
+    res.status(500).send("Internal server error");
+  }
+});
+
