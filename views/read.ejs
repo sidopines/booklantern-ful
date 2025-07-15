@@ -1,0 +1,63 @@
+<!-- views/read.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>📚 Read Books | BookLantern</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 2rem;
+      background-color: #f4f4f4;
+    }
+    h1 {
+      color: #333;
+    }
+    .book-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+    .book-card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      padding: 1rem;
+      text-align: center;
+      transition: transform 0.2s;
+    }
+    .book-card:hover {
+      transform: translateY(-4px);
+    }
+    .book-card h3 {
+      font-size: 1.1rem;
+      margin: 0.5rem 0;
+    }
+    .book-card a {
+      display: inline-block;
+      margin-top: 0.5rem;
+      text-decoration: none;
+      color: #0077cc;
+      font-weight: bold;
+    }
+    .book-card a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <h1>📖 Explore Our Library</h1>
+  <div class="book-grid">
+    <% books.forEach(book => { %>
+      <div class="book-card">
+        <h3><%= book.title %></h3>
+        <p><%= book.description ? book.description.substring(0, 80) + '...' : 'No description.' %></p>
+        <a href="/read/book/<%= book._id %>">Read Now</a>
+      </div>
+    <% }) %>
+  </div>
+</body>
+</html>
