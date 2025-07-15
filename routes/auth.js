@@ -5,9 +5,11 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const User = require('../models/User');
+const Book = require('../models/Book');
+const Favorite = require('../models/Favorite');
 const sendVerificationEmail = require('../utils/sendVerification');
 
-// Middleware to check if user is logged in
+// Middleware
 function isAuthenticated(req, res, next) {
   if (req.session && req.session.user) {
     return next();
@@ -15,10 +17,9 @@ function isAuthenticated(req, res, next) {
   res.redirect('/login');
 }
 
-// Register Route
+// ===== REGISTER =====
 router.post('/register', async (req, res) => {
   const { name, email, password } = req.body;
-
   try {
     const existingUser = await User.findOne({ email });
     if (existingUser) return res.send('User already exists.');
@@ -37,7 +38,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Email Verification Route
+// ===== EMAIL VERIFICATION =====
 router.get('/verify-email', async (req, res) => {
   const token = req.query.token;
 
@@ -58,7 +59,7 @@ router.get('/verify-email', async (req, res) => {
   }
 });
 
-// Login Route
+// ===== LOGIN =====
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -88,7 +89,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Change Password Route
+// ===== CHANGE PASSWORD =====
 router.post('/settings', isAuthenticated, async (req, res) => {
   const { oldPassword, newPassword } = req.body;
 
@@ -107,6 +108,49 @@ router.post('/settings', isAuthenticated, async (req, res) => {
   } catch (err) {
     console.error("Error changing password:", err);
     res.status(500).send("Internal server error");
+  }
+});
+
+// ===== DASHBOARD: LIST FAVORITES =====
+router.get('/dashboard', isAuthenticated, async (req, res) => {
+  try {
+    const favorites = await Favorite.find({ user: req.session.user._id }).populate('book');
+    const user = req.session.user;
+    res.render('dashboard', { user, favorites });
+  } catch (err) {
+    console.error("Dashboard error:", err);
+    res.status(500).send("Server error loading dashboard");
+  }
+});
+
+// ===== ADD TO FAVORITES =====
+router.post('/favorite/:id', isAuthenticated, async (req, res) => {
+  const bookId = req.params.id;
+  const userId = req.session.user._id;
+
+  try {
+    const already = await Favorite.findOne({ user: userId, book: bookId });
+    if (already) return res.send("📚 Already in favorites");
+
+    await Favorite.create({ user: userId, book: bookId });
+    res.send("✅ Added to favorites");
+  } catch (err) {
+    console.error("Favorite add error:", err);
+    res.status(500).send("Server error");
+  }
+});
+
+// ===== REMOVE FROM FAVORITES =====
+router.post('/favorite/:id/remove', isAuthenticated, async (req, res) => {
+  const bookId = req.params.id;
+  const userId = req.session.user._id;
+
+  try {
+    await Favorite.findOneAndDelete({ user: userId, book: bookId });
+    res.send("🗑️ Removed from favorites");
+  } catch (err) {
+    console.error("Favorite remove error:", err);
+    res.status(500).send("Server error");
   }
 });
 
