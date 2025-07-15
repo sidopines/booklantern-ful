@@ -25,13 +25,12 @@ app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// ===== SESSION CONFIGURATION =====
 app.use(
   session({
     secret: process.env.JWT_SECRET,
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({ mongoUrl: process.env.MONGODB_URI }),
+    store: MongoStore.create({ mongoUrl: mongoURI }),
     cookie: { secure: false, maxAge: 1000 * 60 * 60 * 24 } // 1 day
   })
 );
@@ -40,11 +39,12 @@ app.use(
 const Video = require('./models/Video');
 const Genre = require('./models/Genre');
 const Book = require('./models/Book');
+const Bookmark = require('./models/Bookmark');
 
-// ===== ROUTES =====
-app.use('/', authRoutes); // Login/Register/Email verify
+// ===== AUTH ROUTES =====
+app.use('/', authRoutes);
 
-// Static Pages
+// ===== STATIC PAGES =====
 app.get('/', (req, res) => res.render('index'));
 app.get('/about', (req, res) => res.render('about'));
 app.get('/contact', (req, res) => res.render('contact'));
@@ -73,7 +73,7 @@ app.get('/watch', async (req, res) => {
   res.render('watch', { genres, videos });
 });
 
-// ===== PLAYER PAGE =====
+// ===== VIDEO PLAYER PAGE =====
 app.get('/player/:id', async (req, res) => {
   try {
     const video = await Video.findById(req.params.id).populate('genre');
@@ -85,7 +85,7 @@ app.get('/player/:id', async (req, res) => {
   }
 });
 
-// ===== READ PAGE (List all books) =====
+// ===== READ PAGE (LIST ALL BOOKS) =====
 app.get('/read', async (req, res) => {
   try {
     const books = await Book.find({}).sort({ createdAt: -1 });
@@ -96,7 +96,7 @@ app.get('/read', async (req, res) => {
   }
 });
 
-// ===== SINGLE BOOK VIEWER =====
+// ===== BOOK VIEWER PAGE =====
 app.get('/read/book/:id', async (req, res) => {
   try {
     const book = await Book.findById(req.params.id);
@@ -105,6 +105,52 @@ app.get('/read/book/:id', async (req, res) => {
   } catch (err) {
     console.error('Error loading book:', err);
     res.status(500).send('Internal Server Error');
+  }
+});
+
+// ===== BOOKMARK: SAVE PAGE =====
+app.post('/read/book/:id/bookmark', async (req, res) => {
+  if (!req.session.user) return res.status(401).send('Login required');
+  const { page } = req.body;
+
+  try {
+    const existing = await Bookmark.findOne({
+      user: req.session.user._id,
+      book: req.params.id
+    });
+
+    if (existing) {
+      existing.currentPage = page;
+      await existing.save();
+    } else {
+      await Bookmark.create({
+        user: req.session.user._id,
+        book: req.params.id,
+        currentPage: page
+      });
+    }
+
+    res.send('✅ Bookmark saved!');
+  } catch (err) {
+    console.error('Bookmark error:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// ===== BOOKMARK: GET LAST PAGE =====
+app.get('/read/book/:id/bookmark', async (req, res) => {
+  if (!req.session.user) return res.status(401).send('Login required');
+
+  try {
+    const bookmark = await Bookmark.findOne({
+      user: req.session.user._id,
+      book: req.params.id
+    });
+
+    res.json({ page: bookmark?.currentPage || 1 });
+  } catch (err) {
+    console.error('Error loading bookmark:', err);
+    res.status(500).send('Error loading bookmark');
   }
 });
 
