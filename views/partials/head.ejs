@@ -1,18 +1,22 @@
 <!-- views/partials/head.ejs -->
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-<title><%= pageTitle || 'BookLantern' %></title>
-<meta name="description" content="<%= pageDescription || 'Read and watch free educational content on BookLantern. Explore public domain books and videos in one place.' %>" />
-<meta name="keywords" content="books, reading, archive, public domain, documentaries, education, BookLantern" />
+<title><%= pageTitle %> | BookLantern</title>
+<meta name="description" content="<%= pageDescription %>" />
+<meta name="keywords" content="books, reading, archive, public domain, BookLantern" />
 <meta name="author" content="BookLantern" />
-
-<!-- Open Graph / Facebook -->
-<meta property="og:title" content="<%= pageTitle || 'BookLantern' %>" />
-<meta property="og:description" content="<%= pageDescription || 'Explore free books and educational videos at BookLantern.org' %>" />
+<meta property="og:title" content="<%= pageTitle %> | BookLantern" />
+<meta property="og:description" content="<%= pageDescription %>" />
 <meta property="og:type" content="website" />
 <meta property="og:image" content="https://booklantern.org/logo.png" />
-<meta property="og:url" content="<%= pageUrl || 'https://booklantern.org' %>" />
+<meta property="og:url" content="https://booklantern.org" />
 
-<!-- Favicon -->
-<link rel="icon" href="/favicon.ico" type="image/x-icon" />
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-QXTBK0BZCW"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-QXTBK0BZCW');
+</script>
