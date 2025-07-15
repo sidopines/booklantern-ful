@@ -19,6 +19,25 @@
       border: 1px solid #ccc;
       border-radius: 8px;
     }
+    .action-buttons {
+      margin-top: 1rem;
+    }
+    .action-buttons form {
+      display: inline-block;
+      margin-right: 1rem;
+    }
+    .action-buttons button {
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      background: #0077cc;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .action-buttons button.remove {
+      background: #cc0000;
+    }
     #bookmark-status {
       margin-top: 1rem;
       font-size: 0.9rem;
@@ -29,11 +48,21 @@
 <body>
   <h1><%= book.title %></h1>
 
+  <!-- Embedded Archive.org Book -->
   <iframe
     id="book-frame"
     src="https://archive.org/stream/<%= book.archiveId %>?ui=embed#page=1"
     allowfullscreen
   ></iframe>
+
+  <!-- Bookmark & Favorites UI -->
+  <div class="action-buttons">
+    <form method="POST" action="/read/book/<%= book._id %>/favorite">
+      <button type="submit" class="<%= isFavorite ? 'remove' : '' %>">
+        <%= isFavorite ? '❌ Remove from Favorites' : '❤️ Add to Favorites' %>
+      </button>
+    </form>
+  </div>
 
   <div id="bookmark-status">⏳ Loading last saved page...</div>
 
