@@ -1,15 +1,16 @@
-# Allow all search engines to crawl everything
 User-agent: *
-Disallow:
+Allow: /
 
-# Block common AI bots
+Sitemap: https://booklantern.org/sitemap.xml
+
+# Disallow specific AI bots
 User-agent: GPTBot
 Disallow: /
 
-User-agent: CCBot
+User-agent: ClaudeBot
 Disallow: /
 
-User-agent: ClaudeBot
+User-agent: CCBot
 Disallow: /
 
 User-agent: Amazonbot
