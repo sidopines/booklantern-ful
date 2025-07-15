@@ -1,47 +1,69 @@
-<% pageTitle = "Read Free Books Online"; pageDescription = "Explore thousands of free books fetched from archive.org. Read, bookmark, and enjoy literature and knowledge."; %>
+<% pageTitle = "Read Books Online"; pageDescription = "Browse and read books fetched from Archive.org using BookLantern's modern reader experience."; %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <% include ./partials/head.ejs %>
   <style>
     body {
-      font-family: 'Segoe UI', sans-serif;
+      font-family: 'Georgia', serif;
+      background-color: #fffaf5;
+      color: #333;
       margin: 0;
       padding: 2rem;
-      background-color: #f4f4f4;
     }
     h1 {
-      color: #333;
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    form {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    input[type="text"] {
+      width: 60%;
+      padding: 0.6rem;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    button {
+      padding: 0.6rem 1.2rem;
+      margin-left: 1rem;
+      font-size: 1rem;
+      background-color: #222;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
     }
     .book-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 1.5rem;
       margin-top: 2rem;
     }
     .book-card {
       background: #fff;
-      border-radius: 10px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       padding: 1rem;
       text-align: center;
-      transition: transform 0.2s;
     }
-    .book-card:hover {
-      transform: translateY(-4px);
+    .book-card img {
+      max-width: 100%;
+      height: 280px;
+      object-fit: cover;
+      border-radius: 5px;
     }
     .book-card h3 {
-      font-size: 1.1rem;
       margin: 0.5rem 0;
+      font-size: 1.05rem;
     }
     .book-card p {
       font-size: 0.95rem;
       color: #666;
-      min-height: 60px;
     }
     .book-card a {
-      display: inline-block;
-      margin-top: 0.5rem;
       text-decoration: none;
       color: #0077cc;
       font-weight: bold;
@@ -52,13 +74,20 @@
   </style>
 </head>
 <body>
-  <h1>📖 Explore Our Library</h1>
+  <h1>📚 Explore Free Books</h1>
+
+  <form action="/read" method="GET">
+    <input type="text" name="query" placeholder="Search books by title or author" value="<%= query || '' %>" />
+    <button type="submit">Search</button>
+  </form>
+
   <div class="book-grid">
     <% books.forEach(book => { %>
       <div class="book-card">
+        <img src="<%= book.cover %>" alt="<%= book.title %>" />
         <h3><%= book.title %></h3>
-        <p><%= book.description ? book.description.substring(0, 80) + '...' : 'No description.' %></p>
-        <a href="/read/book/<%= book._id %>">Read Now</a>
+        <p><%= book.creator %></p>
+        <a href="/read/book/<%= book.identifier %>" target="_blank">📖 Read Now</a>
       </div>
     <% }) %>
   </div>
