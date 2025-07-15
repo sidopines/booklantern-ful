@@ -41,10 +41,11 @@ const Video = require('./models/Video');
 const Genre = require('./models/Genre');
 const Book = require('./models/Book');
 const Bookmark = require('./models/Bookmark');
+const Favorite = require('./models/Favorite');
 
 // ===== ROUTES =====
-app.use('/', authRoutes);  // Auth routes (login/register/verify/settings)
-app.use('/', bookRoutes);  // Handles /admin/add-book etc.
+app.use('/', authRoutes);
+app.use('/', bookRoutes);
 
 // ===== STATIC PAGES =====
 app.get('/', (req, res) => res.render('index'));
@@ -57,7 +58,7 @@ app.get('/register', (req, res) => res.render('register'));
 app.get('/admin', async (req, res) => {
   const genres = await Genre.find({});
   const videos = await Video.find({}).populate('genre').sort({ createdAt: -1 });
-  const books = await Book.find({}).sort({ createdAt: -1 }).limit(5); // Pass recent books
+  const books = await Book.find({}).sort({ createdAt: -1 }).limit(5);
   res.render('admin', { genres, videos, books });
 });
 
@@ -65,13 +66,9 @@ app.get('/admin', async (req, res) => {
 app.get('/watch', async (req, res) => {
   const genreFilter = req.query.genre;
   const genres = await Genre.find({});
-  let videos;
-
-  if (genreFilter) {
-    videos = await Video.find({ genre: genreFilter }).populate('genre').sort({ createdAt: -1 });
-  } else {
-    videos = await Video.find({}).populate('genre').sort({ createdAt: -1 });
-  }
+  const videos = genreFilter
+    ? await Video.find({ genre: genreFilter }).populate('genre').sort({ createdAt: -1 })
+    : await Video.find({}).populate('genre').sort({ createdAt: -1 });
 
   res.render('watch', { genres, videos });
 });
@@ -154,6 +151,45 @@ app.get('/read/book/:id/bookmark', async (req, res) => {
   } catch (err) {
     console.error('Error loading bookmark:', err);
     res.status(500).send('Error loading bookmark');
+  }
+});
+
+// ===== FAVORITE: TOGGLE BOOK (ADD/REMOVE) =====
+app.post('/read/book/:id/favorite', async (req, res) => {
+  if (!req.session.user) return res.status(401).send('Login required');
+
+  try {
+    const existing = await Favorite.findOne({
+      user: req.session.user._id,
+      book: req.params.id
+    });
+
+    if (existing) {
+      await existing.deleteOne();
+      res.send('❌ Removed from favorites');
+    } else {
+      await Favorite.create({
+        user: req.session.user._id,
+        book: req.params.id
+      });
+      res.send('❤️ Added to favorites');
+    }
+  } catch (err) {
+    console.error('Favorite error:', err);
+    res.status(500).send('Failed to toggle favorite');
+  }
+});
+
+// ===== FAVORITE: LIST USER FAVORITES =====
+app.get('/favorites', async (req, res) => {
+  if (!req.session.user) return res.status(401).send('Login required');
+
+  try {
+    const favorites = await Favorite.find({ user: req.session.user._id }).populate('book');
+    res.render('favorites', { favorites });
+  } catch (err) {
+    console.error('Error loading favorites:', err);
+    res.status(500).send('Internal Server Error');
   }
 });
 
