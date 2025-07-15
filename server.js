@@ -8,6 +8,7 @@ const path = require('path');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const authRoutes = require('./routes/auth');
+const bookRoutes = require('./routes/bookRoutes');
 
 const app = express();
 
@@ -43,6 +44,7 @@ const Bookmark = require('./models/Bookmark');
 
 // ===== AUTH ROUTES =====
 app.use('/', authRoutes);
+app.use('/', bookRoutes);
 
 // ===== STATIC PAGES =====
 app.get('/', (req, res) => res.render('index'));
