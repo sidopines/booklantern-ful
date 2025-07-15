@@ -5,6 +5,9 @@ require('dotenv').config(); // Load environment variables
 const express = require('express');
 const mongoose = require('mongoose');
 const path = require('path');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
+const authRoutes = require('./routes/auth');
 
 const app = express();
 
@@ -20,12 +23,25 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+
+// ===== SESSION CONFIGURATION =====
+app.use(
+  session({
+    secret: process.env.JWT_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({ mongoUrl: process.env.MONGODB_URI }),
+    cookie: { secure: false, maxAge: 1000 * 60 * 60 * 24 } // 1 day
+  })
+);
 
 // ===== MODELS =====
 const Video = require('./models/Video');
 const Genre = require('./models/Genre');
 
 // ===== ROUTES =====
+app.use('/', authRoutes); // Login/Register/Email verify
 
 app.get('/', (req, res) => res.render('index'));
 app.get('/about', (req, res) => res.render('about'));
@@ -65,17 +81,6 @@ app.get('/player/:id', async (req, res) => {
     console.error('Error loading video:', err);
     res.status(500).send('Internal Server Error');
   }
-});
-
-// ===== AUTH PLACEHOLDER =====
-app.post('/login', (req, res) => {
-  const { email, password } = req.body;
-  res.send(`Login attempted for ${email}`);
-});
-
-app.post('/register', (req, res) => {
-  const { name, email, password } = req.body;
-  res.send(`Registration attempted for ${name}`);
 });
 
 // ===== ADMIN: ADD VIDEO =====
