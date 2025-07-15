@@ -39,10 +39,12 @@ app.use(
 // ===== MODELS =====
 const Video = require('./models/Video');
 const Genre = require('./models/Genre');
+const Book = require('./models/Book');
 
 // ===== ROUTES =====
 app.use('/', authRoutes); // Login/Register/Email verify
 
+// Static Pages
 app.get('/', (req, res) => res.render('index'));
 app.get('/about', (req, res) => res.render('about'));
 app.get('/contact', (req, res) => res.render('contact'));
@@ -79,6 +81,29 @@ app.get('/player/:id', async (req, res) => {
     res.render('player', { video });
   } catch (err) {
     console.error('Error loading video:', err);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// ===== READ PAGE (List all books) =====
+app.get('/read', async (req, res) => {
+  try {
+    const books = await Book.find({}).sort({ createdAt: -1 });
+    res.render('read', { books });
+  } catch (err) {
+    console.error('Error loading books:', err);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// ===== SINGLE BOOK VIEWER =====
+app.get('/read/book/:id', async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) return res.status(404).send('Book not found');
+    res.render('book-viewer', { book });
+  } catch (err) {
+    console.error('Error loading book:', err);
     res.status(500).send('Internal Server Error');
   }
 });
