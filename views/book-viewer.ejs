@@ -1,0 +1,50 @@
+<!-- views/book-viewer.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title><%= book.title %> | Read</title>
+  <style>
+    body {
+      font-family: 'Georgia', serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      margin-bottom: 1rem;
+    }
+    iframe {
+      width: 100%;
+      height: 80vh;
+      border: none;
+    }
+    .meta {
+      color: #555;
+      margin-bottom: 1rem;
+    }
+    a.back {
+      display: inline-block;
+      margin-bottom: 1.5rem;
+      text-decoration: none;
+      color: #007bff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/read" class="back">← Back to All Books</a>
+    <h1><%= book.title %></h1>
+    <div class="meta">Author: <%= book.author || 'Unknown' %></div>
+    <iframe src="<%= book.archiveUrl %>&ui=embed" allowfullscreen></iframe>
+  </div>
+</body>
+</html>
