@@ -6,34 +6,34 @@
   <title>Watch | BookLantern</title>
   <style>
     body {
-      margin: 0;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #141414;
+      background-color: #111;
       color: #fff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
     }
-    header {
+    .header {
       padding: 1rem 2rem;
       background-color: #000;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    header h1 {
-      margin: 0;
-      font-size: 1.8rem;
+    .header h1 {
+      color: #e50914;
+      font-size: 2rem;
     }
-    .filter {
-      margin: 2rem;
+    .genre-select {
+      margin: 1rem 2rem;
     }
-    .filter select {
+    select {
       padding: 0.5rem;
       font-size: 1rem;
-      border-radius: 5px;
+      border-radius: 4px;
       border: none;
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
       gap: 1.5rem;
       padding: 2rem;
     }
@@ -41,58 +41,67 @@
       background-color: #222;
       border-radius: 10px;
       overflow: hidden;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      transition: transform 0.2s;
-    }
-    .card:hover {
-      transform: scale(1.03);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.4);
     }
     .card img {
       width: 100%;
-      height: 180px;
+      height: 150px;
       object-fit: cover;
     }
     .card-content {
       padding: 1rem;
     }
     .card-content h3 {
-      margin: 0 0 0.5rem 0;
+      margin: 0;
       font-size: 1.2rem;
+      color: #fff;
     }
     .card-content p {
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       color: #ccc;
-    }
-    .card-content a {
-      display: inline-block;
       margin-top: 0.5rem;
-      color: #1db954;
+    }
+    .watch-btn {
+      margin-top: 0.8rem;
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      background-color: #e50914;
+      color: white;
       text-decoration: none;
+      border-radius: 4px;
       font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>🎬 Watch | BookLantern</h1>
-    <form class="filter" method="get">
-      <select name="genre" onchange="this.form.submit()">
+  <div class="header">
+    <h1>BookLantern</h1>
+    <div>
+      <a href="/" style="color:#fff; margin-right: 1rem;">Home</a>
+      <a href="/login" style="color:#fff">Login</a>
+    </div>
+  </div>
+
+  <div class="genre-select">
+    <form method="GET" action="/watch">
+      <label for="genre" style="color: white; margin-right: 1rem;">Filter by Genre:</label>
+      <select name="genre" id="genre" onchange="this.form.submit()">
         <option value="">All Genres</option>
         <% genres.forEach(function(genre) { %>
           <option value="<%= genre.name %>" <%= genre.name === genreFilter ? 'selected' : '' %>><%= genre.name %></option>
         <% }) %>
       </select>
     </form>
-  </header>
+  </div>
 
   <div class="grid">
     <% videos.forEach(function(video) { %>
       <div class="card">
-        <img src="<%= video.thumbnail || 'https://via.placeholder.com/400x200?text=No+Thumbnail' %>" alt="<%= video.title %> Thumbnail">
+        <img src="<%= video.thumbnail || 'https://via.placeholder.com/240x150?text=No+Thumbnail' %>" alt="Thumbnail">
         <div class="card-content">
           <h3><%= video.title %></h3>
-          <p><%= video.description || 'No description available.' %></p>
-          <a href="/player/<%= video._id %>">▶ Watch Now</a>
+          <p><%= video.description %></p>
+          <a href="/player/<%= video._id %>" class="watch-btn">▶ Watch Now</a>
         </div>
       </div>
     <% }) %>
