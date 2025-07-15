@@ -1,20 +1,31 @@
+// utils/sendVerification.js
 const nodemailer = require('nodemailer');
 
-module.exports = async function sendVerification(email, token) {
-  const transport = nodemailer.createTransport({
-    service: 'gmail',
+const sendVerificationEmail = async (email, token, baseUrl) => {
+  const transporter = nodemailer.createTransport({
+    service: 'Gmail',
     auth: {
-      user: process.env.EMAIL_USER, // your Gmail address
-      pass: process.env.EMAIL_PASS  // your Gmail app password
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
     }
   });
 
-  const url = `${process.env.BASE_URL}/verify?token=${token}`;
+  const verificationLink = `${baseUrl}/verify-email?token=${token}`;
 
-  await transport.sendMail({
-    from: '"BookLantern" <no-reply@booklantern.org>',
+  const mailOptions = {
+    from: `"BookLantern" <${process.env.EMAIL_USER}>`,
     to: email,
-    subject: 'Verify your BookLantern Email',
-    html: `<p>Click below to verify your account:</p><a href="${url}">${url}</a>`
-  });
+    subject: 'Verify your email for BookLantern 📚',
+    html: `
+      <h2>Welcome to BookLantern!</h2>
+      <p>Click the link below to verify your email address and activate your account:</p>
+      <a href="${verificationLink}">${verificationLink}</a>
+      <br><br>
+      <p>If you did not register, you can safely ignore this email.</p>
+    `
+  };
+
+  await transporter.sendMail(mailOptions);
 };
+
+module.exports = sendVerificationEmail;
