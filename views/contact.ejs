@@ -1,8 +1,9 @@
-<% pageTitle = "Contact Us"; pageDescription = "Reach out to BookLantern with your questions, feedback, or ideas. We'd love to hear from you."; %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <% include ./partials/head.ejs %>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contact | BookLantern</title>
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -59,7 +60,7 @@
     <p>
       We'd love to hear from you! Whether you have a question, feedback, or just want to say hello, feel free to reach out.
     </p>
-    <form action="/contact" method="POST">
+    <form action="https://formspree.io/f/mqalkpkn" method="POST">
       <input type="text" name="name" placeholder="Your Name" required />
       <input type="email" name="email" placeholder="Your Email" required />
       <textarea name="message" rows="6" placeholder="Your Message" required></textarea>
