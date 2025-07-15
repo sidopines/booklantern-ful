@@ -1,0 +1,58 @@
+<!-- views/favorites.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>My Favorite Books | BookLantern</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #fafafa;
+      padding: 2rem;
+    }
+    h1 {
+      color: #333;
+    }
+    .book {
+      background: white;
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .book a {
+      font-size: 18px;
+      color: #0077cc;
+      text-decoration: none;
+    }
+    .book a:hover {
+      text-decoration: underline;
+    }
+    .remove-btn {
+      float: right;
+      background: #ff5555;
+      color: white;
+      border: none;
+      padding: 0.4rem 0.8rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>❤️ My Favorite Books</h1>
+
+  <% if (favorites.length === 0) { %>
+    <p>You have not added any books to favorites yet.</p>
+  <% } else { %>
+    <% favorites.forEach(fav => { %>
+      <div class="book">
+        <a href="/read/book/<%= fav.book._id %>"><%= fav.book.title %></a>
+        <form method="POST" action="/read/book/<%= fav.book._id %>/favorite" style="display:inline;">
+          <button class="remove-btn" type="submit">Remove</button>
+        </form>
+      </div>
+    <% }) %>
+  <% } %>
+</body>
+</html>
