@@ -1,51 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>About - BookLantern</title>
-  <link rel="stylesheet" href="/css/styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>About | BookLantern</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      background-color: #f9f9f9;
+      color: #333;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 2.5rem;
+      color: #222;
+      margin-bottom: 1rem;
+    }
+    p {
+      font-size: 1.1rem;
+      line-height: 1.7;
+      margin-bottom: 1.5rem;
+    }
+    .highlight {
+      color: #0077cc;
+      font-weight: 600;
+    }
+  </style>
 </head>
 <body>
-  <header>
-    <div>📚 BookLantern</div>
-    <nav>
-      <a href="/">Home</a>
-      <a href="/about">About</a>
-      <a href="/contact">Contact</a>
-      <a href="/admin">Admin</a>
-      <a href="/login">Login</a>
-      <a href="/register">Register</a>
-    </nav>
-    <div class="toggle-container">
-      <label class="toggle-switch">
-        <input type="checkbox" id="darkModeToggle">
-        <span class="slider"></span>
-      </label>
-    </div>
-  </header>
-
-  <main>
+  <div class="container">
     <h1>About BookLantern</h1>
-    <p>BookLantern.org is dedicated to preserving timeless knowledge, curating rare literature, and offering a portal to intellectual history.</p>
-  </main>
-
-  <footer>
-    &copy; <%= new Date().getFullYear() %> BookLantern. All rights reserved.
-  </footer>
-
-  <script>
-    const toggle = document.getElementById('darkModeToggle');
-    const savedMode = localStorage.getItem('darkMode');
-    if (savedMode === 'true') {
-      document.body.classList.add('dark-mode');
-      toggle.checked = true;
-    }
-
-    toggle.addEventListener('change', () => {
-      document.body.classList.toggle('dark-mode', toggle.checked);
-      localStorage.setItem('darkMode', toggle.checked);
-    });
-  </script>
+    <p>
+      <span class="highlight">BookLantern</span> is your free gateway to a world of knowledge and stories. Our platform is built to connect readers and learners with an expansive archive of books and documentaries — all at zero cost.
+    </p>
+    <p>
+      We believe that access to information and culture should not come with barriers. BookLantern fetches open-access books from reliable online sources like Archive.org and other public libraries and presents them through a modern, stylized interface.
+    </p>
+    <p>
+      Whether you’re here to explore timeless classics, academic materials, or simply dive into documentaries through our Watch page — BookLantern is here to support your curiosity.
+    </p>
+    <p>
+      Join us by creating a free account, save your favorite books, track your reading, and enjoy new educational content added regularly by our team.
+    </p>
+    <p>
+      <strong>Your lantern to the world of knowledge starts here.</strong>
+    </p>
+  </div>
 </body>
 </html>
