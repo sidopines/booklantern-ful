@@ -1,9 +1,8 @@
+<% pageTitle = "Register | BookLantern"; pageDescription = "Create your free BookLantern account to access books and educational content."; %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Register - BookLantern</title>
+  <% include ./partials/head.ejs %>
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
@@ -26,24 +25,24 @@
     </div>
   </header>
 
-  <main>
-    <h1>Create an Account</h1>
-    <form action="/register" method="POST" style="max-width: 400px; margin: auto;">
-      <label for="name">Full Name:</label><br>
-      <input type="text" name="name" id="name" required><br><br>
+  <main style="padding: 2rem;">
+    <h1 style="text-align: center;">Create an Account</h1>
+    <form action="/register" method="POST" style="max-width: 400px; margin: 2rem auto; background: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+      <label for="name">Full Name:</label>
+      <input type="text" name="name" id="name" required>
 
-      <label for="email">Email Address:</label><br>
-      <input type="email" name="email" id="email" required><br><br>
+      <label for="email">Email Address:</label>
+      <input type="email" name="email" id="email" required>
 
-      <label for="password">Password:</label><br>
-      <input type="password" name="password" id="password" required><br><br>
+      <label for="password">Password:</label>
+      <input type="password" name="password" id="password" required>
 
-      <button type="submit">Register</button>
+      <button type="submit" style="margin-top: 1rem;">Register</button>
     </form>
-    <p style="text-align: center; margin-top: 1rem;">Already have an account? <a href="/login">Login here</a></p>
+    <p style="text-align: center;">Already have an account? <a href="/login">Login here</a></p>
   </main>
 
-  <footer>
+  <footer style="text-align: center; padding: 1rem;">
     &copy; <%= new Date().getFullYear() %> BookLantern. All rights reserved.
   </footer>
 
