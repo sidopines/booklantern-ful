@@ -1,8 +1,8 @@
+<% pageTitle = `${book.title} | Read Book`; pageDescription = `Read ${book.title} online via BookLantern. Bookmark and save to favorites.`; %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title><%= book.title %> | Book Viewer</title>
+  <% include ./partials/head.ejs %>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -57,7 +57,7 @@
 
   <!-- Bookmark & Favorites UI -->
   <div class="action-buttons">
-    <form method="POST" action="/read/book/<%= book._id %>/favorite">
+    <form method="POST" action="/favorite/<%= book._id %><%= isFavorite ? '/remove' : '' %>">
       <button type="submit" class="<%= isFavorite ? 'remove' : '' %>">
         <%= isFavorite ? '❌ Remove from Favorites' : '❤️ Add to Favorites' %>
       </button>
@@ -84,16 +84,14 @@
         bookmarkStatus.textContent = "⚠️ Failed to load last bookmark.";
       });
 
-    // Save bookmark on unload (rough approximation)
+    // Save bookmark on unload
     window.addEventListener('beforeunload', () => {
       if (!userLoggedIn) return;
       const currentPage = getCurrentPageFromHash(iframe.src);
       if (currentPage) {
         fetch(`/read/book/${bookId}/bookmark`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ page: currentPage })
         });
       }
