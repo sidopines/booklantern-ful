@@ -244,3 +244,9 @@ app.get('/robots.txt', (req, res) => {
 // ===== PORT =====
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+// ===== 404 Page =====
+app.use((req, res) => {
+  res.status(404).render('404');
+});
+
