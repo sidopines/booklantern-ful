@@ -9,11 +9,9 @@ const Book = require('../models/Book');
 const Favorite = require('../models/Favorite');
 const sendVerificationEmail = require('../utils/sendVerification');
 
-// Middleware
+// ===== MIDDLEWARE =====
 function isAuthenticated(req, res, next) {
-  if (req.session && req.session.user) {
-    return next();
-  }
+  if (req.session && req.session.user) return next();
   res.redirect('/login');
 }
 
@@ -78,11 +76,7 @@ router.post('/login', async (req, res) => {
       role: user.role,
     };
 
-    if (user.role === 'admin') {
-      return res.redirect('/admin');
-    } else {
-      return res.redirect('/dashboard');
-    }
+    return res.redirect(user.role === 'admin' ? '/admin' : '/dashboard');
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).send('Login failed.');
@@ -95,19 +89,18 @@ router.post('/settings', isAuthenticated, async (req, res) => {
 
   try {
     const user = await User.findById(req.session.user._id);
-    if (!user) return res.status(404).send("User not found");
+    if (!user) return res.status(404).send('User not found');
 
     const match = await bcrypt.compare(oldPassword, user.password);
-    if (!match) return res.send("❌ Incorrect current password");
+    if (!match) return res.send('❌ Incorrect current password');
 
-    const hashed = await bcrypt.hash(newPassword, 12);
-    user.password = hashed;
+    user.password = await bcrypt.hash(newPassword, 12);
     await user.save();
 
-    res.send("✅ Password updated successfully");
+    res.send('✅ Password updated successfully');
   } catch (err) {
-    console.error("Error changing password:", err);
-    res.status(500).send("Internal server error");
+    console.error('Error changing password:', err);
+    res.status(500).send('Internal server error');
   }
 });
 
@@ -115,11 +108,10 @@ router.post('/settings', isAuthenticated, async (req, res) => {
 router.get('/dashboard', isAuthenticated, async (req, res) => {
   try {
     const favorites = await Favorite.find({ user: req.session.user._id }).populate('book');
-    const user = req.session.user;
-    res.render('dashboard', { user, favorites });
+    res.render('dashboard', { user: req.session.user, favorites });
   } catch (err) {
-    console.error("Dashboard error:", err);
-    res.status(500).send("Server error loading dashboard");
+    console.error('Dashboard error:', err);
+    res.status(500).send('Server error loading dashboard');
   }
 });
 
@@ -130,13 +122,13 @@ router.post('/favorite/:id', isAuthenticated, async (req, res) => {
 
   try {
     const already = await Favorite.findOne({ user: userId, book: bookId });
-    if (already) return res.send("📚 Already in favorites");
+    if (already) return res.send('📚 Already in favorites');
 
     await Favorite.create({ user: userId, book: bookId });
-    res.send("✅ Added to favorites");
+    res.send('✅ Added to favorites');
   } catch (err) {
-    console.error("Favorite add error:", err);
-    res.status(500).send("Server error");
+    console.error('Favorite add error:', err);
+    res.status(500).send('Server error');
   }
 });
 
@@ -147,10 +139,10 @@ router.post('/favorite/:id/remove', isAuthenticated, async (req, res) => {
 
   try {
     await Favorite.findOneAndDelete({ user: userId, book: bookId });
-    res.send("🗑️ Removed from favorites");
+    res.send('🗑️ Removed from favorites');
   } catch (err) {
-    console.error("Favorite remove error:", err);
-    res.status(500).send("Server error");
+    console.error('Favorite remove error:', err);
+    res.status(500).send('Server error');
   }
 });
 
