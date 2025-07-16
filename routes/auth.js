@@ -82,6 +82,8 @@ router.post('/login', async (req, res) => {
 
   try {
     const user = await User.findOne({ email });
+console.log('🔍 User login attempt:', user);
+
     if (!user) return res.send('Invalid credentials.');
     if (!user.verified) return res.send('Please verify your email before logging in.');
 
