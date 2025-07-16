@@ -67,9 +67,11 @@ router.get('/verify-email', async (req, res) => {
     user.verified = true;
     await user.save();
 
+    console.log('✅ Email verified for user:', user.email); // ADD THIS LINE
+
     res.send('🎉 Email verified! You can now log in.');
   } catch (err) {
-    console.error('Verification error:', err);
+    console.error('❌ Error during email verification:', err);
     res.status(400).send('Invalid or expired token.');
   }
 });
