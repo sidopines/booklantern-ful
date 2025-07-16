@@ -1,9 +1,11 @@
+<% /* views/contact.ejs */ %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Contact | BookLantern</title>
+  <%- include('./partials/head.ejs', {
+    pageTitle: 'Contact',
+    pageDescription: 'Get in touch with the BookLantern team.'
+  }) %>
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
