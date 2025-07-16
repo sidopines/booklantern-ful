@@ -1,8 +1,11 @@
-<% pageTitle = "Watch Educational Videos"; pageDescription = "Stream free educational videos in a Netflix-style interface. Curated content, no login required."; %>
+<% /* views/watch.ejs */ %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <% include ./partials/head.ejs %>
+  <%- include('./partials/head.ejs', {
+    pageTitle: "Watch Educational Videos",
+    pageDescription: "Stream free educational videos in a Netflix-style interface. Curated content, no login required."
+  }) %>
   <style>
     body {
       background-color: #111;
@@ -86,20 +89,20 @@
       <label for="genre" style="color: white; margin-right: 1rem;">Filter by Genre:</label>
       <select name="genre" id="genre" onchange="this.form.submit()">
         <option value="">All Genres</option>
-        <% genres.forEach(function(genre) { %>
-          <option value="<%= genre.name %>" <%= genre.name === genreFilter ? 'selected' : '' %>><%= genre.name %></option>
+        <% (genres || []).forEach(function(genre) { %>
+          <option value="<%= genre.name %>" <%= genre.name === (genreFilter || '') ? 'selected' : '' %>><%= genre.name %></option>
         <% }) %>
       </select>
     </form>
   </div>
 
   <div class="grid">
-    <% videos.forEach(function(video) { %>
+    <% (videos || []).forEach(function(video) { %>
       <div class="card">
         <img src="<%= video.thumbnail || 'https://via.placeholder.com/240x150?text=No+Thumbnail' %>" alt="Thumbnail">
         <div class="card-content">
           <h3><%= video.title %></h3>
-          <p><%= video.description %></p>
+          <p><%= video.description || '' %></p>
           <a href="/player/<%= video._id %>" class="watch-btn">▶ Watch Now</a>
         </div>
       </div>
