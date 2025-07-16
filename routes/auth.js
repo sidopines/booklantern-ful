@@ -8,6 +8,7 @@ const User = require('../models/User');
 const Book = require('../models/Book');
 const Favorite = require('../models/Favorite');
 const sendVerificationEmail = require('../utils/sendVerification');
+const sendResetEmail = require('../utils/sendReset');
 
 // ===== MIDDLEWARE =====
 function isAuthenticated(req, res, next) {
@@ -15,7 +16,23 @@ function isAuthenticated(req, res, next) {
   res.redirect('/login');
 }
 
-// ===== REGISTER =====
+// ===== SHOW LOGIN FORM =====
+router.get('/login', (req, res) => {
+  res.render('login', {
+    pageTitle: 'Login | BookLantern',
+    pageDescription: 'Access your BookLantern account to read books, watch content, and manage your favorites.'
+  });
+});
+
+// ===== SHOW REGISTER FORM =====
+router.get('/register', (req, res) => {
+  res.render('register', {
+    pageTitle: 'Register | BookLantern',
+    pageDescription: 'Create a free BookLantern account to read, watch, and save your favorites.'
+  });
+});
+
+// ===== REGISTER USER =====
 router.post('/register', async (req, res) => {
   const { name, email, password } = req.body;
   try {
@@ -57,7 +74,7 @@ router.get('/verify-email', async (req, res) => {
   }
 });
 
-// ===== LOGIN =====
+// ===== LOGIN USER =====
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -104,7 +121,7 @@ router.post('/settings', isAuthenticated, async (req, res) => {
   }
 });
 
-// ===== DASHBOARD: LIST FAVORITES =====
+// ===== USER DASHBOARD =====
 router.get('/dashboard', isAuthenticated, async (req, res) => {
   try {
     const favorites = await Favorite.find({ user: req.session.user._id }).populate('book');
@@ -143,6 +160,54 @@ router.post('/favorite/:id/remove', isAuthenticated, async (req, res) => {
   } catch (err) {
     console.error('Favorite remove error:', err);
     res.status(500).send('Server error');
+  }
+});
+
+// ===== FORGOT PASSWORD (SEND RESET EMAIL) =====
+router.get('/forgot-password', (req, res) => {
+  res.render('forgot-password', {
+    pageTitle: 'Forgot Password',
+    pageDescription: 'Reset your BookLantern password.'
+  });
+});
+
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.send('Email not found');
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    await sendResetEmail(user.email, token, process.env.BASE_URL);
+
+    res.send('✅ Reset link sent to your email');
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// ===== RESET PASSWORD =====
+router.get('/reset-password', (req, res) => {
+  const token = req.query.token;
+  res.render('reset-password', { token });
+});
+
+router.post('/reset-password', async (req, res) => {
+  const { token, password } = req.body;
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+    if (!user) return res.send('Invalid user');
+
+    user.password = await bcrypt.hash(password, 12);
+    await user.save();
+
+    res.send('✅ Password reset successful');
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(400).send('Invalid or expired token');
   }
 });
 
