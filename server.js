@@ -10,7 +10,7 @@ const MongoStore = require('connect-mongo');
 
 const authRoutes = require('./routes/auth');
 const bookRoutes = require('./routes/bookRoutes');
-const indexRoutes = require('./routes/index'); // ✅ Added
+const indexRoutes = require('./routes/index');
 
 const app = express();
 
@@ -46,7 +46,7 @@ const Bookmark = require('./models/Bookmark');
 const Favorite = require('./models/Favorite');
 
 // ===== ROUTES =====
-app.use('/', indexRoutes); // ✅ Use index routes for home, about, contact
+app.use('/', indexRoutes); // Home, About, Contact
 app.use('/', authRoutes);
 app.use('/', bookRoutes);
 
@@ -60,13 +60,18 @@ app.get('/admin', async (req, res) => {
 
 // ===== WATCH PAGE =====
 app.get('/watch', async (req, res) => {
-  const genreFilter = req.query.genre;
-  const genres = await Genre.find({});
-  const videos = genreFilter
-    ? await Video.find({ genre: genreFilter }).populate('genre').sort({ createdAt: -1 })
-    : await Video.find({}).populate('genre').sort({ createdAt: -1 });
+  try {
+    const genreFilter = req.query.genre || '';
+    const genres = await Genre.find({});
+    const videos = genreFilter
+      ? await Video.find({ genre: genreFilter }).populate('genre').sort({ createdAt: -1 })
+      : await Video.find({}).populate('genre').sort({ createdAt: -1 });
 
-  res.render('watch', { genres, videos });
+    res.render('watch', { genres, videos, genreFilter });
+  } catch (err) {
+    console.error('Error loading watch page:', err);
+    res.status(500).send('Internal Server Error');
+  }
 });
 
 // ===== VIDEO PLAYER PAGE =====
@@ -81,7 +86,7 @@ app.get('/player/:id', async (req, res) => {
   }
 });
 
-// ===== READ PAGE (List All Books) =====
+// ===== READ PAGE =====
 app.get('/read', async (req, res) => {
   try {
     const books = await Book.find({}).sort({ createdAt: -1 });
@@ -111,7 +116,7 @@ app.get('/read/book/:id', async (req, res) => {
   }
 });
 
-// ===== BOOKMARK: SAVE PAGE =====
+// ===== BOOKMARK: SAVE =====
 app.post('/read/book/:id/bookmark', async (req, res) => {
   if (!req.session.user) return res.status(401).send('Login required');
   const { page } = req.body;
@@ -157,7 +162,7 @@ app.get('/read/book/:id/bookmark', async (req, res) => {
   }
 });
 
-// ===== FAVORITE: TOGGLE BOOK (ADD/REMOVE) =====
+// ===== FAVORITE TOGGLE =====
 app.post('/read/book/:id/favorite', async (req, res) => {
   if (!req.session.user) return res.status(401).send('Login required');
 
@@ -183,7 +188,7 @@ app.post('/read/book/:id/favorite', async (req, res) => {
   }
 });
 
-// ===== FAVORITE: LIST USER FAVORITES =====
+// ===== LIST USER FAVORITES =====
 app.get('/favorites', async (req, res) => {
   if (!req.session.user) return res.status(401).send('Login required');
 
@@ -208,7 +213,7 @@ app.post('/admin/add-video', async (req, res) => {
     res.redirect('/admin');
   } catch (err) {
     console.error('❌ Error adding video:', err);
-    res.status(500).send("An internal server error occurred. Check server logs.");
+    res.status(500).send("An internal server error occurred.");
   }
 });
 
@@ -241,11 +246,14 @@ app.get('/robots.txt', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'robots.txt'));
 });
 
-// ===== PORT =====
+// ===== 404 PAGE =====
+app.use((req, res) => {
+  res.status(404).render('404', {
+    pageTitle: 'Page Not Found',
+    pageDescription: 'The page you’re looking for could not be found.'
+  });
+});
+
+// ===== START SERVER =====
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-
-// ===== 404 Page =====
-app.use((req, res) => {
-  res.status(404).render('404');
-});
