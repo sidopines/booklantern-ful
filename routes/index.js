@@ -12,7 +12,7 @@ router.get('/', (req, res) => {
 router.get('/about', (req, res) => {
   res.render('about', {
     pageTitle: 'About',
-    pageDescription: 'Learn about BookLantern’s mission to make books accessible.'
+    pageDescription: 'Learn more about BookLantern\'s mission to make books accessible.'
   });
 });
 
