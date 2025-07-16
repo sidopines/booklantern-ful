@@ -1,8 +1,7 @@
-<% pageTitle = "About"; pageDescription = "Learn what BookLantern is and how it offers free access to books, documentaries, and educational content." %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <% include ./partials/head.ejs %>
+  <%- include('./partials/head.ejs', { pageTitle: "About", pageDescription: "Learn what BookLantern is and how it offers free access to books, documentaries, and educational content." }) %>
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -29,6 +28,16 @@
       color: #0077cc;
       font-weight: 600;
     }
+    a.back-home {
+      display: inline-block;
+      margin-top: 1rem;
+      color: #0077cc;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    a.back-home:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -49,6 +58,7 @@
     <p>
       <strong>Your lantern to the world of knowledge starts here.</strong>
     </p>
+    <a href="/" class="back-home">← Back to Home</a>
   </div>
 </body>
 </html>
