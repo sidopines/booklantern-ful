@@ -27,8 +27,8 @@ router.get('/login', (req, res) => {
 // ===== SHOW REGISTER FORM =====
 router.get('/register', (req, res) => {
   res.render('register', {
-    pageTitle: 'Register | BookLantern',
-    pageDescription: 'Create a free BookLantern account to read, watch, and save your favorites.'
+    pageTitle: 'Register',
+    pageDescription: 'Create your free BookLantern account to explore books and videos.'
   });
 });
 
@@ -67,8 +67,7 @@ router.get('/verify-email', async (req, res) => {
     user.verified = true;
     await user.save();
 
-    console.log('✅ Email verified for user:', user.email); // ADD THIS LINE
-
+    console.log('✅ Email verified for user:', user.email);
     res.send('🎉 Email verified! You can now log in.');
   } catch (err) {
     console.error('❌ Error during email verification:', err);
@@ -82,7 +81,8 @@ router.post('/login', async (req, res) => {
 
   try {
     const user = await User.findOne({ email });
-console.log('🔍 User login attempt:', user);
+    console.log('🔍 Login attempt for:', email);
+    console.log('🔎 user.verified:', user?.verified);
 
     if (!user) return res.send('Invalid credentials.');
     if (!user.verified) return res.send('Please verify your email before logging in.');
