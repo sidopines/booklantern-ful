@@ -85,7 +85,7 @@ router.post('/login', async (req, res) => {
     console.log('🔎 user.verified:', user?.verified);
 
     if (!user) return res.send('Invalid credentials.');
-    if (!user.verified) return res.send('Please verify your email before logging in.');
+    if (!user.isverified) return res.send('Please verify your email before logging in.');
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.send('Invalid credentials.');
