@@ -1,90 +1,75 @@
-<%
-// views/watch.ejs
-pageTitle = "Watch Educational Videos";
-pageDescription = "Stream free educational videos in a Netflix-style interface. Curated content, no login required.";
-%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/head.ejs') %>
+  <%- include('./partials/head.ejs', {
+    pageTitle: "Watch Educational Videos",
+    pageDescription: "Stream free educational videos in a Netflix-style interface. Curated content, no login required."
+  }) %>
   <style>
-    body{
-      margin:0;background:#111;color:#fff;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
-    }
-    a{color:#fff;text-decoration:none}
+    body{background:#111;color:#fff;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;margin:0;}
     .header{
-      padding:1rem 2rem;background:#000;display:flex;justify-content:space-between;align-items:center
+      padding:1rem 2rem;background:#000;display:flex;justify-content:space-between;align-items:center;
     }
-    .header h1{color:#e50914;font-size:2rem;margin:0}
-    .genre-select{margin:1rem 2rem}
+    .header h1{color:#e50914;font-size:2rem;margin:0;}
+    .back-link{
+      display:inline-block;margin:1rem 2rem 0;color:#00aced;text-decoration:none;font-size:.9rem;
+    }
+    .back-link:hover{text-decoration:underline}
+    .genre-select{margin:1rem 2rem;}
     select{
-      padding:.5rem;font-size:1rem;border:none;border-radius:4px
+      padding:.5rem;font-size:1rem;border-radius:4px;border:none;
     }
     .grid{
       display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
-      gap:1.5rem;padding:2rem
+      gap:1.5rem;padding:2rem;
     }
     .card{
-      background:#222;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.4)
+      background:#222;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.4);
     }
-    .card img{
-      width:100%;height:150px;object-fit:cover;background:#333
-    }
-    .card-content{padding:1rem}
-    .card-content h3{margin:0;font-size:1.15rem}
-    .card-content p{margin:.5rem 0 0;color:#ccc;font-size:.9rem;min-height:2.6em;overflow:hidden}
+    .card img{width:100%;height:150px;object-fit:cover;}
+    .card-content{padding:1rem;}
+    .card-content h3{margin:0;font-size:1.2rem;color:#fff;}
+    .card-content p{font-size:.9rem;color:#ccc;margin-top:.5rem;}
     .watch-btn{
       margin-top:.8rem;display:inline-block;padding:.5rem 1rem;background:#e50914;
-      color:#fff;border-radius:4px;font-weight:bold
-    }
-    .empty{
-      text-align:center;padding:4rem 1rem;color:#bbb;font-size:1.1rem
+      color:#fff;text-decoration:none;border-radius:4px;font-weight:bold;
     }
   </style>
 </head>
 <body>
   <div class="header">
     <h1>BookLantern</h1>
-    <nav>
-      <a href="/" style="margin-right:1rem;">Home</a>
-      <% if (locals.user) { %>
-        <a href="/dashboard" style="margin-right:1rem;">Dashboard</a>
-        <a href="/logout">Logout</a>
-      <% } else { %>
-        <a href="/login">Login</a>
-      <% } %>
-    </nav>
+    <div>
+      <a href="/" style="color:#fff; margin-right: 1rem;">Home</a>
+      <a href="/login" style="color:#fff">Login</a>
+    </div>
   </div>
+
+  <a href="javascript:history.back()" class="back-link">← Back</a>
 
   <div class="genre-select">
     <form method="GET" action="/watch">
-      <label for="genre" style="color:#fff;margin-right:1rem;">Filter by Genre:</label>
+      <label for="genre" style="color: white; margin-right: 1rem;">Filter by Genre:</label>
       <select name="genre" id="genre" onchange="this.form.submit()">
         <option value="">All Genres</option>
-        <% (genres || []).forEach(function(g){ %>
-          <option value="<%= g._id %>" <%= (genreFilter && (genreFilter==g._id || genreFilter==g.name)) ? 'selected' : '' %>><%= g.name %></option>
+        <% (genres || []).forEach(function(genre) { %>
+          <option value="<%= genre._id || genre.name %>" <%= (genreFilter || '') == (genre._id || genre.name) ? 'selected' : '' %>><%= genre.name %></option>
         <% }) %>
       </select>
     </form>
   </div>
 
-  <% if (!videos || videos.length === 0) { %>
-    <div class="empty">No videos found for this filter.</div>
-  <% } else { %>
-    <div class="grid">
-      <% videos.forEach(function(video){ %>
-        <div class="card">
-          <img src="<%= video.thumbnail || 'https://via.placeholder.com/240x150?text=No+Thumbnail' %>"
-               alt="Thumbnail"
-               onerror="this.src='https://via.placeholder.com/240x150?text=No+Thumbnail'">
-          <div class="card-content">
-            <h3><%= video.title %></h3>
-            <p><%= video.description ? video.description.substring(0,120)+'…' : '' %></p>
-            <a href="/player/<%= video._id %>" class="watch-btn">▶ Watch Now</a>
-          </div>
+  <div class="grid">
+    <% (videos || []).forEach(function(video) { %>
+      <div class="card">
+        <img src="<%= video.thumbnail || 'https://via.placeholder.com/240x150?text=No+Thumbnail' %>" alt="Thumbnail">
+        <div class="card-content">
+          <h3><%= video.title %></h3>
+          <p><%= video.description || '' %></p>
+          <a href="/player/<%= video._id %>" class="watch-btn">▶ Watch Now</a>
         </div>
-      <% }) %>
-    </div>
-  <% } %>
+      </div>
+    <% }) %>
+  </div>
 </body>
 </html>
