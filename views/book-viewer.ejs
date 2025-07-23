@@ -14,24 +14,44 @@
       padding:2rem;
     }
     .back-link{
-      display:inline-block;margin:0 0 1rem 0;
-      color:#0077cc;text-decoration:none;font-size:.9rem;
+      display:inline-block;
+      margin:0 0 1rem 0;
+      color:#0077cc;
+      text-decoration:none;
+      font-size:.9rem;
     }
     .back-link:hover{text-decoration:underline}
     h1{margin:0 0 1rem 0;}
     iframe{
-      width:100%;height:80vh;border:1px solid #ccc;
-      border-radius:8px;background:#fff;
+      width:100%;
+      height:80vh;
+      border:1px solid #ccc;
+      border-radius:8px;
+      background:#fff;
     }
     .action-buttons{margin-top:1rem;}
-    .action-buttons form{display:inline-block;margin-right:1rem;}
+    .action-buttons form{
+      display:inline-block;
+      margin-right:1rem;
+    }
     .action-buttons button{
-      padding:.5rem 1rem;font-size:.9rem;
-      background:#0077cc;color:#fff;border:none;border-radius:5px;cursor:pointer;
+      padding:.5rem 1rem;
+      font-size:.9rem;
+      background:#0077cc;
+      color:#fff;
+      border:none;
+      border-radius:5px;
+      cursor:pointer;
     }
     .action-buttons button.remove{background:#cc0000;}
+    .action-buttons button[disabled]{
+      background:#777;
+      cursor:not-allowed;
+    }
     #bookmark-status{
-      margin-top:1rem;font-size:.9rem;color:green;
+      margin-top:1rem;
+      font-size:.9rem;
+      color:green;
     }
   </style>
 </head>
@@ -41,13 +61,17 @@
 
   <% const streamId = book.archiveId || book.identifier; %>
 
-  <iframe id="book-frame"
-          src="https://archive.org/stream/<%= streamId %>?ui=embed#page=1"
-          allowfullscreen></iframe>
+  <!-- Archive.org embedded reader -->
+  <iframe
+    id="book-frame"
+    src="https://archive.org/stream/<%= streamId %>?ui=embed#page=1"
+    allowfullscreen
+  ></iframe>
 
+  <!-- Favorites toggle -->
   <div class="action-buttons">
     <form method="POST" action="/read/book/<%= streamId %>/favorite">
-      <button type="submit" class="<%= isFavorite ? 'remove' : '' %>">
+      <button type="submit" class="<%= isFavorite ? 'remove' : '' %>" <%= user ? '' : 'disabled' %>>
         <%= isFavorite ? '❌ Remove from Favorites' : '❤️ Add to Favorites' %>
       </button>
     </form>
@@ -56,14 +80,14 @@
   <div id="bookmark-status">⏳ Loading last saved page...</div>
 
   <script>
-    const userLoggedIn = <%= user ? 'true' : 'false' %>;
-    const bookId       = "<%= streamId %>";
-    const iframe       = document.getElementById('book-frame');
+    const userLoggedIn   = <%= user ? 'true' : 'false' %>;
+    const bookId         = "<%= streamId %>";
+    const iframe         = document.getElementById('book-frame');
     const bookmarkStatus = document.getElementById('bookmark-status');
 
     // Load last saved page
     fetch(`/read/book/${bookId}/bookmark`)
-      .then(res => { if(!res.ok) throw new Error('not ok'); return res.json(); })
+      .then(r => { if(!r.ok) throw new Error(); return r.json(); })
       .then(data => {
         const page = data.page || 1;
         iframe.src = `https://archive.org/stream/${bookId}?ui=embed#page=${page}`;
@@ -71,17 +95,24 @@
       })
       .catch(() => bookmarkStatus.textContent = "⚠️ Failed to load last bookmark.");
 
-    // Save bookmark
+    // Save bookmark (visibilitychange + beforeunload)
     function saveBookmark(){
       if (!userLoggedIn) return;
       const match = iframe.src.match(/#page=(\d+)/);
       const currentPage = match ? parseInt(match[1], 10) : 1;
 
-      fetch(`/read/book/${bookId}/bookmark`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ page: currentPage })
-      });
+      const payload = JSON.stringify({ page: currentPage });
+
+      if (navigator.sendBeacon) {
+        const blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon(`/read/book/${bookId}/bookmark`, blob);
+      } else {
+        fetch(`/read/book/${bookId}/bookmark`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload
+        });
+      }
     }
 
     document.addEventListener('visibilitychange', () => {
@@ -89,5 +120,8 @@
     });
     window.addEventListener('beforeunload', saveBookmark);
   </script>
+  <noscript>
+    <p style="color:#cc0000;">JavaScript is required to save your reading position.</p>
+  </noscript>
 </body>
 </html>
