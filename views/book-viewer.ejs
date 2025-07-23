@@ -13,66 +13,40 @@
       margin:0;
       padding:2rem;
     }
-    h1{margin-bottom:1rem;}
+    .back-link{
+      display:inline-block;margin:0 0 1rem 0;
+      color:#0077cc;text-decoration:none;font-size:.9rem;
+    }
+    .back-link:hover{text-decoration:underline}
+    h1{margin:0 0 1rem 0;}
     iframe{
-      width:100%;
-      height:80vh;
-      border:1px solid #ccc;
-      border-radius:8px;
-      background:#fff;
+      width:100%;height:80vh;border:1px solid #ccc;
+      border-radius:8px;background:#fff;
     }
-    .action-buttons{
-      margin-top:1rem;
-    }
-    .action-buttons form{
-      display:inline-block;
-      margin-right:1rem;
-    }
+    .action-buttons{margin-top:1rem;}
+    .action-buttons form{display:inline-block;margin-right:1rem;}
     .action-buttons button{
-      padding:.5rem 1rem;
-      font-size:.9rem;
-      background:#0077cc;
-      color:#fff;
-      border:none;
-      border-radius:5px;
-      cursor:pointer;
+      padding:.5rem 1rem;font-size:.9rem;
+      background:#0077cc;color:#fff;border:none;border-radius:5px;cursor:pointer;
     }
     .action-buttons button.remove{background:#cc0000;}
     #bookmark-status{
-      margin-top:1rem;
-      font-size:.9rem;
-      color:green;
+      margin-top:1rem;font-size:.9rem;color:green;
     }
-    .back-link{
-      display:inline-block;
-      margin-bottom:1rem;
-      color:#0077cc;
-      text-decoration:none;
-      font-size:.9rem;
-    }
-    .back-link:hover{text-decoration:underline;}
   </style>
 </head>
 <body>
-  <a href="/read" class="back-link">← Back to Library</a>
+  <a href="javascript:history.back()" class="back-link">← Back</a>
   <h1><%= book.title %></h1>
 
-  <%
-    // Prefer archiveId, fall back to identifier
-    const streamId = book.archiveId || book.identifier;
-    const safeId   = book._id || book.identifier;
-  %>
+  <% const streamId = book.archiveId || book.identifier; %>
 
-  <!-- Embedded Archive.org Book -->
-  <iframe
-    id="book-frame"
-    src="https://archive.org/stream/<%= streamId %>?ui=embed#page=1"
-    allowfullscreen
-  ></iframe>
+  <iframe id="book-frame"
+          src="https://archive.org/stream/<%= streamId %>?ui=embed#page=1"
+          allowfullscreen></iframe>
 
-  <!-- Bookmark & Favorites -->
   <div class="action-buttons">
-    <form method="POST" action="/read/book/<%= safeId %>/favorite">
+    <form method="POST" action="/read/book/<%= streamId %>/favorite">
       <button type="submit" class="<%= isFavorite ? 'remove' : '' %>">
         <%= isFavorite ? '❌ Remove from Favorites' : '❤️ Add to Favorites' %>
       </button>
@@ -82,51 +56,38 @@
   <div id="bookmark-status">⏳ Loading last saved page...</div>
 
   <script>
-    const userLoggedIn   = <%= user ? 'true' : 'false' %>;
-    const bookId         = "<%= safeId %>";
-    const streamIdClient = "<%= streamId %>";
-    const iframe         = document.getElementById('book-frame');
+    const userLoggedIn = <%= user ? 'true' : 'false' %>;
+    const bookId       = "<%= streamId %>";
+    const iframe       = document.getElementById('book-frame');
     const bookmarkStatus = document.getElementById('bookmark-status');
 
-    // Load last saved page (if logged in)
-    if (userLoggedIn) {
-      fetch(`/read/book/${bookId}/bookmark`)
-        .then(res => res.ok ? res.json() : Promise.reject())
-        .then(data => {
-          const page = data.page || 1;
-          iframe.src = `https://archive.org/stream/${streamIdClient}?ui=embed#page=${page}`;
-          bookmarkStatus.textContent = `📖 Resuming from page ${page}`;
-        })
-        .catch(() => {
-          bookmarkStatus.textContent = "⚠️ Failed to load last bookmark.";
-        });
-    } else {
-      bookmarkStatus.textContent = "🔓 Log in to save your place.";
-    }
+    // Load last saved page
+    fetch(`/read/book/${bookId}/bookmark`)
+      .then(res => { if(!res.ok) throw new Error('not ok'); return res.json(); })
+      .then(data => {
+        const page = data.page || 1;
+        iframe.src = `https://archive.org/stream/${bookId}?ui=embed#page=${page}`;
+        bookmarkStatus.textContent = `📖 Resuming from page ${page}`;
+      })
+      .catch(() => bookmarkStatus.textContent = "⚠️ Failed to load last bookmark.");
 
-    // Save bookmark when leaving
-    function saveBookmark() {
+    // Save bookmark
+    function saveBookmark(){
       if (!userLoggedIn) return;
-      const currentPage = getCurrentPageFromHash(iframe.src);
-      if (!currentPage) return;
+      const match = iframe.src.match(/#page=(\d+)/);
+      const currentPage = match ? parseInt(match[1], 10) : 1;
 
       fetch(`/read/book/${bookId}/bookmark`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ page: currentPage })
-      }).catch(() => {});
+      });
     }
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') saveBookmark();
     });
-    window.addEventListener('pagehide', saveBookmark);
     window.addEventListener('beforeunload', saveBookmark);
-
-    function getCurrentPageFromHash(url) {
-      const match = url.match(/#page=(\d+)/);
-      return match ? parseInt(match[1], 10) : 1;
-    }
   </script>
 </body>
 </html>
