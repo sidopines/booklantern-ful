@@ -73,7 +73,7 @@
           <img src="<%= book.cover || 'https://via.placeholder.com/200x280?text=No+Cover' %>" alt="<%= book.title %>">
           <h3><%= book.title %></h3>
           <p><%= book.creator || book.author || '' %></p>
-          <a href="/read/book/<%= book._id %>">📖 Read Now</a>
+ <a href="/read/book/<%= book._id || book.identifier %>">📖 Read Now</a>
         </div>
       <% }) %>
     </div>
