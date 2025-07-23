@@ -27,8 +27,8 @@ router.get('/login', (req, res) => {
 // ===== SHOW REGISTER FORM =====
 router.get('/register', (req, res) => {
   res.render('register', {
-    pageTitle: 'Register',
-    pageDescription: 'Create your free BookLantern account to explore books and videos.'
+    pageTitle: 'Register | BookLantern',
+    pageDescription: 'Create a free BookLantern account to read, watch, and save your favorites.'
   });
 });
 
@@ -40,7 +40,12 @@ router.post('/register', async (req, res) => {
     if (existingUser) return res.send('User already exists.');
 
     const hashedPassword = await bcrypt.hash(password, 12);
-    const newUser = new User({ name, email, password: hashedPassword });
+    const newUser = new User({
+      name,
+      email,
+      password: hashedPassword,
+      isVerified: false
+    });
     const savedUser = await newUser.save();
 
     const token = jwt.sign({ id: savedUser._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
@@ -62,9 +67,9 @@ router.get('/verify-email', async (req, res) => {
     const user = await User.findById(decoded.id);
 
     if (!user) return res.send('Invalid token.');
-    if (user.verified) return res.send('Email already verified.');
+    if (user.isVerified) return res.send('Email already verified.');
 
-    user.verified = true;
+    user.isVerified = true;
     await user.save();
 
     console.log('✅ Email verified for user:', user.email);
@@ -81,11 +86,10 @@ router.post('/login', async (req, res) => {
 
   try {
     const user = await User.findOne({ email });
-    console.log('🔍 Login attempt for:', email);
-    console.log('🔎 user.verified:', user?.verified);
+    console.log('🔍 User login attempt:', user);
 
     if (!user) return res.send('Invalid credentials.');
-    if (!user.isverified) return res.send('Please verify your email before logging in.');
+    if (!user.isVerified) return res.send('Please verify your email before logging in.');
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.send('Invalid credentials.');
@@ -94,7 +98,7 @@ router.post('/login', async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
-      role: user.role,
+      role: user.role
     };
 
     return res.redirect(user.role === 'admin' ? '/admin' : '/dashboard');
