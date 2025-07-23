@@ -6,20 +6,21 @@ const bcrypt = require('bcryptjs');
 
 const User     = require('../models/User');
 const Favorite = require('../models/Favorite');
-const Book     = require('../models/Book'); // only used on dashboard populate
+const Book     = require('../models/Book'); // only for populate when a favorite references a local book
 const sendVerificationEmail = require('../utils/sendVerification');
 const sendResetEmail        = require('../utils/sendReset');
 
-/* ---------- Helpers ---------- */
-const BASE_URL = process.env.BASE_URL || 'https://booklantern-ful.onrender.com';
+/* ---------- Config helpers ---------- */
+const BASE_URL   = process.env.BASE_URL   || 'https://booklantern-ful.onrender.com';
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
+/* ---------- Middleware ---------- */
 function isAuthenticated(req, res, next) {
   if (req.session && req.session.user) return next();
   return res.redirect('/login');
 }
 
-/* ---------- Auth Views ---------- */
+/* ---------- Auth pages ---------- */
 router.get('/login', (req, res) => {
   res.render('login', {
     pageTitle: 'Login | BookLantern',
@@ -37,7 +38,6 @@ router.get('/register', (req, res) => {
 /* ---------- Register ---------- */
 router.post('/register', async (req, res) => {
   const { name, email, password } = req.body;
-
   try {
     const exists = await User.findOne({ email });
     if (exists) return res.send('User already exists.');
@@ -61,10 +61,9 @@ router.post('/register', async (req, res) => {
   }
 });
 
-/* ---------- Email Verification ---------- */
+/* ---------- Email verification ---------- */
 router.get('/verify-email', async (req, res) => {
   const { token } = req.query;
-
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     const user = await User.findById(decoded.id);
@@ -85,7 +84,6 @@ router.get('/verify-email', async (req, res) => {
 /* ---------- Login ---------- */
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
-
   try {
     const user = await User.findOne({ email });
     console.log('🔍 User login attempt:', user);
@@ -103,7 +101,7 @@ router.post('/login', async (req, res) => {
       role: user.role || (user.isAdmin ? 'admin' : 'user')
     };
 
-    return res.redirect(req.session.user.role === 'admin' ? '/admin' : '/dashboard');
+    res.redirect(req.session.user.role === 'admin' ? '/admin' : '/dashboard');
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).send('Login failed.');
@@ -112,22 +110,29 @@ router.post('/login', async (req, res) => {
 
 /* ---------- Logout ---------- */
 router.get('/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.redirect('/');
-  });
+  req.session.destroy(() => res.redirect('/'));
 });
 
-/* ---------- Settings (change password) ---------- */
-router.get('/settings', isAuthenticated, (req, res) => {
-  res.render('settings', {
-    pageTitle: 'Account Settings',
-    pageDescription: 'Manage your BookLantern password.'
-  });
+/* ---------- Settings (GET + change password) ---------- */
+router.get('/settings', isAuthenticated, async (req, res) => {
+  try {
+    const favorites = await Favorite.find({ user: req.session.user._id })
+      .populate('book')
+      .lean();
+
+    res.render('settings', {
+      pageTitle: 'Account Settings',
+      pageDescription: 'Manage your BookLantern account.',
+      favorites
+    });
+  } catch (err) {
+    console.error('Settings error:', err);
+    res.status(500).send('Internal Server Error');
+  }
 });
 
 router.post('/settings', isAuthenticated, async (req, res) => {
   const { oldPassword, newPassword } = req.body;
-
   try {
     const user = await User.findById(req.session.user._id);
     if (!user) return res.status(404).send('User not found');
@@ -149,7 +154,9 @@ router.post('/settings', isAuthenticated, async (req, res) => {
 router.get('/dashboard', isAuthenticated, async (req, res) => {
   try {
     const favorites = await Favorite.find({ user: req.session.user._id })
-      .populate('book');
+      .populate('book')
+      .lean();
+
     res.render('dashboard', {
       user: req.session.user,
       favorites,
@@ -162,7 +169,7 @@ router.get('/dashboard', isAuthenticated, async (req, res) => {
   }
 });
 
-/* ---------- Favorites (Book model based) ---------- */
+/* ---------- Favorites for local Book model (optional) ---------- */
 router.post('/favorite/:id', isAuthenticated, async (req, res) => {
   const bookId = req.params.id;
   const userId = req.session.user._id;
@@ -227,7 +234,6 @@ router.get('/reset-password', (req, res) => {
 
 router.post('/reset-password', async (req, res) => {
   const { token, password } = req.body;
-
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     const user = await User.findById(decoded.id);
