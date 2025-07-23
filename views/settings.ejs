@@ -1,71 +1,35 @@
-<% pageTitle = "Account Settings"; pageDescription = "Update your BookLantern account password securely and easily."; %>
+<!-- views/settings.ejs -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <% include ./partials/head.ejs %>
+  <%- include('./partials/head.ejs', {
+    pageTitle: 'Account Settings',
+    pageDescription: 'Manage your BookLantern password.'
+  }) %>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f2f2f2;
-      padding: 2rem;
-    }
-    .container {
-      background: white;
-      padding: 2rem;
-      border-radius: 10px;
-      max-width: 500px;
-      margin: 0 auto;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    }
-    h1 {
-      color: #333;
-      text-align: center;
-      margin-bottom: 1.5rem;
-    }
-    input {
-      width: 100%;
-      padding: 0.7rem;
-      margin: 0.5rem 0 1rem;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      font-size: 1rem;
-    }
-    button {
-      width: 100%;
-      padding: 0.8rem;
-      background: #222;
-      color: white;
-      font-size: 1rem;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-    button:hover {
-      background: #000;
-    }
-    .back-link {
-      display: block;
-      text-align: center;
-      margin-top: 1.2rem;
-      color: #0077cc;
-      text-decoration: none;
-      font-size: 0.95rem;
-    }
-    .back-link:hover {
-      text-decoration: underline;
-    }
+    body{font-family:Arial,sans-serif;background:#f2f2f2;margin:0;padding:2rem;}
+    .container{background:#fff;max-width:480px;margin:0 auto;padding:2rem;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.08);}
+    h1{text-align:center;color:#333;margin-top:0;}
+    label{display:block;margin:.8rem 0 .3rem;font-weight:600;color:#444;}
+    input{width:100%;padding:.7rem;border:1px solid #ccc;border-radius:5px;font-size:1rem;}
+    button{width:100%;padding:.8rem;margin-top:1rem;background:#333;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:1rem;font-weight:600;}
+    a.back{display:block;text-align:center;margin-top:1rem;color:#0077cc;text-decoration:none;font-size:.9rem;}
+    a.back:hover{text-decoration:underline;}
   </style>
 </head>
 <body>
   <div class="container">
     <h1>🔐 Change Password</h1>
     <form action="/settings" method="POST">
-      <input type="password" name="oldPassword" placeholder="Current Password" required />
-      <input type="password" name="newPassword" placeholder="New Password" required />
+      <label for="oldPassword">Current Password</label>
+      <input type="password" id="oldPassword" name="oldPassword" required>
+
+      <label for="newPassword">New Password</label>
+      <input type="password" id="newPassword" name="newPassword" required>
+
       <button type="submit">Update Password</button>
     </form>
-    <a href="/dashboard" class="back-link">← Back to Dashboard</a>
+    <a href="/dashboard" class="back">← Back to Dashboard</a>
   </div>
 </body>
 </html>
