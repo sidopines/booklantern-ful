@@ -1,63 +1,70 @@
-<% pageTitle = `${book.title} | Read Book`; pageDescription = `Read ${book.title} online via BookLantern. Bookmark and save to favorites.`; %>
+<!-- views/book-viewer.ejs (or bookviewer.ejs — keep name consistent with server.js) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <% include ./partials/head.ejs %>
+  <%- include('./partials/head.ejs', {
+    pageTitle: `${book.title} | Read Book`,
+    pageDescription: `Read ${book.title} online via BookLantern. Bookmark and save to favorites.`
+  }) %>
   <style>
-    body {
+    body{
       font-family: Arial, sans-serif;
-      background: #f4f4f4;
-      margin: 0;
-      padding: 2rem;
+      background:#f4f4f4;
+      margin:0;
+      padding:2rem;
     }
-    h1 {
-      margin-bottom: 1rem;
+    h1{margin-bottom:1rem;}
+    iframe{
+      width:100%;
+      height:80vh;
+      border:1px solid #ccc;
+      border-radius:8px;
+      background:#fff;
     }
-    iframe {
-      width: 100%;
-      height: 80vh;
-      border: 1px solid #ccc;
-      border-radius: 8px;
+    .action-buttons{
+      margin-top:1rem;
     }
-    .action-buttons {
-      margin-top: 1rem;
+    .action-buttons form{
+      display:inline-block;
+      margin-right:1rem;
     }
-    .action-buttons form {
-      display: inline-block;
-      margin-right: 1rem;
+    .action-buttons button{
+      padding:.5rem 1rem;
+      font-size:.9rem;
+      background:#0077cc;
+      color:#fff;
+      border:none;
+      border-radius:5px;
+      cursor:pointer;
     }
-    .action-buttons button {
-      padding: 0.5rem 1rem;
-      font-size: 0.9rem;
-      background: #0077cc;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
+    .action-buttons button.remove{
+      background:#cc0000;
     }
-    .action-buttons button.remove {
-      background: #cc0000;
-    }
-    #bookmark-status {
-      margin-top: 1rem;
-      font-size: 0.9rem;
-      color: green;
+    #bookmark-status{
+      margin-top:1rem;
+      font-size:.9rem;
+      color:green;
     }
   </style>
 </head>
 <body>
   <h1><%= book.title %></h1>
 
+  <% 
+    // prefer archiveId, fall back to identifier if your schema uses it
+    const streamId = book.archiveId || book.identifier; 
+  %>
+
   <!-- Embedded Archive.org Book -->
   <iframe
     id="book-frame"
-    src="https://archive.org/stream/<%= book.archiveId %>?ui=embed#page=1"
+    src="https://archive.org/stream/<%= streamId %>?ui=embed#page=1"
     allowfullscreen
   ></iframe>
 
   <!-- Bookmark & Favorites UI -->
   <div class="action-buttons">
-    <form method="POST" action="/favorite/<%= book._id %><%= isFavorite ? '/remove' : '' %>">
+    <form method="POST" action="/read/book/<%= book._id %>/favorite">
       <button type="submit" class="<%= isFavorite ? 'remove' : '' %>">
         <%= isFavorite ? '❌ Remove from Favorites' : '❤️ Add to Favorites' %>
       </button>
@@ -67,35 +74,46 @@
   <div id="bookmark-status">⏳ Loading last saved page...</div>
 
   <script>
-    const userLoggedIn = <%= typeof user !== 'undefined' ? 'true' : 'false' %>;
+    const userLoggedIn = <%= user ? 'true' : 'false' %>;
     const bookId = "<%= book._id %>";
+    const streamId = "<%= streamId %>";
     const iframe = document.getElementById('book-frame');
     const bookmarkStatus = document.getElementById('bookmark-status');
 
     // Load last saved page
     fetch(`/read/book/${bookId}/bookmark`)
-      .then(res => res.json())
+      .then(res => {
+        if(!res.ok) throw new Error('not ok');
+        return res.json();
+      })
       .then(data => {
         const page = data.page || 1;
-        iframe.src = `https://archive.org/stream/<%= book.archiveId %>?ui=embed#page=${page}`;
+        iframe.src = `https://archive.org/stream/${streamId}?ui=embed#page=${page}`;
         bookmarkStatus.textContent = `📖 Resuming from page ${page}`;
       })
       .catch(() => {
         bookmarkStatus.textContent = "⚠️ Failed to load last bookmark.";
       });
 
-    // Save bookmark on unload
-    window.addEventListener('beforeunload', () => {
+    // Save bookmark on page hide (more reliable than beforeunload for some browsers)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') saveBookmark();
+    });
+    window.addEventListener('beforeunload', saveBookmark);
+
+    function saveBookmark() {
       if (!userLoggedIn) return;
       const currentPage = getCurrentPageFromHash(iframe.src);
       if (currentPage) {
-        fetch(`/read/book/${bookId}/bookmark`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ page: currentPage })
-        });
+        navigator.sendBeacon
+          ? navigator.sendBeacon(`/read/book/${bookId}/bookmark`, JSON.stringify({ page: currentPage }))
+          : fetch(`/read/book/${bookId}/bookmark`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ page: currentPage })
+            });
       }
-    });
+    }
 
     function getCurrentPageFromHash(url) {
       const match = url.match(/#page=(\d+)/);
