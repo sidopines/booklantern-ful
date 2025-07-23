@@ -1,15 +1,10 @@
-<%
-/**
- * views/read.ejs
- */
-pageTitle = "Read Books Online";
-pageDescription = "Browse and read books fetched from Archive.org using BookLantern's modern reader experience.";
-const q = typeof query !== 'undefined' ? query : '';
-%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/head.ejs') %>
+  <%- include('./partials/head.ejs', {
+    pageTitle: 'Read Books Online',
+    pageDescription: "Browse and read books fetched from Archive.org using BookLantern's modern reader experience."
+  }) %>
   <style>
     body{
       font-family:'Georgia',serif;
@@ -61,7 +56,11 @@ const q = typeof query !== 'undefined' ? query : '';
   <h1>📚 Explore Free Books</h1>
 
   <form action="/read" method="GET">
-    <input type="text" name="query" placeholder="Search books by title or author" value="<%= q %>">
+    <input
+      type="text"
+      name="query"
+      placeholder="Search books by title or author"
+      value="<%= typeof query !== 'undefined' ? query : '' %>">
     <button type="submit">Search</button>
   </form>
 
