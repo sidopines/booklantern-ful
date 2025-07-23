@@ -1,3 +1,7 @@
+<!-- views/read.ejs -->
+<%
+  const q = typeof query !== 'undefined' ? query : '';
+%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -60,7 +64,7 @@
       type="text"
       name="query"
       placeholder="Search books by title or author"
-      value="<%= typeof query !== 'undefined' ? query : '' %>">
+      value="<%= q %>">
     <button type="submit">Search</button>
   </form>
 
@@ -68,12 +72,14 @@
     <div class="empty">No books found. Try another search term.</div>
   <% } else { %>
     <div class="book-grid">
-      <% books.forEach(book => { %>
+      <% books.forEach(book => { 
+           const bid = book._id || book.identifier;
+      %>
         <div class="book-card">
           <img src="<%= book.cover || 'https://via.placeholder.com/200x280?text=No+Cover' %>" alt="<%= book.title %>">
           <h3><%= book.title %></h3>
           <p><%= book.creator || book.author || '' %></p>
- <a href="/read/book/<%= book._id || book.identifier %>">📖 Read Now</a>
+          <a href="/read/book/<%= encodeURIComponent(bid) %>">📖 Read Now</a>
         </div>
       <% }) %>
     </div>
