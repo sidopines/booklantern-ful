@@ -5,25 +5,30 @@ const router = express.Router();
 
 const Bookmark = require('../models/Bookmark');
 const Favorite = require('../models/Favorite');
-const Book     = require('../models/Book'); // optional local storage
+const Book     = require('../models/Book');
 
 // Helpers
-const archiveCover = id => `https://archive.org/services/img/${id}`;
-const fields = ['identifier','title','creator','publicdate'];
+function archiveCover(id) {
+  return `https://archive.org/services/img/${id}`;
+}
+function archiveStreamUrl(id, page = 1) {
+  return `https://archive.org/stream/${id}?ui=embed#page=${page}`;
+}
 
-/* ----------------- READ LIST / SEARCH ----------------- */
+/* ========== READ LIST / SEARCH ========== */
 router.get('/read', async (req, res) => {
   const query = (req.query.query || '').trim();
 
-  // No search? Show locally stored books (optional)
   if (!query) {
+    // Show locally stored books (if you still use them)
     const books = await Book.find({}).sort({ createdAt: -1 }).limit(24);
     return res.render('read', { books, query });
   }
 
   try {
     const q = encodeURIComponent(`(${query}) AND mediatype:texts`);
-    const url = `https://archive.org/advancedsearch.php?q=${q}&fl[]=${fields.join(',')}&rows=50&page=1&output=json`;
+    const fields = ['identifier', 'title', 'creator'].join(',');
+    const url = `https://archive.org/advancedsearch.php?q=${q}&fl[]=${fields}&rows=50&page=1&output=json`;
 
     const { data } = await axios.get(url, { timeout: 10000 });
     const docs = data?.response?.docs || [];
@@ -42,7 +47,7 @@ router.get('/read', async (req, res) => {
   }
 });
 
-/* ----------------- VIEWER ----------------- */
+/* ========== BOOK VIEWER (Archive) ========== */
 router.get('/read/book/:identifier', async (req, res) => {
   const identifier = req.params.identifier;
 
@@ -66,44 +71,16 @@ router.get('/read/book/:identifier', async (req, res) => {
   });
 });
 
-/* ----------------- FAVORITE TOGGLE (ARCHIVE) ----------------- */
-router.post('/read/book/:identifier/favorite', async (req, res) => {
-  if (!req.session.user) return res.status(401).send('Login required');
-
-  const identifier = req.params.identifier;
-
-  try {
-    const existing = await Favorite.findOne({
-      user: req.session.user._id,
-      archiveId: identifier
-    });
-
-    if (existing) {
-      await existing.deleteOne();
-      return res.send('❌ Removed from favorites');
-    }
-
-    await Favorite.create({
-      user: req.session.user._id,
-      archiveId: identifier
-    });
-
-    res.send('❤️ Added to favorites');
-  } catch (err) {
-    console.error('Favorite toggle error:', err);
-    res.status(500).send('Failed to toggle favorite');
-  }
-});
-
-/* ----------------- BOOKMARK SAVE ----------------- */
+/* ========== BOOKMARK SAVE (Archive) ========== */
 router.post('/read/book/:identifier/bookmark', async (req, res) => {
   if (!req.session.user) return res.status(401).send('Login required');
   const { page } = req.body;
+  const archiveId = req.params.identifier;
 
   try {
     const existing = await Bookmark.findOne({
       user: req.session.user._id,
-      archiveId: req.params.identifier
+      archiveId
     });
 
     if (existing) {
@@ -112,11 +89,10 @@ router.post('/read/book/:identifier/bookmark', async (req, res) => {
     } else {
       await Bookmark.create({
         user: req.session.user._id,
-        archiveId: req.params.identifier,
+        archiveId,
         currentPage: page
       });
     }
-
     res.send('✅ Bookmark saved!');
   } catch (err) {
     console.error('Bookmark error:', err);
@@ -124,7 +100,7 @@ router.post('/read/book/:identifier/bookmark', async (req, res) => {
   }
 });
 
-/* ----------------- BOOKMARK GET ----------------- */
+/* ========== BOOKMARK GET (Archive) ========== */
 router.get('/read/book/:identifier/bookmark', async (req, res) => {
   if (!req.session.user) return res.status(401).send('Login required');
   try {
@@ -136,6 +112,31 @@ router.get('/read/book/:identifier/bookmark', async (req, res) => {
   } catch (err) {
     console.error('Bookmark fetch error:', err);
     res.status(500).send('Error loading bookmark');
+  }
+});
+
+/* ========== FAVORITE TOGGLE (Archive) ========== */
+router.post('/read/book/:identifier/favorite', async (req, res) => {
+  if (!req.session.user) return res.status(401).send('Login required');
+  const archiveId = req.params.identifier;
+  try {
+    const existing = await Favorite.findOne({
+      user: req.session.user._id,
+      archiveId
+    });
+
+    if (existing) {
+      await existing.deleteOne();
+      return res.send('❌ Removed from favorites');
+    }
+    await Favorite.create({
+      user: req.session.user._id,
+      archiveId
+    });
+    res.send('❤️ Added to favorites');
+  } catch (err) {
+    console.error('Favorite toggle error:', err);
+    res.status(500).send('Failed to toggle favorite');
   }
 });
 
