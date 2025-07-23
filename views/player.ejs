@@ -1,63 +1,55 @@
-<% pageTitle = `${video.title} | Watch`; pageDescription = `Watch "${video.title}" in the ${video.genre.name} category on BookLantern.`; %>
+<%
+/**
+ * views/player.ejs
+ */
+pageTitle = `${video.title} | Watch`;
+pageDescription = `Watch "${video.title}"${video.genre ? ' in the ' + video.genre.name + ' category' : ''} on BookLantern.`;
+/* Extract YouTube ID safely */
+const ytMatch = (video.youtubeUrl || '').match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
+const ytId = ytMatch ? ytMatch[1] : video.youtubeUrl;
+%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <% include ./partials/head.ejs %>
+  <%- include('./partials/head.ejs') %>
   <style>
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #0e0e0e;
-      color: #fff;
-      margin: 0;
-      padding: 0;
+    body{
+      font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
+      background:#0e0e0e;color:#fff;margin:0
     }
-    .container {
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 2rem;
+    .container{max-width:1000px;margin:0 auto;padding:2rem}
+    h1{font-size:2rem;margin:.5rem 0}
+    .meta{color:#aaa;font-size:.9rem;margin-bottom:1.2rem}
+    .video-wrap{
+      position:relative;width:100%;padding-top:56.25%; /* 16:9 */
+      margin-bottom:1rem;border-radius:8px;overflow:hidden;background:#000
     }
-    h1 {
-      font-size: 2rem;
-      margin-bottom: 0.5rem;
+    .video-wrap iframe{
+      position:absolute;top:0;left:0;width:100%;height:100%;border:0
     }
-    .meta {
-      color: #aaa;
-      font-size: 0.9rem;
-      margin-bottom: 1.5rem;
+    .description{font-size:1rem;line-height:1.6;white-space:pre-wrap}
+    .back-link{
+      display:inline-block;margin-bottom:1.5rem;color:#00aced;font-size:.9rem;text-decoration:none
     }
-    iframe {
-      width: 100%;
-      height: 500px;
-      border: none;
-      border-radius: 8px;
-      margin-bottom: 1rem;
-    }
-    .description {
-      font-size: 1rem;
-      line-height: 1.6;
-    }
-    a.back-link {
-      display: inline-block;
-      margin-bottom: 2rem;
-      color: #00aced;
-      text-decoration: none;
-      font-size: 0.9rem;
-    }
-    a.back-link:hover {
-      text-decoration: underline;
-    }
+    .back-link:hover{text-decoration:underline}
   </style>
 </head>
 <body>
   <div class="container">
     <a href="/watch" class="back-link">← Back to Watch Page</a>
     <h1><%= video.title %></h1>
-    <div class="meta">Genre: <%= video.genre?.name || 'Uncategorized' %></div>
-    <iframe
-      src="https://www.youtube.com/embed/<%= video.youtubeUrl.split('v=')[1] %>"
-      allowfullscreen
-    ></iframe>
-    <div class="description"><%= video.description %></div>
+    <div class="meta">Genre: <%= (video.genre && video.genre.name) ? video.genre.name : 'Uncategorized' %></div>
+
+    <div class="video-wrap">
+      <iframe
+        src="https://www.youtube.com/embed/<%= ytId %>?rel=0"
+        title="<%= video.title %>"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowfullscreen>
+      </iframe>
+    </div>
+
+    <div class="description"><%= video.description || '' %></div>
   </div>
 </body>
 </html>
