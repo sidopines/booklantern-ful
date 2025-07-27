@@ -1,0 +1,30 @@
+<!-- views/resend-verification.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('./partials/head.ejs', {
+    pageTitle: pageTitle,
+    pageDescription: pageDescription
+  }) %>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f9f9f9; margin:0; padding:2rem; }
+    .back-link{ display:inline-block; margin-bottom:1rem; color:#0077cc; text-decoration:none; }
+    .back-link:hover{ text-decoration:underline; }
+    .container { max-width:500px; margin:0 auto; background:#fff; padding:2rem; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+    input, button { width:100%; padding:0.75rem; margin-bottom:1rem; font-size:1rem; }
+    button { background:#0077cc; color:#fff; border:none; cursor:pointer; border-radius:5px; }
+    button:hover { background:#005fa3; }
+  </style>
+</head>
+<body>
+  <a href="javascript:history.back()" class="back-link">← Back</a>
+  <div class="container">
+    <h1>Resend Verification Email</h1>
+    <p>Enter your email and we'll send you a fresh link.</p>
+    <form action="/resend-verification" method="POST">
+      <input type="email" name="email" placeholder="you@example.com" required />
+      <button type="submit">Resend Email</button>
+    </form>
+  </div>
+</body>
+</html>
