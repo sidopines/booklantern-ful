@@ -1,4 +1,4 @@
-<% /* views/contact.ejs */ %>
+<!-- views/contact.ejs -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,59 +9,25 @@
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 0;
-      background-color: #f9f9f9;
-      color: #333;
+      margin: 0; background-color: #f9f9f9; color: #333;
     }
-    .container {
-      max-width: 700px;
-      margin: 0 auto;
-      padding: 2rem;
+    .back-link {
+      display: inline-block;
+      margin: 1rem;
+      color: #0077cc;
+      text-decoration: none;
+      font-size: 0.9rem;
     }
-    h1 {
-      font-size: 2.5rem;
-      color: #222;
-      margin-bottom: 1rem;
-    }
-    p {
-      font-size: 1.1rem;
-      line-height: 1.7;
-      margin-bottom: 1.5rem;
-    }
-    form {
-      background: #fff;
-      padding: 2rem;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-    }
-    input, textarea {
-      width: 100%;
-      padding: 0.75rem;
-      margin-bottom: 1rem;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      font-size: 1rem;
-    }
-    button {
-      padding: 0.75rem 2rem;
-      font-size: 1rem;
-      color: #fff;
-      background-color: #0077cc;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #005fa3;
-    }
+    .back-link:hover { text-decoration: underline; }
+    .container { max-width:700px; margin:0 auto; padding:2rem; }
+    /* ... rest of your existing styles ... */
   </style>
 </head>
 <body>
+  <a href="javascript:history.back()" class="back-link">← Back</a>
   <div class="container">
     <h1>Contact Us</h1>
-    <p>
-      We'd love to hear from you! Whether you have a question, feedback, or just want to say hello, feel free to reach out.
-    </p>
+    <p>We'd love to hear from you! ...</p>
     <form action="https://formspree.io/f/mqalkpkn" method="POST">
       <input type="text" name="name" placeholder="Your Name" required />
       <input type="email" name="email" placeholder="Your Email" required />
