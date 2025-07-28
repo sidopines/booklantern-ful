@@ -44,7 +44,8 @@ router.get('/register', (req, res) => {
 router.get('/resend-verification', (req, res) => {
   res.render('resend-verification', {
     pageTitle: 'Resend Verification',
-    pageDescription: 'Get a fresh verification email if your previous link expired.'
+    pageDescription: 'Get a fresh verification email if your previous link expired.',
+    email: req.query.email || ''
   });
 });
 
