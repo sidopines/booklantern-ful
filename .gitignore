@@ -1,0 +1,8 @@
+# dependencies
+node_modules/
+
+# env file
+.env
+
+# OS junk
+.DS_Store
