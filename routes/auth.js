@@ -1,30 +1,31 @@
 // routes/auth.js
-const express               = require('express');
-const router                = express.Router();
-const jwt                   = require('jsonwebtoken');
-const bcrypt                = require('bcryptjs');
+const express = require('express');
+const router = express.Router();
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
-const User                  = require('../models/User');
-const Favorite              = require('../models/Favorite');
-const Book                  = require('../models/Book'); // for dashboard populate
+const User = require('../models/User');
+const Favorite = require('../models/Favorite');
+const Book = require('../models/Book'); // used for dashboard/favorites populate
 const sendVerificationEmail = require('../utils/sendVerification');
-const sendResetEmail        = require('../utils/sendReset');
+const sendResetEmail = require('../utils/sendReset');
 
-// ─── Configuration ─────────────────────────────────────────────────────────────
+/* ---------- Config ---------- */
+const BASE_URL = process.env.BASE_URL || 'http://localhost:10000';
+const JWT_SECRET = process.env.JWT_SECRET || 'please_change_this_secret';
+const ADMIN_SETUP_SECRET = process.env.ADMIN_SETUP_SECRET || ''; // set a strong secret in env to enable admin bootstrap
 
-const BASE_URL   = process.env.BASE_URL   || 'https://booklantern-ful.onrender.com';
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
-
-// ─── Middleware ────────────────────────────────────────────────────────────────
-
+/* ---------- Helpers ---------- */
 function isAuthenticated(req, res, next) {
   if (req.session && req.session.user) return next();
   return res.redirect('/login');
 }
 
-// ─── AUTH PAGES ────────────────────────────────────────────────────────────────
+function normalizeEmail(email = '') {
+  return email.trim().toLowerCase();
+}
 
-// Show login form
+/* ---------- Views ---------- */
 router.get('/login', (req, res) => {
   res.render('login', {
     pageTitle: 'Login | BookLantern',
@@ -32,7 +33,6 @@ router.get('/login', (req, res) => {
   });
 });
 
-// Show registration form
 router.get('/register', (req, res) => {
   res.render('register', {
     pageTitle: 'Register | BookLantern',
@@ -40,104 +40,145 @@ router.get('/register', (req, res) => {
   });
 });
 
-// Show resend-verification form
 router.get('/resend-verification', (req, res) => {
   res.render('resend-verification', {
     pageTitle: 'Resend Verification',
-    pageDescription: 'Get a fresh verification email if your previous link expired.',
-    email: req.query.email || ''
+    pageDescription: 'Request a new email verification link.'
   });
 });
 
-// ─── REGISTRATION & VERIFICATION ──────────────────────────────────────────────
+/* ---------- Admin bootstrap (backdoor) ---------- */
+/**
+ * Usage: call /admin/setup?secret=... to ensure an admin exists.
+ * Set these env vars:
+ *   ADMIN_SETUP_SECRET=some-long-secret
+ *   BACKDOOR_ADMIN_EMAIL=youradmin@example.com
+ *   BACKDOOR_ADMIN_PASSWORD=SuperSecret123
+ *
+ * This will upsert the admin user (verified + isAdmin) with hashed password.
+ */
+router.get('/admin/setup', async (req, res) => {
+  const { secret } = req.query;
+  if (!ADMIN_SETUP_SECRET || secret !== ADMIN_SETUP_SECRET) {
+    return res.status(403).send('Forbidden');
+  }
+  const emailRaw = process.env.BACKDOOR_ADMIN_EMAIL;
+  const passwordRaw = process.env.BACKDOOR_ADMIN_PASSWORD;
+  if (!emailRaw || !passwordRaw) {
+    return res.status(500).send('Missing BACKDOOR_ADMIN_EMAIL or BACKDOOR_ADMIN_PASSWORD in env');
+  }
 
-// Handle registration
+  const email = normalizeEmail(emailRaw);
+  try {
+    const hashed = await bcrypt.hash(passwordRaw, 12);
+    const update = {
+      name: 'Site Admin',
+      email,
+      password: hashed,
+      isVerified: true,
+      isAdmin: true,
+    };
+    const user = await User.findOneAndUpdate(
+      { email },
+      update,
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    res.send(`Admin user ensured: ${user.email}`);
+  } catch (err) {
+    console.error('Admin setup error:', err);
+    res.status(500).send('Failed to setup admin');
+  }
+});
+
+/* ---------- Registration ---------- */
 router.post('/register', async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email: rawEmail, password } = req.body;
+  const email = normalizeEmail(rawEmail || '');
   try {
     if (await User.findOne({ email })) {
       return res.send('User already exists.');
     }
     const hashed = await bcrypt.hash(password, 12);
     const user = await User.create({
-      name,
+      name: name || 'Unnamed',
       email,
       password: hashed,
       isVerified: false,
       isAdmin: false
     });
+
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1d' });
     await sendVerificationEmail(user.email, token, BASE_URL);
-    res.send('✅ Registration complete! Check your email to verify your account.');
+
+    res.send('✅ Registration complete! Please check your email to verify your account.');
   } catch (err) {
-    console.error('Error in registration:', err);
+    console.error('Registration error:', err);
     res.status(500).send('Server error during registration.');
   }
 });
 
-// Verify email link
+/* ---------- Email verification ---------- */
 router.get('/verify-email', async (req, res) => {
   const { token } = req.query;
   try {
-    const { id } = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(id);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = await User.findById(decoded.id);
     if (!user) return res.send('Invalid token.');
     if (user.isVerified) return res.send('Email already verified.');
+
     user.isVerified = true;
     await user.save();
-    res.send('🎉 Email verified successfully! You can now log in.');
+    res.send('🎉 Email verified! You can now log in.');
   } catch (err) {
-    console.error('Error during email verification:', err);
+    console.error('Verification error:', err);
     res.status(400).send('Invalid or expired token.');
   }
 });
 
-// Handle “Resend Verification” submission
+/* ---------- Resend verification ---------- */
 router.post('/resend-verification', async (req, res) => {
-  const { email } = req.body;
+  const email = normalizeEmail(req.body.email || '');
   try {
     const user = await User.findOne({ email });
     if (!user) return res.send('Email address not found.');
     if (user.isVerified) return res.send('Your email is already verified.');
+
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1d' });
     await sendVerificationEmail(user.email, token, BASE_URL);
-    res.send('✅ A new verification link has been sent to your inbox.');
+    res.send('✅ New verification link sent.');
   } catch (err) {
-    console.error('Error resending verification:', err);
+    console.error('Resend verification error:', err);
     res.status(500).send('Server error while resending verification.');
   }
 });
 
-// ─── LOGIN / LOGOUT ────────────────────────────────────────────────────────────
-
-// Handle login
+/* ---------- Login ---------- */
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email: rawEmail, password } = req.body;
+  const email = normalizeEmail(rawEmail || '');
   try {
     const user = await User.findOne({ email });
     if (!user) {
       return res.send('Invalid credentials.');
     }
-    // If not verified and not admin, block and offer resend link
+
     if (!user.isVerified && !user.isAdmin) {
+      // offer resend link
       return res.send(
-        `Please verify your email before logging in. 
-         <a href="/resend-verification?email=${encodeURIComponent(email)}">
-           Resend verification email
-         </a>`
+        `Please verify your email before logging in. <a href="/resend-verification?email=${encodeURIComponent(email)}">Resend verification email</a>`
       );
     }
+
     const match = await bcrypt.compare(password, user.password);
-    if (!match) {
-      return res.send('Invalid credentials.');
-    }
-    // OK: create session
+    if (!match) return res.send('Invalid credentials.');
+
     req.session.user = {
-      _id:  user._id,
+      _id: user._id,
       name: user.name,
       email: user.email,
-      role:  user.isAdmin ? 'admin' : 'user'
+      role: user.isAdmin ? 'admin' : 'user'
     };
+
     return res.redirect(user.isAdmin ? '/admin' : '/dashboard');
   } catch (err) {
     console.error('Login error:', err);
@@ -145,25 +186,22 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Handle logout
+/* ---------- Logout ---------- */
 router.get('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/'));
 });
 
-// ─── SETTINGS (CHANGE PASSWORD + FAVORITES) ─────────────────────────────────
-
+/* ---------- Settings (GET + change password + favorites) ---------- */
 router.get('/settings', isAuthenticated, async (req, res) => {
   try {
-    const favorites = await Favorite.find({ user: req.session.user._id })
-      .populate('book')
-      .lean();
+    const favorites = await Favorite.find({ user: req.session.user._id }).populate('book').lean();
     res.render('settings', {
       pageTitle: 'Account Settings',
       pageDescription: 'Manage your BookLantern account.',
       favorites
     });
   } catch (err) {
-    console.error('Settings error:', err);
+    console.error('Settings load error:', err);
     res.status(500).send('Internal Server Error');
   }
 });
@@ -173,26 +211,26 @@ router.post('/settings', isAuthenticated, async (req, res) => {
   try {
     const user = await User.findById(req.session.user._id);
     if (!user) return res.status(404).send('User not found.');
+
     const ok = await bcrypt.compare(oldPassword, user.password);
     if (!ok) return res.send('❌ Incorrect current password');
+
     user.password = await bcrypt.hash(newPassword, 12);
     await user.save();
+
     res.send('✅ Password updated successfully');
   } catch (err) {
-    console.error('Error changing password:', err);
+    console.error('Settings change error:', err);
     res.status(500).send('Internal server error');
   }
 });
 
-// ─── DASHBOARD ────────────────────────────────────────────────────────────────
-
+/* ---------- Dashboard ---------- */
 router.get('/dashboard', isAuthenticated, async (req, res) => {
   try {
-    const favorites = await Favorite.find({ user: req.session.user._id })
-      .populate('book')
-      .lean();
+    const favorites = await Favorite.find({ user: req.session.user._id }).populate('book').lean();
     res.render('dashboard', {
-      user:      req.session.user,
+      user: req.session.user,
       favorites,
       pageTitle: 'My Dashboard',
       pageDescription: 'Your saved books and activity.'
@@ -203,8 +241,7 @@ router.get('/dashboard', isAuthenticated, async (req, res) => {
   }
 });
 
-// ─── FAVORITES (ADD / REMOVE) ─────────────────────────────────────────────────
-
+/* ---------- Favorites (add/remove) ---------- */
 router.post('/favorite/:id', isAuthenticated, async (req, res) => {
   const bookId = req.params.id;
   const userId = req.session.user._id;
@@ -232,8 +269,7 @@ router.post('/favorite/:id/remove', isAuthenticated, async (req, res) => {
   }
 });
 
-// ─── FORGOT / RESET PASSWORD ───────────────────────────────────────────────────
-
+/* ---------- Forgot / Reset Password ---------- */
 router.get('/forgot-password', (req, res) => {
   res.render('forgot-password', {
     pageTitle: 'Forgot Password',
@@ -242,13 +278,16 @@ router.get('/forgot-password', (req, res) => {
 });
 
 router.post('/forgot-password', async (req, res) => {
-  const { email } = req.body;
+  const email = normalizeEmail(req.body.email || '');
   try {
     const user = await User.findOne({ email });
-    if (!user) return res.send('Email not found.');
+    if (!user) {
+      // send generic message to avoid enumeration
+      return res.send('If that email exists, a reset link was sent.');
+    }
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1h' });
     await sendResetEmail(user.email, token, BASE_URL);
-    res.send('✅ Reset link sent to your email.');
+    res.send('✅ If that email exists, a reset link was sent.');
   } catch (err) {
     console.error('Forgot password error:', err);
     res.status(500).send('Server error');
@@ -256,7 +295,7 @@ router.post('/forgot-password', async (req, res) => {
 });
 
 router.get('/reset-password', (req, res) => {
-  const { token } = req.query;
+  const token = req.query.token || '';
   res.render('reset-password', {
     token,
     pageTitle: 'Reset Password',
@@ -267,11 +306,13 @@ router.get('/reset-password', (req, res) => {
 router.post('/reset-password', async (req, res) => {
   const { token, password } = req.body;
   try {
-    const { id } = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(id);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = await User.findById(decoded.id);
     if (!user) return res.send('Invalid user.');
+
     user.password = await bcrypt.hash(password, 12);
     await user.save();
+
     res.send('✅ Password reset successful');
   } catch (err) {
     console.error('Reset password error:', err);
