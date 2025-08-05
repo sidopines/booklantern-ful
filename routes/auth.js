@@ -11,16 +11,17 @@ const sendVerificationEmail = require('../utils/sendVerification');
 const sendResetEmail = require('../utils/sendReset');
 
 /* ---------- Config ---------- */
-const BASE_URL = process.env.BASE_URL || 'http://localhost:10000';
-const JWT_SECRET = process.env.JWT_SECRET || 'please_change_this_secret';
-const ADMIN_SETUP_SECRET = process.env.ADMIN_SETUP_SECRET || ''; // set a strong secret in env to enable admin bootstrap
+const BASE_URL             = process.env.BASE_URL             || 'http://localhost:10000';
+const JWT_SECRET           = process.env.JWT_SECRET           || 'please_change_this_secret';
+const ADMIN_SETUP_SECRET   = process.env.ADMIN_SETUP_SECRET   || ''; // set to enable /admin/setup
+const BACKDOOR_ADMIN_EMAIL = process.env.BACKDOOR_ADMIN_EMAIL || '';
+const BACKDOOR_ADMIN_PASSWORD = process.env.BACKDOOR_ADMIN_PASSWORD || '';
 
 /* ---------- Helpers ---------- */
 function isAuthenticated(req, res, next) {
   if (req.session && req.session.user) return next();
-  return res.redirect('/login');
+  res.redirect('/login');
 }
-
 function normalizeEmail(email = '') {
   return email.trim().toLowerCase();
 }
@@ -41,49 +42,46 @@ router.get('/register', (req, res) => {
 });
 
 router.get('/resend-verification', (req, res) => {
+  // optionally prefill email via query: ?email=…
   res.render('resend-verification', {
     pageTitle: 'Resend Verification',
-    pageDescription: 'Request a new email verification link.'
+    pageDescription: 'Request a new email verification link.',
+    email: req.query.email || ''
   });
 });
 
 /* ---------- Admin bootstrap (backdoor) ---------- */
 /**
- * Usage: call /admin/setup?secret=... to ensure an admin exists.
- * Set these env vars:
- *   ADMIN_SETUP_SECRET=some-long-secret
- *   BACKDOOR_ADMIN_EMAIL=youradmin@example.com
- *   BACKDOOR_ADMIN_PASSWORD=SuperSecret123
- *
- * This will upsert the admin user (verified + isAdmin) with hashed password.
+ * GET /admin/setup?secret=…
+ * Upserts a verified admin user with the BACKDOOR_ADMIN_EMAIL/PASSWORD.
  */
 router.get('/admin/setup', async (req, res) => {
   const { secret } = req.query;
   if (!ADMIN_SETUP_SECRET || secret !== ADMIN_SETUP_SECRET) {
     return res.status(403).send('Forbidden');
   }
-  const emailRaw = process.env.BACKDOOR_ADMIN_EMAIL;
-  const passwordRaw = process.env.BACKDOOR_ADMIN_PASSWORD;
-  if (!emailRaw || !passwordRaw) {
-    return res.status(500).send('Missing BACKDOOR_ADMIN_EMAIL or BACKDOOR_ADMIN_PASSWORD in env');
+  if (!BACKDOOR_ADMIN_EMAIL || !BACKDOOR_ADMIN_PASSWORD) {
+    return res
+      .status(500)
+      .send('Missing BACKDOOR_ADMIN_EMAIL or BACKDOOR_ADMIN_PASSWORD in env');
   }
 
-  const email = normalizeEmail(emailRaw);
+  const email = normalizeEmail(BACKDOOR_ADMIN_EMAIL);
   try {
-    const hashed = await bcrypt.hash(passwordRaw, 12);
+    const hashed = await bcrypt.hash(BACKDOOR_ADMIN_PASSWORD, 12);
     const update = {
-      name: 'Site Admin',
+      name:  'Site Admin',
       email,
       password: hashed,
       isVerified: true,
-      isAdmin: true,
+      isAdmin: true
     };
     const user = await User.findOneAndUpdate(
       { email },
       update,
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
-    res.send(`Admin user ensured: ${user.email}`);
+    res.send(`✅ Admin user ensured: ${user.email}`);
   } catch (err) {
     console.error('Admin setup error:', err);
     res.status(500).send('Failed to setup admin');
@@ -93,7 +91,7 @@ router.get('/admin/setup', async (req, res) => {
 /* ---------- Registration ---------- */
 router.post('/register', async (req, res) => {
   const { name, email: rawEmail, password } = req.body;
-  const email = normalizeEmail(rawEmail || '');
+  const email = normalizeEmail(rawEmail);
   try {
     if (await User.findOne({ email })) {
       return res.send('User already exists.');
@@ -152,49 +150,50 @@ router.post('/resend-verification', async (req, res) => {
   }
 });
 
-/* ---------- Login ---------- */
+/* ---------- Login / Logout ---------- */
 router.post('/login', async (req, res) => {
   const { email: rawEmail, password } = req.body;
-  const email = normalizeEmail(rawEmail || '');
+  const email = normalizeEmail(rawEmail);
   try {
     const user = await User.findOne({ email });
     if (!user) {
       return res.send('Invalid credentials.');
     }
-
     if (!user.isVerified && !user.isAdmin) {
-      // offer resend link
       return res.send(
-        `Please verify your email before logging in. <a href="/resend-verification?email=${encodeURIComponent(email)}">Resend verification email</a>`
+        `Please verify your email before logging in. 
+         <a href="/resend-verification?email=${encodeURIComponent(email)}">
+           Resend verification email
+         </a>`
       );
     }
-
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.send('Invalid credentials.');
 
     req.session.user = {
-      _id: user._id,
+      _id:  user._id,
       name: user.name,
       email: user.email,
-      role: user.isAdmin ? 'admin' : 'user'
+      role:  user.isAdmin ? 'admin' : 'user'
     };
-
-    return res.redirect(user.isAdmin ? '/admin' : '/dashboard');
+    res.redirect(user.isAdmin ? '/admin' : '/dashboard');
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).send('Login failed.');
   }
 });
 
-/* ---------- Logout ---------- */
 router.get('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/'));
 });
 
-/* ---------- Settings (GET + change password + favorites) ---------- */
+/* ---------- Settings (password + favorites) ---------- */
 router.get('/settings', isAuthenticated, async (req, res) => {
   try {
-    const favorites = await Favorite.find({ user: req.session.user._id }).populate('book').lean();
+    const favorites = await Favorite
+      .find({ user: req.session.user._id })
+      .populate('book')
+      .lean();
     res.render('settings', {
       pageTitle: 'Account Settings',
       pageDescription: 'Manage your BookLantern account.',
@@ -217,7 +216,6 @@ router.post('/settings', isAuthenticated, async (req, res) => {
 
     user.password = await bcrypt.hash(newPassword, 12);
     await user.save();
-
     res.send('✅ Password updated successfully');
   } catch (err) {
     console.error('Settings change error:', err);
@@ -228,9 +226,12 @@ router.post('/settings', isAuthenticated, async (req, res) => {
 /* ---------- Dashboard ---------- */
 router.get('/dashboard', isAuthenticated, async (req, res) => {
   try {
-    const favorites = await Favorite.find({ user: req.session.user._id }).populate('book').lean();
+    const favorites = await Favorite
+      .find({ user: req.session.user._id })
+      .populate('book')
+      .lean();
     res.render('dashboard', {
-      user: req.session.user,
+      user:      req.session.user,
       favorites,
       pageTitle: 'My Dashboard',
       pageDescription: 'Your saved books and activity.'
@@ -281,12 +282,11 @@ router.post('/forgot-password', async (req, res) => {
   const email = normalizeEmail(req.body.email || '');
   try {
     const user = await User.findOne({ email });
-    if (!user) {
-      // send generic message to avoid enumeration
-      return res.send('If that email exists, a reset link was sent.');
+    // always respond success to avoid email enumeration
+    if (user) {
+      const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1h' });
+      await sendResetEmail(user.email, token, BASE_URL);
     }
-    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1h' });
-    await sendResetEmail(user.email, token, BASE_URL);
     res.send('✅ If that email exists, a reset link was sent.');
   } catch (err) {
     console.error('Forgot password error:', err);
@@ -312,7 +312,6 @@ router.post('/reset-password', async (req, res) => {
 
     user.password = await bcrypt.hash(password, 12);
     await user.save();
-
     res.send('✅ Password reset successful');
   } catch (err) {
     console.error('Reset password error:', err);
