@@ -14,6 +14,7 @@ const sendResetEmail = require('../utils/sendReset');
 const BASE_URL             = process.env.BASE_URL             || 'http://localhost:10000';
 const JWT_SECRET           = process.env.JWT_SECRET           || 'please_change_this_secret';
 const ADMIN_SETUP_SECRET   = process.env.ADMIN_SETUP_SECRET   || ''; // set to enable /admin/setup
+console.log('ADMIN_SETUP_SECRET is:', ADMIN_SETUP_SECRET);
 const BACKDOOR_ADMIN_EMAIL = process.env.BACKDOOR_ADMIN_EMAIL || '';
 const BACKDOOR_ADMIN_PASSWORD = process.env.BACKDOOR_ADMIN_PASSWORD || '';
 
