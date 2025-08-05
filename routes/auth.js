@@ -11,12 +11,12 @@ const sendVerificationEmail = require('../utils/sendVerification');
 const sendResetEmail = require('../utils/sendReset');
 
 /* ---------- Config ---------- */
-const BASE_URL             = process.env.BASE_URL             || 'http://localhost:10000';
-const JWT_SECRET           = process.env.JWT_SECRET           || 'please_change_this_secret';
-const ADMIN_SETUP_SECRET   = process.env.ADMIN_SETUP_SECRET   || ''; // set to enable /admin/setup
+const BASE_URL               = process.env.BASE_URL               || 'http://localhost:10000';
+const JWT_SECRET             = process.env.JWT_SECRET             || 'please_change_this_secret';
+const ADMIN_SETUP_SECRET     = process.env.ADMIN_SETUP_SECRET     || ''; // set to enable /admin/setup
 console.log('ADMIN_SETUP_SECRET is:', ADMIN_SETUP_SECRET);
-const BACKDOOR_ADMIN_EMAIL = process.env.BACKDOOR_ADMIN_EMAIL || '';
-const BACKDOOR_ADMIN_PASSWORD = process.env.BACKDOOR_ADMIN_PASSWORD || '';
+const BACKDOOR_ADMIN_EMAIL   = process.env.BACKDOOR_ADMIN_EMAIL   || '';
+const BACKDOOR_ADMIN_PASSWORD= process.env.BACKDOOR_ADMIN_PASSWORD|| '';
 
 /* ---------- Helpers ---------- */
 function isAuthenticated(req, res, next) {
@@ -29,6 +29,7 @@ function normalizeEmail(email = '') {
 
 /* ---------- Views ---------- */
 router.get('/login', (req, res) => {
+  console.log('🐛 GET /login handler hit');
   res.render('login', {
     pageTitle: 'Login | BookLantern',
     pageDescription: 'Access your BookLantern account to read books, watch content, and manage your favorites.'
@@ -71,11 +72,11 @@ router.get('/admin/setup', async (req, res) => {
   try {
     const hashed = await bcrypt.hash(BACKDOOR_ADMIN_PASSWORD, 12);
     const update = {
-      name:  'Site Admin',
+      name:       'Site Admin',
       email,
-      password: hashed,
+      password:   hashed,
       isVerified: true,
-      isAdmin: true
+      isAdmin:    true
     };
     const user = await User.findOneAndUpdate(
       { email },
@@ -99,11 +100,11 @@ router.post('/register', async (req, res) => {
     }
     const hashed = await bcrypt.hash(password, 12);
     const user = await User.create({
-      name: name || 'Unnamed',
+      name:       name || 'Unnamed',
       email,
-      password: hashed,
+      password:   hashed,
       isVerified: false,
-      isAdmin: false
+      isAdmin:    false
     });
 
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1d' });
@@ -283,7 +284,7 @@ router.post('/forgot-password', async (req, res) => {
   const email = normalizeEmail(req.body.email || '');
   try {
     const user = await User.findOne({ email });
-    // always respond success to avoid email enumeration
+    // always respond success to avoid enumeration
     if (user) {
       const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1h' });
       await sendResetEmail(user.email, token, BASE_URL);
