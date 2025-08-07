@@ -6,46 +6,70 @@
     pageDescription: 'Your account overview'
   }) %>
   <style>
-    body{font-family:Arial,sans-serif;margin:0;background:#f7f7f7;color:#333;}
-    header{padding:1rem 2rem;background:#111;color:#fff;display:flex;justify-content:space-between;align-items:center;}
-    a{color:#0077cc;text-decoration:none;}
-    .wrap{max-width:900px;margin:2rem auto;padding:1rem 2rem;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.08);}
-    h1{margin-top:0;}
-    .book{margin:.4rem 0;}
-    .back{display:inline-block;margin-bottom:1rem;font-size:.9rem;}
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f7f7f7;
+      color: #333;
+    }
+    .wrap {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 1rem 2rem;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+    h1 {
+      margin-top: 0;
+    }
+    .back {
+      display: inline-block;
+      margin: 1rem 2rem 0;
+      font-size: 0.9rem;
+      color: #0077cc;
+      text-decoration: none;
+    }
+    .back:hover {
+      text-decoration: underline;
+    }
+    h2 {
+      margin-bottom: 0.5rem;
+    }
+    .book {
+      margin: 0.4rem 0;
+    }
+    .book a {
+      color: #0077cc;
+      text-decoration: none;
+    }
+    .book a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
-<header>
-  <div><strong>📚 BookLantern</strong></div>
-  <nav>
-    <a href="/">Home</a>
-    <a href="/read">Read</a>
-    <a href="/watch">Watch</a>
-    <a href="/settings">Settings</a>
-    <a href="/logout">Logout</a>
-  </nav>
-</header>
+  <a href="javascript:history.back()" class="back">← Back</a>
 
-<div class="wrap">
-  <a class="back" href="javascript:history.back()">← Back</a>
-  <h1>Welcome, <%= user.name %></h1>
+  <div class="wrap">
+    <h1>Welcome, <%= user.name %></h1>
 
-  <h2>❤️ Your Favorite Books</h2>
-  <% if (!favorites || favorites.length === 0) { %>
-    <p>No favorites yet.</p>
-  <% } else { %>
-    <% favorites.forEach(fav => { 
-         const link = fav.book
-           ? `/read/book/${fav.book._id}`
-           : `/read/book/${fav.archiveId}`;
-         const title = fav.book?.title || fav.archiveId;
-    %>
-      <div class="book">
-        <a href="<%= link %>"><%= title %></a>
-      </div>
-    <% }) %>
-  <% } %>
-</div>
+    <h2>❤️ Your Favorite Books</h2>
+    <% if (!favorites || favorites.length === 0) { %>
+      <p>No favorites yet.</p>
+    <% } else { %>
+      <% favorites.forEach(fav => {
+           // Some favorites may reference a local Book model (fav.book)
+           const link = fav.book
+             ? `/read/book/${fav.book._id}`
+             : `/read/book/${fav.archiveId}`;
+           const title = fav.book?.title || fav.archiveId;
+      %>
+        <div class="book">
+          <a href="<%= link %>"><%= title %></a>
+        </div>
+      <% }) %>
+    <% } %>
+  </div>
 </body>
 </html>
