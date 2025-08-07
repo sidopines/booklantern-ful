@@ -7,51 +7,59 @@
     pageDescription: `Read ${book.title} online via BookLantern. Bookmark and save to favorites.`
   }) %>
   <style>
-    body{
+    body {
       font-family: Arial, sans-serif;
-      background:#f4f4f4;
-      margin:0;
-      padding:2rem;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 2rem;
     }
-    .back-link{
-      display:inline-block;
-      margin:0 0 1rem 0;
-      color:#0077cc;
-      text-decoration:none;
-      font-size:.9rem;
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      color: #0077cc;
+      text-decoration: none;
+      font-size: 0.9rem;
     }
-    .back-link:hover{text-decoration:underline}
-    h1{margin:0 0 1rem 0;}
-    iframe{
-      width:100%;
-      height:80vh;
-      border:1px solid #ccc;
-      border-radius:8px;
-      background:#fff;
+    .back-link:hover {
+      text-decoration: underline;
     }
-    .action-buttons{margin-top:1rem;}
-    .action-buttons form{
-      display:inline-block;
-      margin-right:1rem;
+    h1 {
+      margin: 0 0 1rem;
     }
-    .action-buttons button{
-      padding:.5rem 1rem;
-      font-size:.9rem;
-      background:#0077cc;
-      color:#fff;
-      border:none;
-      border-radius:5px;
-      cursor:pointer;
+    iframe {
+      width: 100%;
+      height: 80vh;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #fff;
     }
-    .action-buttons button.remove{background:#cc0000;}
-    .action-buttons button[disabled]{
-      background:#777;
-      cursor:not-allowed;
+    .action-buttons {
+      margin-top: 1rem;
     }
-    #bookmark-status{
-      margin-top:1rem;
-      font-size:.9rem;
-      color:green;
+    .action-buttons form {
+      display: inline-block;
+      margin-right: 1rem;
+    }
+    .action-buttons button {
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      background: #0077cc;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .action-buttons button.remove {
+      background: #cc0000;
+    }
+    .action-buttons button[disabled] {
+      background: #777;
+      cursor: not-allowed;
+    }
+    #bookmark-status {
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      color: green;
     }
   </style>
 </head>
@@ -61,17 +69,21 @@
 
   <% const streamId = book.archiveId || book.identifier; %>
 
-  <!-- Archive.org embedded reader -->
+  <!-- Embedded Archive.org Stream -->
   <iframe
     id="book-frame"
     src="https://archive.org/stream/<%= streamId %>?ui=embed#page=1"
     allowfullscreen
   ></iframe>
 
-  <!-- Favorites toggle -->
+  <!-- Favorites Toggle -->
   <div class="action-buttons">
     <form method="POST" action="/read/book/<%= streamId %>/favorite">
-      <button type="submit" class="<%= isFavorite ? 'remove' : '' %>" <%= user ? '' : 'disabled' %>>
+      <button
+        type="submit"
+        class="<%= isFavorite ? 'remove' : '' %>"
+        <%= user ? '' : 'disabled' %>
+      >
         <%= isFavorite ? '❌ Remove from Favorites' : '❤️ Add to Favorites' %>
       </button>
     </form>
@@ -87,20 +99,21 @@
 
     // Load last saved page
     fetch(`/read/book/${bookId}/bookmark`)
-      .then(r => { if(!r.ok) throw new Error(); return r.json(); })
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(data => {
         const page = data.page || 1;
         iframe.src = `https://archive.org/stream/${bookId}?ui=embed#page=${page}`;
         bookmarkStatus.textContent = `📖 Resuming from page ${page}`;
       })
-      .catch(() => bookmarkStatus.textContent = "⚠️ Failed to load last bookmark.");
+      .catch(() => {
+        bookmarkStatus.textContent = "⚠️ Failed to load last bookmark.";
+      });
 
-    // Save bookmark (visibilitychange + beforeunload)
-    function saveBookmark(){
+    // Save bookmark when tab is hidden or unloading
+    function saveBookmark() {
       if (!userLoggedIn) return;
       const match = iframe.src.match(/#page=(\d+)/);
       const currentPage = match ? parseInt(match[1], 10) : 1;
-
       const payload = JSON.stringify({ page: currentPage });
 
       if (navigator.sendBeacon) {
@@ -120,6 +133,7 @@
     });
     window.addEventListener('beforeunload', saveBookmark);
   </script>
+
   <noscript>
     <p style="color:#cc0000;">JavaScript is required to save your reading position.</p>
   </noscript>
