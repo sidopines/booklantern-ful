@@ -1,28 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/header.ejs') %>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <%- include('./partials/header.ejs', {
+    pageTitle: pageTitle || 'Home',
+    pageDescription: pageDescription || 'Discover free books and knowledge on BookLantern.'
+  }) %>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+    rel="stylesheet"
+  />
   <style>
     body {
       margin: 0;
       font-family: 'Inter', sans-serif;
       background-color: #fdfcfb;
       color: #333;
-    }
-    header {
-      background: #111;
-      color: white;
-      padding: 1.5rem 3rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    header a {
-      color: white;
-      margin-left: 1.5rem;
-      text-decoration: none;
-      font-weight: 600;
     }
     .hero {
       display: flex;
@@ -65,7 +57,7 @@
     .feature-box {
       background: white;
       border-radius: 12px;
-      box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
       padding: 2rem;
       flex: 1;
       min-width: 280px;
@@ -80,36 +72,30 @@
       padding: 2rem;
       background: #111;
       color: white;
+      margin-top: auto;
     }
   </style>
 </head>
 <body>
-  <header>
-    <div><strong>📚 BookLantern</strong></div>
-    <nav>
-      <a href="/">Home</a>
-      <a href="/about">About</a>
-      <a href="/contact">Contact</a>
-      <a href="/watch">Watch</a>
-      <a href="/login">Login</a>
-      <a href="/register">Register</a>
-    </nav>
-  </header>
-
   <div class="hero">
-    <h1>Discover a World of Free Knowledge</h1>
-    <p>Stream educational videos, read free books, and bookmark your favorites — all in one place, without knowing they're from open libraries like Archive.org.</p>
-    <a href="/register"><button class="explore-btn">Start Reading</button></a>
+    <h1>Discover a World of Knowledge</h1>
+    <p>
+      Stream educational videos, read free books, and bookmark your favorites — all in one place, powered
+      by open libraries like Archive.org.
+    </p>
+    <a href="/register">
+      <button class="explore-btn">Start Reading</button>
+    </a>
   </div>
 
   <div class="features">
     <div class="feature-box">
       <h3>📖 Free Books</h3>
-      <p>Access thousands of public domain and open-license books — from classic literature to modern learning.</p>
+      <p>Access thousands of public-domain and open-license books — from classic literature to modern learning.</p>
     </div>
     <div class="feature-box">
       <h3>🎬 Watch Content</h3>
-      <p>Hand-curated educational videos hosted on our site with a Netflix-like viewing experience.</p>
+      <p>Enjoy educational videos without any login barrier.</p>
     </div>
     <div class="feature-box">
       <h3>🔐 One Account, Full Access</h3>
@@ -118,7 +104,7 @@
   </div>
 
   <footer>
-    &copy; 2025 BookLantern. Powered by open access and curiosity.
+    &copy; <%= new Date().getFullYear() %> BookLantern. Powered by open access and curiosity.
   </footer>
 </body>
 </html>
