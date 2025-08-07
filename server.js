@@ -1,15 +1,20 @@
 // server.js
 require('dotenv').config(); // ↪︎ loads MONGODB_URI, JWT_SECRET, BASE_URL
 
-const express      = require('express');
-const mongoose     = require('mongoose');
-const path         = require('path');
-const session      = require('express-session');
-const MongoStore   = require('connect-mongo');
+const express    = require('express');
+const mongoose   = require('mongoose');
+const path       = require('path');
+const session    = require('express-session');
+const MongoStore = require('connect-mongo');
 
 const authRoutes  = require('./routes/auth');
 const bookRoutes  = require('./routes/bookRoutes');
 const indexRoutes = require('./routes/index');
+
+const Video   = require('./models/Video');
+const Genre   = require('./models/Genre');
+const Book    = require('./models/Book');
+// (you can import Bookmark & Favorite here if you still use them)
 
 const app = express();
 
@@ -53,13 +58,42 @@ app.use('/', indexRoutes);   // Home, About, Contact
 app.use('/', authRoutes);    // Login, Register, Dashboard, Settings
 app.use('/', bookRoutes);    // /read, /read/book, bookmarks, favorites
 
-// ─── ADMIN PANEL ───────────────────────────────────────────────────────────────
-app.get('/admin', (req, res) => {
-  // your admin handler…
-});
+// ─── AUTH GUARD FOR ADMIN ──────────────────────────────────────────────────────
+function isLoggedIn(req, res, next) {
+  if (req.session && req.session.user) return next();
+  console.log('❌ Blocked /admin – not logged in');
+  return res.redirect('/login');
+}
 
-// ─── WATCH / PLAYER / READ / BOOK VIEWS ────────────────────────────────────────
-// These are now in your bookRoutes or indexRoutes, so nothing extra here.
+// ─── ADMIN PANEL ───────────────────────────────────────────────────────────────
+app.get('/admin', isLoggedIn, async (req, res) => {
+  console.log('🐛 GET /admin handler hit; session.user =', req.session.user);
+  try {
+    const genres = await Genre.find({});
+    console.log(`✅ genres fetched: ${genres.length}`);
+
+    const videos = await Video.find({})
+      .populate('genre')
+      .sort({ createdAt: -1 });
+    console.log(`✅ videos fetched: ${videos.length}`);
+
+    const books = await Book.find({})
+      .sort({ createdAt: -1 })
+      .limit(5);
+    console.log(`✅ books fetched: ${books.length}`);
+
+    return res.render('admin', {
+      genres,
+      videos,
+      books,
+      pageTitle: 'Admin Dashboard',
+      pageDescription: 'Manage videos, books, and site content.'
+    });
+  } catch (err) {
+    console.error('🔥 Admin page error:', err);
+    return res.status(500).send('Internal Server Error');
+  }
+});
 
 // ─── CUSTOM robots.txt (override Cloudflare if needed) ─────────────────────────
 app.get('/robots.txt', (req, res) => {
