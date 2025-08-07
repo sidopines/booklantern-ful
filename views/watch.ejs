@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('partials/header.ejs', {
+  <%- include('./partials/header.ejs', {
     pageTitle: 'Watch Educational Videos',
     pageDescription: 'Stream free educational videos in a Netflix-style interface. Curated content, no login required.'
   }) %>
@@ -22,6 +22,7 @@
     }
     .back-link:hover { text-decoration: underline; }
     .genre-select { margin: 1rem 2rem; }
+    .genre-select label { color: #fff; margin-right: 1rem; }
     select {
       padding: 0.5rem;
       font-size: 1rem;
@@ -71,13 +72,11 @@
   </style>
 </head>
 <body>
-  <%- include('partials/header') %>
-
   <a href="javascript:history.back()" class="back-link">← Back</a>
 
   <div class="genre-select">
     <form method="GET" action="/watch">
-      <label for="genre" style="color:white; margin-right:1rem;">Filter by Genre:</label>
+      <label for="genre">Filter by Genre:</label>
       <select name="genre" id="genre" onchange="this.form.submit()">
         <option value="">All Genres</option>
         <% genres.forEach(function(g) { %>
@@ -93,8 +92,8 @@
     <% videos.forEach(function(video) { %>
       <div class="card">
         <img
-          src="<%= video.thumbnail
-            || `https://img.youtube.com/vi/${video.youtubeUrl.split('v=')[1]}/hqdefault.jpg` %>"
+          src="<%= video.thumbnail 
+                || `https://img.youtube.com/vi/${(video.youtubeUrl.match(/(?:v=|youtu\.be\/)([^&]+)/)||[])[1]}/hqdefault.jpg` %>"
           alt="Thumbnail"
         />
         <div class="card-content">
