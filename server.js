@@ -1,23 +1,22 @@
 // server.js
 require('dotenv').config(); // loads MONGODB_URI, JWT_SECRET, BASE_URL
 
-const express    = require('express');
-const mongoose   = require('mongoose');
-const path       = require('path');
-const session    = require('express-session');
-const MongoStore = require('connect-mongo');
+const express      = require('express');
+const mongoose     = require('mongoose');
+const path         = require('path');
+const session      = require('express-session');
+const MongoStore   = require('connect-mongo');
 
-const authRoutes  = require('./routes/auth');
-const bookRoutes  = require('./routes/bookRoutes');
-const indexRoutes = require('./routes/index');
+const authRoutes   = require('./routes/auth');
+const bookRoutes   = require('./routes/bookRoutes');
+const indexRoutes  = require('./routes/index');
 
-const Video = require('./models/Video');
-const Genre = require('./models/Genre');
-const Book  = require('./models/Book');
+const Video        = require('./models/Video');
+const Genre        = require('./models/Genre');
 
 const app = express();
 
-// ─── MONGODB ────────────────────────────────────────────────────────
+// ─── 1) CONNECT TO MONGODB ────────────────────────────────────────────────────
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ Connected to MongoDB Atlas'))
@@ -26,120 +25,111 @@ mongoose
     process.exit(1);
   });
 
-// ─── MIDDLEWARE & CONFIG ────────────────────────────────────────────
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
-app.use(express.static(path.join(__dirname, 'public')));
+// ─── 2) EXPRESS & SESSION MIDDLEWARE ──────────────────────────────────────────
+app.set('view engine','ejs');
+app.set('views', path.join(__dirname,'views'));
+
+app.use(express.static(path.join(__dirname,'public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-app.use(
-  session({
-    secret: process.env.JWT_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    store: MongoStore.create({ mongoUrl: process.env.MONGODB_URI }),
-    cookie: { secure: false, maxAge: 1000 * 60 * 60 * 24 }
-  })
-);
+app.use(session({
+  secret: process.env.JWT_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({ mongoUrl: process.env.MONGODB_URI }),
+  cookie: { secure: false, maxAge: 1000 * 60 * 60 * 24 }
+}));
 
-// provide defaults for head partial
+// ─── 3) MAKE `user` & DEFAULT META AVAILABLE IN *ALL* VIEWS ───────────────────
 app.use((req, res, next) => {
-  res.locals.pageTitle = 'BookLantern';
-  res.locals.pageDescription = 'Free books & educational videos.';
+  res.locals.user = req.session.user || null;
+  res.locals.pageTitle = res.locals.pageTitle || 'BookLantern';
+  res.locals.pageDescription = res.locals.pageDescription || 'Free books & educational videos.';
   next();
 });
 
-// ─── ROUTES ───────────────────────────────────────────────────────────
-app.use('/', indexRoutes);
-app.use('/', authRoutes);
-app.use('/', bookRoutes);
+// ─── 4) MOUNT YOUR ROUTERS ───────────────────────────────────────────────────
+app.use('/', indexRoutes);   // home / about / contact
+app.use('/', authRoutes);    // login / register / dashboard / settings / admin-setup
+app.use('/', bookRoutes);    // /read, /read/book, /read/book/:id/bookmark, favorites
 
-// ─── ADMIN PANEL ───────────────────────────────────────────────────────
-app.get('/admin', async (req, res) => {
+// ─── 5) WATCH + PLAYER (for subscribers) ──────────────────────────────────────
+app.get('/watch', async (req, res) => {
+  try {
+    const genreFilter = req.query.genre || '';
+    const genres = await Genre.find({});
+    const videos = genreFilter
+      ? await Video.find({ genre: genreFilter }).populate('genre').sort({ createdAt: -1 })
+      : await Video.find({}).populate('genre').sort({ createdAt: -1 });
+    res.render('watch', {
+      genres,
+      videos,
+      genreFilter,
+      pageTitle: 'Watch Educational Videos',
+      pageDescription: 'Stream free educational videos.'
+    });
+  } catch (err) {
+    console.error('Error loading watch:', err);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+app.get('/player/:id', async (req, res) => {
+  try {
+    const video = await Video.findById(req.params.id).populate('genre');
+    if (!video) return res.status(404).render('404');
+    res.render('player', {
+      video,
+      pageTitle: `${video.title} | Watch`,
+      pageDescription: video.description || `Watch ${video.title} on BookLantern`
+    });
+  } catch (err) {
+    console.error('Error loading player:', err);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// ─── 6) ADMIN PANEL (protected) ───────────────────────────────────────────────
+function requireAdmin(req, res, next) {
+  if (req.session.user?.role === 'admin') return next();
+  return res.redirect('/login');
+}
+app.get('/admin', requireAdmin, async (req, res) => {
   try {
     const genres = await Genre.find({});
     const videos = await Video.find({}).populate('genre').sort({ createdAt: -1 });
-    const books  = await Book.find({}).sort({ createdAt: -1 }).limit(10);
-    res.render('admin', { genres, videos, books, pageTitle: 'Admin', pageDescription: 'Manage content' });
+    // if you also want books here, fetch them too…
+    res.render('admin', {
+      genres,
+      videos,
+      pageTitle: 'Admin',
+      pageDescription: 'Manage all content'
+    });
   } catch (err) {
     console.error('Admin load error:', err);
     res.status(500).send('Internal Server Error');
   }
 });
 
-// Add new video
-app.post('/admin/add-video', async (req, res) => {
-  try {
-    const { title, genre, youtubeUrl, thumbnail, description } = req.body;
-    if (!title || !genre || !youtubeUrl) {
-      return res.send('Title, Genre and YouTube URL are required.');
-    }
-    await Video.create({ title, genre, youtubeUrl, thumbnail, description });
-    res.redirect('/admin');
-  } catch (err) {
-    console.error('❌ Error adding video:', err);
-    res.status(500).send('Error adding video');
-  }
-});
-
-// Delete video
-app.post('/admin/delete-video/:id', async (req, res) => {
-  try {
-    await Video.findByIdAndDelete(req.params.id);
-    res.redirect('/admin');
-  } catch (err) {
-    console.error('❌ Error deleting video:', err);
-    res.status(500).send('Error deleting video');
-  }
-});
-
-// Add new genre
-app.post('/admin/add-genre', async (req, res) => {
-  try {
-    const { name } = req.body;
-    if (!name) return res.send('Genre name is required.');
-    await Genre.create({ name });
-    res.redirect('/admin');
-  } catch (err) {
-    console.error('❌ Error adding genre:', err);
-    res.status(500).send('Error adding genre');
-  }
-});
-
-// Add new book
-app.post('/admin/add-book', async (req, res) => {
-  try {
-    const { title, author, description, sourceUrl, coverImage, genre } = req.body;
-    if (!title || !sourceUrl) {
-      return res.send('Title and Source URL are required.');
-    }
-    await Book.create({ title, author, description, sourceUrl, coverImage, genre });
-    res.redirect('/admin');
-  } catch (err) {
-    console.error('❌ Error adding book:', err);
-    res.status(500).send('Error adding book');
-  }
-});
-
-// ─── robots.txt ─────────────────────────────────────────────────────────
+// ─── 7) STATIC / 404 / ERROR ─────────────────────────────────────────────────
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain');
-  res.sendFile(path.join(__dirname, 'public/robots.txt'));
+  res.sendFile(path.join(__dirname,'public','robots.txt'));
 });
 
-// ─── 404 & ERROR HANDLING ───────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).render('404', {
     pageTitle: 'Page Not Found',
-    pageDescription: 'The page you’re looking for could not be found.'
+    pageDescription: 'The page you’re looking for doesn’t exist.'
   });
 });
+
 app.use((err, req, res, next) => {
   console.error('🔥 Unhandled error:', err);
   res.status(500).send('Internal Server Error');
 });
 
-// ─── START ───────────────────────────────────────────────────────────────
+// ─── 8) START ────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
