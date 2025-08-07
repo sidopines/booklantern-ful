@@ -1,19 +1,64 @@
-<!-- views/resend-verification.ejs -->
+<% 
+  pageTitle = "Resend Verification"; 
+  pageDescription = "Request a new email verification link."; 
+%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/header.ejs', {
-    pageTitle: pageTitle,
-    pageDescription: pageDescription
-  }) %>
+  <%- include('./partials/header.ejs', { pageTitle, pageDescription }) %>
   <style>
-    body { font-family: Arial, sans-serif; background:#f9f9f9; margin:0; padding:2rem; }
-    .back-link{ display:inline-block; margin-bottom:1rem; color:#0077cc; text-decoration:none; }
-    .back-link:hover{ text-decoration:underline; }
-    .container { max-width:500px; margin:0 auto; background:#fff; padding:2rem; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
-    input, button { width:100%; padding:0.75rem; margin-bottom:1rem; font-size:1rem; }
-    button { background:#0077cc; color:#fff; border:none; cursor:pointer; border-radius:5px; }
-    button:hover { background:#005fa3; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      margin: 0;
+      padding: 2rem;
+    }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      color: #0077cc;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .back-link:hover {
+      text-decoration: underline;
+    }
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .container h1 {
+      margin-top: 0;
+      margin-bottom: 1rem;
+      font-size: 1.5rem;
+      color: #333;
+    }
+    .container p {
+      margin-bottom: 1.5rem;
+      color: #555;
+    }
+    input, button {
+      width: 100%;
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+      font-size: 1rem;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    button {
+      background: #0077cc;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #005fa3;
+    }
   </style>
 </head>
 <body>
