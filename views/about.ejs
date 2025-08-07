@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/header.ejs', { pageTitle: "About", pageDescription: "Learn what BookLantern is and how it offers free access to books, documentaries, and educational content." }) %>
+  <%- include('./partials/head.ejs', {
+    pageTitle: "About | BookLantern",
+    pageDescription: "Learn what BookLantern is and how it offers free access to books, documentaries, and educational content."
+  }) %>
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -30,7 +33,7 @@
     }
     a.back-home {
       display: inline-block;
-      margin-top: 1rem;
+      margin-top: 1.5rem;
       color: #0077cc;
       text-decoration: none;
       font-weight: 600;
@@ -41,13 +44,15 @@
   </style>
 </head>
 <body>
+  <%- include('./partials/header.ejs') %>
+
   <div class="container">
     <h1>About BookLantern</h1>
     <p>
       <span class="highlight">BookLantern</span> is your free gateway to a world of knowledge and stories. Our platform is built to connect readers and learners with an expansive archive of books and documentaries — all at zero cost.
     </p>
     <p>
-      We believe that access to information and culture should not come with barriers. BookLantern fetches open-access books from reliable online sources like Archive.org and other public libraries and presents them through a modern, stylized interface.
+      We believe that access to knowledge should not come with barriers. BookLantern fetches open-access books from reliable online sources and presents them through without any hassle.
     </p>
     <p>
       Whether you’re here to explore timeless classics, academic materials, or simply dive into documentaries through our Watch page — BookLantern is here to support your curiosity.
