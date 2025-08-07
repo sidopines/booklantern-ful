@@ -3,7 +3,7 @@
 <head>
   <%- include('./partials/header.ejs', {
     pageTitle: 'Read Books Online',
-    pageDescription: "Browse and read books fetched from Archive.org using BookLantern's modern reader experience."
+    pageDescription: "Browse and read books fetched from multiple free sources using BookLantern's modern reader experience."
   }) %>
   <style>
     body {
@@ -20,17 +20,9 @@
       text-decoration: none;
       font-size: 0.9rem;
     }
-    .back-link:hover {
-      text-decoration: underline;
-    }
-    h1 {
-      text-align: center;
-      margin-bottom: 2rem;
-    }
-    form {
-      text-align: center;
-      margin-bottom: 2rem;
-    }
+    .back-link:hover { text-decoration: underline; }
+    h1 { text-align: center; margin-bottom: 2rem; }
+    form { text-align: center; margin-bottom: 2rem; }
     input[type="text"] {
       width: 60%;
       max-width: 520px;
@@ -63,9 +55,7 @@
       text-align: center;
       transition: transform 0.15s ease;
     }
-    .book-card:hover {
-      transform: translateY(-4px);
-    }
+    .book-card:hover { transform: translateY(-4px); }
     .book-card img {
       width: 100%;
       height: 280px;
@@ -73,23 +63,27 @@
       border-radius: 5px;
       background: #eee;
     }
-    .book-card h3 {
-      margin: 0.6rem 0;
-      font-size: 1.05rem;
+    .book-card h3 { margin: 0.6rem 0; font-size: 1.05rem; }
+    .book-card p { font-size: 0.9rem; color: #666; margin: 0.3rem 0 0.6rem; }
+    .meta-row {
+      display: flex; justify-content: center; align-items: center; gap: .5rem;
+      flex-wrap: wrap; margin-top: .4rem;
     }
-    .book-card p {
-      font-size: 0.9rem;
-      color: #666;
-      margin: 0.3rem 0 0.6rem;
+    .badge {
+      display: inline-block;
+      font-size: .75rem;
+      background: #eef4ff;
+      color: #1256b3;
+      border: 1px solid #d6e4ff;
+      padding: .2rem .5rem;
+      border-radius: 999px;
     }
     .book-card a {
       text-decoration: none;
       color: #0077cc;
       font-weight: bold;
     }
-    .book-card a:hover {
-      text-decoration: underline;
-    }
+    .book-card a:hover { text-decoration: underline; }
     .empty {
       text-align: center;
       color: #777;
@@ -115,14 +109,27 @@
     <div class="empty">No books found. Try another search term.</div>
   <% } else { %>
     <div class="book-grid">
-      <% books.forEach(book => { %>
+      <% books.forEach(book => { 
+           const src = (book.source || '').toLowerCase();
+           const id  = book.identifier || book._id || '';
+      %>
         <div class="book-card">
           <img
             src="<%= book.cover || 'https://via.placeholder.com/200x280?text=No+Cover' %>"
             alt="<%= book.title %>">
           <h3><%= book.title %></h3>
           <p><%= book.creator || book.author || '' %></p>
-          <a href="/read/book/<%= book.identifier || book._id %>">📖 Read Now</a>
+          <div class="meta-row">
+            <% if (src) { %><span class="badge"><%= src === 'archive' ? 'Archive.org' : (src === 'gutenberg' ? 'Project Gutenberg' : (src === 'openlibrary' ? 'OpenLibrary' : src)) %></span><% } %>
+          </div>
+          <div style="margin-top:.6rem;">
+            <% if (src) { %>
+              <a href="/read/book/<%= src %>/<%= encodeURIComponent(id) %>">📖 Read Now</a>
+            <% } else { %>
+              <!-- Fallback: legacy local DB book -->
+              <a href="/read/book/<%= encodeURIComponent(id) %>">📖 Read Now</a>
+            <% } %>
+          </div>
         </div>
       <% }) %>
     </div>
