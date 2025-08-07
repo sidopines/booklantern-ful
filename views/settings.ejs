@@ -6,20 +6,88 @@
     pageDescription: 'Manage your BookLantern account.'
   }) %>
   <style>
-    body{font-family:Arial,sans-serif;background:#f2f2f2;margin:0;color:#333;}
-    .container{background:white;padding:2rem;border-radius:10px;max-width:600px;margin:2rem auto;box-shadow:0 2px 8px rgba(0,0,0,.08);}
-    h1,h2{text-align:center;margin-top:0;}
-    form{margin:1rem 0;}
-    input{width:100%;padding:.7rem;margin:.5rem 0;border:1px solid #ccc;border-radius:5px;}
-    button{width:100%;padding:.7rem;background:#333;color:white;border:none;border-radius:5px;cursor:pointer;}
-    .back{display:inline-block;margin-bottom:1rem;color:#0077cc;text-decoration:none;font-size:.9rem;}
-    .favorites{margin-top:2rem;}
-    .fav-item{margin:.4rem 0;}
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      margin: 0;
+      color: #333;
+    }
+    .container {
+      background: white;
+      padding: 2rem;
+      border-radius: 10px;
+      max-width: 600px;
+      margin: 2rem auto;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      color: #0077cc;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .back-link:hover {
+      text-decoration: underline;
+    }
+    h1, h2 {
+      text-align: center;
+      margin-top: 0;
+    }
+    form {
+      margin: 1.5rem 0;
+    }
+    input[type="password"] {
+      width: 100%;
+      padding: 0.7rem;
+      margin: 0.5rem 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      box-sizing: border-box;
+      font-size: 1rem;
+    }
+    button {
+      width: 100%;
+      padding: 0.7rem;
+      background: #333;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #555;
+    }
+    .favorites {
+      margin-top: 2rem;
+    }
+    .fav-item {
+      margin: 0.4rem 0;
+    }
+    .fav-item a {
+      color: #0077cc;
+      text-decoration: none;
+    }
+    .fav-item a:hover {
+      text-decoration: underline;
+    }
+    .dashboard-link {
+      text-align: center;
+      margin-top: 2rem;
+    }
+    .dashboard-link a {
+      color: #0077cc;
+      text-decoration: none;
+    }
+    .dashboard-link a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <a class="back" href="javascript:history.back()">← Back</a>
+    <a href="javascript:history.back()" class="back-link">← Back</a>
     <h1>🔐 Change Password</h1>
     <form action="/settings" method="POST">
       <input type="password" name="oldPassword" placeholder="Current Password" required />
@@ -30,10 +98,12 @@
     <div class="favorites">
       <h2>❤️ Your Favorite Books</h2>
       <% if (!favorites || favorites.length === 0) { %>
-        <p style="color:#777;">No favorites yet.</p>
+        <p style="color:#777; text-align:center;">No favorites yet.</p>
       <% } else { %>
-        <% favorites.forEach(f => {
-             const link = f.book ? `/read/book/${f.book._id}` : `/read/book/${f.archiveId}`;
+        <% favorites.forEach(f => { 
+             const link = f.book
+               ? `/read/book/${f.book._id}`
+               : `/read/book/${f.archiveId}`;
              const title = f.book?.title || f.archiveId;
         %>
           <div class="fav-item">
@@ -43,9 +113,9 @@
       <% } %>
     </div>
 
-    <p style="text-align:center;margin-top:2rem;">
+    <div class="dashboard-link">
       <a href="/dashboard">← Back to Dashboard</a>
-    </p>
+    </div>
   </div>
 </body>
 </html>
