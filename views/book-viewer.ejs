@@ -1,141 +1,71 @@
-<!-- views/book-viewer.ejs -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <%- include('./partials/header.ejs', {
-    pageTitle: `${book.title} | Read Book`,
-    pageDescription: `Read ${book.title} online via BookLantern. Bookmark and save to favorites.`
+    pageTitle: `${book.title} | Read`,
+    pageDescription: `Read ${book.title} from ${book.source}`
   }) %>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f4f4;
-      margin: 0;
-      padding: 2rem;
-    }
-    .back-link {
-      display: inline-block;
-      margin-bottom: 1rem;
-      color: #0077cc;
-      text-decoration: none;
-      font-size: 0.9rem;
-    }
-    .back-link:hover {
-      text-decoration: underline;
-    }
-    h1 {
-      margin: 0 0 1rem;
-    }
-    iframe {
-      width: 100%;
-      height: 80vh;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      background: #fff;
-    }
-    .action-buttons {
-      margin-top: 1rem;
-    }
-    .action-buttons form {
-      display: inline-block;
-      margin-right: 1rem;
-    }
-    .action-buttons button {
-      padding: 0.5rem 1rem;
-      font-size: 0.9rem;
-      background: #0077cc;
-      color: #fff;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    .action-buttons button.remove {
-      background: #cc0000;
-    }
-    .action-buttons button[disabled] {
-      background: #777;
-      cursor: not-allowed;
-    }
-    #bookmark-status {
-      margin-top: 1rem;
-      font-size: 0.9rem;
-      color: green;
-    }
+    /* your existing styles… */
   </style>
 </head>
 <body>
   <a href="javascript:history.back()" class="back-link">← Back</a>
   <h1><%= book.title %></h1>
 
-  <% const streamId = book.archiveId || book.identifier; %>
+  <% if (book.source === 'archive') { %>
+    <iframe id="book-frame"
+      src="https://archive.org/stream/<%= book.identifier %>?ui=embed#page=1"
+      allowfullscreen>
+    </iframe>
+  <% } else if (book.source === 'gutenberg') { %>
+    <p>This book is from Project Gutenberg. <a href="https://www.gutenberg.org/ebooks/<%= book.identifier %>">Open in Gutenberg</a>.</p>
+  <% } else if (book.source === 'openlibrary') { %>
+    <p>This book is from OpenLibrary. <a href="https://openlibrary.org/works/<%= book.identifier %>">Open in OpenLibrary</a>.</p>
+  <% } %>
 
-  <!-- Embedded Archive.org Stream -->
-  <iframe
-    id="book-frame"
-    src="https://archive.org/stream/<%= streamId %>?ui=embed#page=1"
-    allowfullscreen
-  ></iframe>
-
-  <!-- Favorites Toggle -->
   <div class="action-buttons">
-    <form method="POST" action="/read/book/<%= streamId %>/favorite">
-      <button
-        type="submit"
-        class="<%= isFavorite ? 'remove' : '' %>"
-        <%= user ? '' : 'disabled' %>
-      >
-        <%= isFavorite ? '❌ Remove from Favorites' : '❤️ Add to Favorites' %>
+    <form method="POST" action="/read/book/<%= book.source %>/<%= book.identifier %>/favorite">
+      <button <%= user ? '' : 'disabled' %>>
+        <%= isFavorite ? '❌ Remove Favorite' : '❤️ Add Favorite' %>
       </button>
     </form>
   </div>
 
-  <div id="bookmark-status">⏳ Loading last saved page...</div>
-
+  <div id="bookmark-status">⏳ Loading last saved page…</div>
   <script>
-    const userLoggedIn   = <%= user ? 'true' : 'false' %>;
-    const bookId         = "<%= streamId %>";
-    const iframe         = document.getElementById('book-frame');
-    const bookmarkStatus = document.getElementById('bookmark-status');
+    const userLoggedIn = <%= !!user %>;
+    const source       = "<%= book.source %>";
+    const id           = "<%= book.identifier %>";
+    const iframe       = document.getElementById('book-frame');
+    const status       = document.getElementById('bookmark-status');
 
-    // Load last saved page
-    fetch(`/read/book/${bookId}/bookmark`)
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(data => {
-        const page = data.page || 1;
-        iframe.src = `https://archive.org/stream/${bookId}?ui=embed#page=${page}`;
-        bookmarkStatus.textContent = `📖 Resuming from page ${page}`;
-      })
-      .catch(() => {
-        bookmarkStatus.textContent = "⚠️ Failed to load last bookmark.";
-      });
+    if (book.source==='archive') {
+      fetch(`/read/book/${source}/${id}/bookmark`)
+        .then(r=>r.json()).then(d=>{
+          const pg = d.page||1;
+          iframe.src = `https://archive.org/stream/${id}?ui=embed#page=${pg}`;
+          status.textContent = `📖 Resuming from page ${pg}`;
+        }).catch(_=> status.textContent="⚠️ Couldn't load bookmark.");
 
-    // Save bookmark when tab is hidden or unloading
-    function saveBookmark() {
-      if (!userLoggedIn) return;
-      const match = iframe.src.match(/#page=(\d+)/);
-      const currentPage = match ? parseInt(match[1], 10) : 1;
-      const payload = JSON.stringify({ page: currentPage });
-
-      if (navigator.sendBeacon) {
-        const blob = new Blob([payload], { type: 'application/json' });
-        navigator.sendBeacon(`/read/book/${bookId}/bookmark`, blob);
-      } else {
-        fetch(`/read/book/${bookId}/bookmark`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: payload
-        });
+      function saveBM(){
+        if(!userLoggedIn) return;
+        const m = iframe.src.match(/#page=(\d+)/);
+        if (!m) return;
+        navigator.sendBeacon
+          ? navigator.sendBeacon(`/read/book/${source}/${id}/bookmark`,
+              JSON.stringify({page: parseInt(m[1],10)}))
+          : fetch(`/read/book/${source}/${id}/bookmark`, {
+              method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({page: parseInt(m[1],10)})
+            });
       }
+      document.addEventListener('visibilitychange', ()=> {
+        if (document.visibilityState==='hidden') saveBM();
+      });
+      window.addEventListener('beforeunload', saveBM);
     }
-
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') saveBookmark();
-    });
-    window.addEventListener('beforeunload', saveBookmark);
   </script>
-
-  <noscript>
-    <p style="color:#cc0000;">JavaScript is required to save your reading position.</p>
-  </noscript>
 </body>
 </html>
