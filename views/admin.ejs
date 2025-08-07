@@ -2,72 +2,146 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/header.ejs', { pageTitle, pageDescription }) %>
+  <%- include('./partials/head.ejs', { pageTitle, pageDescription }) %>
+  <style>
+    main {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      color: #0077cc;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .back-link:hover { text-decoration: underline; }
+    h1 {
+      margin-bottom: 2rem;
+      font-size: 2rem;
+    }
+    section {
+      margin-bottom: 2rem;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 1rem;
+      background: #fafafa;
+    }
+    section h2 {
+      margin-top: 0;
+      font-size: 1.3rem;
+    }
+    form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    form input,
+    form select,
+    form textarea {
+      flex: 1 1 200px;
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    form textarea { height: 4rem; }
+    form button {
+      padding: 0.6rem 1.2rem;
+      background-color: #0077cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    form button:hover { background-color: #005fa3; }
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    ul li {
+      padding: 0.4rem 0;
+      border-bottom: 1px solid #eee;
+    }
+    ul li:last-child { border-bottom: none; }
+    ul li form {
+      display: inline;
+      margin-left: 0.5rem;
+    }
+  </style>
 </head>
 <body>
-  <h1>Admin Panel</h1>
+  <%- include('./partials/header.ejs') %>
 
-  <!-- Add New Video -->
-  <section>
-    <h2>Add New Video</h2>
-    <form action="/admin/add-video" method="POST">
-      <input type="text"    name="title"      placeholder="Video Title"       required />
-      <select name="genre" required>
-        <option value="">Select Genre</option>
-        <% genres.forEach(g => { %>
-          <option value="<%= g._id %>"><%= g.name %></option>
+  <main>
+    <a href="javascript:history.back()" class="back-link">← Back</a>
+
+    <h1>Admin Panel</h1>
+
+    <!-- Add New Video -->
+    <section>
+      <h2>Add New Video</h2>
+      <form action="/admin/add-video" method="POST">
+        <input type="text"    name="title"      placeholder="Video Title"       required />
+        <select name="genre" required>
+          <option value="">Select Genre</option>
+          <% genres.forEach(g => { %>
+            <option value="<%= g._id %>"><%= g.name %></option>
+          <% }) %>
+        </select>
+        <input type="url"     name="youtubeUrl" placeholder="YouTube URL" required />
+        <input type="url"     name="thumbnail"  placeholder="Thumbnail URL" />
+        <textarea name="description" placeholder="Description"></textarea>
+        <button type="submit">Add Video</button>
+      </form>
+    </section>
+
+    <!-- Delete Videos -->
+    <section>
+      <h2>Existing Videos</h2>
+      <ul>
+        <% videos.forEach(v => { %>
+          <li>
+            <%= v.title %>
+            <form action="/admin/delete-video/<%= v._id %>" method="POST">
+              <button type="submit">Delete</button>
+            </form>
+          </li>
         <% }) %>
-      </select>
-      <input type="url"     name="youtubeUrl" placeholder="YouTube URL" required />
-      <input type="url"     name="thumbnail"  placeholder="Thumbnail URL" />
-      <textarea name="description" placeholder="Description"></textarea>
-      <button type="submit">Add Video</button>
-    </form>
-  </section>
+      </ul>
+    </section>
 
-  <!-- Delete Videos -->
-  <section>
-    <h2>Existing Videos</h2>
-    <ul>
-      <% videos.forEach(v => { %>
-        <li>
-          <%= v.title %> —
-          <form action="/admin/delete-video/<%= v._id %>" method="POST" style="display:inline">
-            <button type="submit">Delete</button>
-          </form>
-        </li>
-      <% }) %>
-    </ul>
-  </section>
+    <!-- Add New Genre -->
+    <section>
+      <h2>Add New Genre</h2>
+      <form action="/admin/add-genre" method="POST">
+        <input type="text" name="name" placeholder="Genre Name" required/>
+        <button type="submit">Add Genre</button>
+      </form>
+    </section>
 
-  <!-- Add New Genre -->
-  <section>
-    <h2>Add New Genre</h2>
-    <form action="/admin/add-genre" method="POST">
-      <input type="text" name="name" placeholder="Genre Name" required/>
-      <button type="submit">Add Genre</button>
-    </form>
-  </section>
+    <!-- Add New Book -->
+    <section>
+      <h2>Add New Book</h2>
+      <form action="/admin/add-book" method="POST">
+        <input type="text"    name="title"      placeholder="Book Title"        required />
+        <input type="text"    name="author"     placeholder="Author"            />
+        <input type="url"     name="sourceUrl"  placeholder="Source URL"       required />
+        <input type="url"     name="coverImage" placeholder="Cover Image URL"  />
+        <select name="genre">
+          <option value="">Select Genre</option>
+          <% genres.forEach(g => { %>
+            <option value="<%= g.name %>"><%= g.name %></option>
+          <% }) %>
+        </select>
+        <textarea name="description" placeholder="Description"></textarea>
+        <button type="submit">Add Book</button>
+      </form>
+    </section>
 
-  <!-- Add New Book -->
-  <section>
-    <h2>Add New Book</h2>
-    <form action="/admin/add-book" method="POST">
-      <input type="text"    name="title"      placeholder="Book Title"        required />
-      <input type="text"    name="author"     placeholder="Author"            />
-      <input type="url"     name="sourceUrl"  placeholder="Source URL"       required />
-      <input type="url"     name="coverImage" placeholder="Cover Image URL"  />
-      <select name="genre">
-        <option value="">Select Genre</option>
-        <% genres.forEach(g => { %>
-          <option value="<%= g.name %>"><%= g.name %></option>
-        <% }) %>
-      </select>
-      <textarea name="description" placeholder="Description"></textarea>
-      <button type="submit">Add Book</button>
-    </form>
-  </section>
-
-  <a href="/">← Back to Home</a>
+    <a href="/" class="back-link">← Back to Home</a>
+  </main>
 </body>
 </html>
