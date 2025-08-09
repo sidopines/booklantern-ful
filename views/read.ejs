@@ -72,10 +72,7 @@
       object-fit: cover;
       display: block;
     }
-    .no-cover {
-      color: #999;
-      font-size: 0.9rem;
-    }
+    .no-cover { color: #999; font-size: 0.9rem; }
     .book-card h3 { margin: 0.6rem 0; font-size: 1.05rem; }
     .book-card p { font-size: 0.9rem; color: #666; margin: 0.3rem 0 0.6rem; }
     .meta-row {
@@ -124,13 +121,13 @@
     <div class="empty">No books found. Try another search term.</div>
   <% } else { %>
     <div class="book-grid">
-      <% books.forEach(function(book){ 
+      <% books.forEach(function(book){
            const src = (book.source || '').toLowerCase();
            const id  = book.identifier || book._id || '';
 
            // Internal vs external:
-           // - archive (includes OL-with-IA) -> /read/book/:identifier
-           // - gutenberg -> /read/gutenberg/:gid?u=<HTML url if known>
+           // - archive (incl. OL-with-IA) -> /read/book/:identifier (internal Archive viewer)
+           // - gutenberg -> unified paginated reader /read/gutenberg/:gid/reader?u=<html url if known>
            // - everything else -> external readerUrl
            const isArchive   = (src === 'archive');
            const isGutenberg = (src === 'gutenberg');
@@ -139,7 +136,7 @@
            const href = isArchive
              ? `/read/book/${encodeURIComponent(id)}`
              : (isGutenberg
-                 ? `/read/gutenberg/${encodeURIComponent(gutenId)}${book.readerUrl ? ('?u=' + encodeURIComponent(book.readerUrl)) : ''}`
+                 ? `/read/gutenberg/${encodeURIComponent(gutenId)}/reader${book.readerUrl ? ('?u=' + encodeURIComponent(book.readerUrl)) : ''}`
                  : (book.readerUrl || '#'));
       %>
         <div class="book-card">
