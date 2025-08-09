@@ -7,12 +7,16 @@ const Bookmark = require('../models/Bookmark');
 const Favorite = require('../models/Favorite');
 const Book = require('../models/Book'); // optional, for local/admin-curated items
 
-// ---------- helpers ----------
+// ---------- axios (shared) ----------
 const http = axios.create({
   timeout: 10000, // 10s max
+  headers: {
+    'User-Agent': 'BookLantern/1.0 (+booklantern.org)',
+    'Accept': 'application/json,text/plain,*/*'
+  }
 });
 
-// Build standard card object
+// ---------- helpers ----------
 function card({
   identifier = '',
   title = '',
@@ -89,6 +93,7 @@ async function searchGutenberg(q) {
   }
 }
 
+// Improved Open Library mapper: better cover fallback, stable links, stable id
 async function searchOpenLibrary(q) {
   try {
     const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=30`;
@@ -97,11 +102,21 @@ async function searchOpenLibrary(q) {
     return docs.map(d => {
       const title = d.title || 'Untitled';
       const author = Array.isArray(d.author_name) ? d.author_name.join(', ') : (d.author_name || '');
-      const cover = d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : '';
-      // best effort: link to work or book page
-      const key = d.key || (Array.isArray(d.edition_key) ? `/books/${d.edition_key[0]}` : null);
-      const readerUrl = key ? `https://openlibrary.org${key}` : 'https://openlibrary.org';
-      const identifier = `openlibrary:${(d.key || d.edition_key?.[0] || title).replace(/\//g, '_')}`;
+      const cover = d.cover_i
+        ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`
+        : 'https://openlibrary.org/images/icons/avatar_book-sm.png';
+
+      // Prefer work link when available, else edition, else generic OL
+      const workKey = d.key && String(d.key).startsWith('/works/') ? d.key : null;
+      const editionKey = Array.isArray(d.edition_key) ? d.edition_key[0] : null;
+      const readerUrl = workKey
+        ? `https://openlibrary.org${workKey}`
+        : (editionKey ? `https://openlibrary.org/books/${editionKey}` : `https://openlibrary.org`);
+
+      // Stable identifier: work key if present; else edition; else title
+      const rawId = workKey || (editionKey ? `/books/${editionKey}` : title);
+      const identifier = `openlibrary:${String(rawId).replace(/\//g, '_')}`;
+
       return card({
         identifier,
         title,
@@ -125,7 +140,6 @@ router.get('/read', async (req, res) => {
   if (!query) {
     try {
       const books = await Book.find({}).sort({ createdAt: -1 }).limit(24);
-      // normalize for template
       const normalized = books.map(b =>
         card({
           identifier: String(b._id),
@@ -151,27 +165,30 @@ router.get('/read', async (req, res) => {
       searchOpenLibrary(query),
     ]);
 
-    // merge safely (each is guaranteed array)
+    console.log(`READ SEARCH "${query}" — archive:${arch.length} gutenberg:${gut.length} openlibrary:${ol.length}`);
+
+    // Merge safely
     let books = []
       .concat(arch, gut, ol)
       .filter(b => b && (b.title || b.identifier));
 
-    // optional: simple de-dupe by (title + creator)
-    const seen = new Set();
-    books = books.filter(b => {
+    // Simple de-dupe by (title + creator). Prefer entries that have covers and a readerUrl.
+    const seen = new Map();
+    for (const b of books) {
       const key = `${(b.title || '').toLowerCase()}|${(b.creator || '').toLowerCase()}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    // limit
-    books = books.slice(0, 60);
+      if (!seen.has(key)) {
+        seen.set(key, b);
+      } else {
+        const prev = seen.get(key);
+        const score = (x) => (x.cover ? 1 : 0) + (x.readerUrl ? 1 : 0);
+        if (score(b) > score(prev)) seen.set(key, b);
+      }
+    }
+    books = Array.from(seen.values()).slice(0, 60);
 
     return res.render('read', { books, query });
   } catch (err) {
     console.error('Read search fatal error:', err);
-    // Never crash the page—render empty with a friendly state
     return res.render('read', { books: [], query });
   }
 });
@@ -179,31 +196,26 @@ router.get('/read', async (req, res) => {
 // ---------- VIEWER (ARCHIVE-ONLY INTERNAL READER) ----------
 /**
  * We only support internal reader for Archive.org items.
- * For Gutenberg/OpenLibrary items the /read page links out using readerUrl,
- * so they don't hit this route.
+ * For Gutenberg/OpenLibrary items the /read page links out using readerUrl.
  */
 router.get('/read/book/:identifier', async (req, res) => {
   const identifier = req.params.identifier;
 
-  // If it looks like external identifiers, redirect to /read with a message or fail gracefully
+  // If it looks like external identifiers, bounce back to search
   if (identifier.startsWith('gutenberg:') || identifier.startsWith('openlibrary:')) {
-    // just redirect back to /read; the card already has external links
     return res.redirect(`/read?query=${encodeURIComponent(identifier.replace(/^.*?:/, ''))}`);
   }
 
-  // Archive item (or local DB entry that stores archiveId)
   let isFavorite = false;
   try {
     if (req.session.user) {
-      // Either you store Favorites by archiveId or by Book ref. We’ll check both.
       const byArchive = await Favorite.exists({
         user: req.session.user._id,
         archiveId: identifier,
       });
       const byBook = await Favorite.exists({
         user: req.session.user._id,
-        // if you saved a local Book document that has archiveId===identifier
-        // you might look it up here; to keep simple we just check archiveId variant
+        // if you store a Book doc mapping to this archiveId, you could check it here
       });
       isFavorite = !!(byArchive || byBook);
     }
