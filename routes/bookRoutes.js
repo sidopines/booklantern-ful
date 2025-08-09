@@ -189,20 +189,13 @@ router.get('/read', async (req, res) => {
 });
 
 // ---------- VIEWER (ARCHIVE-ONLY INTERNAL READER) ----------
-/**
- * Internal reader for Archive.org items (and OpenLibrary items with IA scans).
- * For Gutenberg items we use a dedicated wrapper route below.
- */
 router.get('/read/book/:identifier', async (req, res) => {
   const identifier = req.params.identifier;
 
-  // If someone hits this with a Gutenberg identifier by mistake, redirect them to our Gutenberg wrapper
   if (identifier.startsWith('gutenberg:')) {
     const gid = identifier.replace(/^gutenberg:/, '');
     return res.redirect(`/read/gutenberg/${encodeURIComponent(gid)}`);
   }
-
-  // If it's an openlibrary:* legacy id, bounce back to search (we no longer emit these)
   if (identifier.startsWith('openlibrary:')) {
     return res.redirect(`/read?query=${encodeURIComponent(identifier.replace(/^openlibrary:/, ''))}`);
   }
@@ -235,8 +228,6 @@ router.get('/read/book/:identifier', async (req, res) => {
 router.get('/read/gutenberg/:gid', async (req, res) => {
   const gid = req.params.gid;
   const fromQuery = (req.query.u || '').trim();
-
-  // If no direct HTML URL was passed from search, fall back to Gutenberg book page
   const fallback = `https://www.gutenberg.org/ebooks/${gid}`;
   const viewerUrl = fromQuery || fallback;
 
@@ -249,21 +240,24 @@ router.get('/read/gutenberg/:gid', async (req, res) => {
   });
 });
 
-// ---------- VIEWER (GUTENBERG — PROXY to avoid X-Frame-Options) ----------
+/**
+ * ---------- VIEWER (GUTENBERG — PROXY) ----------
+ * Proxies Gutenberg HTML through our domain and rewrites navigation links (<a>, <form action>)
+ * back to this proxy, so the address bar always stays on booklantern.org.
+ * Static assets (img/css/js) are left pointing to Gutenberg by using a <base> tag.
+ */
 router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
   try {
     const gid = req.params.gid;
     const raw = (req.query.u || '').trim();
     const fallback = `https://www.gutenberg.org/ebooks/${encodeURIComponent(gid)}`;
-
-    // Resolve and validate target URL
     const target = new URL(raw || fallback);
+
     const allowedHosts = new Set(['www.gutenberg.org', 'gutenberg.org']);
     if (!allowedHosts.has(target.hostname) || !/^https?:$/.test(target.protocol)) {
       return res.status(400).send('Invalid target');
     }
 
-    // Fetch Gutenberg HTML (or other asset) and proxy it back
     const resp = await axios.get(target.toString(), {
       responseType: 'arraybuffer',
       headers: {
@@ -278,25 +272,57 @@ router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Content-Type', contentType);
 
-    // If HTML, inject a <base> so relative links work, and serve without frame-blocking headers
-    if (contentType.includes('text/html')) {
-      let html = resp.data.toString('utf8');
-
-      // Compute a base HREF that points to the directory of the fetched document
-      const baseHref = new URL('.', target).toString();
-
-      // Insert <base> right after <head ...> (first one wins if Gutenberg also sets one)
-      if (/<head[^>]*>/i.test(html)) {
-        html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">`);
-      } else {
-        html = `<base href="${baseHref}">` + html;
-      }
-
-      return res.send(html);
+    if (!contentType.includes('text/html')) {
+      // Non-HTML passthrough (rare for this route)
+      return res.send(resp.data);
     }
 
-    // Non-HTML assets (rare for this route) — just pass through
-    return res.send(resp.data);
+    let html = resp.data.toString('utf8');
+
+    // Strip inline meta CSP if present (header-level CSP is already gone because we proxy)
+    html = html.replace(/<meta[^>]+http-equiv=["']Content-Security-Policy["'][^>]*>/ig, '');
+
+    // Inject <base> so relative assets (img/css/js) load correctly from Gutenberg
+    const baseHref = new URL('.', target).toString();
+    if (/<head[^>]*>/i.test(html)) {
+      html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">`);
+    } else {
+      html = `<base href="${baseHref}">` + html;
+    }
+
+    // Helper to proxy a URL back through us
+    const proxify = (absUrl) =>
+      `/read/gutenberg/${encodeURIComponent(gid)}/proxy?u=${encodeURIComponent(absUrl)}`;
+
+    // Rewrite only navigation links: <a href="...">
+    html = html.replace(/(<a\b[^>]*\shref=)(['"])([^'"]+)\2/gi, (m, p1, q, url) => {
+      try {
+        if (/^\s*javascript:/i.test(url)) return m;
+        const abs = new URL(url, baseHref).toString();
+        // keep external (non-gutenberg) links as-is to avoid hijacking third-party sites
+        const u = new URL(abs);
+        if (u.hostname.endsWith('gutenberg.org')) {
+          return `${p1}${q}${proxify(abs)}${q}`;
+        }
+        return m;
+      } catch { return m; }
+    });
+
+    // Rewrite <form action="..."> too, so in-page nav/forms stay proxied
+    html = html.replace(/(<form\b[^>]*\saction=)(['"])([^'"]*)\2/gi, (m, p1, q, url) => {
+      try {
+        if (!url) return m; // empty action -> current doc
+        const abs = new URL(url, baseHref).toString();
+        const u = new URL(abs);
+        if (u.hostname.endsWith('gutenberg.org')) {
+          // force same-frame submission
+          return `${p1}${q}${proxify(abs)}${q}`;
+        }
+        return m;
+      } catch { return m; }
+    });
+
+    return res.send(html);
   } catch (e) {
     console.error('Gutenberg proxy error:', e.message);
     return res.status(502).send('Failed to load book');
