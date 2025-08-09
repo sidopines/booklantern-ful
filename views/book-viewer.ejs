@@ -2,70 +2,106 @@
 <html lang="en">
 <head>
   <%- include('./partials/header.ejs', {
-    pageTitle: `${book.title} | Read`,
-    pageDescription: `Read ${book.title} from ${book.source}`
+    pageTitle: `${book?.title || book?.archiveId || 'Reader'} | Read`,
+    pageDescription: `Read ${book?.title || book?.archiveId || ''} on BookLantern`
   }) %>
   <style>
-    /* your existing styles… */
+    :root { --bg:#0b0d10; --text:#e6edf3; --muted:#9aa3ad; --card:#12161b; --accent:#7aa2ff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+    .bar { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid #1e232b; background:#0e1116; }
+    .back-link { color: var(--muted); text-decoration: none; }
+    .title { margin-left:6px; font-weight:600; }
+    .wrap { padding: 0; }
+    iframe { border: 0; width: 100%; height: calc(100vh - 54px); display: block; background:#0e1116; }
+    .panel { position: fixed; right: 12px; top: 62px; display:flex; gap:8px; }
+    .btn { padding:8px 12px; border-radius:10px; border:1px solid #2a3340; background: var(--card); color: var(--text); cursor: pointer; }
+    .btn[disabled] { opacity: .6; cursor: not-allowed; }
+    .badge { font-size:12px; color:var(--muted); margin-left:6px; }
+    #bookmark-status { position: fixed; left: 12px; top: 62px; color: var(--muted); font-size: 13px; }
+    .empty { padding: 24px; color: var(--muted); }
+    .hidden { display: none; }
+    a.link { color: var(--accent); }
   </style>
 </head>
 <body>
-  <a href="javascript:history.back()" class="back-link">← Back</a>
-  <h1><%= book.title %></h1>
-
-  <% if (book.source === 'archive') { %>
-    <iframe id="book-frame"
-      src="https://archive.org/stream/<%= book.identifier %>?ui=embed#page=1"
-      allowfullscreen>
-    </iframe>
-  <% } else if (book.source === 'gutenberg') { %>
-    <p>This book is from Project Gutenberg. <a href="https://www.gutenberg.org/ebooks/<%= book.identifier %>">Open in Gutenberg</a>.</p>
-  <% } else if (book.source === 'openlibrary') { %>
-    <p>This book is from OpenLibrary. <a href="https://openlibrary.org/works/<%= book.identifier %>">Open in OpenLibrary</a>.</p>
-  <% } %>
-
-  <div class="action-buttons">
-    <form method="POST" action="/read/book/<%= book.source %>/<%= book.identifier %>/favorite">
-      <button <%= user ? '' : 'disabled' %>>
-        <%= isFavorite ? '❌ Remove Favorite' : '❤️ Add Favorite' %>
-      </button>
-    </form>
+  <div class="bar">
+    <a href="javascript:history.back()" class="back-link">← Back</a>
+    <span class="title"><%= (book && (book.title || book.archiveId)) ? (book.title || book.archiveId) : 'Reader' %></span>
+    <span class="badge">source: archive.org</span>
   </div>
 
-  <div id="bookmark-status">⏳ Loading last saved page…</div>
+  <% if (book && book.archiveId) { %>
+    <div id="bookmark-status">⏳ Loading last saved page…</div>
+    <div class="panel">
+      <form method="POST" action="/read/book/<%= book.archiveId %>/favorite">
+        <button class="btn" <%= user ? '' : 'disabled' %>>
+          <%= isFavorite ? '❌ Remove Favorite' : '❤️ Add Favorite' %>
+        </button>
+      </form>
+    </div>
+
+    <iframe id="book-frame"
+            src="https://archive.org/stream/<%= book.archiveId %>?ui=embed#page=1"
+            allowfullscreen
+            referrerpolicy="no-referrer">
+    </iframe>
+  <% } else { %>
+    <main class="wrap">
+      <div class="empty">
+        This viewer only supports Archive.org items. Try searching again on the
+        <a class="link" href="/read">Read</a> page and open Project Gutenberg or Open Library items
+        in a new tab.
+      </div>
+    </main>
+  <% } %>
+
   <script>
-    const userLoggedIn = <%= !!user %>;
-    const source       = "<%= book.source %>";
-    const id           = "<%= book.identifier %>";
-    const iframe       = document.getElementById('book-frame');
-    const status       = document.getElementById('bookmark-status');
+    (function(){
+      const userLoggedIn = <%= !!user %>;
+      const archiveId = "<%= book && book.archiveId ? book.archiveId : '' %>";
+      const iframe = document.getElementById('book-frame');
+      const status = document.getElementById('bookmark-status');
 
-    if (book.source==='archive') {
-      fetch(`/read/book/${source}/${id}/bookmark`)
-        .then(r=>r.json()).then(d=>{
-          const pg = d.page||1;
-          iframe.src = `https://archive.org/stream/${id}?ui=embed#page=${pg}`;
-          status.textContent = `📖 Resuming from page ${pg}`;
-        }).catch(_=> status.textContent="⚠️ Couldn't load bookmark.");
+      if (!archiveId || !iframe) return;
 
-      function saveBM(){
-        if(!userLoggedIn) return;
-        const m = iframe.src.match(/#page=(\d+)/);
-        if (!m) return;
-        navigator.sendBeacon
-          ? navigator.sendBeacon(`/read/book/${source}/${id}/bookmark`,
-              JSON.stringify({page: parseInt(m[1],10)}))
-          : fetch(`/read/book/${source}/${id}/bookmark`, {
-              method:'POST',
-              headers:{'Content-Type':'application/json'},
-              body: JSON.stringify({page: parseInt(m[1],10)})
-            });
+      // Fetch last bookmark page
+      fetch(`/read/book/${archiveId}/bookmark`)
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(d => {
+          const pg = (d && d.page) ? d.page : 1;
+          iframe.src = `https://archive.org/stream/${archiveId}?ui=embed#page=${pg}`;
+          if (status) status.textContent = `📖 Resumed from page ${pg}`;
+        })
+        .catch(() => { if (status) status.textContent = "⚠️ Couldn't load bookmark."; });
+
+      // Save bookmark on tab hide / unload
+      function saveBookmark(){
+        if (!userLoggedIn) return;
+        try {
+          const m = (iframe.src || '').match(/#page=(\d+)/);
+          const page = m ? parseInt(m[1], 10) : 1;
+          const url = `/read/book/${archiveId}/bookmark`;
+          const payload = JSON.stringify({ page });
+
+          if (navigator.sendBeacon) {
+            const blob = new Blob([payload], { type: 'application/json' });
+            navigator.sendBeacon(url, blob);
+          } else {
+            fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: payload
+            }).catch(()=>{});
+          }
+        } catch (_) {}
       }
-      document.addEventListener('visibilitychange', ()=> {
-        if (document.visibilityState==='hidden') saveBM();
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') saveBookmark();
       });
-      window.addEventListener('beforeunload', saveBM);
-    }
+      window.addEventListener('beforeunload', saveBookmark);
+    })();
   </script>
 </body>
 </html>
