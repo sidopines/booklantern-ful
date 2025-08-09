@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('./partials/header.ejs', {
+    pageTitle: pageTitle || 'Read',
+    pageDescription: pageDescription || 'Read public domain books'
+  }) %>
+  <style>
+    :root { --bg:#0b0d10; --text:#e6edf3; --muted:#9aa3ad; --card:#12161b; --accent:#7aa2ff; }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    .bar{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #1e232b;background:#0e1116}
+    .back-link{color:var(--muted);text-decoration:none}
+    .title{font-weight:600}
+    .badge{font-size:12px;color:var(--muted);margin-left:6px}
+    .tools{margin-left:auto;display:flex;gap:8px}
+    .btn{padding:6px 10px;border-radius:10px;border:1px solid #2a3340;background:var(--card);color:var(--text);text-decoration:none}
+    .status{padding:8px 16px;color:var(--muted);font-size:13px;border-bottom:1px solid #1e232b;background:#0f1319}
+    iframe{border:0;width:100%;height:calc(100vh - 54px);display:block;background:#0e1116}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <a href="javascript:history.back()" class="back-link">← Back</a>
+    <span class="title">Project Gutenberg</span>
+    <% if (typeof gid !== 'undefined') { %><span class="badge">#<%= gid %></span><% } %>
+    <div class="tools">
+      <a class="btn" href="<%= viewerUrl %>" target="_blank" rel="noopener">Open original ↗</a>
+      <a class="btn" href="" onclick="location.reload();return false;">Reload</a>
+    </div>
+  </div>
+
+  <div id="status" class="status">Loading… If this viewer doesn’t appear, click “Open original”.</div>
+
+  <iframe id="gutenbergFrame"
+          src="<%= viewerUrl %>"
+          allowfullscreen
+          referrerpolicy="no-referrer">
+  </iframe>
+
+  <script>
+    (function(){
+      const status = document.getElementById('status');
+      const frame = document.getElementById('gutenbergFrame');
+      let loaded = false;
+
+      frame.addEventListener('load', function(){ loaded = true; status.classList.add('hidden'); });
+
+      // Fallback message if the site blocks embedding or is slow
+      setTimeout(function(){
+        if (!loaded) {
+          status.textContent = "This book may block embedding. Click “Open original” to read it in a new tab.";
+        }
+      }, 2000);
+    })();
+  </script>
+</body>
+</html>
