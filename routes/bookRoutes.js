@@ -249,6 +249,60 @@ router.get('/read/gutenberg/:gid', async (req, res) => {
   });
 });
 
+// ---------- VIEWER (GUTENBERG — PROXY to avoid X-Frame-Options) ----------
+router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
+  try {
+    const gid = req.params.gid;
+    const raw = (req.query.u || '').trim();
+    const fallback = `https://www.gutenberg.org/ebooks/${encodeURIComponent(gid)}`;
+
+    // Resolve and validate target URL
+    const target = new URL(raw || fallback);
+    const allowedHosts = new Set(['www.gutenberg.org', 'gutenberg.org']);
+    if (!allowedHosts.has(target.hostname) || !/^https?:$/.test(target.protocol)) {
+      return res.status(400).send('Invalid target');
+    }
+
+    // Fetch Gutenberg HTML (or other asset) and proxy it back
+    const resp = await axios.get(target.toString(), {
+      responseType: 'arraybuffer',
+      headers: {
+        'User-Agent': 'BookLantern/1.0 (+booklantern.org)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Referer': 'https://www.gutenberg.org/'
+      },
+      timeout: 15000
+    });
+
+    const contentType = resp.headers['content-type'] || 'text/html; charset=utf-8';
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Type', contentType);
+
+    // If HTML, inject a <base> so relative links work, and serve without frame-blocking headers
+    if (contentType.includes('text/html')) {
+      let html = resp.data.toString('utf8');
+
+      // Compute a base HREF that points to the directory of the fetched document
+      const baseHref = new URL('.', target).toString();
+
+      // Insert <base> right after <head ...> (first one wins if Gutenberg also sets one)
+      if (/<head[^>]*>/i.test(html)) {
+        html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">`);
+      } else {
+        html = `<base href="${baseHref}">` + html;
+      }
+
+      return res.send(html);
+    }
+
+    // Non-HTML assets (rare for this route) — just pass through
+    return res.send(resp.data);
+  } catch (e) {
+    console.error('Gutenberg proxy error:', e.message);
+    return res.status(502).send('Failed to load book');
+  }
+});
+
 // ---------- BOOKMARKS (ARCHIVE-ONLY) ----------
 router.post('/read/book/:identifier/bookmark', async (req, res) => {
   if (!req.session.user) return res.status(401).send('Login required');
