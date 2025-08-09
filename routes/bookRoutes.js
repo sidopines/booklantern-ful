@@ -5,178 +5,237 @@ const router = express.Router();
 
 const Bookmark = require('../models/Bookmark');
 const Favorite = require('../models/Favorite');
-const Book = require('../models/Book'); // optional local books (admin-added)
+const Book = require('../models/Book'); // optional, for local/admin-curated items
 
-// ---------- Helpers ----------
-const aimg = (id) => `https://archive.org/services/img/${encodeURIComponent(id)}`;
-const streamUrl = (id, page = 1) =>
-  `https://archive.org/stream/${encodeURIComponent(id)}?ui=embed#page=${page}`;
+// ---------- helpers ----------
+const http = axios.create({
+  timeout: 10000, // 10s max
+});
 
-// Safe axios.get (always resolves)
-async function safeGet(url, config = {}) {
+// Build standard card object
+function card({
+  identifier = '',
+  title = '',
+  creator = '',
+  cover = '',
+  readerUrl = '',
+  source = '',
+  description = '',
+}) {
+  return { identifier, title, creator, cover, readerUrl, source, description };
+}
+
+function archiveCover(id) {
+  return `https://archive.org/services/img/${id}`;
+}
+function archiveReader(id, page = 1) {
+  return `https://archive.org/stream/${id}?ui=embed#page=${page}`;
+}
+
+// ---------- external fetchers (ALWAYS return an array) ----------
+async function searchArchive(q) {
   try {
-    const { data } = await axios.get(url, { timeout: 12000, ...config });
-    return { ok: true, data };
-  } catch (err) {
-    console.error('[fetch error]', url, err.message);
-    return { ok: false, data: null };
+    const query = encodeURIComponent(`(${q}) AND mediatype:texts`);
+    const fields = ['identifier', 'title', 'creator', 'description', 'publicdate'].join(',');
+    const url = `https://archive.org/advancedsearch.php?q=${query}&fl[]=${fields}&rows=30&page=1&output=json`;
+    const { data } = await http.get(url);
+    const docs = data?.response?.docs || [];
+    return docs.map(d =>
+      card({
+        identifier: d.identifier,
+        title: d.title || d.identifier || 'Untitled',
+        creator: Array.isArray(d.creator) ? d.creator.join(', ') : (d.creator || ''),
+        cover: archiveCover(d.identifier),
+        readerUrl: archiveReader(d.identifier, 1),
+        source: 'archive',
+        description: (Array.isArray(d.description) ? d.description[0] : d.description) || '',
+      })
+    );
+  } catch (e) {
+    console.error('Archive search error:', e.message);
+    return [];
   }
 }
 
-// Map a minimal “book” object that our read.ejs expects and our viewer can open
-function asIAItem(identifier, title, creator) {
-  return {
-    identifier,
-    title: title || identifier,
-    creator: Array.isArray(creator) ? creator.join(', ') : (creator || ''),
-    cover: aimg(identifier),
-    // viewer uses /read/book/:identifier → archive.org embed
-  };
+async function searchGutenberg(q) {
+  try {
+    const url = `https://gutendex.com/books?search=${encodeURIComponent(q)}`;
+    const { data } = await http.get(url);
+    const results = data?.results || [];
+    return results.map(b => {
+      const authors = (b.authors || []).map(a => a.name).join(', ');
+      const cover =
+        b.formats?.['image/jpeg'] ||
+        b.formats?.['image/jpg'] ||
+        '';
+      // Prefer HTML reader if available, else text/plain, else fallback to book page
+      const readerUrl =
+        b.formats?.['text/html; charset=utf-8'] ||
+        b.formats?.['text/html'] ||
+        b.formats?.['text/plain; charset=utf-8'] ||
+        `https://www.gutenberg.org/ebooks/${b.id}`;
+      return card({
+        identifier: `gutenberg:${b.id}`,
+        title: b.title || `Gutenberg #${b.id}`,
+        creator: authors,
+        cover,
+        readerUrl,
+        source: 'gutenberg',
+      });
+    });
+  } catch (e) {
+    console.error('Gutenberg search error:', e.message);
+    return [];
+  }
 }
 
-// ---------- Source fetchers (return arrays, never throw) ----------
-
-// 1) Archive.org (primary)
-async function fetchArchive(query) {
-  if (!query) return [];
-  const q = encodeURIComponent(`(${query}) AND mediatype:texts`);
-  // fields must be added per fl[]= parameter; pass multiple fl[] items
-  const url =
-    `https://archive.org/advancedsearch.php?q=${q}` +
-    `&fl[]=identifier&fl[]=title&fl[]=creator` +
-    `&rows=50&page=1&output=json`;
-
-  const res = await safeGet(url);
-  if (!res.ok) return [];
-  const docs = res.data?.response?.docs || [];
-  return docs
-    .filter(d => d.identifier)
-    .map(d => asIAItem(d.identifier, d.title, d.creator));
-}
-
-// 2) OpenLibrary (ONLY items that have an Internet Archive scan via `ia` field)
-async function fetchOpenLibraryIA(query) {
-  if (!query) return [];
-  const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=50`;
-  const res = await safeGet(url);
-  if (!res.ok) return [];
-  const docs = Array.isArray(res.data?.docs) ? res.data.docs : [];
-
-  // Keep only docs that have IA identifiers we can embed
-  const withIA = docs.filter(d => Array.isArray(d.ia) && d.ia.length > 0);
-  return withIA.map(d => {
-    const identifier = d.ia[0]; // first IA scan id
-    const title = d.title || identifier;
-    const creator = Array.isArray(d.author_name) ? d.author_name.join(', ') : d.author_name;
-    return asIAItem(identifier, title, creator);
-  });
-}
-
-// (Optional) 3) Gutenberg via Gutendex — Disabled for now because our viewer
-// only supports IA embeds. If/when you add external readers, you can enable.
-// Leaving as a stub that safely returns [] to avoid crashes.
-async function fetchGutenberg(_query) {
-  return [];
+async function searchOpenLibrary(q) {
+  try {
+    const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=30`;
+    const { data } = await http.get(url);
+    const docs = data?.docs || [];
+    return docs.map(d => {
+      const title = d.title || 'Untitled';
+      const author = Array.isArray(d.author_name) ? d.author_name.join(', ') : (d.author_name || '');
+      const cover = d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : '';
+      // best effort: link to work or book page
+      const key = d.key || (Array.isArray(d.edition_key) ? `/books/${d.edition_key[0]}` : null);
+      const readerUrl = key ? `https://openlibrary.org${key}` : 'https://openlibrary.org';
+      const identifier = `openlibrary:${(d.key || d.edition_key?.[0] || title).replace(/\//g, '_')}`;
+      return card({
+        identifier,
+        title,
+        creator: author,
+        cover,
+        readerUrl,
+        source: 'openlibrary',
+      });
+    });
+  } catch (e) {
+    console.error('OpenLibrary search error:', e.message);
+    return [];
+  }
 }
 
 // ---------- READ LIST / SEARCH ----------
 router.get('/read', async (req, res) => {
   const query = (req.query.query || '').trim();
 
-  // If no query given, optionally show latest admin-added local books
+  // If empty query: show locally saved/admin books (if any)
   if (!query) {
-    const books = await Book.find({}).sort({ createdAt: -1 }).limit(24);
-    // Map local Book model to the same shape (viewer needs identifier; local ones won’t open IA)
-    // So for local, link will be /read/book/<_id>, which your viewer doesn’t handle.
-    // We’ll still show them, but they’re secondary to search results.
-    const mapped = books.map(b => ({
-      identifier: b._id.toString(),
-      title: b.title,
-      creator: b.author || '',
-      cover: b.coverImage || 'https://via.placeholder.com/200x280?text=No+Cover'
-    }));
-    return res.render('read', { books: mapped, query });
+    try {
+      const books = await Book.find({}).sort({ createdAt: -1 }).limit(24);
+      // normalize for template
+      const normalized = books.map(b =>
+        card({
+          identifier: String(b._id),
+          title: b.title,
+          creator: b.author || '',
+          cover: b.coverImage || '',
+          readerUrl: b.sourceUrl || '',
+          source: 'local',
+          description: b.description || '',
+        })
+      );
+      return res.render('read', { books: normalized, query });
+    } catch (e) {
+      console.error('Read (no query) error:', e);
+      return res.render('read', { books: [], query });
+    }
   }
 
   try {
-    const [arch, ol, gut] = await Promise.all([
-      fetchArchive(query),
-      fetchOpenLibraryIA(query),
-      fetchGutenberg(query)
+    const [arch = [], gut = [], ol = []] = await Promise.all([
+      searchArchive(query),
+      searchGutenberg(query),
+      searchOpenLibrary(query),
     ]);
 
-    // All are arrays by design. Merge and de-dup by identifier
-    const all = [...arch, ...ol, ...gut];
+    // merge safely (each is guaranteed array)
+    let books = []
+      .concat(arch, gut, ol)
+      .filter(b => b && (b.title || b.identifier));
+
+    // optional: simple de-dupe by (title + creator)
     const seen = new Set();
-    const books = all.filter(b => {
-      if (!b || !b.identifier) return false;
-      if (seen.has(b.identifier)) return false;
-      seen.add(b.identifier);
+    books = books.filter(b => {
+      const key = `${(b.title || '').toLowerCase()}|${(b.creator || '').toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     });
 
+    // limit
+    books = books.slice(0, 60);
+
     return res.render('read', { books, query });
   } catch (err) {
-    console.error('Search route fatal error:', err);
-    // Render gracefully instead of crashing
+    console.error('Read search fatal error:', err);
+    // Never crash the page—render empty with a friendly state
     return res.render('read', { books: [], query });
   }
 });
 
-// ---------- VIEWER (Archive.org embed by Internet Archive identifier) ----------
+// ---------- VIEWER (ARCHIVE-ONLY INTERNAL READER) ----------
+/**
+ * We only support internal reader for Archive.org items.
+ * For Gutenberg/OpenLibrary items the /read page links out using readerUrl,
+ * so they don't hit this route.
+ */
 router.get('/read/book/:identifier', async (req, res) => {
   const identifier = req.params.identifier;
 
-  // If identifier looks like a Mongo ObjectId (local Book), try to display minimal info
-  const looksLikeObjectId = /^[0-9a-fA-F]{24}$/.test(identifier);
-  let bookTitle = identifier;
-  if (looksLikeObjectId) {
-    const local = await Book.findById(identifier).lean().catch(() => null);
-    if (local) bookTitle = local.title || identifier;
+  // If it looks like external identifiers, redirect to /read with a message or fail gracefully
+  if (identifier.startsWith('gutenberg:') || identifier.startsWith('openlibrary:')) {
+    // just redirect back to /read; the card already has external links
+    return res.redirect(`/read?query=${encodeURIComponent(identifier.replace(/^.*?:/, ''))}`);
   }
 
-  // favorite state for IA items
+  // Archive item (or local DB entry that stores archiveId)
   let isFavorite = false;
-  if (req.session.user) {
-    isFavorite = await Favorite.exists({
-      user: req.session.user._id,
-      archiveId: identifier
-    });
+  try {
+    if (req.session.user) {
+      // Either you store Favorites by archiveId or by Book ref. We’ll check both.
+      const byArchive = await Favorite.exists({
+        user: req.session.user._id,
+        archiveId: identifier,
+      });
+      const byBook = await Favorite.exists({
+        user: req.session.user._id,
+        // if you saved a local Book document that has archiveId===identifier
+        // you might look it up here; to keep simple we just check archiveId variant
+      });
+      isFavorite = !!(byArchive || byBook);
+    }
+  } catch (e) {
+    console.error('Favorite lookup error:', e.message);
   }
 
-  const book = {
-    title: bookTitle,
-    archiveId: identifier // the viewer template uses archiveId for the embed
-  };
-
+  const book = { title: identifier, archiveId: identifier };
   return res.render('book-viewer', {
     book,
     isFavorite,
-    user: req.session.user || null
+    user: req.session.user || null,
   });
 });
 
-// ---------- BOOKMARK SAVE (by IA identifier) ----------
+// ---------- BOOKMARKS (ARCHIVE-ONLY) ----------
 router.post('/read/book/:identifier/bookmark', async (req, res) => {
   if (!req.session.user) return res.status(401).send('Login required');
-
   const { page } = req.body;
-  const archiveId = req.params.identifier;
-
   try {
     const existing = await Bookmark.findOne({
       user: req.session.user._id,
-      archiveId
+      archiveId: req.params.identifier,
     });
-
     if (existing) {
-      existing.currentPage = page || 1;
+      existing.currentPage = page;
       await existing.save();
     } else {
       await Bookmark.create({
         user: req.session.user._id,
-        archiveId,
-        currentPage: page || 1
+        archiveId: req.params.identifier,
+        currentPage: page,
       });
     }
     res.send('✅ Bookmark saved!');
@@ -186,43 +245,38 @@ router.post('/read/book/:identifier/bookmark', async (req, res) => {
   }
 });
 
-// ---------- BOOKMARK GET ----------
 router.get('/read/book/:identifier/bookmark', async (req, res) => {
   if (!req.session.user) return res.status(401).send('Login required');
-
-  const archiveId = req.params.identifier;
   try {
     const bookmark = await Bookmark.findOne({
       user: req.session.user._id,
-      archiveId
+      archiveId: req.params.identifier,
     });
     res.json({ page: bookmark?.currentPage || 1 });
   } catch (err) {
     console.error('Bookmark fetch error:', err);
-    res.status(500).json({ page: 1 });
+    res.status(500).send('Error loading bookmark');
   }
 });
 
-// ---------- FAVORITE TOGGLE (by IA identifier) ----------
+// ---------- FAVORITES TOGGLE (ARCHIVE-ONLY HERE) ----------
 router.post('/read/book/:identifier/favorite', async (req, res) => {
   if (!req.session.user) return res.status(401).send('Login required');
-
-  const archiveId = req.params.identifier;
   try {
     const existing = await Favorite.findOne({
       user: req.session.user._id,
-      archiveId
+      archiveId: req.params.identifier,
     });
 
     if (existing) {
       await existing.deleteOne();
-      return res.send('❌ Removed from favorites');
+      res.send('❌ Removed from favorites');
     } else {
       await Favorite.create({
         user: req.session.user._id,
-        archiveId
+        archiveId: req.params.identifier,
       });
-      return res.send('❤️ Added to favorites');
+      res.send('❤️ Added to favorites');
     }
   } catch (err) {
     console.error('Favorite toggle error:', err);
