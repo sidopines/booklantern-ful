@@ -45,7 +45,10 @@
       const frame = document.getElementById('gutenbergFrame');
       let loaded = false;
 
-      frame.addEventListener('load', function(){ loaded = true; status.classList.add('hidden'); });
+      frame.addEventListener('load', function(){
+        loaded = true;
+        status.classList.add('hidden');
+      });
 
       // Fallback message if the site blocks embedding or is slow
       setTimeout(function(){
