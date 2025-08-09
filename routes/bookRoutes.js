@@ -93,20 +93,31 @@ async function searchGutenberg(q) {
   }
 }
 
-// Prefer Open Library items that have Internet Archive scans (readable without login)
+// Open Library: show items that are actually readable without login
+// Keep those with an Internet Archive scan: docs having `ia[]` or `ocaid`, or `public_scan_b === true`
 async function searchOpenLibrary(q) {
   try {
     const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=30`;
     const { data } = await http.get(url);
     const docs = data?.docs || [];
 
-    // Only keep records that have an Internet Archive 'ia' identifier => can be opened in our Archive viewer
-    const withIA = docs.filter(d => Array.isArray(d.ia) && d.ia.length > 0);
+    const readable = docs.filter(d =>
+      (Array.isArray(d.ia) && d.ia.length > 0) ||
+      (typeof d.ocaid === 'string' && d.ocaid.trim() !== '') ||
+      d.public_scan_b === true
+    );
 
-    return withIA.map(d => {
+    return readable.map(d => {
       const title  = d.title || 'Untitled';
       const author = Array.isArray(d.author_name) ? d.author_name.join(', ') : (d.author_name || '');
-      const iaId   = d.ia[0]; // first IA scan id
+
+      // Determine an Archive.org identifier we can open internally
+      const iaId = (Array.isArray(d.ia) && d.ia.length > 0)
+        ? d.ia[0]
+        : (typeof d.ocaid === 'string' ? d.ocaid : null);
+
+      if (!iaId) return null; // skip if we still can't open internally
+
       const cover  = d.cover_i
         ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`
         : `https://iiif.archive.org/iiif/${iaId}/full/400,/0/default.jpg`;
@@ -120,7 +131,7 @@ async function searchOpenLibrary(q) {
         readerUrl: archiveReader(iaId, 1),
         source: 'archive', // treat as archive so /read/book/:identifier handles it
       });
-    });
+    }).filter(Boolean);
   } catch (e) {
     console.error('OpenLibrary search error:', e.message);
     return [];
@@ -245,7 +256,7 @@ router.get('/read/gutenberg/:gid', async (req, res) => {
  * Proxies Gutenberg HTML through our domain and rewrites navigation links (<a>, <form action>)
  * back to this proxy, so the address bar always stays on booklantern.org.
  * Static assets (img/css/js) are left pointing to Gutenberg by using a <base> tag.
- * We also inject minimal CSS to force a readable light theme.
+ * Also inject a book-like reading shell (wrapper + CSS) for consistent look.
  */
 router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
   try {
@@ -274,7 +285,7 @@ router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
     res.setHeader('Content-Type', contentType);
 
     if (!contentType.includes('text/html')) {
-      // Non-HTML passthrough (rare for this route)
+      // Non-HTML passthrough (plain text, etc.)
       return res.send(resp.data);
     }
 
@@ -286,26 +297,45 @@ router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
     // Inject <base> so relative assets (img/css/js) load correctly from Gutenberg
     const baseHref = new URL('.', target).toString();
 
-    // Minimal readability CSS injection
-    const injectCss = `
+    // Book-like shell: CSS + a script that wraps the body content into a centered "page"
+    const injectShell = `
       <style id="bl-proxy-style">
-        html, body { background: #fff !important; color: #000 !important; }
-        img, svg, video { max-width: 100%; height: auto; }
-        pre { white-space: pre-wrap; word-wrap: break-word; }
-        a { color: #0645ad; }
-      </style>`;
+        html, body { background: #0b0d10 !important; color: #e6edf3 !important; }
+        #bl-wrap {
+          max-width: 860px; margin: 24px auto; background: #ffffff; color: #111;
+          line-height: 1.68; font-size: 18px; padding: 28px 32px; border-radius: 10px;
+          box-shadow: 0 12px 34px rgba(0,0,0,.35);
+        }
+        #bl-wrap img, #bl-wrap svg, #bl-wrap video { max-width: 100%; height: auto; display: block; margin: 1rem auto; }
+        #bl-wrap pre { white-space: pre-wrap; word-wrap: break-word; font-size: 16px; line-height: 1.5; }
+        #bl-wrap h1, #bl-wrap h2, #bl-wrap h3, #bl-wrap h4 { color: #111; line-height: 1.25; margin: 1.2em 0 .6em; }
+        #bl-wrap a { color: #0645ad; }
+        /* tame overly wide tables */
+        #bl-wrap table { width: 100%; display: block; overflow-x: auto; border-collapse: collapse; }
+      </style>
+      <script id="bl-proxy-boot">
+        (function(){
+          try {
+            var w = document.createElement('div'); w.id = 'bl-wrap';
+            var b = document.body;
+            // move all body children into the wrapper
+            while (b.firstChild) { w.appendChild(b.firstChild); }
+            b.appendChild(w);
+          } catch(e){}
+        })();
+      </script>`;
 
     if (/<head[^>]*>/i.test(html)) {
-      html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">${injectCss}`);
+      html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">${injectShell}`);
     } else {
-      html = `<base href="${baseHref}">${injectCss}` + html;
+      html = `<base href="${baseHref}">${injectShell}` + html;
     }
 
     // Helper to proxy a URL back through us
     const proxify = (absUrl) =>
       `/read/gutenberg/${encodeURIComponent(gid)}/proxy?u=${encodeURIComponent(absUrl)}`;
 
-    // Rewrite only navigation links: <a href="...">
+    // Rewrite navigation links: <a href="...">
     html = html.replace(/(<a\b[^>]*\shref=)(['"])([^'"]+)\2/gi, (m, p1, q, url) => {
       try {
         if (/^\s*javascript:/i.test(url)) return m;
