@@ -1,18 +1,20 @@
 // server.js
 require('dotenv').config(); // loads MONGODB_URI, JWT_SECRET, BASE_URL
 
-const express      = require('express');
-const mongoose     = require('mongoose');
-const path         = require('path');
-const session      = require('express-session');
-const MongoStore   = require('connect-mongo');
+const express    = require('express');
+const mongoose   = require('mongoose');
+const path       = require('path');
+const session    = require('express-session');
+const MongoStore = require('connect-mongo');
 
-const authRoutes   = require('./routes/auth');
-const bookRoutes   = require('./routes/bookRoutes');
-const indexRoutes  = require('./routes/index');
+// Routes
+const authRoutes  = require('./routes/auth');
+const bookRoutes  = require('./routes/bookRoutes');
+const indexRoutes = require('./routes/index');
 
-const Video        = require('./models/Video');
-const Genre        = require('./models/Genre');
+// Models used on server routes
+const Video = require('./models/Video');
+const Genre = require('./models/Genre');
 
 const app = express();
 
@@ -25,36 +27,49 @@ mongoose
     process.exit(1);
   });
 
-// ─── 2) EXPRESS & SESSION MIDDLEWARE ──────────────────────────────────────────
-app.set('view engine','ejs');
-app.set('views', path.join(__dirname,'views'));
+// ─── 2) CORE EXPRESS + TRUST PROXY (Render/Cloud) ─────────────────────────────
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
-app.use(express.static(path.join(__dirname,'public')));
+// Trust reverse proxy (Render) so secure cookies work correctly in production
+app.set('trust proxy', 1);
+
+// Static files
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Body parsers (needed for login, forms, and bookmark POST JSON)
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
+// ─── 3) SESSION (Mongo-backed) ────────────────────────────────────────────────
+const isProd = process.env.NODE_ENV === 'production';
 app.use(session({
-  secret: process.env.JWT_SECRET,
+  secret: process.env.JWT_SECRET || 'change-me',
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({ mongoUrl: process.env.MONGODB_URI }),
-  cookie: { secure: false, maxAge: 1000 * 60 * 60 * 24 }
+  cookie: {
+    secure: isProd,          // true on HTTPS (Render)
+    httpOnly: true,
+    sameSite: 'lax',         // keeps login on same-site nav while avoiding CSRF pitfalls
+    maxAge: 1000 * 60 * 60 * 24 // 1 day
+  }
 }));
 
-// ─── 3) MAKE `user` & DEFAULT META AVAILABLE IN *ALL* VIEWS ───────────────────
+// ─── 4) GLOBAL VIEW LOCALS ────────────────────────────────────────────────────
 app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
-  res.locals.pageTitle = res.locals.pageTitle || 'BookLantern';
-  res.locals.pageDescription = res.locals.pageDescription || 'Free books & educational videos.';
+  res.locals.pageTitle = 'BookLantern';
+  res.locals.pageDescription = 'Free books & educational videos.';
   next();
 });
 
-// ─── 4) MOUNT YOUR ROUTERS ───────────────────────────────────────────────────
-app.use('/', indexRoutes);   // home / about / contact
-app.use('/', authRoutes);    // login / register / dashboard / settings / admin-setup
-app.use('/', bookRoutes);    // /read, /read/book, /read/book/:id/bookmark, favorites
+// ─── 5) ROUTES ────────────────────────────────────────────────────────────────
+app.use('/', indexRoutes);  // home / about / contact
+app.use('/', authRoutes);   // login / register / dashboard / settings / admin-setup
+app.use('/', bookRoutes);   // /read, /read/book/:identifier, bookmarks, favorites
 
-// ─── 5) WATCH + PLAYER (for subscribers) ──────────────────────────────────────
+// ─── 6) WATCH + PLAYER (subscribers) ─────────────────────────────────────────
 app.get('/watch', async (req, res) => {
   try {
     const genreFilter = req.query.genre || '';
@@ -62,6 +77,7 @@ app.get('/watch', async (req, res) => {
     const videos = genreFilter
       ? await Video.find({ genre: genreFilter }).populate('genre').sort({ createdAt: -1 })
       : await Video.find({}).populate('genre').sort({ createdAt: -1 });
+
     res.render('watch', {
       genres,
       videos,
@@ -78,7 +94,10 @@ app.get('/watch', async (req, res) => {
 app.get('/player/:id', async (req, res) => {
   try {
     const video = await Video.findById(req.params.id).populate('genre');
-    if (!video) return res.status(404).render('404');
+    if (!video) return res.status(404).render('404', {
+      pageTitle: 'Not Found',
+      pageDescription: 'The requested video could not be found.'
+    });
     res.render('player', {
       video,
       pageTitle: `${video.title} | Watch`,
@@ -90,32 +109,10 @@ app.get('/player/:id', async (req, res) => {
   }
 });
 
-// ─── 6) ADMIN PANEL (protected) ───────────────────────────────────────────────
-function requireAdmin(req, res, next) {
-  if (req.session.user?.role === 'admin') return next();
-  return res.redirect('/login');
-}
-app.get('/admin', requireAdmin, async (req, res) => {
-  try {
-    const genres = await Genre.find({});
-    const videos = await Video.find({}).populate('genre').sort({ createdAt: -1 });
-    // if you also want books here, fetch them too…
-    res.render('admin', {
-      genres,
-      videos,
-      pageTitle: 'Admin',
-      pageDescription: 'Manage all content'
-    });
-  } catch (err) {
-    console.error('Admin load error:', err);
-    res.status(500).send('Internal Server Error');
-  }
-});
-
 // ─── 7) STATIC / 404 / ERROR ─────────────────────────────────────────────────
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain');
-  res.sendFile(path.join(__dirname,'public','robots.txt'));
+  res.sendFile(path.join(__dirname, 'public', 'robots.txt'));
 });
 
 app.use((req, res) => {
