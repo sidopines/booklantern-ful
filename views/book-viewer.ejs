@@ -34,7 +34,7 @@
   <% if (book && book.archiveId) { %>
     <div id="bookmark-status">⏳ Loading last saved page…</div>
     <div class="panel">
-      <form method="POST" action="/read/book/<%= book.archiveId %>/favorite">
+      <form method="POST" action="/read/book/<%= encodeURIComponent(book.archiveId) %>/favorite">
         <button class="btn" <%= user ? '' : 'disabled' %>>
           <%= isFavorite ? '❌ Remove Favorite' : '❤️ Add Favorite' %>
         </button>
@@ -42,7 +42,7 @@
     </div>
 
     <iframe id="book-frame"
-            src="https://archive.org/stream/<%= book.archiveId %>?ui=embed#page=1"
+            src="https://archive.org/stream/<%= encodeURIComponent(book.archiveId) %>?ui=embed#page=1"
             allowfullscreen
             referrerpolicy="no-referrer">
     </iframe>
@@ -59,11 +59,17 @@
   <script>
     (function(){
       const userLoggedIn = <%= !!user %>;
-      const archiveId = "<%= book && book.archiveId ? book.archiveId : '' %>";
+      const archiveId = "<%= book && book.archiveId ? encodeURIComponent(book.archiveId) : '' %>";
       const iframe = document.getElementById('book-frame');
       const status = document.getElementById('bookmark-status');
 
       if (!archiveId || !iframe) return;
+
+      // If not logged in, show a tip and skip bookmark API calls
+      if (!userLoggedIn) {
+        if (status) status.textContent = "Tip: Log in to save your reading progress.";
+        return;
+      }
 
       // Fetch last bookmark page
       fetch(`/read/book/${archiveId}/bookmark`)
@@ -77,8 +83,10 @@
 
       // Save bookmark on tab hide / unload
       function saveBookmark(){
-        if (!userLoggedIn) return;
         try {
+          if (!userLoggedIn) return;
+          // NOTE: due to cross-origin, we can't read the live page from inside the iframe.
+          // We save the last page we *set* here (when we resume), or fallback to 1.
           const m = (iframe.src || '').match(/#page=(\d+)/);
           const page = m ? parseInt(m[1], 10) : 1;
           const url = `/read/book/${archiveId}/bookmark`;
