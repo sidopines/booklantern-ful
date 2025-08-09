@@ -56,12 +56,25 @@
       transition: transform 0.15s ease;
     }
     .book-card:hover { transform: translateY(-4px); }
-    .book-card img {
+    .thumb {
       width: 100%;
       height: 280px;
-      object-fit: cover;
       border-radius: 5px;
       background: #eee;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .no-cover {
+      color: #999;
+      font-size: 0.9rem;
     }
     .book-card h3 { margin: 0.6rem 0; font-size: 1.05rem; }
     .book-card p { font-size: 0.9rem; color: #666; margin: 0.3rem 0 0.6rem; }
@@ -78,12 +91,12 @@
       padding: .2rem .5rem;
       border-radius: 999px;
     }
-    .book-card a {
+    .action a {
       text-decoration: none;
       color: #0077cc;
       font-weight: bold;
     }
-    .book-card a:hover { text-decoration: underline; }
+    .action a:hover { text-decoration: underline; }
     .empty {
       text-align: center;
       color: #777;
@@ -109,26 +122,37 @@
     <div class="empty">No books found. Try another search term.</div>
   <% } else { %>
     <div class="book-grid">
-      <% books.forEach(book => { 
+      <% books.forEach(function(book){ 
            const src = (book.source || '').toLowerCase();
            const id  = book.identifier || book._id || '';
+           // Internal vs. external link:
+           // - archive -> internal viewer /read/book/:identifier
+           // - others  -> external readerUrl in new tab
+           const isArchive = (src === 'archive');
+           const href = isArchive ? `/read/book/${encodeURIComponent(id)}`
+                                  : (book.readerUrl || '#');
       %>
         <div class="book-card">
-          <img
-            src="<%= book.cover || 'https://via.placeholder.com/200x280?text=No+Cover' %>"
-            alt="<%= book.title %>">
+          <a href="<%= href %>" <%= isArchive ? '' : 'target="_blank" rel="noopener"' %>>
+            <div class="thumb">
+              <% if (book.cover) { %>
+                <img src="<%= book.cover %>" alt="<%= book.title %>">
+              <% } else { %>
+                <div class="no-cover">No Cover</div>
+              <% } %>
+            </div>
+          </a>
           <h3><%= book.title %></h3>
           <p><%= book.creator || book.author || '' %></p>
           <div class="meta-row">
-            <% if (src) { %><span class="badge"><%= src === 'archive' ? 'Archive.org' : (src === 'gutenberg' ? 'Project Gutenberg' : (src === 'openlibrary' ? 'OpenLibrary' : src)) %></span><% } %>
-          </div>
-          <div style="margin-top:.6rem;">
             <% if (src) { %>
-              <a href="/read/book/<%= src %>/<%= encodeURIComponent(id) %>">📖 Read Now</a>
-            <% } else { %>
-              <!-- Fallback: legacy local DB book -->
-              <a href="/read/book/<%= encodeURIComponent(id) %>">📖 Read Now</a>
+              <span class="badge">
+                <%= src === 'archive' ? 'Archive.org' : (src === 'gutenberg' ? 'Project Gutenberg' : (src === 'openlibrary' ? 'Open Library' : src)) %>
+              </span>
             <% } %>
+          </div>
+          <div class="action" style="margin-top:.6rem;">
+            <a href="<%= href %>" <%= isArchive ? '' : 'target="_blank" rel="noopener"' %>>📖 Read Now</a>
           </div>
         </div>
       <% }) %>
