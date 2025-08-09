@@ -6,19 +6,40 @@
     pageDescription: pageDescription || 'Read public domain books'
   }) %>
   <style>
-    :root { --bg:#0b0d10; --text:#e6edf3; --muted:#9aa3ad; --card:#12161b; --accent:#7aa2ff; }
+    :root {
+      --bg:#0b0d10; --text:#e6edf3; --muted:#9aa3ad; --card:#12161b; --accent:#7aa2ff;
+      --barH:54px; --statusH:32px;
+    }
     *{box-sizing:border-box}
     body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-    .bar{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #1e232b;background:#0e1116}
+
+    /* Top chrome – same tone as Archive viewer */
+    .bar{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #1e232b;background:#0e1116;height:var(--barH)}
     .back-link{color:var(--muted);text-decoration:none}
     .title{font-weight:600}
     .badge{font-size:12px;color:var(--muted);margin-left:6px}
     .tools{margin-left:auto;display:flex;gap:8px}
     .btn{padding:6px 10px;border-radius:10px;border:1px solid #2a3340;background:var(--card);color:var(--text);text-decoration:none}
-    .status{padding:8px 16px;color:var(--muted);font-size:13px;border-bottom:1px solid #1e232b;background:#0f1319}
-    /* IMPORTANT: make the reading area light so Gutenberg text is readable */
-    iframe{border:0;width:100%;height:calc(100vh - 54px);display:block;background:#fff}
-    .hidden{display:none}
+
+    /* Thin status line under the bar, like the Archive bookmark hint */
+    .status{
+      height:var(--statusH); display:flex; align-items:center;
+      padding:0 16px; color:var(--muted); font-size:13px;
+      border-bottom:1px solid #1e232b; background:#0f1319;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .status.hidden{display:none}
+
+    /* Reading area: white page inside a dark app chrome */
+    iframe{
+      border:0; width:100%;
+      height:calc(100vh - var(--barH) - var(--statusH));
+      display:block; background:#fff;
+    }
+
+    @media (max-width:640px){
+      :root{ --statusH: 40px; }
+    }
   </style>
 </head>
 <body>
@@ -34,7 +55,7 @@
     </div>
   </div>
 
-  <div id="status" class="status">Loading…</div>
+  <div id="status" class="status">Loading… rendering via BookLantern viewer.</div>
 
   <iframe id="gutenbergFrame"
           src="/read/gutenberg/<%= encodeURIComponent(gid || '') %>/proxy<% if (viewerUrl) { %>?u=<%= encodeURIComponent(viewerUrl) %><% } %>"
@@ -50,12 +71,14 @@
 
       frame.addEventListener('load', function(){
         loaded = true;
+        // Hide status once our proxied page is ready
         status.classList.add('hidden');
       });
 
+      // Soft fallback message if network is slow
       setTimeout(function(){
         if (!loaded) {
-          status.textContent = "If this takes too long, click “Open original”.";
+          status.textContent = "Still loading… If it stalls, click “Open original”.";
         }
       }, 2000);
     })();
