@@ -14,6 +14,7 @@
     *{box-sizing:border-box}
     body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
 
+    /* Top chrome */
     .bar{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #1e232b;background:var(--chrome);height:var(--barH)}
     .back{color:var(--muted);text-decoration:none}
     .title{font-weight:600}
@@ -21,8 +22,11 @@
     .tools{margin-left:auto;display:flex;gap:8px}
     .btn{padding:6px 10px;border-radius:10px;border:1px solid #2a3340;background:#12161b;color:#e6edf3;text-decoration:none}
 
+    /* Status row */
     .info{height:var(--infoH);display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid #1e232b;background:#0f1319;color:var(--muted);font-size:13px}
+    .hidden{display:none}
 
+    /* Reading surface */
     .shell{position:relative; height:calc(100vh - var(--barH) - var(--infoH)); background:#0b0d10}
     .stage{position:absolute; inset:0; overflow:hidden; display:flex; justify-content:center}
     .pageflow{
@@ -36,13 +40,21 @@
       box-shadow: 0 12px 34px rgba(0,0,0,.35);
       overflow:hidden;
     }
+
+    /* Multicolumn content — horizontal paging */
     .content{
       height:100%;
       column-width: var(--colW);
       column-gap: var(--gap);
-      /* Avoid column breaks inside images/headers when possible */
       orphans: 3; widows: 3;
+      overflow-x: auto;               /* KEY: enable horizontal scroll */
+      overflow-y: hidden;
+      scroll-behavior: smooth;        /* smooth page turns */
+      -webkit-overflow-scrolling: touch;
     }
+    .content::-webkit-scrollbar{height:8px}
+    .content::-webkit-scrollbar-thumb{background:#d0d0d0;border-radius:8px}
+
     .content img, .content svg, .content video { max-width: 100%; height: auto; display:block; margin: 1rem auto; }
     .content pre { white-space: pre-wrap; word-wrap: break-word; font-size: 16px; line-height: 1.5; }
     .content h1, .content h2, .content h3, .content h4 { line-height:1.25; margin: 1.2em 0 .6em; }
@@ -51,15 +63,26 @@
     .zone{position:absolute; top:0; bottom:0; width:27%; cursor:pointer}
     .left{left:0}
     .right{right:0}
+
+    /* Bottom controls */
     .centerControls{
       position:absolute; left:50%; transform:translateX(-50%);
       bottom:12px; display:flex; align-items:center; gap:8px;
       background:rgba(0,0,0,.6); color:#fff; padding:6px 10px; border-radius:999px; font-size:12px;
     }
     .centerControls input{
-      width:60px; border:1px solid rgba(255,255,255,.25); background:transparent; color:#fff; padding:3px 6px; border-radius:6px;
+      width:64px; border:1px solid rgba(255,255,255,.25); background:transparent; color:#fff; padding:3px 6px; border-radius:6px;
     }
-    .hidden{display:none}
+
+    @media (max-width: 980px){
+      :root{ --colW: 620px; --gap: 40px; }
+    }
+    @media (max-width: 720px){
+      :root{ --colW: 520px; --gap: 32px; }
+    }
+    @media (max-width: 600px){
+      :root{ --colW: 460px; --gap: 28px; }
+    }
   </style>
 </head>
 <body>
@@ -107,10 +130,8 @@
       const totEl2 = document.getElementById('tot2');
       const gotoInput = document.getElementById('goto');
       const goBtn = document.getElementById('goBtn');
-
       const pageflow = document.querySelector('.pageflow');
 
-      // Load the Gutenberg HTML via our proxy, then extract the main body and inject
       async function loadBook(){
         try {
           const proxied = `/read/gutenberg/${encodeURIComponent(gid)}/proxy?u=${encodeURIComponent(startUrl)}`;
@@ -118,17 +139,31 @@
           const doc = new DOMParser().parseFromString(html, 'text/html');
 
           // Prefer content inside our proxy shell if present, else the whole body
-          const wrap = doc.querySelector('#bl-wrap') || doc.body;
+          let wrap = doc.querySelector('#bl-wrap') || doc.body;
 
-          // Remove obvious boilerplate blocks (credits/license headings at the top)
-          Array.from(wrap.querySelectorAll('hr')).slice(0,2).forEach(el => el.remove());
+          // If the response is essentially plain text, wrap in <pre>
+          if (wrap && wrap.children.length === 0 && (wrap.textContent || '').trim().length > 0) {
+            const pre = doc.createElement('pre');
+            pre.textContent = wrap.textContent;
+            wrap = pre;
+          }
+
+          // Remove some obvious boilerplate near top
           Array.from(wrap.querySelectorAll('header, nav')).forEach(el => el.remove());
+          Array.from(wrap.querySelectorAll('hr')).slice(0,2).forEach(el => el.remove());
 
           content.innerHTML = wrap.innerHTML;
 
+          // Recalculate after images finish loading (affects layout/columns)
+          const imgs = Array.from(content.querySelectorAll('img'));
+          await Promise.all(imgs.map(img => new Promise(res => {
+            if (img.complete) return res();
+            img.addEventListener('load', res, { once: true });
+            img.addEventListener('error', res, { once: true });
+          })));
+
           status.textContent = 'Formatting…';
           await new Promise(r => setTimeout(r, 0)); // allow layout
-
           setupPaging();
         } catch (e) {
           console.error(e);
@@ -139,13 +174,16 @@
       let totalPages = 1;
       let page = 1;
 
+      function pageWidthPx(){
+        const cs = getComputedStyle(pageflow);
+        const w = pageflow.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+        return Math.max(1, w);
+      }
+
       function computeTotal(){
-        // Each "page" is the visible width of .pageflow content area minus padding
-        const rect = pageflow.getBoundingClientRect();
-        const pageWidth = rect.width - parseFloat(getComputedStyle(pageflow).paddingLeft) - parseFloat(getComputedStyle(pageflow).paddingRight);
-        // scrollWidth on the columned content equals total virtual width of all columns
+        const pw = pageWidthPx();
         const totalWidth = content.scrollWidth;
-        totalPages = Math.max(1, Math.ceil(totalWidth / pageWidth));
+        totalPages = Math.max(1, Math.ceil(totalWidth / pw));
         page = Math.min(page, totalPages);
         curEl.textContent = String(page);
         totEl.textContent = String(totalPages);
@@ -157,10 +195,8 @@
 
       function goTo(p){
         page = Math.max(1, Math.min(totalPages, p|0));
-        const rect = pageflow.getBoundingClientRect();
-        const pageWidth = rect.width - parseFloat(getComputedStyle(pageflow).paddingLeft) - parseFloat(getComputedStyle(pageflow).paddingRight);
-        const x = pageWidth * (page - 1);
-        content.scrollLeft = x;
+        const x = pageWidthPx() * (page - 1);
+        content.scrollTo({ left: x, behavior: 'smooth' });
         curEl.textContent = String(page);
       }
 
@@ -168,25 +204,21 @@
       function prev(){ goTo(page - 1); }
 
       function setupPaging(){
-        // Ensure horizontal scrolling is enabled for columns
-        content.style.overflowX = 'hidden';
-        content.style.whiteSpace = 'normal';
+        // horizontal scroll enabled in CSS; ensure starting position
+        content.scrollLeft = 0;
 
-        // Track resize to recompute pages
-        const ro = new ResizeObserver(() => {
-          // Reset scroll so widths measure accurately
-          content.scrollLeft = 0;
-          computeTotal();
-          goTo(page);
-        });
-        ro.observe(pageflow);
+        // Resize observers: recompute on container or content changes
+        const ro1 = new ResizeObserver(() => { computeTotal(); goTo(page); });
+        ro1.observe(pageflow);
+        const ro2 = new ResizeObserver(() => { computeTotal(); goTo(page); });
+        ro2.observe(content);
 
         // Click zones + keyboard
         document.getElementById('nextZone').addEventListener('click', next);
         document.getElementById('prevZone').addEventListener('click', prev);
         window.addEventListener('keydown', (e) => {
-          if (e.key === 'ArrowRight' || e.key === 'PageDown') next();
-          if (e.key === 'ArrowLeft'  || e.key === 'PageUp')   prev();
+          if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); next(); }
+          if (e.key === 'ArrowLeft'  || e.key === 'PageUp')   { e.preventDefault(); prev(); }
         });
 
         // Go-to
