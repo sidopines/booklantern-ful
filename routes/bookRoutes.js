@@ -93,37 +93,32 @@ async function searchGutenberg(q) {
   }
 }
 
-// Improved Open Library mapper: better cover fallback, stable links, stable id
+// Prefer Open Library items that have Internet Archive scans (readable without login)
 async function searchOpenLibrary(q) {
   try {
     const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=30`;
     const { data } = await http.get(url);
     const docs = data?.docs || [];
-    return docs.map(d => {
-      const title = d.title || 'Untitled';
+
+    // Only keep records that have an Internet Archive 'ia' identifier => can be opened in our Archive viewer
+    const withIA = docs.filter(d => Array.isArray(d.ia) && d.ia.length > 0);
+
+    return withIA.map(d => {
+      const title  = d.title || 'Untitled';
       const author = Array.isArray(d.author_name) ? d.author_name.join(', ') : (d.author_name || '');
-      const cover = d.cover_i
+      const iaId   = d.ia[0]; // first IA scan id
+      const cover  = d.cover_i
         ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`
-        : 'https://openlibrary.org/images/icons/avatar_book-sm.png';
+        : `https://iiif.archive.org/iiif/${iaId}/full/400,/0/default.jpg`;
 
-      // Prefer work link when available, else edition, else generic OL
-      const workKey = d.key && String(d.key).startsWith('/works/') ? d.key : null;
-      const editionKey = Array.isArray(d.edition_key) ? d.edition_key[0] : null;
-      const readerUrl = workKey
-        ? `https://openlibrary.org${workKey}`
-        : (editionKey ? `https://openlibrary.org/books/${editionKey}` : `https://openlibrary.org`);
-
-      // Stable identifier: work key if present; else edition; else title
-      const rawId = workKey || (editionKey ? `/books/${editionKey}` : title);
-      const identifier = `openlibrary:${String(rawId).replace(/\//g, '_')}`;
-
+      // Convert to an Archive-style item so UI opens it internally
       return card({
-        identifier,
+        identifier: iaId,
         title,
         creator: author,
         cover,
-        readerUrl,
-        source: 'openlibrary',
+        readerUrl: archiveReader(iaId, 1),
+        source: 'archive', // treat as archive so /read/book/:identifier handles it
       });
     });
   } catch (e) {
@@ -159,20 +154,20 @@ router.get('/read', async (req, res) => {
   }
 
   try {
-    const [arch = [], gut = [], ol = []] = await Promise.all([
+    const [arch = [], gut = [], olAsArchive = []] = await Promise.all([
       searchArchive(query),
       searchGutenberg(query),
-      searchOpenLibrary(query),
+      searchOpenLibrary(query), // returns archive-like items
     ]);
 
-    console.log(`READ SEARCH "${query}" — archive:${arch.length} gutenberg:${gut.length} openlibrary:${ol.length}`);
+    console.log(`READ SEARCH "${query}" — archive:${arch.length} gutenberg:${gut.length} openlibrary->archive:${olAsArchive.length}`);
 
     // Merge safely
     let books = []
-      .concat(arch, gut, ol)
+      .concat(arch, gut, olAsArchive)
       .filter(b => b && (b.title || b.identifier));
 
-    // Simple de-dupe by (title + creator). Prefer entries that have covers and a readerUrl.
+    // Simple de-dupe by (title + creator). Prefer entries with cover + readerUrl.
     const seen = new Map();
     for (const b of books) {
       const key = `${(b.title || '').toLowerCase()}|${(b.creator || '').toLowerCase()}`;
@@ -195,15 +190,21 @@ router.get('/read', async (req, res) => {
 
 // ---------- VIEWER (ARCHIVE-ONLY INTERNAL READER) ----------
 /**
- * We only support internal reader for Archive.org items.
- * For Gutenberg/OpenLibrary items the /read page links out using readerUrl.
+ * Internal reader for Archive.org items (and OpenLibrary items with IA scans).
+ * For Gutenberg items we use a dedicated wrapper route below.
  */
 router.get('/read/book/:identifier', async (req, res) => {
   const identifier = req.params.identifier;
 
-  // If it looks like external identifiers, bounce back to search
-  if (identifier.startsWith('gutenberg:') || identifier.startsWith('openlibrary:')) {
-    return res.redirect(`/read?query=${encodeURIComponent(identifier.replace(/^.*?:/, ''))}`);
+  // If someone hits this with a Gutenberg identifier by mistake, redirect them to our Gutenberg wrapper
+  if (identifier.startsWith('gutenberg:')) {
+    const gid = identifier.replace(/^gutenberg:/, '');
+    return res.redirect(`/read/gutenberg/${encodeURIComponent(gid)}`);
+  }
+
+  // If it's an openlibrary:* legacy id, bounce back to search (we no longer emit these)
+  if (identifier.startsWith('openlibrary:')) {
+    return res.redirect(`/read?query=${encodeURIComponent(identifier.replace(/^openlibrary:/, ''))}`);
   }
 
   let isFavorite = false;
@@ -215,7 +216,6 @@ router.get('/read/book/:identifier', async (req, res) => {
       });
       const byBook = await Favorite.exists({
         user: req.session.user._id,
-        // if you store a Book doc mapping to this archiveId, you could check it here
       });
       isFavorite = !!(byArchive || byBook);
     }
@@ -228,6 +228,24 @@ router.get('/read/book/:identifier', async (req, res) => {
     book,
     isFavorite,
     user: req.session.user || null,
+  });
+});
+
+// ---------- VIEWER (GUTENBERG — INTERNAL WRAPPER) ----------
+router.get('/read/gutenberg/:gid', async (req, res) => {
+  const gid = req.params.gid;
+  const fromQuery = (req.query.u || '').trim();
+
+  // If no direct HTML URL was passed from search, fall back to Gutenberg book page
+  const fallback = `https://www.gutenberg.org/ebooks/${gid}`;
+  const viewerUrl = fromQuery || fallback;
+
+  return res.render('gutenberg-viewer', {
+    viewerUrl,
+    gid,
+    user: req.session.user || null,
+    pageTitle: `Gutenberg #${gid} | Read`,
+    pageDescription: `Read Gutenberg #${gid} on BookLantern`
   });
 });
 
