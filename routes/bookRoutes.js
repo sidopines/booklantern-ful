@@ -95,48 +95,93 @@ async function searchGutenberg(q) {
   }
 }
 
-// Open Library: show items that are actually readable without login
-// Keep those with an Internet Archive scan: docs having `ia[]` or `ocaid`, or `public_scan_b === true`
+/**
+ * Open Library — prefer items that can open INSIDE our site (Internet Archive scans).
+ * Strategy:
+ * 1) Query both q= and title= with has_fulltext=true & mode=ebooks to bias toward readable editions.
+ * 2) Immediately keep docs that already expose `ia[]`.
+ * 3) If results are light, follow up on up to 20 `edition_key`s (books/OL...M.json)
+ *    to extract `ocaid` (the IA identifier), then map those to internal Archive cards.
+ */
 async function searchOpenLibrary(q) {
   try {
-    const url =
-      `https://openlibrary.org/search.json` +
-      `?q=${encodeURIComponent(q)}` +
-      `&limit=30` +
+    const baseParams =
+      `has_fulltext=true&mode=ebooks&limit=80` +
       `&fields=title,author_name,cover_i,ia,ocaid,public_scan_b,edition_key,key`;
-    const { data } = await http.get(url);
-    const docs = data?.docs || [];
 
-    const readable = docs.filter(d =>
-      (Array.isArray(d.ia) && d.ia.length > 0) ||
-      (typeof d.ocaid === 'string' && d.ocaid.trim() !== '') ||
-      d.public_scan_b === true
-    );
+    const urlQ     = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&${baseParams}`;
+    const urlTitle = `https://openlibrary.org/search.json?title=${encodeURIComponent(q)}&${baseParams}`;
 
-    return readable.map(d => {
-      const title  = d.title || 'Untitled';
-      const author = Array.isArray(d.author_name) ? d.author_name.join(', ') : (d.author_name || '');
+    const [r1, r2] = await Promise.allSettled([http.get(urlQ), http.get(urlTitle)]);
+    const docs = []
+      .concat(r1.status === 'fulfilled' ? (r1.value.data?.docs || []) : [])
+      .concat(r2.status === 'fulfilled' ? (r2.value.data?.docs || []) : []);
 
-      // Determine an Archive.org identifier we can open internally
-      const iaId = (Array.isArray(d.ia) && d.ia.length > 0)
-        ? d.ia[0]
-        : (typeof d.ocaid === 'string' ? d.ocaid : null);
-
-      if (!iaId) return null;
-
-      const cover  = d.cover_i
+    // Helper to produce a card from an IA id + light OL info
+    const mkArchiveCard = (iaId, d) => {
+      const title  = d?.title || 'Untitled';
+      const author = Array.isArray(d?.author_name) ? d.author_name.join(', ') : (d?.author_name || '');
+      const cover  = (d?.cover_i)
         ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`
         : `https://iiif.archive.org/iiif/${iaId}/full/400,/0/default.jpg`;
-
       return card({
         identifier: iaId,
         title,
         creator: author,
         cover,
         readerUrl: archiveReader(iaId, 1),
-        source: 'archive', // treat as archive so /read/book/:identifier handles it
+        source: 'archive', // treat as archive so internal viewer handles it
       });
-    }).filter(Boolean);
+    };
+
+    // 1) Keep rows that already have IA identifiers
+    const directIA = [];
+    const editionPool = [];
+    for (const d of docs) {
+      if (Array.isArray(d.ia) && d.ia.length > 0) {
+        // some docs list multiple IA ids; take the first
+        directIA.push(mkArchiveCard(d.ia[0], d));
+      } else if (Array.isArray(d.edition_key) && d.edition_key.length > 0) {
+        editionPool.push({ d, ed: d.edition_key[0] });
+      }
+    }
+
+    // If enough, return early
+    if (directIA.length >= 12) {
+      return directIA.slice(0, 30);
+    }
+
+    // 2) Enrich via edition lookups to get `ocaid` (limit to avoid hammering OL)
+    const toFetch = editionPool.slice(0, 20); // cap follow-ups
+    const fetched = await Promise.allSettled(
+      toFetch.map(({ d, ed }) =>
+        http.get(`https://openlibrary.org/books/${encodeURIComponent(ed)}.json`, { timeout: 12000 })
+          .then(r => ({ d, ed, data: r.data }))
+      )
+    );
+
+    const viaEditions = [];
+    for (const f of fetched) {
+      if (f.status !== 'fulfilled') continue;
+      const edJson = f.value?.data || {};
+      const iaId = typeof edJson.ocaid === 'string' && edJson.ocaid.trim() ? edJson.ocaid.trim() : null;
+      if (iaId) viaEditions.push(mkArchiveCard(iaId, f.value.d));
+    }
+
+    const merged = [...directIA, ...viaEditions];
+
+    // Final unique by (title|creator) and limit
+    const seen = new Set();
+    const deduped = [];
+    for (const b of merged) {
+      const key = `${(b.title || '').toLowerCase()}|${(b.creator || '').toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(b);
+      if (deduped.length >= 30) break;
+    }
+
+    return deduped;
   } catch (e) {
     console.error('OpenLibrary search error:', e.message);
     return [];
@@ -173,7 +218,7 @@ router.get('/read', async (req, res) => {
     const [arch = [], gut = [], olAsArchive = []] = await Promise.all([
       searchArchive(query),
       searchGutenberg(query),
-      searchOpenLibrary(query), // returns archive-like items
+      searchOpenLibrary(query), // returns archive-like items (internal)
     ]);
 
     console.log(`READ SEARCH "${query}" — archive:${arch.length} gutenberg:${gut.length} openlibrary->archive:${olAsArchive.length}`);
