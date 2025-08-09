@@ -125,15 +125,23 @@
       <% books.forEach(function(book){ 
            const src = (book.source || '').toLowerCase();
            const id  = book.identifier || book._id || '';
-           // Internal vs. external link:
-           // - archive -> internal viewer /read/book/:identifier
-           // - others  -> external readerUrl in new tab
-           const isArchive = (src === 'archive');
-           const href = isArchive ? `/read/book/${encodeURIComponent(id)}`
-                                  : (book.readerUrl || '#');
+
+           // Internal vs external:
+           // - archive (includes OL-with-IA) -> /read/book/:identifier
+           // - gutenberg -> /read/gutenberg/:gid?u=<HTML url if known>
+           // - everything else -> external readerUrl
+           const isArchive   = (src === 'archive');
+           const isGutenberg = (src === 'gutenberg');
+           const gutenId     = isGutenberg ? String(id).replace(/^gutenberg:/, '') : '';
+
+           const href = isArchive
+             ? `/read/book/${encodeURIComponent(id)}`
+             : (isGutenberg
+                 ? `/read/gutenberg/${encodeURIComponent(gutenId)}${book.readerUrl ? ('?u=' + encodeURIComponent(book.readerUrl)) : ''}`
+                 : (book.readerUrl || '#'));
       %>
         <div class="book-card">
-          <a href="<%= href %>" <%= isArchive ? '' : 'target="_blank" rel="noopener"' %>>
+          <a href="<%= href %>" <%= (isArchive || isGutenberg) ? '' : 'target="_blank" rel="noopener"' %>>
             <div class="thumb">
               <% if (book.cover) { %>
                 <img src="<%= book.cover %>" alt="<%= book.title %>">
@@ -152,7 +160,7 @@
             <% } %>
           </div>
           <div class="action" style="margin-top:.6rem;">
-            <a href="<%= href %>" <%= isArchive ? '' : 'target="_blank" rel="noopener"' %>>📖 Read Now</a>
+            <a href="<%= href %>" <%= (isArchive || isGutenberg) ? '' : 'target="_blank" rel="noopener"' %>>📖 Read Now</a>
           </div>
         </div>
       <% }) %>
