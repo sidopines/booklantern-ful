@@ -9,7 +9,7 @@ const Book = require('../models/Book'); // optional, for local/admin-curated ite
 
 // ---------- axios (shared) ----------
 const http = axios.create({
-  timeout: 10000, // 10s max
+  timeout: 15000,
   headers: {
     'User-Agent': 'BookLantern/1.0 (+booklantern.org)',
     'Accept': 'application/json,text/plain,*/*'
@@ -63,9 +63,11 @@ async function searchArchive(q) {
 
 async function searchGutenberg(q) {
   try {
-    const url = `https://gutendex.com/books?search=${encodeURIComponent(q)}`;
-    const { data } = await http.get(url);
-    const results = data?.results || [];
+    const base = `https://gutendex.com/books?search=${encodeURIComponent(q)}&page_size=50`;
+    const [p1, p2] = await Promise.allSettled([http.get(base + '&page=1'), http.get(base + '&page=2')]);
+    const results = []
+      .concat(p1.status === 'fulfilled' ? (p1.value.data?.results || []) : [])
+      .concat(p2.status === 'fulfilled' ? (p2.value.data?.results || []) : []);
     return results.map(b => {
       const authors = (b.authors || []).map(a => a.name).join(', ');
       const cover =
@@ -97,7 +99,11 @@ async function searchGutenberg(q) {
 // Keep those with an Internet Archive scan: docs having `ia[]` or `ocaid`, or `public_scan_b === true`
 async function searchOpenLibrary(q) {
   try {
-    const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=30`;
+    const url =
+      `https://openlibrary.org/search.json` +
+      `?q=${encodeURIComponent(q)}` +
+      `&limit=30` +
+      `&fields=title,author_name,cover_i,ia,ocaid,public_scan_b,edition_key,key`;
     const { data } = await http.get(url);
     const docs = data?.docs || [];
 
@@ -116,13 +122,12 @@ async function searchOpenLibrary(q) {
         ? d.ia[0]
         : (typeof d.ocaid === 'string' ? d.ocaid : null);
 
-      if (!iaId) return null; // skip if we still can't open internally
+      if (!iaId) return null;
 
       const cover  = d.cover_i
         ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`
         : `https://iiif.archive.org/iiif/${iaId}/full/400,/0/default.jpg`;
 
-      // Convert to an Archive-style item so UI opens it internally
       return card({
         identifier: iaId,
         title,
@@ -173,12 +178,11 @@ router.get('/read', async (req, res) => {
 
     console.log(`READ SEARCH "${query}" — archive:${arch.length} gutenberg:${gut.length} openlibrary->archive:${olAsArchive.length}`);
 
-    // Merge safely
     let books = []
       .concat(arch, gut, olAsArchive)
       .filter(b => b && (b.title || b.identifier));
 
-    // Simple de-dupe by (title + creator). Prefer entries with cover + readerUrl.
+    // De-dupe by (title + creator). Prefer entries with cover + readerUrl.
     const seen = new Map();
     for (const b of books) {
       const key = `${(b.title || '').toLowerCase()}|${(b.creator || '').toLowerCase()}`;
@@ -218,9 +222,7 @@ router.get('/read/book/:identifier', async (req, res) => {
         user: req.session.user._id,
         archiveId: identifier,
       });
-      const byBook = await Favorite.exists({
-        user: req.session.user._id,
-      });
+      const byBook = await Favorite.exists({ user: req.session.user._id });
       isFavorite = !!(byArchive || byBook);
     }
   } catch (e) {
@@ -235,7 +237,7 @@ router.get('/read/book/:identifier', async (req, res) => {
   });
 });
 
-// ---------- VIEWER (GUTENBERG — INTERNAL WRAPPER) ----------
+// ---------- VIEWER (GUTENBERG — INTERNAL WRAPPER LEGACY) ----------
 router.get('/read/gutenberg/:gid', async (req, res) => {
   const gid = req.params.gid;
   const fromQuery = (req.query.u || '').trim();
@@ -251,12 +253,28 @@ router.get('/read/gutenberg/:gid', async (req, res) => {
   });
 });
 
+// ---------- UNIFIED PAGINATED READER (GUTENBERG) ----------
+router.get('/read/gutenberg/:gid/reader', async (req, res) => {
+  const gid = req.params.gid;
+  const fromQuery = (req.query.u || '').trim();
+  const fallback = `https://www.gutenberg.org/ebooks/${gid}`;
+  const viewerUrl = fromQuery || fallback;
+
+  return res.render('unified-reader', {
+    source: 'gutenberg',
+    gid,
+    startUrl: viewerUrl,
+    pageTitle: `Gutenberg #${gid} | Reader`,
+    pageDescription: `Paginated reader for Gutenberg #${gid}`
+  });
+});
+
 /**
  * ---------- VIEWER (GUTENBERG — PROXY) ----------
  * Proxies Gutenberg HTML through our domain and rewrites navigation links (<a>, <form action>)
  * back to this proxy, so the address bar always stays on booklantern.org.
  * Static assets (img/css/js) are left pointing to Gutenberg by using a <base> tag.
- * Also inject a book-like reading shell (wrapper + CSS) for consistent look.
+ * Also inject a minimal readability shell when used standalone.
  */
 router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
   try {
@@ -285,8 +303,7 @@ router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
     res.setHeader('Content-Type', contentType);
 
     if (!contentType.includes('text/html')) {
-      // Non-HTML passthrough (plain text, etc.)
-      return res.send(resp.data);
+      return res.send(resp.data); // passthrough
     }
 
     let html = resp.data.toString('utf8');
@@ -297,38 +314,19 @@ router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
     // Inject <base> so relative assets (img/css/js) load correctly from Gutenberg
     const baseHref = new URL('.', target).toString();
 
-    // Book-like shell: CSS + a script that wraps the body content into a centered "page"
-    const injectShell = `
+    // Minimal readability CSS injection (used when opening /viewer, not the paginated reader)
+    const injectCss = `
       <style id="bl-proxy-style">
-        html, body { background: #0b0d10 !important; color: #e6edf3 !important; }
-        #bl-wrap {
-          max-width: 860px; margin: 24px auto; background: #ffffff; color: #111;
-          line-height: 1.68; font-size: 18px; padding: 28px 32px; border-radius: 10px;
-          box-shadow: 0 12px 34px rgba(0,0,0,.35);
-        }
-        #bl-wrap img, #bl-wrap svg, #bl-wrap video { max-width: 100%; height: auto; display: block; margin: 1rem auto; }
-        #bl-wrap pre { white-space: pre-wrap; word-wrap: break-word; font-size: 16px; line-height: 1.5; }
-        #bl-wrap h1, #bl-wrap h2, #bl-wrap h3, #bl-wrap h4 { color: #111; line-height: 1.25; margin: 1.2em 0 .6em; }
-        #bl-wrap a { color: #0645ad; }
-        /* tame overly wide tables */
-        #bl-wrap table { width: 100%; display: block; overflow-x: auto; border-collapse: collapse; }
-      </style>
-      <script id="bl-proxy-boot">
-        (function(){
-          try {
-            var w = document.createElement('div'); w.id = 'bl-wrap';
-            var b = document.body;
-            // move all body children into the wrapper
-            while (b.firstChild) { w.appendChild(b.firstChild); }
-            b.appendChild(w);
-          } catch(e){}
-        })();
-      </script>`;
+        html, body { background: #fff !important; color: #000 !important; }
+        img, svg, video { max-width: 100%; height: auto; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+        a { color: #0645ad; }
+      </style>`;
 
     if (/<head[^>]*>/i.test(html)) {
-      html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">${injectShell}`);
+      html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">${injectCss}`);
     } else {
-      html = `<base href="${baseHref}">${injectShell}` + html;
+      html = `<base href="${baseHref}">${injectCss}` + html;
     }
 
     // Helper to proxy a URL back through us
@@ -348,10 +346,10 @@ router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
       } catch { return m; }
     });
 
-    // Rewrite <form action="..."> too, so in-page nav/forms stay proxied
+    // Rewrite <form action="...">
     html = html.replace(/(<form\b[^>]*\saction=)(['"])([^'"]*)\2/gi, (m, p1, q, url) => {
       try {
-        if (!url) return m; // empty action -> current doc
+        if (!url) return m;
         const abs = new URL(url, baseHref).toString();
         const u = new URL(abs);
         if (u.hostname.endsWith('gutenberg.org')) {
