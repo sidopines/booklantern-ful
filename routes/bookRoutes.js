@@ -245,6 +245,7 @@ router.get('/read/gutenberg/:gid', async (req, res) => {
  * Proxies Gutenberg HTML through our domain and rewrites navigation links (<a>, <form action>)
  * back to this proxy, so the address bar always stays on booklantern.org.
  * Static assets (img/css/js) are left pointing to Gutenberg by using a <base> tag.
+ * We also inject minimal CSS to force a readable light theme.
  */
 router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
   try {
@@ -279,15 +280,25 @@ router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
 
     let html = resp.data.toString('utf8');
 
-    // Strip inline meta CSP if present (header-level CSP is already gone because we proxy)
+    // Strip inline meta CSP if present
     html = html.replace(/<meta[^>]+http-equiv=["']Content-Security-Policy["'][^>]*>/ig, '');
 
     // Inject <base> so relative assets (img/css/js) load correctly from Gutenberg
     const baseHref = new URL('.', target).toString();
+
+    // Minimal readability CSS injection
+    const injectCss = `
+      <style id="bl-proxy-style">
+        html, body { background: #fff !important; color: #000 !important; }
+        img, svg, video { max-width: 100%; height: auto; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+        a { color: #0645ad; }
+      </style>`;
+
     if (/<head[^>]*>/i.test(html)) {
-      html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">`);
+      html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">${injectCss}`);
     } else {
-      html = `<base href="${baseHref}">` + html;
+      html = `<base href="${baseHref}">${injectCss}` + html;
     }
 
     // Helper to proxy a URL back through us
@@ -299,7 +310,6 @@ router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
       try {
         if (/^\s*javascript:/i.test(url)) return m;
         const abs = new URL(url, baseHref).toString();
-        // keep external (non-gutenberg) links as-is to avoid hijacking third-party sites
         const u = new URL(abs);
         if (u.hostname.endsWith('gutenberg.org')) {
           return `${p1}${q}${proxify(abs)}${q}`;
@@ -315,7 +325,6 @@ router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
         const abs = new URL(url, baseHref).toString();
         const u = new URL(abs);
         if (u.hostname.endsWith('gutenberg.org')) {
-          // force same-frame submission
           return `${p1}${q}${proxify(abs)}${q}`;
         }
         return m;
