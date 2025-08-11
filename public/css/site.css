@@ -1,0 +1,116 @@
+/* public/css/site.css */
+/* --- Design tokens --- */
+:root {
+  --bg: #0b0d10;
+  --ink: #0e1116;
+  --text: #0b1220;
+  --muted: #5f6b7a;
+  --link: #0f66ff;
+  --page: #ffffff;
+
+  --card: #ffffff;
+  --shadow: 0 12px 30px rgba(0,0,0,.08);
+
+  --radius: 16px;
+  --radius-sm: 10px;
+
+  --hero-grad: radial-gradient(1100px 600px at 50% -10%, #e8f0ff 0%, #fdfcfc 45%, #fff 100%);
+}
+
+/* --- Base --- */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--text); background: #fff; }
+
+/* --- Navbar placeholder spacing (your navbar partial already renders) --- */
+.nav-spacer { height: 56px; }
+
+/* --- Hero --- */
+.hero {
+  position: relative;
+  overflow: hidden;
+  background: var(--hero-grad);
+  padding: clamp(48px, 8vw, 120px) 20px;
+}
+.hero-inner {
+  max-width: 1100px; margin: 0 auto; text-align: center;
+}
+.hero h1 {
+  margin: 0 0 12px; font-size: clamp(36px, 6vw, 64px); line-height: 1.05; letter-spacing: -0.02em;
+}
+.hero p {
+  margin: 0 auto; max-width: 760px; font-size: clamp(16px, 2.3vw, 20px); color: #2b3543;
+}
+.hero-cta { margin-top: 28px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+/* --- Buttons --- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 12px 18px; border-radius: 999px; border: 1px solid #dbe5ff;
+  background: #0f172a; color: #fff; text-decoration: none; font-weight: 600;
+  transition: transform .15s ease, box-shadow .15s ease, background .2s ease;
+}
+.btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(15,23,42,.15); }
+.btn.alt { background: #fff; color: #0b1220; border-color: #e5e7eb; }
+.btn.ghost { background: transparent; color: var(--link); border-color: #c9d7ff; }
+
+/* --- Search bar --- */
+.searchbar { display: flex; gap: 10px; justify-content: center; margin-top: 22px; }
+.searchbar input[type="text"] {
+  width: min(640px, 82vw);
+  padding: 14px 16px; border-radius: 999px; border: 1px solid #d9e1ef; font-size: 16px;
+  background: #fff;
+}
+.searchbar button { border: none; }
+
+/* --- Section shell --- */
+.section { padding: 40px 20px; }
+.container { max-width: 1200px; margin: 0 auto; }
+
+/* --- Featured shelf --- */
+.shelf-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 18px; }
+.shelf-header h2 { margin: 0; font-size: 24px; letter-spacing: -.01em; }
+.shelf-header .hint { color: var(--muted); font-size: 14px; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+.card {
+  background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+  display: flex; flex-direction: column; transition: transform .15s ease, box-shadow .15s ease;
+}
+.card:hover { transform: translateY(-4px); box-shadow: 0 16px 36px rgba(0,0,0,.12); }
+.thumb {
+  aspect-ratio: 3/4; width: 100%; background: #eef2ff; display:flex; align-items:center; justify-content:center; overflow:hidden;
+}
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.meta { padding: 10px 12px 14px; }
+.meta h3 { margin: 6px 0 4px; font-size: 15px; line-height: 1.3; }
+.meta p  { margin: 0; font-size: 13px; color: #6b7280; }
+.badge {
+  display:inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid #dbe5ff; color:#1e3a8a; background:#eef4ff;
+}
+
+/* --- Topics --- */
+.topic-row { display:flex; gap: 10px; flex-wrap: wrap; }
+.topic {
+  padding: 8px 12px; border-radius: 999px; background: #f4f6fb; border:1px solid #e6ebf7; color:#0f172a; text-decoration: none; font-weight:600;
+}
+.topic:hover { background:#eef2ff; }
+
+/* --- How-it-works --- */
+.tiles { display:grid; gap:16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 12px; }
+.tile { background:#fff; border-radius: var(--radius-sm); padding: 18px; border:1px solid #eef0f5; box-shadow: 0 6px 20px rgba(0,0,0,.04); }
+.tile h3 { margin: 0 0 6px; font-size: 16px; }
+.tile p  { margin: 0; color: #4b5563; font-size: 14px; }
+
+/* --- Footer --- */
+.footer { padding: 32px 20px; background: #0f172a; color:#9fb0d9; text-align:center; margin-top: 48px; }
+.footer a { color: #cfe0ff; text-decoration: none; }
+.footer a:hover { text-decoration: underline; }
+
+/* --- Animations --- */
+.fade-in { animation: fade .45s ease both; }
+@keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
