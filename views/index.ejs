@@ -2,127 +2,163 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: pageTitle || 'Home',
-    pageDescription: pageDescription || 'Discover free books and knowledge on BookLantern.'
+    pageTitle: pageTitle || 'BookLantern — Read & Learn',
+    pageDescription: pageDescription || 'Free books and educational videos, unified in a beautiful reading experience.'
   }) %>
-  <style>
-    :root { --bg:#fdfcfb; --text:#333; --dark:#111; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      background-color: var(--bg);
-      color: var(--text);
-    }
-    .hero {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 70vh;
-      text-align: center;
-      padding: 2rem;
-      background: linear-gradient(to right, #e3f2fd, #fce4ec);
-    }
-    .hero h1 {
-      font-size: clamp(2rem, 4vw, 3rem);
-      margin-bottom: 1rem;
-      line-height: 1.1;
-    }
-    .hero p {
-      font-size: 1.15rem;
-      max-width: 680px;
-      margin: 0 auto;
-    }
-    .cta {
-      margin-top: 2rem;
-      display: inline-flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: center;
-    }
-    .btn {
-      padding: 0.8rem 1.8rem;
-      font-size: 1rem;
-      background: var(--dark);
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-block;
-    }
-    .btn:hover { background: #333; }
-    .btn.alt {
-      background: #fff;
-      color: var(--dark);
-      border: 1px solid #ddd;
-    }
-    .features {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      padding: 4rem 2rem;
-      gap: 2rem;
-    }
-    .feature-box {
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
-      padding: 2rem;
-      flex: 1;
-      min-width: 280px;
-      max-width: 400px;
-      text-align: center;
-    }
-    .feature-box h3 { margin-bottom: 0.75rem; }
-    footer {
-      text-align: center;
-      padding: 2rem;
-      background: var(--dark);
-      color: #fff;
-      margin-top: auto;
-    }
-  </style>
+  <link rel="stylesheet" href="/css/site.css">
 </head>
 <body>
   <%- include('./partials/navbar.ejs') %>
 
+  <!-- HERO -->
   <section class="hero">
-    <h1>Discover a World of Knowledge</h1>
-    <p>
-      Stream educational videos, read free books, and bookmark your favorites — all in one place,
-      powered by open libraries like Archive.org and Project Gutenberg.
-    </p>
-    <div class="cta">
-      <% if (user) { %>
-        <a class="btn" href="/read">Start Reading</a>
+    <div class="hero-inner fade-in">
+      <h1>Read brilliantly.</h1>
+      <p>
+        Search across Archive.org, Open Library, and Project Gutenberg.
+        Read inside a clean, unified viewer — no clutter, just books.
+      </p>
+
+      <!-- Search bar that goes to /read -->
+      <form class="searchbar" action="/read" method="GET">
+        <input type="text" name="query" placeholder="Try ‘Plato’, ‘Socrates’, ‘Physics’, ‘Bible’…" />
+        <button class="btn" type="submit">Search Books</button>
         <a class="btn alt" href="/watch">Explore Videos</a>
-      <% } else { %>
-        <a class="btn" href="/register">Start Reading</a>
-        <a class="btn alt" href="/login">Already have an account?</a>
-      <% } %>
+      </form>
+
+      <div class="hero-cta">
+        <% if (!user) { %>
+          <a class="btn ghost" href="/register">Create a free account</a>
+        <% } %>
+      </div>
     </div>
   </section>
 
-  <section class="features">
-    <div class="feature-box">
-      <h3>📖 Free Books</h3>
-      <p>Access thousands of public-domain and open-license books — from classic literature to modern learning.</p>
-    </div>
-    <div class="feature-box">
-      <h3>🎬 Watch Content</h3>
-      <p>Enjoy educational videos without friction. Browse by genre and save favorites.</p>
-    </div>
-    <div class="feature-box">
-      <h3>🔐 One Account, Full Access</h3>
-      <p>Register once to unlock reading, watching, bookmarks, favorites, and more.</p>
+  <!-- FEATURED BOOKS (populated via /api/featured-books) -->
+  <section class="section">
+    <div class="container">
+      <div class="shelf-header">
+        <h2>Featured Books</h2>
+        <div class="hint">Curated picks from multiple libraries</div>
+      </div>
+      <div id="featured-grid" class="grid" aria-live="polite">
+        <!-- JS will fill cards here -->
+      </div>
     </div>
   </section>
 
-  <footer>
-    &copy; <%= new Date().getFullYear() %> BookLantern. Powered by open access and curiosity.
+  <!-- POPULAR TOPICS -->
+  <section class="section">
+    <div class="container">
+      <div class="shelf-header">
+        <h2>Popular Topics</h2>
+        <div class="hint">Quick-start your reading</div>
+      </div>
+      <div class="topic-row">
+        <a class="topic" href="/read?query=Philosophy">Philosophy</a>
+        <a class="topic" href="/read?query=Science">Science</a>
+        <a class="topic" href="/read?query=History">History</a>
+        <a class="topic" href="/read?query=Mathematics">Mathematics</a>
+        <a class="topic" href="/read?query=Classics">Classics</a>
+        <a class="topic" href="/read?query=Poetry">Poetry</a>
+        <a class="topic" href="/read?query=Biology">Biology</a>
+        <a class="topic" href="/read?query=Economics">Economics</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="section">
+    <div class="container">
+      <div class="shelf-header">
+        <h2>How BookLantern Works</h2>
+        <div class="hint">Three simple steps</div>
+      </div>
+      <div class="tiles">
+        <div class="tile">
+          <h3>1) Search everywhere</h3>
+          <p>We look across Archive.org, Open Library, and Gutenberg for high-quality, readable copies.</p>
+        </div>
+        <div class="tile">
+          <h3>2) One clean reader</h3>
+          <p>Open results inside our unified reader with pagination, dark chrome, and bookmark support.</p>
+        </div>
+        <div class="tile">
+          <h3>3) Save & resume</h3>
+          <p>Log in to favorite titles and resume where you left off — your progress stays with you.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    &copy; <%= new Date().getFullYear() %> BookLantern • Built on open libraries • <a href="/about">About</a>
   </footer>
+
+  <!-- FEATURED POPULATION SCRIPT -->
+  <script>
+    (function(){
+      const grid = document.getElementById('featured-grid');
+
+      function cardTemplate(b){
+        const src = (b.source || '').toLowerCase();
+        const id  = b.identifier || '';
+        const ia  = b.archiveId || (src === 'archive' ? id : '');
+
+        // Build destination like read.ejs
+        let href = '#';
+        if (ia) {
+          href = '/read/book/' + encodeURIComponent(ia);
+        } else if (src === 'gutenberg') {
+          const gid = String(id).replace(/^gutenberg:/,'');
+          const qs  = b.readerUrl ? ('?u=' + encodeURIComponent(b.readerUrl)) : '';
+          href = '/read/gutenberg/' + encodeURIComponent(gid) + '/reader' + qs;
+        } else if (b.readerUrl) {
+          href = b.readerUrl;
+        }
+
+        const brand = src === 'archive' ? 'Archive.org' : (src === 'gutenberg' ? 'Project Gutenberg' : (src === 'openlibrary' ? 'Open Library' : (src||'Book')));
+
+        return `
+          <article class="card fade-in">
+            <a href="${href}" ${ia || src==='gutenberg' ? '' : 'target="_blank" rel="noopener"'} style="text-decoration:none;color:inherit">
+              <div class="thumb">
+                ${b.cover ? `<img src="${b.cover}" alt="${escapeHtml(b.title || '')}" loading="lazy" referrerpolicy="no-referrer">` : ''}
+              </div>
+              <div class="meta">
+                <span class="badge">${brand}</span>
+                <h3>${escapeHtml(b.title || '')}</h3>
+                <p>${escapeHtml(b.creator || '')}</p>
+              </div>
+            </a>
+          </article>
+        `;
+      }
+
+      function escapeHtml(s){
+        return String(s || '')
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+      }
+
+      async function loadFeatured(){
+        try {
+          const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
+          if (!r.ok) throw new Error('bad status');
+          const data = await r.json();
+          if (!Array.isArray(data) || data.length === 0) {
+            grid.innerHTML = '<div class="hint">No featured books right now. Try a search above.</div>';
+            return;
+          }
+          grid.innerHTML = data.map(cardTemplate).join('');
+        } catch (e) {
+          grid.innerHTML = '<div class="hint">Could not load featured books. Try refreshing.</div>';
+          console.error('featured error', e);
+        }
+      }
+
+      loadFeatured();
+    })();
+  </script>
 </body>
 </html>
