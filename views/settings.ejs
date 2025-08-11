@@ -1,120 +1,145 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/header.ejs', {
+  <%- include('./partials/head.ejs', {
     pageTitle: 'Account Settings',
     pageDescription: 'Manage your BookLantern account.'
   }) %>
   <style>
+    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --link:#1256b3; --brand:#111; --brandHover:#333; --error:#b42318; --success:#067647; }
+    * { box-sizing: border-box; }
     body {
-      font-family: Arial, sans-serif;
-      background: #f2f2f2;
       margin: 0;
-      color: #333;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     }
-    .container {
-      background: white;
-      padding: 2rem;
-      border-radius: 10px;
-      max-width: 600px;
-      margin: 2rem auto;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    .wrap { max-width: 720px; margin: 2rem auto; padding: 0 1rem 2.5rem; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.06);
+      padding: 1.25rem 1.25rem 1rem;
     }
-    .back-link {
+    .back {
       display: inline-block;
-      margin-bottom: 1rem;
-      color: #0077cc;
+      margin: 0.75rem 0 1rem;
+      font-size: 0.95rem;
+      color: var(--link);
       text-decoration: none;
-      font-size: 0.9rem;
+      opacity: .95;
     }
-    .back-link:hover {
-      text-decoration: underline;
-    }
-    h1, h2 {
+    .back:hover { text-decoration: underline; }
+    h1 {
+      margin: 0 0 .25rem 0;
+      font-size: clamp(1.5rem, 2.5vw, 2rem);
+      line-height: 1.2;
       text-align: center;
-      margin-top: 0;
     }
-    form {
-      margin: 1.5rem 0;
+    .lead { text-align:center; color: var(--muted); margin: 0 0 1rem 0; }
+
+    /* Alerts */
+    .alert {
+      border-radius: 10px;
+      padding: .75rem .9rem;
+      font-size: .95rem;
+      margin: 0 0 .9rem 0;
+      border: 1px solid;
     }
+    .alert.error { background: #fee4e2; color: var(--error); border-color: #fca5a5; }
+    .alert.success { background: #ecfdf3; color: var(--success); border-color: #86efac; }
+
+    /* Form */
+    form { margin-top: .25rem; display: grid; gap: .85rem; }
+    label { font-size: .92rem; color: var(--text); }
     input[type="password"] {
       width: 100%;
-      padding: 0.7rem;
-      margin: 0.5rem 0;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      box-sizing: border-box;
+      padding: .7rem .8rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
       font-size: 1rem;
+      outline: none;
     }
-    button {
+    input[type="password"]:focus { border-color: #c7d2fe; box-shadow: 0 0 0 3px rgba(99,102,241,.15); }
+    button[type="submit"] {
       width: 100%;
-      padding: 0.7rem;
-      background: #333;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      font-size: 1rem;
+      padding: .85rem 1rem;
+      background: var(--brand);
+      color: #fff;
+      border: 0;
+      border-radius: 10px;
+      font-weight: 600;
       cursor: pointer;
+      margin-top: .2rem;
     }
-    button:hover {
-      background: #555;
-    }
-    .favorites {
-      margin-top: 2rem;
-    }
-    .fav-item {
-      margin: 0.4rem 0;
-    }
-    .fav-item a {
-      color: #0077cc;
-      text-decoration: none;
-    }
-    .fav-item a:hover {
-      text-decoration: underline;
-    }
-    .dashboard-link {
-      text-align: center;
-      margin-top: 2rem;
-    }
-    .dashboard-link a {
-      color: #0077cc;
-      text-decoration: none;
-    }
-    .dashboard-link a:hover {
-      text-decoration: underline;
-    }
+    button[type="submit"]:hover { background: var(--brandHover); }
+
+    /* Favorites */
+    .section { margin-top: 1.25rem; }
+    .section h2 { font-size: 1.1rem; margin: 0 0 .75rem 0; }
+    .fav-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .75rem; }
+    .fav-item { border: 1px solid var(--border); border-radius: 12px; padding: .75rem .85rem; background: #fff; }
+    .fav-item a { color: var(--link); text-decoration: none; font-weight: 600; }
+    .fav-item a:hover { text-decoration: underline; }
+    .empty { color: var(--muted); font-size: .95rem; text-align: center; }
+
+    .dash-link { text-align: center; margin-top: 1.25rem; }
+    .dash-link a { color: var(--link); text-decoration: none; }
+    .dash-link a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <a href="javascript:history.back()" class="back-link">← Back</a>
-    <h1>🔐 Change Password</h1>
-    <form action="/settings" method="POST">
-      <input type="password" name="oldPassword" placeholder="Current Password" required />
-      <input type="password" name="newPassword" placeholder="New Password" required />
-      <button type="submit">Update Password</button>
-    </form>
+  <%- include('./partials/navbar.ejs') %>
 
-    <div class="favorites">
-      <h2>❤️ Your Favorite Books</h2>
-      <% if (!favorites || favorites.length === 0) { %>
-        <p style="color:#777; text-align:center;">No favorites yet.</p>
-      <% } else { %>
-        <% favorites.forEach(f => { 
-             const link = f.book
-               ? `/read/book/${f.book._id}`
-               : `/read/book/${f.archiveId}`;
-             const title = f.book?.title || f.archiveId;
-        %>
-          <div class="fav-item">
-            <a href="<%= link %>"><%= title %></a>
-          </div>
-        <% }) %>
+  <div class="wrap">
+    <a href="javascript:history.back()" class="back">← Back</a>
+
+    <div class="card">
+      <h1>Account Settings</h1>
+      <p class="lead">Manage your password and view your favorites.</p>
+
+      <% if (typeof error !== 'undefined' && error) { %>
+        <div class="alert error"><%= error %></div>
       <% } %>
-    </div>
+      <% if (typeof message !== 'undefined' && message) { %>
+        <div class="alert success"><%= message %></div>
+      <% } %>
 
-    <div class="dashboard-link">
-      <a href="/dashboard">← Back to Dashboard</a>
+      <form action="/settings" method="POST" novalidate>
+        <div>
+          <label for="oldPassword">Current Password</label>
+          <input type="password" id="oldPassword" name="oldPassword" required autocomplete="current-password" />
+        </div>
+        <div>
+          <label for="newPassword">New Password</label>
+          <input type="password" id="newPassword" name="newPassword" required autocomplete="new-password" />
+        </div>
+        <button type="submit">Update Password</button>
+      </form>
+
+      <div class="section">
+        <h2>❤️ Your Favorite Books</h2>
+        <% if (!favorites || favorites.length === 0) { %>
+          <p class="empty">No favorites yet.</p>
+        <% } else { %>
+          <div class="fav-list">
+            <% favorites.forEach(function(f){ 
+                 const link = f.book ? `/read/book/${f.book._id}` : `/read/book/${f.archiveId}`;
+                 const title = (f.book && f.book.title) ? f.book.title : (f.archiveId || 'Untitled');
+            %>
+              <div class="fav-item">
+                <a href="<%= link %>"><%= title %></a>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
+
+      <div class="dash-link">
+        <a href="/dashboard">← Back to Dashboard</a>
+      </div>
     </div>
   </div>
 </body>
