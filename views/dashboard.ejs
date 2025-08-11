@@ -1,75 +1,133 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/header.ejs', {
+  <%- include('./partials/head.ejs', {
     pageTitle: 'Dashboard',
     pageDescription: 'Your account overview'
   }) %>
   <style>
+    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --link:#1256b3; }
+    * { box-sizing: border-box; }
     body {
-      font-family: Arial, sans-serif;
       margin: 0;
-      background: #f7f7f7;
-      color: #333;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     }
     .wrap {
-      max-width: 900px;
+      max-width: 960px;
       margin: 2rem auto;
-      padding: 1rem 2rem;
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    }
-    h1 {
-      margin-top: 0;
+      padding: 0 1rem 2.5rem;
     }
     .back {
       display: inline-block;
-      margin: 1rem 2rem 0;
-      font-size: 0.9rem;
-      color: #0077cc;
+      margin: 0.75rem 0 1rem;
+      font-size: 0.95rem;
+      color: var(--link);
       text-decoration: none;
+      opacity: .95;
     }
-    .back:hover {
-      text-decoration: underline;
+    .back:hover { text-decoration: underline; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.06);
+      padding: 1.25rem 1.25rem 1rem;
     }
-    h2 {
-      margin-bottom: 0.5rem;
+    h1 {
+      margin: 0 0 .25rem 0;
+      font-size: clamp(1.5rem, 2.5vw, 2rem);
+      line-height: 1.2;
     }
-    .book {
-      margin: 0.4rem 0;
+    .lead { color: var(--muted); margin: 0 0 1rem 0; }
+
+    .section {
+      margin-top: 1.25rem;
     }
-    .book a {
-      color: #0077cc;
+    .section h2 {
+      font-size: 1.1rem;
+      margin: 0 0 .75rem 0;
+    }
+
+    /* Favorites list */
+    .fav-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: .75rem;
+    }
+    .fav-item {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: .75rem .85rem;
+      background: #fff;
+    }
+    .fav-item a {
+      color: var(--link);
       text-decoration: none;
+      font-weight: 600;
     }
-    .book a:hover {
-      text-decoration: underline;
+    .fav-item a:hover { text-decoration: underline; }
+    .empty {
+      color: var(--muted);
+      font-size: .95rem;
     }
+
+    /* Quick links */
+    .quick {
+      display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .5rem;
+    }
+    .btn {
+      display: inline-block;
+      padding: .6rem .9rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      text-decoration: none;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .btn:hover { background: #f9fafb; }
   </style>
 </head>
 <body>
-  <a href="javascript:history.back()" class="back">← Back</a>
+  <%- include('./partials/navbar.ejs') %>
 
   <div class="wrap">
-    <h1>Welcome, <%= user.name %></h1>
+    <a href="javascript:history.back()" class="back">← Back</a>
 
-    <h2>❤️ Your Favorite Books</h2>
-    <% if (!favorites || favorites.length === 0) { %>
-      <p>No favorites yet.</p>
-    <% } else { %>
-      <% favorites.forEach(fav => {
-           // Some favorites may reference a local Book model (fav.book)
-           const link = fav.book
-             ? `/read/book/${fav.book._id}`
-             : `/read/book/${fav.archiveId}`;
-           const title = fav.book?.title || fav.archiveId;
-      %>
-        <div class="book">
-          <a href="<%= link %>"><%= title %></a>
-        </div>
-      <% }) %>
-    <% } %>
+    <div class="card">
+      <h1>Welcome, <%= (user && user.name) ? user.name : 'Reader' %></h1>
+      <p class="lead">Here’s a quick look at your account.</p>
+
+      <div class="quick">
+        <a class="btn" href="/read">📖 Find books</a>
+        <a class="btn" href="/watch">🎬 Explore videos</a>
+        <a class="btn" href="/settings">⚙️ Settings</a>
+      </div>
+
+      <div class="section">
+        <h2>❤️ Your Favorite Books</h2>
+        <% if (!favorites || favorites.length === 0) { %>
+          <p class="empty">No favorites yet. Browse <a href="/read" style="color:var(--link);text-decoration:none;">Read</a> and tap “Add Favorite”.</p>
+        <% } else { %>
+          <div class="fav-list">
+            <% favorites.forEach(function(fav){ 
+                 // Some favorites may reference a local Book model (fav.book)
+                 const link = fav.book
+                   ? `/read/book/${fav.book._id}`
+                   : `/read/book/${fav.archiveId}`;
+                 const title = (fav.book && fav.book.title) ? fav.book.title : (fav.archiveId || 'Untitled');
+            %>
+              <div class="fav-item">
+                <a href="<%= link %>"><%= title %></a>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
+    </div>
   </div>
 </body>
 </html>
