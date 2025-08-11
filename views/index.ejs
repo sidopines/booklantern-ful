@@ -113,7 +113,7 @@
       }
 
       function buildHrefFromCard(b){
-        if (b && b.href) return b.href; // server provided deep link
+        if (b && b.href) return b.href;
 
         const src = (b.source || '').toLowerCase();
         const id  = b.identifier || '';
@@ -136,6 +136,7 @@
         return 'Book';
       }
 
+      // Gate all homepage book clicks: guests go to /login?next=...
       function gatedHref(dest){
         if (IS_LOGGED_IN) return dest;
         return '/login?next=' + encodeURIComponent(dest || '/');
@@ -191,7 +192,11 @@
           const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
           if (!r.ok) throw new Error('Bad status');
           const data = await r.json();
-          const items = Array.isArray(data.items) ? data.items : [];
+          // Accept both shapes: plain array OR { items: [...] }
+          const items =
+            Array.isArray(data) ? data :
+            (Array.isArray(data.items) ? data.items :
+            (Array.isArray(data.results) ? data.results : []));
           renderGrid(items, featuredGrid);
         } catch (e) {
           featuredGrid.innerHTML = '<div class="hint">Could not load featured books. Try refreshing.</div>';
