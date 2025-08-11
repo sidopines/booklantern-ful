@@ -13,10 +13,10 @@
   <!-- HERO -->
   <section class="hero">
     <div class="hero-inner fade-in">
-      <h1>Read brilliantly.</h1>
+      <h1>Books, beautifully.</h1>
       <p>
-        Search across Archive.org, Open Library, and Project Gutenberg.
-        Read inside a clean, unified viewer — no clutter, just books.
+        Search the open stacks—Archive.org, Open Library, and Project Gutenberg.
+        Read in a focused, book-like experience that stays out of the way.
       </p>
 
       <!-- Search bar that goes to /read -->
@@ -39,7 +39,7 @@
     <div class="container">
       <div class="shelf-header">
         <h2>Featured Books</h2>
-        <div class="hint">Curated picks from multiple libraries</div>
+        <div class="hint">Curated picks from across open libraries</div>
       </div>
       <div id="featured-grid" class="grid" aria-live="polite"></div>
     </div>
@@ -55,7 +55,7 @@
     <div class="container">
       <div class="shelf-header">
         <h2>Popular Topics</h2>
-        <div class="hint">Quick-start your reading</div>
+        <div class="hint">Start reading in one tap</div>
       </div>
       <div class="topic-row">
         <a class="topic" href="/read?query=Philosophy">Philosophy</a>
@@ -74,21 +74,21 @@
   <section class="section">
     <div class="container">
       <div class="shelf-header">
-        <h2>How BookLantern Works</h2>
-        <div class="hint">Three simple steps</div>
+        <h2>How it works</h2>
+        <div class="hint">Simple, fast, delightful</div>
       </div>
       <div class="tiles">
         <div class="tile">
-          <h3>1) Search everywhere</h3>
-          <p>We look across Archive.org, Open Library, and Gutenberg for high-quality, readable copies.</p>
+          <h3>1) Find it fast</h3>
+          <p>We search trusted open libraries and surface copies you can actually read.</p>
         </div>
         <div class="tile">
-          <h3>2) One clean reader</h3>
-          <p>Open results inside our unified reader with pagination, dark chrome, and bookmark support.</p>
+          <h3>2) Read like a book</h3>
+          <p>Turn pages with arrows, stay focused with a clean layout that feels like print.</p>
         </div>
         <div class="tile">
-          <h3>3) Save & resume</h3>
-          <p>Log in to favorite titles and resume where you left off — your progress stays with you.</p>
+          <h3>3) Save your place</h3>
+          <p>Create a free account to favorite titles and pick up where you left off anywhere.</p>
         </div>
       </div>
     </div>
@@ -113,7 +113,7 @@
       }
 
       function buildHrefFromCard(b){
-        if (b && b.href) return b.href;
+        if (b && b.href) return b.href; // server provided deep link
 
         const src = (b.source || '').toLowerCase();
         const id  = b.identifier || '';
@@ -192,7 +192,7 @@
           const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
           if (!r.ok) throw new Error('Bad status');
           const data = await r.json();
-          // Accept both shapes: plain array OR { items: [...] }
+          // Accept both shapes: plain array OR { items: [...] } OR { results: [...] }
           const items =
             Array.isArray(data) ? data :
             (Array.isArray(data.items) ? data.items :
