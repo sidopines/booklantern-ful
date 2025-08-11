@@ -2,144 +2,155 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/head.ejs', { pageTitle, pageDescription }) %>
+  <%- include('./partials/head.ejs', {
+    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : 'Admin',
+    pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Manage all content'
+  }) %>
   <style>
-    main {
-      max-width: 900px;
-      margin: 2rem auto;
-      padding: 0 1rem;
+    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --link:#1256b3; --brand:#111; --brandHover:#333; --danger:#b42318; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     }
+    main { max-width: 1000px; margin: 2rem auto 3rem; padding: 0 1rem; }
     .back-link {
-      display: inline-block;
-      margin-bottom: 1rem;
-      color: #0077cc;
-      text-decoration: none;
-      font-size: 0.9rem;
+      display: inline-block; margin-bottom: 1rem; color: var(--link);
+      text-decoration: none; font-size: 0.95rem;
     }
     .back-link:hover { text-decoration: underline; }
-    h1 {
-      margin-bottom: 2rem;
-      font-size: 2rem;
-    }
-    section {
-      margin-bottom: 2rem;
-      border: 1px solid #ddd;
-      border-radius: 6px;
+    h1 { margin: 0 0 1.25rem 0; font-size: clamp(1.6rem, 2.5vw, 2rem); }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+    @media (min-width: 960px){ .grid { grid-template-columns: 1fr 1fr; } }
+
+    section.card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.06);
       padding: 1rem;
-      background: #fafafa;
     }
-    section h2 {
-      margin-top: 0;
-      font-size: 1.3rem;
+    section.card h2 { margin: 0 0 .75rem 0; font-size: 1.1rem; }
+
+    form.flex {
+      display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
     }
-    form {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      align-items: center;
+    form.flex input, form.flex select, form.flex textarea {
+      flex: 1 1 220px; min-width: 200px;
+      padding: .6rem .7rem; border: 1px solid var(--border); border-radius: 10px; background:#fff;
     }
-    form input,
-    form select,
-    form textarea {
-      flex: 1 1 200px;
-      padding: 0.5rem;
-      border: 1px solid #ccc;
-      border-radius: 4px;
+    form.flex textarea { height: 4.5rem; }
+    .btn {
+      padding: .65rem 1rem; border: 1px solid var(--border); border-radius: 10px;
+      background: var(--brand); color: #fff; font-weight: 600; cursor: pointer;
     }
-    form textarea { height: 4rem; }
-    form button {
-      padding: 0.6rem 1.2rem;
-      background-color: #0077cc;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
+    .btn:hover { background: var(--brandHover); }
+    .btn-outline {
+      background: #fff; color: var(--text);
     }
-    form button:hover { background-color: #005fa3; }
-    ul {
-      list-style: none;
-      padding: 0;
-      margin: 0;
+    .btn-danger {
+      background: var(--danger); border-color: #fca5a5;
     }
-    ul li {
-      padding: 0.4rem 0;
-      border-bottom: 1px solid #eee;
+
+    ul.list { list-style: none; margin: .5rem 0 0 0; padding: 0; }
+    ul.list li {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: .75rem; padding: .6rem .2rem; border-bottom: 1px solid var(--border);
     }
-    ul li:last-child { border-bottom: none; }
-    ul li form {
-      display: inline;
-      margin-left: 0.5rem;
-    }
+    ul.list li:last-child { border-bottom: 0; }
+    .row-title { font-weight: 600; }
+    .row-actions { display: flex; gap: .4rem; }
+    .row-actions form { display: inline; }
+
+    /* Add Book form two-column on wide screens */
+    .two-col { display: grid; grid-template-columns: 1fr; gap: .5rem; }
+    @media (min-width: 720px){ .two-col { grid-template-columns: 1fr 1fr; } }
+    .full { grid-column: 1 / -1; }
   </style>
 </head>
 <body>
-  <%- include('./partials/header.ejs') %>
+  <%- include('./partials/navbar.ejs') %>
 
   <main>
     <a href="javascript:history.back()" class="back-link">← Back</a>
-
     <h1>Admin Panel</h1>
 
-    <!-- Add New Video -->
-    <section>
-      <h2>Add New Video</h2>
-      <form action="/admin/add-video" method="POST">
-        <input type="text"    name="title"      placeholder="Video Title"       required />
-        <select name="genre" required>
-          <option value="">Select Genre</option>
-          <% genres.forEach(g => { %>
-            <option value="<%= g._id %>"><%= g.name %></option>
-          <% }) %>
-        </select>
-        <input type="url"     name="youtubeUrl" placeholder="YouTube URL" required />
-        <input type="url"     name="thumbnail"  placeholder="Thumbnail URL" />
-        <textarea name="description" placeholder="Description"></textarea>
-        <button type="submit">Add Video</button>
-      </form>
-    </section>
+    <div class="grid">
+      <!-- Add New Video -->
+      <section class="card">
+        <h2>Add New Video</h2>
+        <form class="flex" action="/admin/add-video" method="POST">
+          <input type="text" name="title" placeholder="Video Title" required />
+          <select name="genre" required>
+            <option value="">Select Genre</option>
+            <% genres.forEach(function(g){ %>
+              <option value="<%= g._id %>"><%= g.name %></option>
+            <% }) %>
+          </select>
+          <input type="url" name="youtubeUrl" placeholder="YouTube URL (watch or share link)" required />
+          <input type="url" name="thumbnail" placeholder="Thumbnail URL (optional)" />
+          <textarea name="description" placeholder="Description (optional)"></textarea>
+          <button class="btn" type="submit">Add Video</button>
+        </form>
+      </section>
 
-    <!-- Delete Videos -->
-    <section>
-      <h2>Existing Videos</h2>
-      <ul>
-        <% videos.forEach(v => { %>
-          <li>
-            <%= v.title %>
-            <form action="/admin/delete-video/<%= v._id %>" method="POST">
-              <button type="submit">Delete</button>
-            </form>
-          </li>
-        <% }) %>
-      </ul>
-    </section>
+      <!-- Add New Genre -->
+      <section class="card">
+        <h2>Add New Genre</h2>
+        <form class="flex" action="/admin/add-genre" method="POST">
+          <input type="text" name="name" placeholder="Genre Name" required />
+          <button class="btn" type="submit">Add Genre</button>
+        </form>
+      </section>
 
-    <!-- Add New Genre -->
-    <section>
-      <h2>Add New Genre</h2>
-      <form action="/admin/add-genre" method="POST">
-        <input type="text" name="name" placeholder="Genre Name" required/>
-        <button type="submit">Add Genre</button>
-      </form>
-    </section>
+      <!-- Existing Videos -->
+      <section class="card">
+        <h2>Existing Videos</h2>
+        <% if (!videos || videos.length === 0) { %>
+          <p style="color:#667085;">No videos yet.</p>
+        <% } else { %>
+          <ul class="list">
+            <% videos.forEach(function(v){ %>
+              <li>
+                <div>
+                  <div class="row-title"><%= v.title %></div>
+                  <div style="color:#667085; font-size:.9rem;">
+                    <% if (v.genre && v.genre.name) { %>Genre: <%= v.genre.name %> · <% } %>
+                    <%= v.youtubeUrl %>
+                  </div>
+                </div>
+                <div class="row-actions">
+                  <form action="/admin/delete-video/<%= v._id %>" method="POST">
+                    <button class="btn btn-danger" type="submit">Delete</button>
+                  </form>
+                </div>
+              </li>
+            <% }) %>
+          </ul>
+        <% } %>
+      </section>
 
-    <!-- Add New Book -->
-    <section>
-      <h2>Add New Book</h2>
-      <form action="/admin/add-book" method="POST">
-        <input type="text"    name="title"      placeholder="Book Title"        required />
-        <input type="text"    name="author"     placeholder="Author"            />
-        <input type="url"     name="sourceUrl"  placeholder="Source URL"       required />
-        <input type="url"     name="coverImage" placeholder="Cover Image URL"  />
-        <select name="genre">
-          <option value="">Select Genre</option>
-          <% genres.forEach(g => { %>
-            <option value="<%= g.name %>"><%= g.name %></option>
-          <% }) %>
-        </select>
-        <textarea name="description" placeholder="Description"></textarea>
-        <button type="submit">Add Book</button>
-      </form>
-    </section>
+      <!-- Add New Book -->
+      <section class="card">
+        <h2>Add New Book</h2>
+        <form action="/admin/add-book" method="POST" class="two-col">
+          <input class="full" type="text" name="title" placeholder="Book Title" required />
+          <input type="text" name="author" placeholder="Author (optional)" />
+          <select name="genre">
+            <option value="">Select Genre (optional)</option>
+            <% genres.forEach(function(g){ %>
+              <option value="<%= g.name %>"><%= g.name %></option>
+            <% }) %>
+          </select>
+          <input type="url" name="coverImage" placeholder="Cover Image URL (optional)" />
+          <input class="full" type="url" name="sourceUrl" placeholder="Source URL (IA item, Gutenberg page, etc.)" required />
+          <textarea class="full" name="description" placeholder="Description (optional)"></textarea>
+          <button class="btn full" type="submit">Add Book</button>
+        </form>
+      </section>
+    </div>
 
     <a href="/" class="back-link">← Back to Home</a>
   </main>
