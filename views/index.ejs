@@ -34,14 +34,62 @@
     </div>
   </section>
 
-  <!-- FEATURED BOOKS (populated via /api/featured-books) -->
+  <!-- FEATURED BOOKS (SSR + hydrated via /api/featured-books) -->
   <section class="section">
     <div class="container">
       <div class="shelf-header">
         <h2>Featured Books</h2>
         <div class="hint">Curated picks from across open libraries</div>
       </div>
-      <div id="featured-grid" class="grid" aria-live="polite"></div>
+
+      <% if (Array.isArray(featuredSSR) && featuredSSR.length) { %>
+        <div id="featured-grid" class="grid" aria-live="polite">
+          <% featuredSSR.forEach(function(b){ 
+               const src = (b.source || '').toLowerCase();
+               const id  = b.identifier || '';
+               const ia  = b.archiveId || (src === 'archive' ? id : '');
+               let dest  = '#';
+               if (ia) {
+                 dest = '/read/book/' + encodeURIComponent(ia);
+               } else if (src === 'gutenberg') {
+                 const gid = String(id).replace(/^gutenberg:/,'');
+                 const qs  = b.readerUrl ? ('?u=' + encodeURIComponent(b.readerUrl)) : '';
+                 dest = '/read/gutenberg/' + encodeURIComponent(gid) + '/reader' + qs;
+               } else if (b.readerUrl) {
+                 dest = b.readerUrl;
+               }
+               const href = user ? dest : ('/login?next=' + encodeURIComponent(dest || '/'));
+               const brand = src === 'archive' ? 'Archive.org'
+                            : (src === 'gutenberg' ? 'Project Gutenberg'
+                            : (src === 'openlibrary' ? 'Open Library' : 'Book'));
+          %>
+            <article class="card fade-in">
+              <a href="<%= href %>" style="text-decoration:none;color:inherit">
+                <div class="thumb">
+                  <% if (b.cover) { %>
+                    <img src="<%= b.cover %>" alt="<%= b.title || '' %>" loading="lazy" referrerpolicy="no-referrer">
+                  <% } %>
+                </div>
+                <div class="meta">
+                  <span class="badge"><%= brand %></span>
+                  <h3><%= b.title || '' %></h3>
+                  <p><%= b.creator || '' %></p>
+                </div>
+              </a>
+            </article>
+          <% }) %>
+        </div>
+      <% } else { %>
+        <!-- Skeletons shown immediately, JS replaces when API returns -->
+        <div id="featured-grid" class="grid" aria-live="polite">
+          <div class="card skeleton"></div>
+          <div class="card skeleton"></div>
+          <div class="card skeleton"></div>
+          <div class="card skeleton"></div>
+          <div class="card skeleton"></div>
+          <div class="card skeleton"></div>
+        </div>
+      <% } %>
     </div>
   </section>
 
@@ -102,7 +150,6 @@
   <script>
     (function(){
       const IS_LOGGED_IN = <%= !!user %>;
-
       const featuredGrid = document.getElementById('featured-grid');
       const shelvesRoot  = document.getElementById('shelves');
 
@@ -113,8 +160,7 @@
       }
 
       function buildHrefFromCard(b){
-        if (b && b.href) return b.href; // server provided deep link
-
+        if (b && b.href) return b.href;
         const src = (b.source || '').toLowerCase();
         const id  = b.identifier || '';
         const ia  = b.archiveId || (src === 'archive' ? id : '');
@@ -136,7 +182,6 @@
         return 'Book';
       }
 
-      // Gate all homepage book clicks: guests go to /login?next=...
       function gatedHref(dest){
         if (IS_LOGGED_IN) return dest;
         return '/login?next=' + encodeURIComponent(dest || '/');
@@ -192,14 +237,12 @@
           const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
           if (!r.ok) throw new Error('Bad status');
           const data = await r.json();
-          // Accept both shapes: plain array OR { items: [...] } OR { results: [...] }
           const items =
             Array.isArray(data) ? data :
             (Array.isArray(data.items) ? data.items :
             (Array.isArray(data.results) ? data.results : []));
           renderGrid(items, featuredGrid);
         } catch (e) {
-          featuredGrid.innerHTML = '<div class="hint">Could not load featured books. Try refreshing.</div>';
           console.error('featured error', e);
         }
       }
