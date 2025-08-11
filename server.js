@@ -8,9 +8,10 @@ const session    = require('express-session');
 const MongoStore = require('connect-mongo');
 
 // Routes
-const authRoutes  = require('./routes/auth');
-const bookRoutes  = require('./routes/bookRoutes');
-const indexRoutes = require('./routes/index');
+const authRoutes   = require('./routes/auth');
+const bookRoutes   = require('./routes/bookRoutes');
+const indexRoutes  = require('./routes/index');
+const homeRoutes   = require('./routes/homeRoutes'); // <-- NEW
 
 // Models used on server routes
 const Video = require('./models/Video');
@@ -65,9 +66,10 @@ app.use((req, res, next) => {
 });
 
 // ─── 5) ROUTES ────────────────────────────────────────────────────────────────
-app.use('/', indexRoutes);  // home / about / contact
-app.use('/', authRoutes);   // login / register / dashboard / settings / admin-setup
-app.use('/', bookRoutes);   // /read, /read/book/:identifier, bookmarks, favorites
+app.use('/', homeRoutes);  // <-- NEW: provides /api/featured-books, /api/shelves
+app.use('/', indexRoutes); // home / about / contact
+app.use('/', authRoutes);  // login / register / dashboard / settings / admin-setup
+app.use('/', bookRoutes);  // /read, /read/book/:identifier, bookmarks, favorites
 
 // ─── 6) WATCH + PLAYER (subscribers) ─────────────────────────────────────────
 app.get('/watch', async (req, res) => {
