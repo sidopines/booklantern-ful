@@ -48,25 +48,22 @@
   <% } else { %>
     <div class="book-grid">
       <% books.forEach(function(book){
-           const src  = (book.source || '').toLowerCase();
-           const id   = book.identifier || book._id || '';
+           const src   = (book.source || '').toLowerCase();
+           const id    = book.identifier || book._id || '';
+           const iaId  = book.archiveId || (src === 'archive' ? id : ''); // OL-with-IA or pure Archive
 
-           // Internal vs external:
-           // - archive (includes OL-with-IA) -> /read/book/:identifier
-           // - gutenberg -> our unified paginated reader /read/gutenberg/:gid/reader
-           // - everything else -> external readerUrl
-           const isArchive   = (src === 'archive');
-           const isGutenberg = (src === 'gutenberg');
-           const gutenId     = isGutenberg ? String(id).replace(/^gutenberg:/,'') : '';
+           const isInternalArchive = !!iaId;          // open in our Archive viewer
+           const isGutenberg       = (src === 'gutenberg');
+           const gutenId           = isGutenberg ? String(id).replace(/^gutenberg:/,'') : '';
 
-           const href = isArchive
-             ? `/read/book/${encodeURIComponent(id)}`
+           const href = isInternalArchive
+             ? `/read/book/${encodeURIComponent(iaId)}`
              : (isGutenberg
                  ? `/read/gutenberg/${encodeURIComponent(gutenId)}/reader${book.readerUrl ? ('?u=' + encodeURIComponent(book.readerUrl)) : ''}`
                  : (book.readerUrl || '#'));
       %>
         <div class="book-card" data-source="<%= src %>">
-          <a href="<%= href %>" <%= (isArchive || isGutenberg) ? '' : 'target="_blank" rel="noopener"' %>>
+          <a href="<%= href %>" <%= (isInternalArchive || isGutenberg) ? '' : 'target="_blank" rel="noopener"' %>>
             <div class="thumb">
               <% if (book.cover) { %>
                 <img src="<%= book.cover %>" alt="<%= book.title %>" loading="lazy" referrerpolicy="no-referrer">
@@ -85,7 +82,7 @@
             <% } %>
           </div>
           <div class="action" style="margin-top:.6rem;">
-            <a href="<%= href %>" <%= (isArchive || isGutenberg) ? '' : 'target="_blank" rel="noopener"' %>>📖 Read Now</a>
+            <a href="<%= href %>" <%= (isInternalArchive || isGutenberg) ? '' : 'target="_blank" rel="noopener"' %>>📖 Read Now</a>
           </div>
         </div>
       <% }) %>
