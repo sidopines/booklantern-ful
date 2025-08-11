@@ -2,53 +2,60 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: pageTitle || 'BookLantern — Read & Learn',
-    pageDescription: pageDescription || 'Free books and educational videos, unified in a beautiful reading experience.'
+    pageTitle: pageTitle || 'BookLantern — Your Open Library',
+    pageDescription: pageDescription || 'Search open collections and read in a beautiful, book-like viewer.'
   }) %>
   <link rel="stylesheet" href="/css/site.css">
 </head>
-<body>
+<body class="home">
   <%- include('./partials/navbar.ejs') %>
 
   <!-- HERO -->
-  <section class="hero">
-    <div class="hero-inner fade-in">
-      <h1>Books, beautifully.</h1>
-      <p>
-        Search the open stacks—Archive.org, Open Library, and Project Gutenberg.
-        Read in a focused, book-like experience that stays out of the way.
+  <section class="hero gradient">
+    <div class="hero-inner">
+      <h1 class="headline">Your library, beautifully simple.</h1>
+      <p class="subhead">
+        Search the best open collections—Archive.org, Open Library, and Project Gutenberg.
+        Read in a calm, book-like experience that stays out of the way.
       </p>
 
       <!-- Search bar that goes to /read -->
       <form class="searchbar" action="/read" method="GET">
         <input type="text" name="query" placeholder="Try ‘Plato’, ‘Socrates’, ‘Physics’, ‘Bible’…" />
-        <button class="btn" type="submit">Search Books</button>
-        <a class="btn alt" href="/watch">Explore Videos</a>
+        <button class="btn" type="submit">Search books</button>
+        <a class="btn alt" href="/watch">Explore videos</a>
       </form>
 
-      <div class="hero-cta">
-        <% if (!user) { %>
-          <a class="btn ghost" href="/register">Create a free account</a>
-        <% } %>
+      <div class="benefits">
+        <span>★ No ads</span>
+        <span>• Public-domain & open access</span>
+        <span>• Bookmarks & favorites</span>
       </div>
+
+      <% if (!user) { %>
+        <div class="hero-cta">
+          <a class="btn ghost" href="/register">Create a free account</a>
+        </div>
+      <% } %>
     </div>
   </section>
 
-  <!-- FEATURED BOOKS (SSR + hydrated via /api/featured-books) -->
+  <!-- TRENDING NOW (SSR + instant paint) -->
   <section class="section">
     <div class="container">
       <div class="shelf-header">
-        <h2>Featured Books</h2>
-        <div class="hint">Curated picks from across open libraries</div>
+        <h2>Trending now</h2>
+        <a class="hint" href="/read?query=Classics">See more</a>
       </div>
 
-      <% if (Array.isArray(featuredSSR) && featuredSSR.length) { %>
-        <div id="featured-grid" class="grid" aria-live="polite">
+      <div id="featured-grid" class="grid" aria-live="polite">
+        <% if (Array.isArray(featuredSSR) && featuredSSR.length) { %>
           <% featuredSSR.forEach(function(b){ 
                const src = (b.source || '').toLowerCase();
                const id  = b.identifier || '';
                const ia  = b.archiveId || (src === 'archive' ? id : '');
                let dest  = '#';
+
                if (ia) {
                  dest = '/read/book/' + encodeURIComponent(ia);
                } else if (src === 'gutenberg') {
@@ -58,86 +65,72 @@
                } else if (b.readerUrl) {
                  dest = b.readerUrl;
                }
-               const href = user ? dest : ('/login?next=' + encodeURIComponent(dest || '/'));
+
+               const href = (user ? dest : ('/login?next=' + encodeURIComponent(dest)));
                const brand = src === 'archive' ? 'Archive.org'
-                            : (src === 'gutenberg' ? 'Project Gutenberg'
-                            : (src === 'openlibrary' ? 'Open Library' : 'Book'));
+                           : src === 'gutenberg' ? 'Project Gutenberg'
+                           : src === 'openlibrary' ? 'Open Library'
+                           : 'Book';
           %>
-            <article class="card fade-in">
+            <article class="card">
               <a href="<%= href %>" style="text-decoration:none;color:inherit">
                 <div class="thumb">
                   <% if (b.cover) { %>
-                    <img src="<%= b.cover %>" alt="<%= b.title || '' %>" loading="lazy" referrerpolicy="no-referrer">
+                    <img src="<%= b.cover %>" alt="<%= b.title %>" loading="lazy" referrerpolicy="no-referrer">
                   <% } %>
                 </div>
                 <div class="meta">
                   <span class="badge"><%= brand %></span>
-                  <h3><%= b.title || '' %></h3>
+                  <h3><%= b.title %></h3>
                   <p><%= b.creator || '' %></p>
                 </div>
               </a>
             </article>
           <% }) %>
-        </div>
-      <% } else { %>
-        <!-- Skeletons shown immediately, JS replaces when API returns -->
-        <div id="featured-grid" class="grid" aria-live="polite">
-          <div class="card skeleton"></div>
-          <div class="card skeleton"></div>
-          <div class="card skeleton"></div>
-          <div class="card skeleton"></div>
-          <div class="card skeleton"></div>
-          <div class="card skeleton"></div>
-        </div>
-      <% } %>
+        <% } %>
+      </div>
     </div>
   </section>
 
   <!-- CURATED SHELVES (from /api/shelves) -->
-  <section class="section">
-    <div class="container" id="shelves"></div>
+  <section class="section section-tight">
+    <div class="container" id="shelves">
+      <!-- Filled by JS; fast cached API -->
+    </div>
   </section>
 
-  <!-- POPULAR TOPICS -->
-  <section class="section">
-    <div class="container">
-      <div class="shelf-header">
-        <h2>Popular Topics</h2>
-        <div class="hint">Start reading in one tap</div>
+  <!-- VALUE STRIP -->
+  <section class="value-strip">
+    <div class="value-inner container">
+      <div class="value-item">
+        <div class="vi-title">Find it fast</div>
+        <div class="vi-copy">We search trusted open libraries and surface copies you can actually read.</div>
       </div>
-      <div class="topic-row">
-        <a class="topic" href="/read?query=Philosophy">Philosophy</a>
-        <a class="topic" href="/read?query=Science">Science</a>
-        <a class="topic" href="/read?query=History">History</a>
-        <a class="topic" href="/read?query=Mathematics">Mathematics</a>
-        <a class="topic" href="/read?query=Classics">Classics</a>
-        <a class="topic" href="/read?query=Poetry">Poetry</a>
-        <a class="topic" href="/read?query=Biology">Biology</a>
-        <a class="topic" href="/read?query=Economics">Economics</a>
+      <div class="value-item">
+        <div class="vi-title">Read like a book</div>
+        <div class="vi-copy">Turn pages. Stay focused. A clean layout that feels like print.</div>
+      </div>
+      <div class="value-item">
+        <div class="vi-title">Save your place</div>
+        <div class="vi-copy">Sign in to favorite titles and pick up where you left off anywhere.</div>
       </div>
     </div>
   </section>
 
-  <!-- HOW IT WORKS -->
-  <section class="section">
-    <div class="container">
-      <div class="shelf-header">
-        <h2>How it works</h2>
-        <div class="hint">Simple, fast, delightful</div>
+  <!-- CTA -->
+  <section class="cta-band">
+    <div class="container cta-inner">
+      <div>
+        <h2>Light up your reading.</h2>
+        <p>Join free in seconds. No ads, just books.</p>
       </div>
-      <div class="tiles">
-        <div class="tile">
-          <h3>1) Find it fast</h3>
-          <p>We search trusted open libraries and surface copies you can actually read.</p>
-        </div>
-        <div class="tile">
-          <h3>2) Read like a book</h3>
-          <p>Turn pages with arrows, stay focused with a clean layout that feels like print.</p>
-        </div>
-        <div class="tile">
-          <h3>3) Save your place</h3>
-          <p>Create a free account to favorite titles and pick up where you left off anywhere.</p>
-        </div>
+      <div class="cta-actions">
+        <% if (!user) { %>
+          <a class="btn" href="/register">Create account</a>
+          <a class="btn alt" href="/login">Sign in</a>
+        <% } else { %>
+          <a class="btn" href="/read">Start reading</a>
+        <% } %>
       </div>
     </div>
   </section>
@@ -146,35 +139,35 @@
     &copy; <%= new Date().getFullYear() %> BookLantern • Built on open libraries • <a href="/about">About</a>
   </footer>
 
-  <!-- HOMEPAGE POPULATION SCRIPT -->
+  <!-- HOMEPAGE POPULATION SCRIPT (Shelves + client fallback if SSR missing) -->
   <script>
     (function(){
       const IS_LOGGED_IN = <%= !!user %>;
-      const featuredGrid = document.getElementById('featured-grid');
       const shelvesRoot  = document.getElementById('shelves');
+      const featuredGrid = document.getElementById('featured-grid');
 
       function escapeHtml(s){
         return String(s || '')
-          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+          .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
       }
 
-      function buildHrefFromCard(b){
-        if (b && b.href) return b.href;
+      function buildHref(b){
         const src = (b.source || '').toLowerCase();
         const id  = b.identifier || '';
         const ia  = b.archiveId || (src === 'archive' ? id : '');
-        if (ia) {
-          return '/read/book/' + encodeURIComponent(ia);
-        } else if (src === 'gutenberg') {
+        let dest  = '#';
+        if (b && b.href) dest = b.href;
+        else if (ia) dest = '/read/book/' + encodeURIComponent(ia);
+        else if (src === 'gutenberg') {
           const gid = String(id).replace(/^gutenberg:/,'');
           const qs  = b.readerUrl ? ('?u=' + encodeURIComponent(b.readerUrl)) : '';
-          return '/read/gutenberg/' + encodeURIComponent(gid) + '/reader' + qs;
-        }
-        return b.readerUrl || '#';
+          dest = '/read/gutenberg/' + encodeURIComponent(gid) + '/reader' + qs;
+        } else if (b.readerUrl) dest = b.readerUrl;
+        return IS_LOGGED_IN ? dest : '/login?next=' + encodeURIComponent(dest);
       }
 
-      function brandFromSource(src){
+      function brand(src){
         const s = (src || '').toLowerCase();
         if (s === 'archive') return 'Archive.org';
         if (s === 'gutenberg') return 'Project Gutenberg';
@@ -182,39 +175,21 @@
         return 'Book';
       }
 
-      function gatedHref(dest){
-        if (IS_LOGGED_IN) return dest;
-        return '/login?next=' + encodeURIComponent(dest || '/');
-      }
-
       function cardTemplate(b){
-        const dest  = buildHrefFromCard(b);
-        const href  = gatedHref(dest);
-        const brand = brandFromSource(b.source);
-        const internal = IS_LOGGED_IN && (b.archiveId || (b.source||'').toLowerCase()==='archive' || (b.source||'').toLowerCase()==='gutenberg');
-
         return `
-          <article class="card fade-in">
-            <a href="${href}" ${internal ? '' : 'rel="noopener"'} style="text-decoration:none;color:inherit">
+          <article class="card">
+            <a href="${buildHref(b)}" style="text-decoration:none;color:inherit">
               <div class="thumb">
                 ${b.cover ? `<img src="${b.cover}" alt="${escapeHtml(b.title || '')}" loading="lazy" referrerpolicy="no-referrer">` : ''}
               </div>
               <div class="meta">
-                <span class="badge">${brand}</span>
+                <span class="badge">${brand(b.source)}</span>
                 <h3>${escapeHtml(b.title || '')}</h3>
                 <p>${escapeHtml(b.creator || '')}</p>
               </div>
             </a>
           </article>
         `;
-      }
-
-      function renderGrid(items, targetEl){
-        if (!items || !items.length) {
-          targetEl.innerHTML = '<div class="hint">No books found right now. Try a search above.</div>';
-          return;
-        }
-        targetEl.innerHTML = items.map(cardTemplate).join('');
       }
 
       function shelfTemplate(shelf){
@@ -232,21 +207,6 @@
         `;
       }
 
-      async function loadFeatured(){
-        try {
-          const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
-          if (!r.ok) throw new Error('Bad status');
-          const data = await r.json();
-          const items =
-            Array.isArray(data) ? data :
-            (Array.isArray(data.items) ? data.items :
-            (Array.isArray(data.results) ? data.results : []));
-          renderGrid(items, featuredGrid);
-        } catch (e) {
-          console.error('featured error', e);
-        }
-      }
-
       async function loadShelves(){
         try {
           const r = await fetch('/api/shelves', { credentials: 'same-origin' });
@@ -259,7 +219,21 @@
         }
       }
 
-      loadFeatured();
+      // If server didn’t send featuredSSR for some reason, fill from API
+      if (!featuredGrid.children.length) {
+        (async () => {
+          try {
+            const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
+            if (!r.ok) throw new Error('Bad status');
+            const data = await r.json();
+            const items = Array.isArray(data.items) ? data.items : (Array.isArray(data.results) ? data.results : []);
+            featuredGrid.innerHTML = items.map(cardTemplate).join('');
+          } catch(e) {
+            featuredGrid.innerHTML = '<div class="hint">Could not load featured books. Try refreshing.</div>';
+          }
+        })();
+      }
+
       loadShelves();
     })();
   </script>
