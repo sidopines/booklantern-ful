@@ -16,6 +16,13 @@ const http = axios.create({
   }
 });
 
+// ---------- auth gate ----------
+function requireAuth(req, res, next) {
+  if (req.session && req.session.user) return next();
+  const nextUrl = encodeURIComponent(req.originalUrl || '/');
+  return res.redirect(`/login?next=${nextUrl}`);
+}
+
 // ---------- helpers ----------
 function card({
   identifier = '',
@@ -46,23 +53,6 @@ function uniqBy(arr, keyFn) {
     out.push(it);
   }
   return out;
-}
-function scoreCard(x) {
-  return (x.cover ? 1 : 0) + (x.readerUrl ? 1 : 0);
-}
-function buildHref(b) {
-  const src = (b.source || '').toLowerCase();
-  const id = b.identifier || '';
-  const iaId = b.archiveId || (src === 'archive' ? id : '');
-  if (iaId) {
-    return `/read/book/${encodeURIComponent(iaId)}`;
-  }
-  if (src === 'gutenberg') {
-    const gid = String(id).replace(/^gutenberg:/, '');
-    const u = b.readerUrl ? `?u=${encodeURIComponent(b.readerUrl)}` : '';
-    return `/read/gutenberg/${encodeURIComponent(gid)}/reader${u}`;
-  }
-  return b.readerUrl || '#';
 }
 
 // ---------- external fetchers ----------
@@ -136,9 +126,12 @@ async function searchGutenberg(q) {
 
 /**
  * Open Library — return items we can open INSIDE our site.
- * - Two searches (q=, title=) with has_fulltext=true & public_scan_b=true.
- * - Prefer docs that have ia[]; otherwise, follow edition_key -> /books/{ed}.json to get ocaid.
- * - Emit cards with source:'openlibrary' and archiveId so our /read/book/:id opens internally.
+ * Strategy:
+ *  - Run two searches (q=, title=) with has_fulltext=true AND public_scan_b=true (publicly readable).
+ *  - Do NOT use &fields= (it can drop needed keys on some results).
+ *  - Prefer docs that already have `ia[]` (direct IA id).
+ *  - For the rest, follow up a bunch of edition_key -> /books/{ed}.json to pull `ocaid` (IA id).
+ *  - Emit cards with source:'openlibrary' but include archiveId so our /read/book/:id opens internally.
  */
 async function searchOpenLibrary(q) {
   try {
@@ -164,8 +157,8 @@ async function searchOpenLibrary(q) {
         creator: author,
         cover,
         readerUrl: archiveReader(iaId, 1),
-        source: 'openlibrary',
-        archiveId: iaId
+        source: 'openlibrary',   // badge shows Open Library
+        archiveId: iaId          // but we open via our Archive viewer internally
       });
     };
 
@@ -173,12 +166,14 @@ async function searchOpenLibrary(q) {
     const editions = [];
     for (const d of docs) {
       if (Array.isArray(d.ia) && d.ia.length > 0) {
+        // Public-scan filter already applied at query level.
         direct.push(mkOLCard(d.ia[0], d));
       } else if (Array.isArray(d.edition_key) && d.edition_key.length > 0) {
         editions.push({ d, ed: d.edition_key[0] });
       }
     }
 
+    // Follow up a decent batch of editions to extract a public ocaid
     const maxFollowups = 60;
     const fetched = await Promise.allSettled(
       editions.slice(0, maxFollowups).map(({ d, ed }) =>
@@ -259,7 +254,8 @@ router.get('/read', async (req, res) => {
         seen.set(key, b);
       } else {
         const prev = seen.get(key);
-        if (scoreCard(b) > scoreCard(prev)) seen.set(key, b);
+        const score = (x) => (x.cover ? 1 : 0) + (x.readerUrl ? 1 : 0);
+        if (score(b) > score(prev)) seen.set(key, b);
       }
     }
     books = Array.from(seen.values()).slice(0, 60);
@@ -272,7 +268,7 @@ router.get('/read', async (req, res) => {
 });
 
 // ---------- VIEWER (ARCHIVE-ONLY INTERNAL READER) ----------
-router.get('/read/book/:identifier', async (req, res) => {
+router.get('/read/book/:identifier', requireAuth, async (req, res) => {
   const identifier = req.params.identifier;
 
   if (identifier.startsWith('gutenberg:')) {
@@ -306,8 +302,8 @@ router.get('/read/book/:identifier', async (req, res) => {
 });
 
 // ---------- GUTENBERG WRAPPERS ----------
-router.get('/read/gutenberg/:gid', async (req, res) => {
-  // Redirect to the unified reader (nicer template)
+router.get('/read/gutenberg/:gid', requireAuth, (req, res) => {
+  // Redirect simple route to the reader UI
   const gid = req.params.gid;
   const u = (req.query.u || '').trim();
   const fallback = `https://www.gutenberg.org/ebooks/${gid}`;
@@ -315,7 +311,7 @@ router.get('/read/gutenberg/:gid', async (req, res) => {
   return res.redirect(`/read/gutenberg/${encodeURIComponent(gid)}/reader?u=${encodeURIComponent(viewerUrl)}`);
 });
 
-router.get('/read/gutenberg/:gid/reader', async (req, res) => {
+router.get('/read/gutenberg/:gid/reader', requireAuth, async (req, res) => {
   const gid = req.params.gid;
   const fromQuery = (req.query.u || '').trim();
   const fallback = `https://www.gutenberg.org/ebooks/${gid}`;
@@ -333,7 +329,7 @@ router.get('/read/gutenberg/:gid/reader', async (req, res) => {
 /**
  * Gutenberg Proxy (keeps our domain in the bar, rewrites in-site links)
  */
-router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
+router.get('/read/gutenberg/:gid/proxy', requireAuth, async (req, res) => {
   try {
     const gid = req.params.gid;
     const raw = (req.query.u || '').trim();
@@ -399,88 +395,6 @@ router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
   } catch (e) {
     console.error('Gutenberg proxy error:', e.message);
     return res.status(502).send('Failed to load book');
-  }
-});
-
-// ---------- JSON: Featured books for homepage ----------
-router.get('/api/featured-books', async (req, res) => {
-  try {
-    const q = (req.query.q || 'classics').trim();
-    const limit = Math.min(parseInt(req.query.limit || '16', 10) || 16, 24);
-
-    const [arch = [], gut = [], ol = []] = await Promise.all([
-      searchArchive(q),
-      searchGutenberg(q),
-      searchOpenLibrary(q),
-    ]);
-
-    let items = []
-      .concat(arch, gut, ol)
-      .filter(b => b && (b.title || b.identifier));
-
-    // De-dupe and keep the best version
-    const seen = new Map();
-    for (const b of items) {
-      const key = `${(b.title || '').toLowerCase()}|${(b.creator || '').toLowerCase()}`;
-      if (!seen.has(key)) {
-        seen.set(key, b);
-      } else {
-        const prev = seen.get(key);
-        if (scoreCard(b) > scoreCard(prev)) seen.set(key, b);
-      }
-    }
-
-    items = Array.from(seen.values())
-      .slice(0, limit)
-      .map(b => ({ ...b, href: buildHref(b) }));
-
-    res.json({ q, count: items.length, items });
-  } catch (e) {
-    console.error('featured-books error:', e.message);
-    res.status(500).json({ q: req.query.q || 'classics', count: 0, items: [] });
-  }
-});
-
-// ---------- JSON: Multiple curated shelves for homepage ----------
-router.get('/api/shelves', async (req, res) => {
-  try {
-    const shelves = [
-      { key: 'classics',     title: 'Timeless Classics',     q: 'classics',     limit: 14 },
-      { key: 'philosophy',   title: 'Philosophy & Ethics',   q: 'philosophy',   limit: 14 },
-      { key: 'science',      title: 'Science & Discovery',   q: 'science',      limit: 14 },
-      { key: 'religion',     title: 'Religion & Spirituality', q: 'bible',      limit: 14 },
-    ];
-
-    const results = await Promise.all(shelves.map(async s => {
-      const [arch = [], gut = [], ol = []] = await Promise.all([
-        searchArchive(s.q),
-        searchGutenberg(s.q),
-        searchOpenLibrary(s.q),
-      ]);
-      let items = [].concat(arch, gut, ol).filter(b => b && (b.title || b.identifier));
-
-      // de-dupe
-      const seen = new Map();
-      for (const b of items) {
-        const key = `${(b.title || '').toLowerCase()}|${(b.creator || '').toLowerCase()}`;
-        if (!seen.has(key)) {
-          seen.set(key, b);
-        } else {
-          const prev = seen.get(key);
-          if (scoreCard(b) > scoreCard(prev)) seen.set(key, b);
-        }
-      }
-      items = Array.from(seen.values())
-        .slice(0, s.limit)
-        .map(b => ({ ...b, href: buildHref(b) }));
-
-      return { key: s.key, title: s.title, q: s.q, items };
-    }));
-
-    res.json({ shelves: results });
-  } catch (e) {
-    console.error('shelves error:', e.message);
-    res.status(500).json({ shelves: [] });
   }
 });
 
