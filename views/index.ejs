@@ -47,6 +47,13 @@
     </div>
   </section>
 
+  <!-- CURATED SHELVES (from /api/shelves) -->
+  <section class="section">
+    <div class="container" id="shelves">
+      <!-- JS will render multiple horizontal shelves here -->
+    </div>
+  </section>
+
   <!-- POPULAR TOPICS -->
   <section class="section">
     <div class="container">
@@ -95,33 +102,52 @@
     &copy; <%= new Date().getFullYear() %> BookLantern • Built on open libraries • <a href="/about">About</a>
   </footer>
 
-  <!-- FEATURED POPULATION SCRIPT -->
+  <!-- HOMEPAGE POPULATION SCRIPT -->
   <script>
     (function(){
-      const grid = document.getElementById('featured-grid');
+      const featuredGrid = document.getElementById('featured-grid');
+      const shelvesRoot  = document.getElementById('shelves');
 
-      function cardTemplate(b){
+      function escapeHtml(s){
+        return String(s || '')
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+      }
+
+      function buildHrefFromCard(b){
+        // Prefer href provided by API
+        if (b && b.href) return b.href;
+
+        // Fallback: reconstruct like /read page
         const src = (b.source || '').toLowerCase();
         const id  = b.identifier || '';
         const ia  = b.archiveId || (src === 'archive' ? id : '');
-
-        // Build destination like read.ejs
-        let href = '#';
         if (ia) {
-          href = '/read/book/' + encodeURIComponent(ia);
+          return '/read/book/' + encodeURIComponent(ia);
         } else if (src === 'gutenberg') {
           const gid = String(id).replace(/^gutenberg:/,'');
           const qs  = b.readerUrl ? ('?u=' + encodeURIComponent(b.readerUrl)) : '';
-          href = '/read/gutenberg/' + encodeURIComponent(gid) + '/reader' + qs;
-        } else if (b.readerUrl) {
-          href = b.readerUrl;
+          return '/read/gutenberg/' + encodeURIComponent(gid) + '/reader' + qs;
+        }
+        return b.readerUrl || '#';
+      }
+
+      function brandFromSource(src){
+        const s = (src || '').toLowerCase();
+        if (s === 'archive') return 'Archive.org';
+        if (s === 'gutenberg') return 'Project Gutenberg';
+        if (s === 'openlibrary') return 'Open Library';
+        return 'Book';
         }
 
-        const brand = src === 'archive' ? 'Archive.org' : (src === 'gutenberg' ? 'Project Gutenberg' : (src === 'openlibrary' ? 'Open Library' : (src||'Book')));
+      function cardTemplate(b){
+        const href  = buildHrefFromCard(b);
+        const brand = brandFromSource(b.source);
+        const internal = (b.archiveId || (b.source||'').toLowerCase()==='archive' || (b.source||'').toLowerCase()==='gutenberg');
 
         return `
           <article class="card fade-in">
-            <a href="${href}" ${ia || src==='gutenberg' ? '' : 'target="_blank" rel="noopener"'} style="text-decoration:none;color:inherit">
+            <a href="${href}" ${internal ? '' : 'target="_blank" rel="noopener"'} style="text-decoration:none;color:inherit">
               <div class="thumb">
                 ${b.cover ? `<img src="${b.cover}" alt="${escapeHtml(b.title || '')}" loading="lazy" referrerpolicy="no-referrer">` : ''}
               </div>
@@ -135,29 +161,60 @@
         `;
       }
 
-      function escapeHtml(s){
-        return String(s || '')
-          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+      function renderGrid(items, targetEl){
+        if (!items || !items.length) {
+          targetEl.innerHTML = '<div class="hint">No books found right now. Try a search above.</div>';
+          return;
+        }
+        targetEl.innerHTML = items.map(cardTemplate).join('');
+      }
+
+      function shelfTemplate(shelf){
+        const cards = (shelf.items || []).map(cardTemplate).join('');
+        return `
+          <div class="shelf">
+            <div class="shelf-header">
+              <h2>${escapeHtml(shelf.title)}</h2>
+              <a class="hint" href="/read?query=${encodeURIComponent(shelf.q)}">See more</a>
+            </div>
+            <div class="shelf-row">
+              ${cards}
+            </div>
+          </div>
+        `;
       }
 
       async function loadFeatured(){
         try {
           const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
-          if (!r.ok) throw new Error('bad status');
+          if (!r.ok) throw new Error('Bad status');
           const data = await r.json();
-          if (!Array.isArray(data) || data.length === 0) {
-            grid.innerHTML = '<div class="hint">No featured books right now. Try a search above.</div>';
-            return;
-          }
-          grid.innerHTML = data.map(cardTemplate).join('');
+          const items = Array.isArray(data.items) ? data.items : [];
+          renderGrid(items, featuredGrid);
         } catch (e) {
-          grid.innerHTML = '<div class="hint">Could not load featured books. Try refreshing.</div>';
+          featuredGrid.innerHTML = '<div class="hint">Could not load featured books. Try refreshing.</div>';
           console.error('featured error', e);
         }
       }
 
+      async function loadShelves(){
+        try {
+          const r = await fetch('/api/shelves', { credentials: 'same-origin' });
+          if (!r.ok) throw new Error('Bad status');
+          const data = await r.json();
+          const shelves = Array.isArray(data.shelves) ? data.shelves : [];
+          if (!shelves.length) {
+            shelvesRoot.innerHTML = '';
+            return;
+          }
+          shelvesRoot.innerHTML = shelves.map(shelfTemplate).join('');
+        } catch (e) {
+          console.error('shelves error', e);
+        }
+      }
+
       loadFeatured();
+      loadShelves();
     })();
   </script>
 </body>
