@@ -1,87 +1,201 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/header.ejs', {
+  <%- include('./partials/head.ejs', {
     pageTitle: pageTitle || 'Read',
     pageDescription: pageDescription || 'Read public domain books'
   }) %>
   <style>
-    :root {
-      --bg:#0b0d10; --text:#e6edf3; --muted:#9aa3ad; --card:#12161b; --accent:#7aa2ff;
-      --barH:54px; --statusH:32px;
+    :root{
+      --bg:#0b0d10; --chrome:#0e1116; --muted:#9aa3ad; --text:#e6edf3;
+      --pageBg:#fff; --pageText:#111; --accent:#7aa2ff;
+      --barH:54px; --statusH:34px; --gap:48px; --colW:760px;
     }
     *{box-sizing:border-box}
+    html,body{height:100%}
     body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
 
-    /* Top chrome – same tone as Archive viewer */
-    .bar{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #1e232b;background:#0e1116;height:var(--barH)}
-    .back-link{color:var(--muted);text-decoration:none}
+    /* Top chrome (matches archive viewer tone) */
+    .bar{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #1e232b;background:var(--chrome);height:var(--barH)}
+    .back{color:var(--muted);text-decoration:none}
     .title{font-weight:600}
     .badge{font-size:12px;color:var(--muted);margin-left:6px}
     .tools{margin-left:auto;display:flex;gap:8px}
-    .btn{padding:6px 10px;border-radius:10px;border:1px solid #2a3340;background:var(--card);color:var(--text);text-decoration:none}
+    .btn{padding:6px 10px;border-radius:10px;border:1px solid #2a3340;background:#12161b;color:#e6edf3;text-decoration:none}
 
-    /* Thin status line under the bar, like the Archive bookmark hint */
-    .status{
-      height:var(--statusH); display:flex; align-items:center;
-      padding:0 16px; color:var(--muted); font-size:13px;
-      border-bottom:1px solid #1e232b; background:#0f1319;
-      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-    }
-    .status.hidden{display:none}
+    /* Status strip under the bar */
+    .status{height:var(--statusH);display:flex;align-items:center;padding:0 16px;color:var(--muted);font-size:13px;border-bottom:1px solid #1e232b;background:#0f1319;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .hidden{display:none}
 
-    /* Reading area: white page inside a dark app chrome */
-    iframe{
-      border:0; width:100%;
-      height:calc(100vh - var(--barH) - var(--statusH));
-      display:block; background:#fff;
+    /* Book shell */
+    .shell{position:relative;height:calc(100vh - var(--barH) - var(--statusH));background:#0b0d10}
+    .stage{position:absolute;inset:0;display:flex;justify-content:center;align-items:center;overflow:hidden;padding:12px}
+    .page{
+      width:100%;max-width:calc(var(--colW) + 2*var(--gap));
+      height:100%;padding:24px var(--gap);background:var(--pageBg);color:var(--pageText);
+      border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,.35);overflow:hidden;position:relative;
     }
+    /* Columned content = “pages” you can flip through */
+    #content{
+      height:100%;
+      column-width:var(--colW);
+      column-gap:var(--gap);
+      overflow:hidden; /* we flip by scrollLeft */
+    }
+    /* Make typical Gutenberg blocks look nice */
+    #content img,#content svg,#content video{max-width:100%;height:auto;display:block;margin:1rem auto}
+    #content pre{white-space:pre-wrap;word-wrap:break-word;font-size:16px;line-height:1.5;background:#fafafa;border:1px solid #eee;border-radius:6px;padding:.75rem}
+    #content h1,#content h2,#content h3,#content h4{line-height:1.25;margin:1.2em 0 .6em}
+    #content a{color:#0645ad}
 
-    @media (max-width:640px){
-      :root{ --statusH: 40px; }
+    /* Click zones for prev/next page */
+    .zone{position:absolute;top:0;bottom:0;width:27%;cursor:pointer}
+    .left{left:0}
+    .right{right:0}
+    /* Center controls (go-to) */
+    .centerControls{
+      position:absolute;left:50%;transform:translateX(-50%);bottom:12px;
+      display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.6);color:#fff;padding:6px 10px;border-radius:999px;font-size:12px;
     }
+    .centerControls input{width:64px;border:1px solid rgba(255,255,255,.25);background:transparent;color:#fff;padding:3px 6px;border-radius:6px}
+    .go{padding:6px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:transparent;color:#fff;cursor:pointer}
+    @media (max-width:640px){ :root{ --colW:560px; --gap:36px; } }
   </style>
 </head>
 <body>
   <div class="bar">
-    <a href="javascript:history.back()" class="back-link">← Back</a>
+    <a class="back" href="javascript:history.back()">← Back</a>
     <span class="title">Project Gutenberg</span>
     <% if (typeof gid !== 'undefined') { %><span class="badge">#<%= gid %></span><% } %>
     <div class="tools">
-      <% if (viewerUrl) { %>
-        <a class="btn" href="<%= viewerUrl %>" target="_blank" rel="noopener">Open original ↗</a>
-      <% } %>
+      <% if (viewerUrl) { %><a class="btn" id="openOriginal" href="<%= viewerUrl %>" target="_blank" rel="noopener">Open original ↗</a><% } %>
       <a class="btn" href="" onclick="location.reload();return false;">Reload</a>
     </div>
   </div>
 
-  <div id="status" class="status">Loading… rendering via BookLantern viewer.</div>
+  <div id="status" class="status">Loading book…</div>
 
-  <iframe id="gutenbergFrame"
-          src="/read/gutenberg/<%= encodeURIComponent(gid || '') %>/proxy<% if (viewerUrl) { %>?u=<%= encodeURIComponent(viewerUrl) %><% } %>"
-          allowfullscreen
-          referrerpolicy="no-referrer">
-  </iframe>
+  <div class="shell">
+    <div class="stage">
+      <div class="page">
+        <div id="content"></div>
+        <div class="zone left"  id="prevZone" title="Previous page"></div>
+        <div class="zone right" id="nextZone" title="Next page"></div>
+        <div class="centerControls">
+          <span>Go to</span>
+          <input id="goto" type="number" min="1" value="1" />
+          <span>of <span id="tot2">1</span></span>
+          <button class="go" id="goBtn">Go</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
-    (function(){
-      const status = document.getElementById('status');
-      const frame = document.getElementById('gutenbergFrame');
-      let loaded = false;
+  (function(){
+    const gid = <%- JSON.stringify(gid || "") %>;
+    const startUrl = <%- JSON.stringify(viewerUrl || "") %>;
 
-      frame.addEventListener('load', function(){
-        loaded = true;
-        // Hide status once our proxied page is ready
-        status.classList.add('hidden');
-      });
+    const statusEl = document.getElementById('status');
+    const content  = document.getElementById('content');
+    const gotoInput= document.getElementById('goto');
+    const goBtn    = document.getElementById('goBtn');
+    const tot2     = document.getElementById('tot2');
 
-      // Soft fallback message if network is slow
-      setTimeout(function(){
-        if (!loaded) {
-          status.textContent = "Still loading… If it stalls, click “Open original”.";
+    let totalPages = 1;
+    let page = 1;
+
+    function setStatus(msg){ statusEl.textContent = msg; }
+    function hideStatus(){ statusEl.classList.add('hidden'); }
+
+    function computeTotal(){
+      // Page width = inner width of white page minus padding (we’ll read computed styles)
+      const pageBox = document.querySelector('.page');
+      const cs = getComputedStyle(pageBox);
+      const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+      const pageWidth = pageBox.clientWidth - pad;
+
+      // Total virtual width of columns
+      const totalWidth = content.scrollWidth;
+      totalPages = Math.max(1, Math.ceil(totalWidth / pageWidth));
+      tot2.textContent = String(totalPages);
+      gotoInput.max = String(totalPages);
+    }
+
+    function goTo(p){
+      page = Math.max(1, Math.min(totalPages, p|0));
+      const pageBox = document.querySelector('.page');
+      const cs = getComputedStyle(pageBox);
+      const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+      const pageWidth = pageBox.clientWidth - pad;
+      const x = pageWidth * (page - 1);
+      content.scrollLeft = x;
+      gotoInput.value = String(page);
+    }
+
+    function next(){ goTo(page + 1); }
+    function prev(){ goTo(page - 1); }
+
+    document.getElementById('nextZone').addEventListener('click', next);
+    document.getElementById('prevZone').addEventListener('click', prev);
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') next();
+      if (e.key === 'ArrowLeft'  || e.key === 'PageUp')   prev();
+    });
+    goBtn.addEventListener('click', () => goTo(parseInt(gotoInput.value||'1',10)));
+    gotoInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') goTo(parseInt(gotoInput.value||'1',10)); });
+
+    // Resize recalculates pages
+    const ro = new ResizeObserver(()=>{ const prevPage = page; computeTotal(); goTo(prevPage); });
+    ro.observe(document.querySelector('.page'));
+
+    // Fetch Gutenberg HTML through our proxy and inject readable body
+    async function load(){
+      try{
+        setStatus('Fetching content…');
+        const proxied = `/read/gutenberg/${encodeURIComponent(gid)}/proxy?u=${encodeURIComponent(startUrl)}`;
+        const raw = await fetch(proxied, { credentials:'omit' }).then(r => r.text());
+        const doc = new DOMParser().parseFromString(raw, 'text/html');
+
+        // Prefer our injected wrapper if present; else try common article containers; else body
+        const candidates = [
+          '#bl-wrap', 'article', '#content', '#text', '#booktext', '.book', '#main', 'main'
+        ];
+        let src = null;
+        for (const sel of candidates){
+          const el = doc.querySelector(sel);
+          if (el && el.textContent.trim().length > 300) { src = el; break; }
         }
-      }, 2000);
-    })();
+        if (!src) src = doc.body || doc.documentElement;
+
+        // Trim obvious boilerplate near the top: first HRs, nav/header footers
+        Array.from(src.querySelectorAll('header, nav, .topnav, .header, .masthead')).forEach(el => el.remove());
+        Array.from(src.querySelectorAll('hr')).slice(0,2).forEach(el => el.remove());
+        // Remove fixed headers that might overlap
+        Array.from(src.querySelectorAll('[style*="position:fixed"]')).forEach(el => el.remove());
+
+        // Ensure dark CSS from PG doesn't invert our page; nuke background on inner nodes
+        Array.from(src.querySelectorAll('*')).forEach(el=>{
+          const s = (el.getAttribute && el.getAttribute('style')) || '';
+          if (/background/i.test(s)) el.style.background = 'transparent';
+          if (/color\s*:/i.test(s) && !/inherit/i.test(s)) el.style.color = ''; // let our pageText apply
+        });
+
+        content.innerHTML = src.innerHTML;
+
+        // Small async tick to allow layout before computing total
+        await new Promise(r=>setTimeout(r,0));
+        computeTotal();
+        goTo(1);
+        hideStatus();
+      }catch(err){
+        console.error('Gutenberg load error:', err);
+        setStatus('Failed to load book. Use “Open original”.');
+      }
+    }
+
+    load();
+  })();
   </script>
 </body>
 </html>
