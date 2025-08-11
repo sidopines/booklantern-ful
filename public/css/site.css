@@ -38,11 +38,104 @@ body{
   padding: 0 24px;
 }
 
-/* NAV lives in partial; keep spacing consistent */
-.home .navbar{ background: transparent; }
+/* =========================
+   NAVBAR (matches new partial)
+   ========================= */
+.nav-wrap{
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: saturate(140%) blur(8px);
+  background: rgba(255,255,255,0.72);
+  border-bottom: 1px solid var(--line);
+}
+.navbar{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+.brand{
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+  font-size: 20px;
+  color: var(--ink);
+}
+.links{
+  list-style: none;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+}
+.links a{
+  text-decoration: none;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 14px;
+}
+.links a:hover{ text-decoration: underline; }
+.links .sep{
+  width: 1px; height: 22px;
+  background: var(--line);
+  margin: 0 2px;
+}
+.nav-toggle{
+  display: none;
+  width: 42px; height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.nav-toggle .bar{
+  display: block;
+  width: 18px; height: 2px;
+  background: var(--ink);
+  margin: 2px 0;
+}
+/* Small button variant for nav */
+.btn.small{
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.btn.small.alt{
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
 
-/* HERO */
-.hero.gradient{
+@media (max-width: 900px){
+  .nav-toggle{ display: inline-flex; }
+  .links{
+    position: absolute;
+    right: 24px; left: 24px;
+    top: 64px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow-lg);
+    padding: 12px;
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .links.open{ display: flex; }
+  .links .sep{ display:none; }
+  .links a{ padding: 10px 8px; border-radius: 8px; }
+  .links a:hover{ background: #f5f7fb; text-decoration: none; }
+}
+
+/* =========================
+   HERO
+   ========================= */
+/* Always give the hero the soft gradient background */
+.hero{
   background: radial-gradient(1200px 500px at 20% -10%, #e9f0ff 0%, transparent 55%),
               radial-gradient(900px 400px at 90% 0%, #e8fff7 0%, transparent 60%),
               #f7f9fc;
@@ -54,14 +147,14 @@ body{
   text-align: center;
   padding: 24px;
 }
-.headline{
+.hero h1{
   font-size: clamp(34px, 6vw, 56px);
   line-height: 1.05;
   margin: 0 0 16px 0;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
-.subhead{
+.hero p{
   font-size: clamp(16px, 2.2vw, 20px);
   color: var(--muted);
   margin: 0 auto 24px;
@@ -127,13 +220,11 @@ body{
   margin-top: 18px;
 }
 
-/* SECTIONS */
-.section{
-  padding: 32px 0;
-}
-.section-tight{
-  padding-top: 8px;
-}
+/* =========================
+   SECTIONS
+   ========================= */
+.section{ padding: 32px 0; }
+.section-tight{ padding-top: 8px; }
 
 /* Shelf header */
 .shelf-header{
@@ -155,20 +246,26 @@ body{
 }
 .hint:hover{ text-decoration: underline; }
 
-/* GRID */
+/* =========================
+   GRID
+   ========================= */
 .grid{
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: 18px;
 }
 
-/* CARD */
+/* =========================
+   CARD
+   ========================= */
 .card{
   background: var(--card);
   border-radius: var(--radius);
   overflow: hidden;
   box-shadow: var(--shadow);
-  transition: transform .18s ease, box-shadow .18s ease;
+  transition: transform .18s ease, box-shadow .18s ease, opacity .3s ease;
+  opacity: 0;
+  animation: fadeIn .4s ease forwards;
 }
 .card:hover{
   transform: translateY(-4px);
@@ -210,10 +307,10 @@ body{
   color: var(--ink-2);
 }
 
-/* HORIZONTAL SHELF */
-.shelf{
-  margin: 10px 0 22px;
-}
+/* =========================
+   HORIZONTAL SHELF
+   ========================= */
+.shelf{ margin: 10px 0 22px; }
 .shelf-row{
   display: grid;
   grid-auto-flow: column;
@@ -225,7 +322,9 @@ body{
 }
 .shelf-row > .card{ scroll-snap-align: start; }
 
-/* VALUE STRIP */
+/* =========================
+   VALUE STRIP
+   ========================= */
 .value-strip{
   background: #fff;
   border-top: 1px solid var(--line);
@@ -252,7 +351,9 @@ body{
   font-size: 14px;
 }
 
-/* CTA BAND */
+/* =========================
+   CTA BAND
+   ========================= */
 .cta-band{
   background: linear-gradient(180deg, #f4f7ff, #eefcf7);
   border-top: 1px solid var(--line);
@@ -278,22 +379,31 @@ body{
   flex-wrap: wrap;
 }
 
-/* FOOTER */
+/* =========================
+   FOOTER
+   ========================= */
 .footer{
   text-align: center;
   padding: 26px 0 34px;
   color: var(--muted);
   font-size: 14px;
 }
-.footer a{
-  color: inherit;
+.footer a{ color: inherit; }
+
+/* =========================
+   ANIMATIONS
+   ========================= */
+.fade-in{ opacity: 0; animation: fadeIn .5s ease .05s forwards; }
+@keyframes fadeIn{
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* RESPONSIVE */
+/* =========================
+   RESPONSIVE
+   ========================= */
 @media (max-width: 900px){
-  .value-inner{
-    grid-template-columns: 1fr;
-  }
+  .value-inner{ grid-template-columns: 1fr; }
   .cta-inner{
     flex-direction: column;
     align-items: flex-start;
