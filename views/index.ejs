@@ -41,17 +41,13 @@
         <h2>Featured Books</h2>
         <div class="hint">Curated picks from multiple libraries</div>
       </div>
-      <div id="featured-grid" class="grid" aria-live="polite">
-        <!-- JS will fill cards here -->
-      </div>
+      <div id="featured-grid" class="grid" aria-live="polite"></div>
     </div>
   </section>
 
   <!-- CURATED SHELVES (from /api/shelves) -->
   <section class="section">
-    <div class="container" id="shelves">
-      <!-- JS will render multiple horizontal shelves here -->
-    </div>
+    <div class="container" id="shelves"></div>
   </section>
 
   <!-- POPULAR TOPICS -->
@@ -105,6 +101,8 @@
   <!-- HOMEPAGE POPULATION SCRIPT -->
   <script>
     (function(){
+      const IS_LOGGED_IN = <%= !!user %>;
+
       const featuredGrid = document.getElementById('featured-grid');
       const shelvesRoot  = document.getElementById('shelves');
 
@@ -115,10 +113,8 @@
       }
 
       function buildHrefFromCard(b){
-        // Prefer href provided by API
-        if (b && b.href) return b.href;
+        if (b && b.href) return b.href; // server provided deep link
 
-        // Fallback: reconstruct like /read page
         const src = (b.source || '').toLowerCase();
         const id  = b.identifier || '';
         const ia  = b.archiveId || (src === 'archive' ? id : '');
@@ -138,16 +134,22 @@
         if (s === 'gutenberg') return 'Project Gutenberg';
         if (s === 'openlibrary') return 'Open Library';
         return 'Book';
-        }
+      }
+
+      function gatedHref(dest){
+        if (IS_LOGGED_IN) return dest;
+        return '/login?next=' + encodeURIComponent(dest || '/');
+      }
 
       function cardTemplate(b){
-        const href  = buildHrefFromCard(b);
+        const dest  = buildHrefFromCard(b);
+        const href  = gatedHref(dest);
         const brand = brandFromSource(b.source);
-        const internal = (b.archiveId || (b.source||'').toLowerCase()==='archive' || (b.source||'').toLowerCase()==='gutenberg');
+        const internal = IS_LOGGED_IN && (b.archiveId || (b.source||'').toLowerCase()==='archive' || (b.source||'').toLowerCase()==='gutenberg');
 
         return `
           <article class="card fade-in">
-            <a href="${href}" ${internal ? '' : 'target="_blank" rel="noopener"'} style="text-decoration:none;color:inherit">
+            <a href="${href}" ${internal ? '' : 'rel="noopener"'} style="text-decoration:none;color:inherit">
               <div class="thumb">
                 ${b.cover ? `<img src="${b.cover}" alt="${escapeHtml(b.title || '')}" loading="lazy" referrerpolicy="no-referrer">` : ''}
               </div>
@@ -203,10 +205,6 @@
           if (!r.ok) throw new Error('Bad status');
           const data = await r.json();
           const shelves = Array.isArray(data.shelves) ? data.shelves : [];
-          if (!shelves.length) {
-            shelvesRoot.innerHTML = '';
-            return;
-          }
           shelvesRoot.innerHTML = shelves.map(shelfTemplate).join('');
         } catch (e) {
           console.error('shelves error', e);
