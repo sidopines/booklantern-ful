@@ -1,50 +1,42 @@
 <!-- views/partials/navbar.ejs -->
 <header class="nav-wrap">
   <div class="container navbar">
-    <a class="brand" href="/">BookLantern</a>
+    <a href="/" class="brand" aria-label="BookLantern home">
+      <img class="brand-icon" src="/img/brand.svg" alt="">
+    </a>
 
-    <button class="nav-toggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="siteNav">
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false">
       <span class="bar"></span><span class="bar"></span><span class="bar"></span>
     </button>
 
-    <ul class="links" id="siteNav">
+    <ul class="links" id="navLinks">
       <li><a href="/">Home</a></li>
-      <li><a href="/read">Read</a></li>
-      <li><a href="/watch">Watch</a></li>
       <li><a href="/about">About</a></li>
       <li><a href="/contact">Contact</a></li>
-
+      <li><a href="/watch">Watch</a></li>
+      <li><a href="/read">Read</a></li>
       <% if (user) { %>
-        <li class="sep"></li>
         <li><a href="/dashboard">Dashboard</a></li>
         <li><a href="/settings">Settings</a></li>
-        <li><a class="btn small alt" href="/logout">Logout</a></li>
+        <li><a href="/logout">Logout</a></li>
       <% } else { %>
-        <li class="sep"></li>
-        <li><a href="/login">Sign in</a></li>
-        <li><a class="btn small" href="/register">Create account</a></li>
+        <li class="sep" aria-hidden="true"></li>
+        <li><a class="btn small alt" href="/login">Login</a></li>
+        <li><a class="btn small" href="/register">Register</a></li>
       <% } %>
     </ul>
   </div>
 </header>
 
 <script>
+  // simple mobile toggle
   (function(){
-    const toggle = document.querySelector('.nav-toggle');
-    const nav = document.getElementById('siteNav');
-    if (!toggle || !nav) return;
-
-    toggle.addEventListener('click', () => {
-      const open = nav.classList.toggle('open');
-      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
-
-    // Close menu when a link is clicked (mobile)
-    nav.addEventListener('click', (e) => {
-      if (e.target.tagName === 'A' && nav.classList.contains('open')) {
-        nav.classList.remove('open');
-        toggle.setAttribute('aria-expanded', 'false');
-      }
+    const btn = document.getElementById('navToggle');
+    const links = document.getElementById('navLinks');
+    if (!btn || !links) return;
+    btn.addEventListener('click', () => {
+      const open = links.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
   })();
 </script>
