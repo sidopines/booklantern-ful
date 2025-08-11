@@ -210,12 +210,38 @@ function curatedShelves() {
  * ROUTES
  * =======================*/
 
-// Home / About / Contact
-router.get('/', (req, res) => {
-  res.render('index', {
-    pageTitle: 'Home',
-    pageDescription: 'Discover free books and knowledge on BookLantern.'
-  });
+// Home: now renders with server-side Featured list for instant paint
+router.get('/', async (req, res) => {
+  try {
+    const featuredSSR = await featuredCache.get(async () => {
+      // Prefer local admin-curated books if present
+      if (Book) {
+        try {
+          const localBooks = await Book.find({}).sort({ createdAt: -1 }).limit(12).lean();
+          if (localBooks && localBooks.length) {
+            return localBooks.map(cardFromLocalBook);
+          }
+        } catch (e) {
+          console.error('home: local Book fetch failed:', e.message);
+        }
+      }
+      // Fallback to static curated list (no network, instant)
+      return curatedFeatured();
+    });
+
+    res.render('index', {
+      pageTitle: 'Home',
+      pageDescription: 'Discover free books and knowledge on BookLantern.',
+      featuredSSR
+    });
+  } catch (e) {
+    console.error('home error:', e);
+    // Render without featuredSSR (client will hydrate from /api/featured-books)
+    res.render('index', {
+      pageTitle: 'Home',
+      pageDescription: 'Discover free books and knowledge on BookLantern.'
+    });
+  }
 });
 
 router.get('/about', (req, res) => {
