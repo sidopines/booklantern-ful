@@ -25,7 +25,7 @@ function card({
   readerUrl = '',
   source = '',
   description = '',
-  archiveId = '' // <- NEW: for OL items that open via Archive viewer
+  archiveId = '' // for OL items that open via Archive viewer
 }) {
   return { identifier, title, creator, cover, readerUrl, source, description, archiveId };
 }
@@ -49,12 +49,15 @@ function uniqBy(arr, keyFn) {
 }
 
 // ---------- external fetchers ----------
+/**
+ * Internet Archive
+ * Try to keep only items that are not borrow-only by adding access-restricted:false.
+ */
 async function searchArchive(q) {
   try {
-    // Drop borrow-only items: access-restricted:false
     const query = encodeURIComponent(`(${q}) AND mediatype:texts AND access-restricted:false`);
     const fields = ['identifier', 'title', 'creator', 'description', 'publicdate', 'access-restricted'].join(',');
-    const url = `https://archive.org/advancedsearch.php?q=${query}&fl[]=${fields}&rows=40&page=1&output=json`;
+    const url = `https://archive.org/advancedsearch.php?q=${query}&fl[]=${fields}&rows=50&page=1&output=json`;
     const { data } = await http.get(url);
     const docs = data?.response?.docs || [];
     return docs
@@ -77,6 +80,10 @@ async function searchArchive(q) {
   }
 }
 
+/**
+ * Project Gutenberg (Gutendex)
+ * Pull 2 pages to boost results.
+ */
 async function searchGutenberg(q) {
   try {
     const base = `https://gutendex.com/books?search=${encodeURIComponent(q)}&page_size=50`;
@@ -111,20 +118,19 @@ async function searchGutenberg(q) {
 }
 
 /**
- * Open Library — show items we can open INSIDE our site.
- * 1) Query q= and title= with has_fulltext=true & mode=ebooks.
- * 2) Keep docs with ia[] immediately.
- * 3) Follow up to 30 edition_key to read .json and pull ocaid (IA id).
- * 4) Label source:'openlibrary' but include archiveId so we can open internally.
+ * Open Library — return items we can open INSIDE our site.
+ * Strategy:
+ *  - Run two searches (q=, title=) with has_fulltext=true AND public_scan_b=true (publicly readable).
+ *  - Do NOT use &fields= (it can drop needed keys on some results).
+ *  - Prefer docs that already have `ia[]` (direct IA id).
+ *  - For the rest, follow up a bunch of edition_key -> /books/{ed}.json to pull `ocaid` (IA id).
+ *  - Emit cards with source:'openlibrary' but include archiveId so our /read/book/:id opens internally.
  */
 async function searchOpenLibrary(q) {
   try {
-    const baseParams =
-      `has_fulltext=true&mode=ebooks&limit=100` +
-      `&fields=title,author_name,cover_i,ia,ocaid,public_scan_b,edition_key,key`;
-
-    const urlQ     = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&${baseParams}`;
-    const urlTitle = `https://openlibrary.org/search.json?title=${encodeURIComponent(q)}&${baseParams}`;
+    const params = `has_fulltext=true&public_scan_b=true&mode=ebooks&limit=50`;
+    const urlQ     = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&${params}`;
+    const urlTitle = `https://openlibrary.org/search.json?title=${encodeURIComponent(q)}&${params}`;
 
     const [r1, r2] = await Promise.allSettled([http.get(urlQ), http.get(urlTitle)]);
     const docsRaw = []
@@ -144,8 +150,8 @@ async function searchOpenLibrary(q) {
         creator: author,
         cover,
         readerUrl: archiveReader(iaId, 1),
-        source: 'openlibrary',   // <- badge shows Open Library
-        archiveId: iaId          // <- but we still open via our Archive viewer
+        source: 'openlibrary',   // badge shows Open Library
+        archiveId: iaId          // but we open via our Archive viewer internally
       });
     };
 
@@ -153,13 +159,15 @@ async function searchOpenLibrary(q) {
     const editions = [];
     for (const d of docs) {
       if (Array.isArray(d.ia) && d.ia.length > 0) {
+        // Public-scan filter already applied at query level.
         direct.push(mkOLCard(d.ia[0], d));
       } else if (Array.isArray(d.edition_key) && d.edition_key.length > 0) {
         editions.push({ d, ed: d.edition_key[0] });
       }
     }
 
-    const maxFollowups = 30;
+    // Follow up a decent batch of editions to extract a public ocaid
+    const maxFollowups = 60;
     const fetched = await Promise.allSettled(
       editions.slice(0, maxFollowups).map(({ d, ed }) =>
         http.get(`https://openlibrary.org/books/${encodeURIComponent(ed)}.json`, { timeout: 12000 })
@@ -182,7 +190,7 @@ async function searchOpenLibrary(q) {
     }
 
     const merged = uniqBy([...direct, ...viaEd], b => `${b.archiveId}|${(b.title||'').toLowerCase()}|${(b.creator||'').toLowerCase()}`)
-      .slice(0, 40);
+      .slice(0, 50);
 
     console.log(`[OL] q="${q}" direct:${direct.length} viaEditions:${viaEd.length} -> ${merged.length}`);
     return merged;
@@ -286,20 +294,14 @@ router.get('/read/book/:identifier', async (req, res) => {
   });
 });
 
-// ---------- GUTENBERG WRAPPERS (unchanged) ----------
+// ---------- GUTENBERG WRAPPERS ----------
 router.get('/read/gutenberg/:gid', async (req, res) => {
+  // Redirect the simple route to the reader UI so users always get the better template
   const gid = req.params.gid;
-  const fromQuery = (req.query.u || '').trim();
+  const u = (req.query.u || '').trim();
   const fallback = `https://www.gutenberg.org/ebooks/${gid}`;
-  const viewerUrl = fromQuery || fallback;
-
-  return res.render('gutenberg-viewer', {
-    viewerUrl,
-    gid,
-    user: req.session.user || null,
-    pageTitle: `Gutenberg #${gid} | Read`,
-    pageDescription: `Read Gutenberg #${gid} on BookLantern`
-  });
+  const viewerUrl = u || fallback;
+  return res.redirect(`/read/gutenberg/${encodeURIComponent(gid)}/reader?u=${encodeURIComponent(viewerUrl)}`);
 });
 
 router.get('/read/gutenberg/:gid/reader', async (req, res) => {
@@ -317,6 +319,9 @@ router.get('/read/gutenberg/:gid/reader', async (req, res) => {
   });
 });
 
+/**
+ * Gutenberg Proxy (keeps our domain in the bar, rewrites in-site links)
+ */
 router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
   try {
     const gid = req.params.gid;
@@ -342,7 +347,9 @@ router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
     if (!contentType.includes('text/html')) return res.send(resp.data);
 
     let html = resp.data.toString('utf8');
+    // Strip inline CSP
     html = html.replace(/<meta[^>]+http-equiv=["']Content-Security-Policy["'][^>]*>/ig, '');
+    // Inject base + basic readability CSS
     const baseHref = new URL('.', target).toString();
     const injectCss = `
       <style id="bl-proxy-style">
@@ -356,6 +363,7 @@ router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
     } else {
       html = `<base href="${baseHref}">${injectCss}` + html;
     }
+    // Re-proxy internal Gutenberg navigation
     const proxify = (absUrl) => `/read/gutenberg/${encodeURIComponent(gid)}/proxy?u=${encodeURIComponent(absUrl)}`;
     html = html.replace(/(<a\b[^>]*\shref=)(['"])([^'"]+)\2/gi, (m, p1, q, url) => {
       try {
@@ -375,6 +383,7 @@ router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
         return m;
       } catch { return m; }
     });
+
     return res.send(html);
   } catch (e) {
     console.error('Gutenberg proxy error:', e.message);
