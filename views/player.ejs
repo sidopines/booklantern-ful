@@ -4,57 +4,60 @@
  */
 pageTitle = `${video.title} | Watch`;
 pageDescription = `Watch "${video.title}"${video.genre ? ' in the ' + video.genre.name + ' category' : ''} on BookLantern.`;
-/* Extract YouTube ID safely */
-const ytMatch = (video.youtubeUrl || '').match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
-const ytId = ytMatch ? ytMatch[1] : video.youtubeUrl;
+
+/* Extract YouTube ID safely (supports youtu.be, watch?v=, and /embed/) */
+const ytMatch = (video.youtubeUrl || '').match(/(?:youtu\.be\/|v=|embed\/)([A-Za-z0-9_-]{11})/);
+const ytId = ytMatch ? ytMatch[1] : null;
 %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/header.ejs', { pageTitle, pageDescription }) %>
+  <%- include('./partials/head.ejs', { pageTitle, pageDescription }) %>
   <style>
+    :root { --bg:#0e0e0e; --text:#fff; --muted:#aaa; --link:#00aced; }
+    * { box-sizing: border-box; }
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #0e0e0e;
-      color: #fff;
       margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     }
     .container {
       max-width: 1000px;
       margin: 0 auto;
-      padding: 2rem;
+      padding: 1.25rem 1rem 2rem;
     }
     .back-link {
       display: inline-block;
-      margin-bottom: 1.5rem;
-      color: #00aced;
-      font-size: 0.9rem;
+      margin: 0.75rem 0 1rem;
+      color: var(--link);
+      font-size: 0.95rem;
       text-decoration: none;
+      opacity: .95;
     }
-    .back-link:hover {
-      text-decoration: underline;
-    }
+    .back-link:hover { text-decoration: underline; }
     h1 {
-      font-size: 2rem;
-      margin: 0 0 0.5rem 0;
+      font-size: clamp(1.5rem, 2.5vw, 2rem);
+      margin: 0 0 .4rem 0;
+      line-height: 1.2;
     }
     .meta {
-      color: #aaa;
-      font-size: 0.9rem;
-      margin-bottom: 1.5rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-bottom: 1rem;
     }
     .video-wrap {
       position: relative;
       width: 100%;
       padding-top: 56.25%; /* 16:9 */
-      margin-bottom: 1rem;
-      border-radius: 8px;
+      margin: 0 0 1rem 0;
+      border-radius: 12px;
       overflow: hidden;
       background: #000;
+      box-shadow: 0 6px 20px rgba(0,0,0,.35);
     }
     .video-wrap iframe {
-      position: absolute;
-      top: 0; left: 0;
+      position: absolute; inset: 0;
       width: 100%; height: 100%;
       border: 0;
     }
@@ -62,28 +65,51 @@ const ytId = ytMatch ? ytMatch[1] : video.youtubeUrl;
       font-size: 1rem;
       line-height: 1.6;
       white-space: pre-wrap;
-      margin-top: 1.5rem;
+      margin-top: 1rem;
+      color: #e6e6e6;
     }
+    .fallback {
+      background:#151515;
+      border:1px solid #2a2a2a;
+      border-radius:12px;
+      padding:1rem;
+      margin:0 0 1rem 0;
+    }
+    .fallback a { color: var(--link); }
   </style>
 </head>
 <body>
+  <%- include('./partials/navbar.ejs') %>
+
   <div class="container">
     <a href="javascript:history.back()" class="back-link">← Back to Watch</a>
+
     <h1><%= video.title %></h1>
     <div class="meta">
       Genre: <%= (video.genre && video.genre.name) ? video.genre.name : 'Uncategorized' %>
     </div>
 
-    <div class="video-wrap">
-      <iframe
-        src="https://www.youtube.com/embed/<%= ytId %>?rel=0"
-        title="<%= video.title %>"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        allowfullscreen>
-      </iframe>
-    </div>
+    <% if (ytId) { %>
+      <div class="video-wrap">
+        <iframe
+          src="https://www.youtube.com/embed/<%= ytId %>?rel=0"
+          title="<%= video.title %>"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen>
+        </iframe>
+      </div>
+    <% } else { %>
+      <div class="fallback">
+        <p>We couldn’t generate an embed from this URL.</p>
+        <% if (video.youtubeUrl) { %>
+          <p><a href="<%= video.youtubeUrl %>" target="_blank" rel="noopener">Open this video on YouTube ↗</a></p>
+        <% } %>
+      </div>
+    <% } %>
 
-    <div class="description"><%= video.description || '' %></div>
+    <% if (video.description) { %>
+      <div class="description"><%= video.description %></div>
+    <% } %>
   </div>
 </body>
 </html>
