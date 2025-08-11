@@ -12,14 +12,13 @@ const http = axios.create({
   }
 });
 
-// Small helper to normalize cards
+// Normalize card
 function card({ identifier = '', title = '', creator = '', cover = '', readerUrl = '', source = '', archiveId = '' }) {
   return { identifier, title, creator, cover, readerUrl, source, archiveId };
 }
 const archiveCover  = (id) => `https://archive.org/services/img/${id}`;
 const archiveReader = (id, page = 1) => `https://archive.org/stream/${id}?ui=embed#page=${page}`;
 
-// Deduper
 function uniqBy(arr, keyFn) {
   const seen = new Set();
   const out = [];
@@ -32,7 +31,7 @@ function uniqBy(arr, keyFn) {
   return out;
 }
 
-/** --------- Source fetchers (trimmed + resilient) ---------- */
+/** --------- Source fetchers ---------- */
 
 // Internet Archive – public readable only
 async function searchArchive(q, rows = 20) {
@@ -126,14 +125,12 @@ async function searchOpenLibrary(q, limit = 30) {
   }
 }
 
-/** ---------- API: Featured Books ---------- */
+/** ---------- API: Featured Books (returns an ARRAY to match index.ejs) ---------- */
 router.get('/api/featured-books', async (req, res) => {
   try {
-    // A small, curated set of queries that usually return attractive results
     const topics = ['classics', 'philosophy', 'science', 'history'];
     const tasks = [];
 
-    // Mix of sources per topic
     for (const t of topics) {
       tasks.push(searchArchive(t, 12));
       tasks.push(searchOpenLibrary(t, 20));
@@ -143,7 +140,6 @@ router.get('/api/featured-books', async (req, res) => {
     const settled = await Promise.allSettled(tasks);
     let books = settled.flatMap(s => s.status === 'fulfilled' ? s.value : []);
 
-    // De-dupe by title+creator; prefer entries with cover and readerUrl
     const seen = new Map();
     for (const b of books) {
       const key = `${(b.title||'').toLowerCase()}|${(b.creator||'').toLowerCase()}`;
@@ -157,14 +153,14 @@ router.get('/api/featured-books', async (req, res) => {
     }
     books = Array.from(seen.values()).slice(0, 16);
 
-    res.json({ items: books });
+    res.json(books); // <-- plain array for your existing front-end code
   } catch (e) {
     console.error('[home] featured fatal:', e);
-    res.status(500).json({ items: [] });
+    res.status(500).json([]);
   }
 });
 
-/** ---------- API: Curated Shelves (optional row carousels) ---------- */
+/** ---------- API: Curated Shelves (optional) ---------- */
 router.get('/api/shelves', async (req, res) => {
   try {
     const shelves = [
@@ -180,7 +176,6 @@ router.get('/api/shelves', async (req, res) => {
         searchOpenLibrary(s.q, 20),
         searchGutenberg(s.q, 1)
       ]);
-      // Blend and trim
       const mixed = uniqBy([...(arch||[]), ...(ol||[]), ...(gut||[])], b =>
         `${(b.title||'').toLowerCase()}|${(b.creator||'').toLowerCase()}`
       ).slice(0, 12);
