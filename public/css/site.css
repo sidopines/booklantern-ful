@@ -56,11 +56,19 @@ body{
   height: 64px;
 }
 .brand{
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-weight: 800;
   letter-spacing: -0.02em;
   text-decoration: none;
   font-size: 20px;
   color: var(--ink);
+}
+.brand .brand-icon{
+  width: 28px;
+  height: 28px;
+  display: block;
 }
 .links{
   list-style: none;
