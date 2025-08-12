@@ -1,0 +1,154 @@
+<!-- views/admin/index.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('../partials/head.ejs', {
+    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : 'Admin • Dashboard',
+    pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Admin overview and shortcuts'
+  }) %>
+  <link rel="stylesheet" href="/css/site.css">
+  <style>
+    :root{
+      --muted:#667085; --ink:#0f172a; --line:#eaeef3; --card:#fff; --ok:#065f46; --okBg:#ecfdf5; --err:#b42318; --errBg:#fef2f2;
+    }
+    .admin-wrap{ max-width:1100px; margin:24px auto 56px; padding:0 24px; }
+    .kpi-grid{
+      display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:16px; margin:16px 0 22px;
+    }
+    .kpi{
+      background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; box-shadow:var(--shadow);
+    }
+    .kpi h3{ margin:0 0 6px 0; font-size:14px; color:var(--muted); font-weight:600; }
+    .kpi .num{ font-size:28px; font-weight:800; letter-spacing:-.02em; }
+
+    .panel{
+      background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow);
+      padding:18px; margin-top:18px;
+    }
+    .panel h2{ margin:0 0 10px 0; font-size:18px; }
+    .quick-grid{
+      display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; margin-top:10px;
+    }
+    @media (min-width: 820px){ .quick-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); } }
+    .quick{
+      border:1px solid var(--line); border-radius:12px; padding:14px; background:#fff; display:flex; flex-direction:column; gap:8px;
+    }
+    .quick h3{ margin:0; font-size:16px; }
+    .quick p{ margin:0; color:var(--muted); font-size:13px; }
+    .quick .actions{ margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; }
+    .btn.small{ padding:8px 12px; border-radius:10px; font-size:13px; }
+    .btn.alt{ background:#fff; color:var(--ink); border:1px solid var(--line); }
+
+    .notice{ border-radius:10px; padding:10px 12px; font-size:14px; margin:12px 0; }
+    .notice.ok{ background:var(--okBg); color:var(--ok); border:1px solid #d1fae5; }
+    .notice.err{ background:var(--errBg); color:var(--err); border:1px solid #fee2e2; }
+    .topbar{
+      display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px;
+    }
+    .breadcrumbs a{ color:#1256b3; text-decoration:none; font-size:14px; }
+    .breadcrumbs a:hover{ text-decoration:underline; }
+  </style>
+</head>
+<body>
+  <%- include('../partials/navbar.ejs') %>
+
+  <div class="admin-wrap">
+    <div class="topbar">
+      <div class="breadcrumbs">
+        <a href="/">← Back to site</a>
+      </div>
+      <div class="hint">Signed in as <strong><%= (user && user.email) ? user.email : 'admin' %></strong></div>
+    </div>
+
+    <% if (typeof ok !== 'undefined' && ok) { %>
+      <div class="notice ok">✅ Saved successfully.</div>
+    <% } %>
+    <% if (typeof err !== 'undefined' && err) { %>
+      <div class="notice err">⚠️ <%= err %></div>
+    <% } %>
+
+    <h1 style="margin:8px 0 6px;">Admin Dashboard</h1>
+    <p style="color:var(--muted); margin:0 0 12px;">Overview and quick actions</p>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi">
+        <h3>Users</h3>
+        <div class="num"><%= stats && stats.users != null ? stats.users : 0 %></div>
+      </div>
+      <div class="kpi">
+        <h3>Books (local)</h3>
+        <div class="num"><%= stats && stats.books != null ? stats.books : 0 %></div>
+      </div>
+      <div class="kpi">
+        <h3>Videos</h3>
+        <div class="num"><%= stats && stats.videos != null ? stats.videos : 0 %></div>
+      </div>
+      <div class="kpi">
+        <h3>Genres</h3>
+        <div class="num"><%= stats && stats.genres != null ? stats.genres : 0 %></div>
+      </div>
+    </div>
+
+    <!-- Quick Sections -->
+    <div class="panel">
+      <h2>Content</h2>
+      <div class="quick-grid">
+        <div class="quick">
+          <h3>Books</h3>
+          <p>Add or remove admin-curated books that can appear on the homepage shelves.</p>
+          <div class="actions">
+            <a class="btn small" href="/admin/books">Manage Books</a>
+            <a class="btn small alt" href="/read">View Reader</a>
+          </div>
+        </div>
+
+        <div class="quick">
+          <h3>Videos</h3>
+          <p>Manage educational videos and thumbnails; organize them by genre.</p>
+          <div class="actions">
+            <a class="btn small" href="/admin/videos">Manage Videos</a>
+            <a class="btn small alt" href="/watch">View Watch Page</a>
+          </div>
+        </div>
+
+        <div class="quick">
+          <h3>Genres</h3>
+          <p>Create or delete genres used to categorize videos.</p>
+          <div class="actions">
+            <a class="btn small" href="/admin/genres">Manage Genres</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>People & Settings</h2>
+      <div class="quick-grid">
+        <div class="quick">
+          <h3>Users</h3>
+          <p>Search users, toggle admin role, or remove spam accounts.</p>
+          <div class="actions">
+            <a class="btn small" href="/admin/users">Manage Users</a>
+          </div>
+        </div>
+        <div class="quick">
+          <h3>Site Settings</h3>
+          <p>Edit homepage headline and subhead that power the hero section.</p>
+          <div class="actions">
+            <a class="btn small" href="/admin/settings">Open Settings</a>
+          </div>
+        </div>
+        <div class="quick">
+          <h3>View Site</h3>
+          <p>Open the homepage in a new tab to confirm changes live.</p>
+          <div class="actions">
+            <a class="btn small alt" href="/" target="_blank" rel="noopener">Open Homepage ↗</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
