@@ -10,17 +10,19 @@
 <body>
   <%- include('./partials/navbar.ejs') %>
 
-  <a href="javascript:history.back()" class="back-link">← Back</a>
-  <h1>📚 Explore Free Books</h1>
+  <main class="container" style="padding:24px 0;">
+    <a href="javascript:history.back()" class="hint" style="text-decoration:none;">← Back</a>
+    <h1 style="margin:10px 0 18px;">📚 Explore Free Books</h1>
 
-  <form action="/read" method="GET">
-    <input
-      type="text"
-      name="query"
-      placeholder="Search books by title or author"
-      value="<%= typeof query !== 'undefined' ? query : '' %>">
-    <button type="submit">Search</button>
-  </form>
+    <form action="/read" method="GET" class="searchbar" style="justify-content:flex-start;margin-left:0;">
+      <input
+        type="text"
+        name="query"
+        placeholder="Search books by title or author"
+        value="<%= typeof query !== 'undefined' ? query : '' %>">
+      <button class="btn" type="submit">Search</button>
+    </form>
+  </main>
 
   <% const hasQuery = (typeof query !== 'undefined' && String(query).trim() !== ''); %>
 
@@ -37,59 +39,62 @@
   </section>
   <% } %>
 
-  <% if (!books || books.length === 0) { %>
-    <div class="empty">No books found. Try another search term.</div>
-  <% } else { %>
-    <div class="book-grid">
-      <% books.forEach(function(book){
-           const src  = (book.source || '').toLowerCase();
-           const id   = book.identifier || book._id || '';
+  <!-- RESULTS GRID -->
+  <section class="section">
+    <div class="container">
+      <% if (!books || books.length === 0) { %>
+        <div class="hint">No books found. Try another search term.</div>
+      <% } else { %>
+        <div class="grid">
+          <% books.forEach(function(book){ %>
+            <% 
+              const src  = (book.source || '').toLowerCase();
+              const id   = book.identifier || book._id || '';
+              const ia   = book.archiveId || (src === 'archive' ? id : '');
+              const isGutenberg = (src === 'gutenberg');
+              const gutenId = isGutenberg ? String(id).replace(/^gutenberg:/,'') : '';
 
-           // Internal vs external:
-           // - archive (includes OL-with-IA) -> /read/book/:identifier
-           // - gutenberg -> our unified paginated reader /read/gutenberg/:gid/reader
-           // - everything else -> external readerUrl
-           const isArchive   = (src === 'archive');
-           const isGutenberg = (src === 'gutenberg');
-           const gutenId     = isGutenberg ? String(id).replace(/^gutenberg:/,'') : '';
+              // Build destination (prefer internal readers)
+              let dest = '#';
+              if (ia) {
+                dest = `/read/book/${encodeURIComponent(ia)}`;
+              } else if (isGutenberg) {
+                const qs = book.readerUrl ? ('?u=' + encodeURIComponent(book.readerUrl)) : '';
+                dest = `/read/gutenberg/${encodeURIComponent(gutenId)}/reader${qs}`;
+              } else if (book.readerUrl) {
+                dest = book.readerUrl;
+              }
 
-           let dest = isArchive
-             ? `/read/book/${encodeURIComponent(id)}`
-             : (isGutenberg
-                 ? `/read/gutenberg/${encodeURIComponent(gutenId)}/reader${book.readerUrl ? ('?u=' + encodeURIComponent(book.readerUrl)) : ''}`
-                 : (book.readerUrl || '#'));
+              // Gate visitors to login/register before reading
+              if (!user) {
+                dest = '/login?next=' + encodeURIComponent(dest || '/');
+              }
 
-           // Gate visitors to login/register before reading
-           <% if (!user) { %>
-             dest = '/login?next=' + encodeURIComponent(dest);
-           <% } %>
-      %>
-        <div class="book-card" data-source="<%= src %>">
-          <a href="<%= dest %>" <%= (isArchive || isGutenberg) ? '' : 'target="_blank" rel="noopener"' %> style="text-decoration:none;color:inherit">
-            <div class="thumb">
-              <% if (book.cover) { %>
-                <img src="<%= book.cover %>" alt="<%= book.title %>" loading="lazy" referrerpolicy="no-referrer">
-              <% } else { %>
-                <div class="no-cover">No Cover</div>
-              <% } %>
-            </div>
-            <h3><%= book.title %></h3>
-            <p><%= book.creator || book.author || '' %></p>
-            <div class="meta-row">
-              <% if (src) { %>
-                <span class="badge">
-                  <%= src === 'archive' ? 'Archive.org' : (src === 'gutenberg' ? 'Project Gutenberg' : (src === 'openlibrary' ? 'Open Library' : src)) %>
-                </span>
-              <% } %>
-            </div>
-            <div class="action" style="margin-top:.6rem;">
-              <span>📖 Read Now</span>
-            </div>
-          </a>
+              const internal = !!(ia || isGutenberg); // used for target attribute
+              const brand = (src === 'archive') ? 'Archive.org'
+                          : (src === 'gutenberg') ? 'Project Gutenberg'
+                          : (src === 'openlibrary') ? 'Open Library'
+                          : 'Book';
+            %>
+            <article class="card">
+              <a href="<%= dest %>" <%= internal ? '' : 'target="_blank" rel="noopener"' %> style="text-decoration:none;color:inherit">
+                <div class="thumb">
+                  <% if (book.cover) { %>
+                    <img src="<%= book.cover %>" alt="<%= book.title %>" loading="lazy" referrerpolicy="no-referrer">
+                  <% } %>
+                </div>
+                <div class="meta">
+                  <span class="badge"><%= brand %></span>
+                  <h3><%= book.title %></h3>
+                  <p><%= book.creator || book.author || '' %></p>
+                </div>
+              </a>
+            </article>
+          <% }) %>
         </div>
-      <% }) %>
+      <% } %>
     </div>
-  <% } %>
+  </section>
 
   <footer class="footer">
     &copy; <%= new Date().getFullYear() %> BookLantern • Built on open libraries • <a href="/about">About</a>
