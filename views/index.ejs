@@ -61,17 +61,6 @@
     </div>
   </section>
 
-  <!-- FEATURED BOOKS -->
-  <section class="section">
-    <div class="container">
-      <div class="shelf-header">
-        <h2>Featured Books</h2>
-        <div class="hint">Curated picks from across open libraries</div>
-      </div>
-      <div id="featured-grid" class="grid" aria-live="polite"></div>
-    </div>
-  </section>
-
   <!-- CURATED SHELVES -->
   <section class="section">
     <div class="container" id="shelves"></div>
@@ -134,12 +123,10 @@
     </div>
   </div>
 
-  <!-- HOMEPAGE POPULATION SCRIPT + “New books” toast -->
+  <!-- HOMEPAGE SCRIPT: Shelves + “New books” toast -->
   <script>
     (function(){
       const IS_LOGGED_IN = <%= !!user %>;
-
-      const featuredGrid = document.getElementById('featured-grid');
       const shelvesRoot  = document.getElementById('shelves');
       const toastEl      = document.getElementById('toast');
       const toastMsgEl   = document.getElementById('toast-msg');
@@ -147,7 +134,6 @@
       function showToast(msg){
         toastMsgEl.textContent = msg || 'New books added';
         toastEl.classList.add('show');
-        // Auto-hide after 4s
         clearTimeout(showToast._t);
         showToast._t = setTimeout(() => hideToast(), 4000);
       }
@@ -160,7 +146,7 @@
       }
 
       function buildHrefFromCard(b){
-        if (b && b.href) return b.href; // server provided deep link
+        if (b && b.href) return b.href;
         const src = (b.source || '').toLowerCase();
         const id  = b.identifier || '';
         const ia  = b.archiveId || (src === 'archive' ? id : '');
@@ -182,7 +168,6 @@
         return 'Book';
       }
 
-      // Gate all homepage book clicks: guests go to /login?next=...
       function gatedHref(dest){
         if (IS_LOGGED_IN) return dest;
         return '/login?next=' + encodeURIComponent(dest || '/');
@@ -210,14 +195,6 @@
         `;
       }
 
-      function renderGrid(items, targetEl){
-        if (!items || !items.length) {
-          targetEl.innerHTML = '<div class="hint">No books found right now. Try a search above.</div>';
-          return;
-        }
-        targetEl.innerHTML = items.map(cardTemplate).join('');
-      }
-
       function shelfTemplate(shelf){
         const cards = (shelf.items || []).map(cardTemplate).join('');
         return `
@@ -233,46 +210,20 @@
         `;
       }
 
-      // --- Featured
-      async function loadFeatured(){
-        try {
-          const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
-          if (!r.ok) throw new Error('Bad status');
-          const data =
-            await r.json();
-          const items =
-            Array.isArray(data) ? data :
-            (Array.isArray(data.items) ? data.items :
-            (Array.isArray(data.results) ? data.results : []));
-          renderGrid(items, featuredGrid);
-        } catch (e) {
-          featuredGrid.innerHTML = '<div class="hint">Could not load featured books. Try refreshing.</div>';
-          console.error('featured error', e);
-        }
-      }
-
-      // --- Shelves (+ toast logic)
       async function loadShelves(){
         try {
           const r = await fetch('/api/shelves', { credentials: 'same-origin' });
           if (!r.ok) throw new Error('Bad status');
           const data = await r.json();
           const shelves = Array.isArray(data.shelves) ? data.shelves : [];
-
-          // Render
           shelvesRoot.innerHTML = shelves.map(shelfTemplate).join('');
 
-          // Toast: if the “Trending now” shelf composition changed since last visit, ping a toast.
           const trending = shelves.find(s => String(s.title).toLowerCase() === 'trending now');
           if (trending && Array.isArray(trending.items)) {
             const sig = trending.items.map(i => i.identifier || i.title || '').join('|');
             const KEY = 'bl_trending_sig';
             const prev = localStorage.getItem(KEY);
-
-            if (prev && prev !== sig) {
-              showToast('New books added');
-            }
-            // Always update signature so next change triggers the toast
+            if (prev && prev !== sig) showToast('New books added');
             localStorage.setItem(KEY, sig);
           }
         } catch (e) {
@@ -280,7 +231,6 @@
         }
       }
 
-      loadFeatured();
       loadShelves();
     })();
   </script>
