@@ -8,7 +8,7 @@
 <head>
   <%- include('./partials/head.ejs', { pageTitle, pageDescription }) %>
   <style>
-    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --brand:#111; --brandHover:#333; --link:#1256b3; --error:#b42318; --success:#067647; }
+    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --brand:#111; --brandHover:#333; --link:#1256b3; --error:#b42318; --success:#067647; --info:#1d4ed8; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
@@ -76,8 +76,9 @@
       margin-bottom: .8rem;
       border: 1px solid;
     }
-    .alert.error { background: #fee4e2; color: var(--error); border-color: #fca5a5; }
+    .alert.error   { background: #fee4e2; color: var(--error);  border-color: #fca5a5; }
     .alert.success { background: #ecfdf3; color: var(--success); border-color: #86efac; }
+    .alert.info    { background: #eff6ff; color: var(--info);   border-color: #bfdbfe; }
 
     footer { text-align: center; color: var(--muted); padding: 1.25rem 1rem 2rem; }
   </style>
@@ -91,6 +92,10 @@
         <h1>Login</h1>
         <p class="lead">Welcome back! Sign in to continue.</p>
 
+        <% if (typeof next !== 'undefined' && next) { %>
+          <div class="alert info">After you sign in, we’ll take you back to what you were doing.</div>
+        <% } %>
+
         <% if (typeof error !== 'undefined' && error) { %>
           <div class="alert error"><%= error %></div>
         <% } %>
@@ -99,14 +104,28 @@
         <% } %>
 
         <form action="/login" method="POST" novalidate>
+          <!-- carry next destination (e.g., clicked book) -->
+          <input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '' %>">
+
           <div>
             <label for="email">Email</label>
-            <input type="email" id="email" name="email" value="<%= typeof email !== 'undefined' ? email : '' %>" required autocomplete="email" />
+            <input
+              type="email"
+              id="email"
+              name="email"
+              value="<%= typeof email !== 'undefined' ? email : '' %>"
+              required
+              autocomplete="email" />
           </div>
 
           <div>
             <label for="password">Password</label>
-            <input type="password" id="password" name="password" required autocomplete="current-password" />
+            <input
+              type="password"
+              id="password"
+              name="password"
+              required
+              autocomplete="current-password" />
           </div>
 
           <button class="btn" type="submit">Login</button>
@@ -114,7 +133,7 @@
 
         <div class="links">
           <p><a href="/forgot-password">Forgot your password?</a></p>
-          <p>Don’t have an account? <a href="/register">Register here</a></p>
+          <p>Don’t have an account? <a href="/register<%= next ? ('?next=' + encodeURIComponent(next)) : '' %>">Register here</a></p>
         </div>
       </div>
     </main>
