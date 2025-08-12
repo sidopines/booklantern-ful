@@ -1,33 +1,28 @@
 // middleware/auth.js
-// Tiny helpers to protect routes.
-// We'll use requireAdmin for the Admin dashboard & APIs.
 
-function requireLogin(req, res, next) {
+/**
+ * ensureAuthenticated
+ * - If logged in, proceed.
+ * - If not, send them to /login?next=<originalUrl>
+ */
+function ensureAuthenticated(req, res, next) {
   if (req.session && req.session.user) return next();
+
   const nextUrl = encodeURIComponent(req.originalUrl || '/');
   return res.redirect(`/login?next=${nextUrl}`);
 }
 
-function requireAdmin(req, res, next) {
-  const u = req.session && req.session.user;
-  if (u && u.isAdmin) return next();
+/**
+ * ensureAdmin
+ * - Requires an authenticated user with isAdmin === true
+ * - If not admin, respond 403 to make it clear.
+ */
+function ensureAdmin(req, res, next) {
+  if (req.session && req.session.user && req.session.user.isAdmin) return next();
 
-  if (!u) {
-    const nextUrl = encodeURIComponent(req.originalUrl || '/');
-    return res.redirect(`/login?next=${nextUrl}`);
-  }
-  // Keep this simple to avoid template errors if 403.ejs doesn't exist
-  return res.status(403).send('Admin access required.');
+  // You can change this to a redirect if you prefer:
+  // return res.redirect('/dashboard?err=admins_only');
+  return res.status(403).send('Admins only');
 }
 
-// Optional: keep res.locals.user in sync (safe even if you already set it in server.js)
-function injectUser(req, res, next) {
-  res.locals.user = req.session?.user || null;
-  next();
-}
-
-module.exports = {
-  requireLogin,
-  requireAdmin,
-  injectUser,
-};
+module.exports = { ensureAuthenticated, ensureAdmin };
