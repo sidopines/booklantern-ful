@@ -18,6 +18,8 @@
     .grow{flex:1}
     .btn{padding:6px 10px;border-radius:10px;border:1px solid #2a3340;background:var(--card);color:var(--ink);text-decoration:none;cursor:pointer}
     .btn:hover{filter:brightness(1.05)}
+    .btn.fav.active{background:#1a2432;border-color:#2b3a52}
+    .btn.fav .heart{margin-right:6px}
 
     /* Status bar */
     .status{
@@ -45,9 +47,9 @@
 <body>
 
 <%
-// Build the "next" path so guests come right back after login/register.
-const _nextBase = `/read/gutenberg/${encodeURIComponent(gid || '')}/reader`;
-const _next = startUrl ? (_nextBase + '?u=' + encodeURIComponent(startUrl)) : _nextBase;
+  // Build the "next" path so guests come right back after login/register.
+  const _nextBase = `/read/gutenberg/${encodeURIComponent(gid || '')}/reader`;
+  const _next = startUrl ? (_nextBase + '?u=' + encodeURIComponent(startUrl)) : _nextBase;
 %>
 
 <% if (!user) { %>
@@ -79,6 +81,13 @@ const _next = startUrl ? (_nextBase + '?u=' + encodeURIComponent(startUrl)) : _n
     <div class="title">Project Gutenberg</div>
     <% if (gid) { %><span class="badge">#<%= gid %></span><% } %>
     <div class="grow"></div>
+
+    <!-- NEW: Favorite toggle -->
+    <button id="favBtn" class="btn fav" type="button" aria-pressed="<%= isFavorite ? 'true' : 'false' %>">
+      <span class="heart"><%= isFavorite ? '❤️' : '🤍' %></span>
+      <span class="fav-label"><%= isFavorite ? 'Favorited' : 'Add to Favorites' %></span>
+    </button>
+
     <% if (startUrl) { %>
       <a class="btn" href="<%= startUrl %>" target="_blank" rel="noopener">Open original ↗</a>
     <% } %>
@@ -110,6 +119,49 @@ const _next = startUrl ? (_nextBase + '?u=' + encodeURIComponent(startUrl)) : _n
           status.textContent = "Still loading… If it stalls, tap “Open original”.";
         }
       }, 2000);
+
+      // ===== Favorite chip logic =====
+      const gid = "<%= String(gid || '') %>";
+      const favBtn = document.getElementById('favBtn');
+      if (favBtn && gid) {
+        let isFav = <%= isFavorite ? 'true' : 'false' %>;
+
+        const update = () => {
+          favBtn.setAttribute('aria-pressed', isFav ? 'true' : 'false');
+          favBtn.classList.toggle('active', isFav);
+          favBtn.querySelector('.heart').textContent = isFav ? '❤️' : '🤍';
+          favBtn.querySelector('.fav-label').textContent = isFav ? 'Favorited' : 'Add to Favorites';
+        };
+        update();
+
+        const toast = (msg) => {
+          status.textContent = msg;
+          status.classList.remove('hidden');
+          setTimeout(() => status.classList.add('hidden'), 1500);
+        };
+
+        favBtn.addEventListener('click', async () => {
+          try {
+            const resp = await fetch('/read/book/' + encodeURIComponent('gutenberg:' + gid) + '/favorite', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'same-origin'
+            });
+            if (resp.status === 401) {
+              location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search);
+              return;
+            }
+            const text = await resp.text();
+            if (/Added/.test(text)) isFav = true;
+            else if (/Removed/.test(text)) isFav = false;
+            else isFav = !isFav;
+            update();
+            toast(text);
+          } catch (e) {
+            toast('Failed to update favorite');
+          }
+        });
+      }
     })();
   </script>
 
