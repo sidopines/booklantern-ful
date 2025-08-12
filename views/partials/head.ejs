@@ -1,31 +1,34 @@
 <!-- views/partials/head.ejs -->
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<%
+  const t = (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern';
+  const d = (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Free books and educational videos in a clean, unified reading experience.';
+  const social = '/img/social-card.png'; // optional placeholder
+%>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= t %></title>
+<meta name="description" content="<%= d %>">
+<meta name="color-scheme" content="light">
 
-<title><%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern' %></title>
-<meta name="description" content="<%= (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Free books and educational videos in a clean, unified reading experience.' %>" />
+<!-- Favicons -->
+<link rel="icon" href="/img/brand.svg" type="image/svg+xml">
+<link rel="icon" href="/img/favicon.png" sizes="32x32">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 
 <!-- Open Graph -->
-<meta property="og:type" content="website" />
-<meta property="og:title" content="<%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern' %>" />
-<meta property="og:description" content="<%= (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Free books and educational videos in a clean, unified reading experience.' %>" />
-<meta property="og:image" content="/img/social-card.png" />
-<meta property="og:site_name" content="BookLantern" />
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="BookLantern">
+<meta property="og:title" content="<%= t %>">
+<meta property="og:description" content="<%= d %>">
+<meta property="og:image" content="<%= social %>">
 
 <!-- Twitter -->
-<meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="<%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern' %>" />
-<meta name="twitter:description" content="<%= (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Free books and educational videos in a clean, unified reading experience.' %>" />
-<meta name="twitter:image" content="/img/social-card.png" />
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="<%= t %>">
+<meta name="twitter:description" content="<%= d %>">
+<meta name="twitter:image" content="<%= social %>">
 
-<!-- Favicons (optional; safe if missing) -->
-<link rel="icon" href="/img/favicon.svg" type="image/svg+xml" />
-<link rel="icon" href="/img/favicon.png" sizes="32x32" />
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png" />
-
-<!-- Preconnect for fonts (your CSS @import will still load the font) -->
-<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-
-<!-- Main site CSS (also used by admin navbar) -->
-<link rel="stylesheet" href="/css/site.css" />
+<!-- Fonts / CSS -->
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/css/site.css">
