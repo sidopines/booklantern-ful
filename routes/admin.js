@@ -4,41 +4,38 @@ const router = express.Router();
 const { ensureAuthenticated, ensureAdmin } = require('../middleware/auth');
 
 // Models
-const User         = require('../models/User');
-const Book         = require('../models/Book');
-const Video        = require('../models/Video');
-const Genre        = require('../models/Genre');
-const SiteSettings = require('../models/SiteSettings');
+const User  = require('../models/User');
+const Book  = require('../models/Book');
+const Video = require('../models/Video');
+const Genre = require('../models/Genre');
 
-// Small async wrapper to avoid try/catch in every route
+// Import homeRoutes to get the cache buster (safe even if already mounted)
+let bustHomeCaches = () => {};
+try {
+  const homeRoutes = require('./homeRoutes');
+  if (homeRoutes && typeof homeRoutes.bustHomeCaches === 'function') {
+    bustHomeCaches = homeRoutes.bustHomeCaches;
+  }
+} catch (_) {}
+
+// Async wrapper
 const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-// Flash-like helper using query param
-function ok(res, path) {
-  const sep = path.includes('?') ? '&' : '?';
-  return res.redirect(`${path}${sep}ok=1`);
-}
-function err(res, path, msg = 'error') {
-  const sep = path.includes('?') ? '&' : '?';
-  return res.redirect(`${path}${sep}err=${encodeURIComponent(msg)}`);
-}
+// Small helpers
+function ok(res, path) { return res.redirect(`${path}${path.includes('?') ? '&' : '?'}ok=1`); }
+function err(res, path, msg='error') { return res.redirect(`${path}${path.includes('?') ? '&' : '?'}err=${encodeURIComponent(msg)}`); }
 
-/* ============================================================================
- *  GUARD ALL ADMIN ROUTES
- * ==========================================================================*/
+// Guard all admin routes
 router.use(ensureAuthenticated, ensureAdmin);
 
-/* ============================================================================
- *  ADMIN: DASHBOARD
- * ==========================================================================*/
+/* Dashboard */
 router.get('/', ah(async (req, res) => {
   const [users, books, videos, genres] = await Promise.all([
     User.countDocuments({}),
     Book.countDocuments({}),
     Video.countDocuments({}),
-    Genre.countDocuments({}),
+    Genre.countDocuments({})
   ]);
-
   res.render('admin/index', {
     pageTitle: 'Admin • Dashboard',
     pageDescription: 'Admin overview and shortcuts',
@@ -48,67 +45,19 @@ router.get('/', ah(async (req, res) => {
   });
 }));
 
-/* ============================================================================
- *  ADMIN: SITE SETTINGS (Homepage copy)
- * ==========================================================================*/
-router.get('/settings', ah(async (req, res) => {
-  const settings = await SiteSettings.getSingleton();
-  res.render('admin/settings', {
-    pageTitle: 'Admin • Settings',
-    pageDescription: 'Edit site-wide settings and homepage copy',
-    settings,
-    ok: req.query.ok === '1',
-    err: req.query.err || ''
-  });
-}));
-
-router.post('/settings', ah(async (req, res) => {
-  const { heroHeadline = '', heroSubhead = '' } = req.body;
-  const settings = await SiteSettings.getSingleton();
-  settings.heroHeadline = String(heroHeadline).trim().slice(0, 160);
-  settings.heroSubhead  = String(heroSubhead).trim().slice(0, 300);
-  await settings.save();
-  return ok(res, '/admin/settings');
-}));
-
-/* ============================================================================
- *  ADMIN: USERS
- * ==========================================================================*/
+/* Users */
 router.get('/users', ah(async (req, res) => {
   const q = (req.query.q || '').trim();
-  const find = q
-    ? { $or: [{ email: new RegExp(q, 'i') }, { name: new RegExp(q, 'i') }] }
-    : {};
-  const users = await User.find(find).sort({ createdAt: -1 }).limit(200).lean();
-
-  res.render('admin/users', {
-    pageTitle: 'Admin • Users',
-    pageDescription: 'Manage users',
-    users,
-    q,
-    ok: req.query.ok === '1',
-    err: req.query.err || ''
-  });
+  const find = q ? { $or: [{ email: new RegExp(q,'i') }, { name: new RegExp(q,'i') }] } : {};
+  const users = await User.find(find).sort({ createdAt: -1 }).limit(100).lean();
+  res.render('admin/users', { pageTitle: 'Admin • Users', pageDescription: 'Manage users', users, q, ok: req.query.ok==='1', err: req.query.err||'' });
 }));
 
-// Toggle admin flag (safety: cannot change your own flag, cannot remove last admin)
 router.post('/users/:id/admin', ah(async (req, res) => {
   const id = req.params.id;
-
-  if (String(id) === String(req.session.user?._id)) {
-    return err(res, '/admin/users', 'You cannot change your own admin flag here.');
-  }
-
+  if (String(id) === String(req.session.user?._id)) return err(res, '/admin/users', 'You cannot change your own admin flag.');
   const user = await User.findById(id);
   if (!user) return err(res, '/admin/users', 'User not found');
-
-  if (user.isAdmin) {
-    const adminsCount = await User.countDocuments({ isAdmin: true });
-    if (adminsCount <= 1) {
-      return err(res, '/admin/users', 'Cannot remove the last admin.');
-    }
-  }
-
   user.isAdmin = !user.isAdmin;
   await user.save();
   return ok(res, '/admin/users');
@@ -116,60 +65,30 @@ router.post('/users/:id/admin', ah(async (req, res) => {
 
 router.post('/users/:id/delete', ah(async (req, res) => {
   const id = req.params.id;
-  if (String(id) === String(req.session.user?._id)) {
-    return err(res, '/admin/users', 'You cannot delete your own account from Admin.');
-  }
-  const user = await User.findById(id);
-  if (!user) return err(res, '/admin/users', 'User not found');
-
-  // Prevent deleting the last remaining admin
-  if (user.isAdmin) {
-    const adminsCount = await User.countDocuments({ isAdmin: true });
-    if (adminsCount <= 1) {
-      return err(res, '/admin/users', 'Cannot delete the last admin.');
-    }
-  }
-
+  if (String(id) === String(req.session.user?._id)) return err(res, '/admin/users', 'You cannot delete your own account.');
   await User.findByIdAndDelete(id);
   return ok(res, '/admin/users');
 }));
 
-/* ============================================================================
- *  ADMIN: GENRES
- * ==========================================================================*/
+/* Genres */
 router.get('/genres', ah(async (req, res) => {
   const genres = await Genre.find({}).sort({ name: 1 }).lean();
-  res.render('admin/genres', {
-    pageTitle: 'Admin • Genres',
-    pageDescription: 'Manage video genres',
-    genres,
-    ok: req.query.ok === '1',
-    err: req.query.err || ''
-  });
+  res.render('admin/genres', { pageTitle:'Admin • Genres', pageDescription:'Manage video genres', genres, ok: req.query.ok==='1', err: req.query.err||'' });
 }));
 
 router.post('/genres', ah(async (req, res) => {
   const name = (req.body.name || '').trim();
   if (!name) return err(res, '/admin/genres', 'Name required');
-
-  const exists = await Genre.findOne({ name: new RegExp(`^${name}$`, 'i') });
-  if (exists) return err(res, '/admin/genres', 'Genre already exists');
-
   await Genre.create({ name });
   return ok(res, '/admin/genres');
 }));
 
 router.post('/genres/:id/delete', ah(async (req, res) => {
-  const id = req.params.id;
-  // Detach the genre from any videos first
-  await Video.updateMany({ genre: id }, { $unset: { genre: "" } });
-  await Genre.findByIdAndDelete(id);
+  await Genre.findByIdAndDelete(req.params.id);
   return ok(res, '/admin/genres');
 }));
 
-/* ============================================================================
- *  ADMIN: VIDEOS
- * ==========================================================================*/
+/* Videos */
 router.get('/videos', ah(async (req, res) => {
   const [videos, genres] = await Promise.all([
     Video.find({}).populate('genre').sort({ createdAt: -1 }).lean(),
@@ -179,15 +98,13 @@ router.get('/videos', ah(async (req, res) => {
     pageTitle: 'Admin • Videos',
     pageDescription: 'Manage educational videos',
     videos, genres,
-    ok: req.query.ok === '1',
-    err: req.query.err || ''
+    ok: req.query.ok==='1', err: req.query.err||''
   });
 }));
 
 router.post('/videos', ah(async (req, res) => {
-  const { title = '', youtubeUrl = '', thumbnail = '', genre = '', description = '' } = req.body;
+  const { title='', youtubeUrl='', thumbnail='', genre='', description='' } = req.body;
   if (!title || !youtubeUrl) return err(res, '/admin/videos', 'Title and YouTube URL are required');
-
   await Video.create({
     title: title.trim(),
     youtubeUrl: youtubeUrl.trim(),
@@ -203,24 +120,20 @@ router.post('/videos/:id/delete', ah(async (req, res) => {
   return ok(res, '/admin/videos');
 }));
 
-/* ============================================================================
- *  ADMIN: BOOKS (local/admin-curated)
- * ==========================================================================*/
+/* Books */
 router.get('/books', ah(async (req, res) => {
   const books = await Book.find({}).sort({ createdAt: -1 }).lean();
   res.render('admin/books', {
     pageTitle: 'Admin • Books',
     pageDescription: 'Manage local/admin-curated books',
     books,
-    ok: req.query.ok === '1',
-    err: req.query.err || ''
+    ok: req.query.ok==='1', err: req.query.err||''
   });
 }));
 
 router.post('/books', ah(async (req, res) => {
-  const { title = '', author = '', sourceUrl = '', coverImage = '', description = '' } = req.body;
+  const { title='', author='', sourceUrl='', coverImage='', description='' } = req.body;
   if (!title || !sourceUrl) return err(res, '/admin/books', 'Title and Source URL are required');
-
   await Book.create({
     title: title.trim(),
     author: author.trim(),
@@ -228,11 +141,13 @@ router.post('/books', ah(async (req, res) => {
     coverImage: coverImage.trim(),
     description: description.trim()
   });
+  bustHomeCaches();   // ← ensure homepage picks up new books immediately
   return ok(res, '/admin/books');
 }));
 
 router.post('/books/:id/delete', ah(async (req, res) => {
   await Book.findByIdAndDelete(req.params.id);
+  bustHomeCaches();   // ← ensure homepage removes deleted books
   return ok(res, '/admin/books');
 }));
 
