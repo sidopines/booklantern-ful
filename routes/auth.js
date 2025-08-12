@@ -32,6 +32,20 @@ const REDIRECTS = {
   }
 };
 
+// Carry next through session so templates don’t need a hidden field
+function stashNext(req) {
+  const qn = safeNext(req.query.next);
+  if (qn) req.session.authNext = qn;
+}
+function pullNext(req) {
+  const bodyNext = safeNext(req.body?.next);
+  const queryNext = safeNext(req.query?.next);
+  const sessionNext = safeNext(req.session?.authNext);
+  const n = bodyNext || queryNext || sessionNext || null;
+  if (req.session) req.session.authNext = null; // clear once used
+  return n;
+}
+
 // ────────────────────────────────────────────────────────────
 // GET /register
 // ────────────────────────────────────────────────────────────
@@ -39,6 +53,7 @@ router.get('/register', (req, res) => {
   if (req.session.user) {
     return res.redirect(req.session.user.isAdmin ? '/admin' : '/dashboard');
   }
+  stashNext(req); // remember ?next for after registration
   res.render('register', {
     pageTitle: 'Register | BookLantern',
     pageDescription: 'Create your free account',
@@ -50,7 +65,7 @@ router.get('/register', (req, res) => {
 // ────────────────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
   try {
-    const { name = '', email = '', password = '', adminSetupSecret = '', next = '' } = req.body;
+    const { name = '', email = '', password = '' } = req.body;
 
     const cleanName  = String(name).trim();
     const cleanEmail = String(email).trim().toLowerCase();
@@ -75,25 +90,18 @@ router.post('/register', async (req, res) => {
 
     const hash = await bcrypt.hash(cleanPass, 12);
 
-    // Allow bootstrapping an admin via secret (optional)
-    let isAdmin = false;
-    if (process.env.ADMIN_SETUP_SECRET && adminSetupSecret) {
-      if (adminSetupSecret === process.env.ADMIN_SETUP_SECRET) {
-        isAdmin = true;
-      }
-    }
-
-    // If you want email verification later, set isVerified:false and send an email.
+    // If you implement email verification later, set isVerified:false and send an email.
     const user = await User.create({
       name: cleanName,
       email: cleanEmail,
       password: hash,
       isVerified: true,
-      isAdmin
+      isAdmin: false
     });
 
     req.session.user = toSessionUser(user);
-    return res.redirect(REDIRECTS.afterRegister(user, next));
+    const nextDest = pullNext(req);
+    return res.redirect(REDIRECTS.afterRegister(user, nextDest || ''));
   } catch (err) {
     console.error('Register error:', err);
     return res.status(500).render('register', {
@@ -111,6 +119,7 @@ router.get('/login', (req, res) => {
   if (req.session.user) {
     return res.redirect(req.session.user.isAdmin ? '/admin' : '/dashboard');
   }
+  stashNext(req); // remember ?next for after login
   res.render('login', {
     pageTitle: 'Login | BookLantern',
     pageDescription: 'Access your account',
@@ -123,7 +132,7 @@ router.get('/login', (req, res) => {
 // ────────────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
   try {
-    const { email = '', password = '', next = '' } = req.body;
+    const { email = '', password = '' } = req.body;
     const cleanEmail = String(email).trim().toLowerCase();
     const cleanPass  = String(password);
 
@@ -133,7 +142,7 @@ router.post('/login', async (req, res) => {
         pageTitle: 'Login | BookLantern',
         pageDescription: 'Access your account',
         error: 'Invalid email or password.',
-        next: safeNext(next) || ''
+        next: safeNext(req.body.next) || ''
       });
     }
 
@@ -143,14 +152,17 @@ router.post('/login', async (req, res) => {
         pageTitle: 'Login | BookLantern',
         pageDescription: 'Access your account',
         error: 'Invalid email or password.',
-        next: safeNext(next) || ''
+        next: safeNext(req.body.next) || ''
       });
     }
 
     req.session.user = toSessionUser(user);
 
-    // If non-admins somehow try to land at /admin via ?next, ignore it
-    const candidate = REDIRECTS.afterLogin(user, next);
+    // Prefer ?next saved in session (so clicks from homepage go through correctly)
+    const nextParam = pullNext(req);
+    const candidate = REDIRECTS.afterLogin(user, nextParam || '');
+
+    // Non-admins cannot land on /admin even if next tried to force it
     if (!user.isAdmin && candidate.startsWith('/admin')) {
       return res.redirect('/dashboard');
     }
@@ -275,31 +287,6 @@ router.post('/settings', async (req, res) => {
     });
   } catch (err) {
     console.error('Settings (POST) error:', err);
-    res.status(500).send('Internal Server Error');
-  }
-});
-
-// ────────────────────────────────────────────────────────────
-// Optional: bootstrap the first admin (if needed)
-// GET /admin-setup?secret=...  → promotes the current logged-in user to admin
-// ────────────────────────────────────────────────────────────
-router.get('/admin-setup', async (req, res) => {
-  try {
-    if (!process.env.ADMIN_SETUP_SECRET) return res.status(404).send('Not enabled.');
-    if (!req.session.user) return res.redirect('/login?next=/admin-setup');
-
-    const { secret = '' } = req.query;
-    if (secret !== process.env.ADMIN_SETUP_SECRET) return res.status(403).send('Invalid secret');
-
-    const user = await User.findById(req.session.user._id);
-    if (!user) return res.redirect('/login');
-
-    user.isAdmin = true;
-    await user.save();
-    req.session.user = toSessionUser(user);
-    return res.redirect('/admin');
-  } catch (err) {
-    console.error('admin-setup error:', err);
     res.status(500).send('Internal Server Error');
   }
 });
