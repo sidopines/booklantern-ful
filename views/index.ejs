@@ -6,35 +6,8 @@
     pageDescription: pageDescription || 'Free books and educational videos, unified in a beautiful reading experience.'
   }) %>
   <link rel="stylesheet" href="/css/site.css">
-  <style>
-    /* Lightweight toast styles (kept local to this page) */
-    .toast-wrap{
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 9999;
-      pointer-events: none;
-    }
-    .toast{
-      display: none;
-      background: #111;
-      color: #fff;
-      border: 1px solid #2b2b2b;
-      border-radius: 999px;
-      padding: 10px 14px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.2);
-      font: 600 14px/1.2 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      pointer-events: auto;
-    }
-    .toast.show{ display: inline-flex; align-items: center; gap: 10px; animation: toastFade .25s ease-out; }
-    .toast .pill { background:#fff; color:#111; border-radius:999px; padding:4px 8px; font-size:12px; font-weight:800; }
-    .toast .close { background:transparent; border:0; color:#aaa; cursor:pointer; font-size:16px; line-height:1; padding:0 2px; }
-    .toast .close:hover{ color:#fff; }
-    @keyframes toastFade { from{ opacity:0; transform: translateX(-50%) translateY(8px);} to{ opacity:1; transform: translateX(-50%) translateY(0);} }
-  </style>
 </head>
-<body>
+<body class="home">
   <%- include('./partials/navbar.ejs') %>
 
   <!-- HERO -->
@@ -46,7 +19,6 @@
         Read in a focused, book-like experience that stays out of the way.
       </p>
 
-      <!-- Search bar that goes to /read -->
       <form class="searchbar" action="/read" method="GET">
         <input type="text" name="query" placeholder="Try ‘Plato’, ‘Socrates’, ‘Physics’, ‘Bible’…" />
         <button class="btn" type="submit">Search Books</button>
@@ -61,32 +33,23 @@
     </div>
   </section>
 
+  <!-- TRENDING (from /api/featured-books) -->
+  <section class="section section-tight">
+    <div class="container">
+      <div class="shelf-header">
+        <h2>Trending now</h2>
+        <div class="hint">Latest from BookLantern</div>
+      </div>
+      <div id="featured-grid" class="grid" aria-live="polite"></div>
+    </div>
+  </section>
+
   <!-- CURATED SHELVES -->
   <section class="section">
     <div class="container" id="shelves"></div>
   </section>
 
-  <!-- POPULAR TOPICS -->
-  <section class="section">
-    <div class="container">
-      <div class="shelf-header">
-        <h2>Popular Topics</h2>
-        <div class="hint">Start reading in one tap</div>
-      </div>
-      <div class="topic-row">
-        <a class="topic" href="/read?query=Philosophy">Philosophy</a>
-        <a class="topic" href="/read?query=Science">Science</a>
-        <a class="topic" href="/read?query=History">History</a>
-        <a class="topic" href="/read?query=Mathematics">Mathematics</a>
-        <a class="topic" href="/read?query=Classics">Classics</a>
-        <a class="topic" href="/read?query=Poetry">Poetry</a>
-        <a class="topic" href="/read?query=Biology">Biology</a>
-        <a class="topic" href="/read?query=Economics">Economics</a>
-      </div>
-    </div>
-  </section>
-
-  <!-- HOW IT WORKS -->
+  <!-- HOW IT WORKS + FOOTER kept as before -->
   <section class="section">
     <div class="container">
       <div class="shelf-header">
@@ -114,30 +77,12 @@
     &copy; <%= new Date().getFullYear() %> BookLantern • Built on open libraries • <a href="/about">About</a>
   </footer>
 
-  <!-- Toast container -->
-  <div class="toast-wrap" aria-live="polite" aria-atomic="true">
-    <div id="toast" class="toast">
-      <span class="pill">Updated</span>
-      <span id="toast-msg">New books added</span>
-      <button class="close" aria-label="Close" onclick="hideToast()">×</button>
-    </div>
-  </div>
-
-  <!-- HOMEPAGE SCRIPT: Shelves + “New books” toast -->
+  <!-- HOMEPAGE POPULATION SCRIPT -->
   <script>
     (function(){
       const IS_LOGGED_IN = <%= !!user %>;
+      const featuredGrid = document.getElementById('featured-grid');
       const shelvesRoot  = document.getElementById('shelves');
-      const toastEl      = document.getElementById('toast');
-      const toastMsgEl   = document.getElementById('toast-msg');
-
-      function showToast(msg){
-        toastMsgEl.textContent = msg || 'New books added';
-        toastEl.classList.add('show');
-        clearTimeout(showToast._t);
-        showToast._t = setTimeout(() => hideToast(), 4000);
-      }
-      window.hideToast = function(){ toastEl.classList.remove('show'); };
 
       function escapeHtml(s){
         return String(s || '')
@@ -150,16 +95,14 @@
         const src = (b.source || '').toLowerCase();
         const id  = b.identifier || '';
         const ia  = b.archiveId || (src === 'archive' ? id : '');
-        if (ia) {
-          return '/read/book/' + encodeURIComponent(ia);
-        } else if (src === 'gutenberg') {
+        if (ia) return '/read/book/' + encodeURIComponent(ia);
+        if (src === 'gutenberg') {
           const gid = String(id).replace(/^gutenberg:/,'');
           const qs  = b.readerUrl ? ('?u=' + encodeURIComponent(b.readerUrl)) : '';
           return '/read/gutenberg/' + encodeURIComponent(gid) + '/reader' + qs;
         }
         return b.readerUrl || '#';
       }
-
       function brandFromSource(src){
         const s = (src || '').toLowerCase();
         if (s === 'archive') return 'Archive.org';
@@ -167,24 +110,36 @@
         if (s === 'openlibrary') return 'Open Library';
         return 'Book';
       }
-
       function gatedHref(dest){
         if (IS_LOGGED_IN) return dest;
         return '/login?next=' + encodeURIComponent(dest || '/');
       }
 
+      // pretty fallback tile if no b.cover is provided
+      function fallbackTile(title){
+        const t = escapeHtml(title || 'Explore');
+        return `
+          <div class="thumb" style="background:linear-gradient(180deg,#f4f7ff,#eefcf7);display:flex;align-items:center;justify-content:center;">
+            <div style="text-align:center;">
+              <div style="font-size:40px;line-height:1.1">🔎</div>
+              <div style="margin-top:6px;color:#667085;font-size:12px">${t}</div>
+            </div>
+          </div>`;
+      }
+
       function cardTemplate(b){
-        const dest  = buildHrefFromCard(b);
-        const href  = gatedHref(dest);
+        const dest  = gatedHref(buildHrefFromCard(b));
         const brand = brandFromSource(b.source);
         const internal = IS_LOGGED_IN && (b.archiveId || (b.source||'').toLowerCase()==='archive' || (b.source||'').toLowerCase()==='gutenberg');
 
+        const thumb = b.cover
+          ? `<div class="thumb"><img src="${b.cover}" alt="${escapeHtml(b.title || '')}" loading="lazy" referrerpolicy="no-referrer"></div>`
+          : fallbackTile(b.title);
+
         return `
           <article class="card fade-in">
-            <a href="${href}" ${internal ? '' : 'rel="noopener"'} style="text-decoration:none;color:inherit">
-              <div class="thumb">
-                ${b.cover ? `<img src="${b.cover}" alt="${escapeHtml(b.title || '')}" loading="lazy" referrerpolicy="no-referrer">` : ''}
-              </div>
+            <a href="${dest}" ${internal ? '' : 'rel="noopener"'} style="text-decoration:none;color:inherit">
+              ${thumb}
               <div class="meta">
                 <span class="badge">${brand}</span>
                 <h3>${escapeHtml(b.title || '')}</h3>
@@ -195,19 +150,43 @@
         `;
       }
 
+      function renderGrid(items, targetEl){
+        if (!items || !items.length) {
+          targetEl.innerHTML = '<div class="hint">No books found right now. Try a search above.</div>';
+          return;
+        }
+        targetEl.innerHTML = items.map(cardTemplate).join('');
+      }
+
       function shelfTemplate(shelf){
         const cards = (shelf.items || []).map(cardTemplate).join('');
         return `
           <div class="shelf">
             <div class="shelf-header">
               <h2>${escapeHtml(shelf.title)}</h2>
-              ${shelf.q && shelf.q !== 'latest' ? `<a class="hint" href="/read?query=${encodeURIComponent(shelf.q)}">See more</a>` : `<span class="hint">Latest from BookLantern</span>`}
+              <a class="hint" href="/read?query=${encodeURIComponent(shelf.q)}">See more</a>
             </div>
             <div class="shelf-row">
               ${cards}
             </div>
           </div>
         `;
+      }
+
+      async function loadFeatured(){
+        try {
+          const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
+          if (!r.ok) throw new Error('Bad status');
+          const data = await r.json();
+          const items =
+            Array.isArray(data) ? data :
+            (Array.isArray(data.items) ? data.items :
+            (Array.isArray(data.results) ? data.results : []));
+          renderGrid(items, featuredGrid);
+        } catch (e) {
+          featuredGrid.innerHTML = '<div class="hint">Could not load featured books. Try refreshing.</div>';
+          console.error('featured error', e);
+        }
       }
 
       async function loadShelves(){
@@ -217,20 +196,12 @@
           const data = await r.json();
           const shelves = Array.isArray(data.shelves) ? data.shelves : [];
           shelvesRoot.innerHTML = shelves.map(shelfTemplate).join('');
-
-          const trending = shelves.find(s => String(s.title).toLowerCase() === 'trending now');
-          if (trending && Array.isArray(trending.items)) {
-            const sig = trending.items.map(i => i.identifier || i.title || '').join('|');
-            const KEY = 'bl_trending_sig';
-            const prev = localStorage.getItem(KEY);
-            if (prev && prev !== sig) showToast('New books added');
-            localStorage.setItem(KEY, sig);
-          }
         } catch (e) {
           console.error('shelves error', e);
         }
       }
 
+      loadFeatured();
       loadShelves();
     })();
   </script>
