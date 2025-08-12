@@ -33,7 +33,7 @@
     </div>
   </section>
 
-  <!-- TRENDING (from /api/featured-books) -->
+  <!-- TRENDING (single instance) -->
   <section class="section section-tight">
     <div class="container">
       <div class="shelf-header">
@@ -49,7 +49,7 @@
     <div class="container" id="shelves"></div>
   </section>
 
-  <!-- HOW IT WORKS + FOOTER kept as before -->
+  <!-- HOW IT WORKS -->
   <section class="section">
     <div class="container">
       <div class="shelf-header">
@@ -81,8 +81,12 @@
   <script>
     (function(){
       const IS_LOGGED_IN = <%= !!user %>;
+
       const featuredGrid = document.getElementById('featured-grid');
       const shelvesRoot  = document.getElementById('shelves');
+
+      // track identifiers shown in Trending to avoid duplicates below
+      const SEEN = new Set();
 
       function escapeHtml(s){
         return String(s || '')
@@ -115,16 +119,27 @@
         return '/login?next=' + encodeURIComponent(dest || '/');
       }
 
-      // pretty fallback tile if no b.cover is provided
+      // gradient fallback tile (never show an empty card)
       function fallbackTile(title){
         const t = escapeHtml(title || 'Explore');
         return `
           <div class="thumb" style="background:linear-gradient(180deg,#f4f7ff,#eefcf7);display:flex;align-items:center;justify-content:center;">
             <div style="text-align:center;">
-              <div style="font-size:40px;line-height:1.1">🔎</div>
+              <div style="font-size:40px;line-height:1.1">📖</div>
               <div style="margin-top:6px;color:#667085;font-size:12px">${t}</div>
             </div>
           </div>`;
+      }
+
+      // attach onerror fallbacks AFTER we inject the grid
+      function enableImageFallbacks(root){
+        root.querySelectorAll('img[data-cover]').forEach(img => {
+          img.addEventListener('error', () => {
+            const title = img.getAttribute('data-title') || 'Explore';
+            const parent = img.parentElement;
+            if (parent) parent.innerHTML = fallbackTile(title);
+          }, { once:true });
+        });
       }
 
       function cardTemplate(b){
@@ -132,8 +147,9 @@
         const brand = brandFromSource(b.source);
         const internal = IS_LOGGED_IN && (b.archiveId || (b.source||'').toLowerCase()==='archive' || (b.source||'').toLowerCase()==='gutenberg');
 
+        const title = escapeHtml(b.title || '');
         const thumb = b.cover
-          ? `<div class="thumb"><img src="${b.cover}" alt="${escapeHtml(b.title || '')}" loading="lazy" referrerpolicy="no-referrer"></div>`
+          ? `<div class="thumb"><img data-cover data-title="${title}" src="${b.cover}" alt="${title}" loading="lazy" referrerpolicy="no-referrer"></div>`
           : fallbackTile(b.title);
 
         return `
@@ -142,7 +158,7 @@
               ${thumb}
               <div class="meta">
                 <span class="badge">${brand}</span>
-                <h3>${escapeHtml(b.title || '')}</h3>
+                <h3>${title}</h3>
                 <p>${escapeHtml(b.creator || '')}</p>
               </div>
             </a>
@@ -156,10 +172,20 @@
           return;
         }
         targetEl.innerHTML = items.map(cardTemplate).join('');
+        enableImageFallbacks(targetEl);
       }
 
       function shelfTemplate(shelf){
-        const cards = (shelf.items || []).map(cardTemplate).join('');
+        // remove anything already shown in Trending
+        const deduped = (shelf.items || []).filter(x => {
+          const key = (x.identifier || x.title || '').toString();
+          return key && !SEEN.has(key);
+        }).slice(0, 12);
+
+        const cards = deduped.map(cardTemplate).join('');
+        // record these so we don’t repeat in later shelves either
+        deduped.forEach(x => SEEN.add((x.identifier || x.title || '').toString()));
+
         return `
           <div class="shelf">
             <div class="shelf-header">
@@ -182,6 +208,8 @@
             Array.isArray(data) ? data :
             (Array.isArray(data.items) ? data.items :
             (Array.isArray(data.results) ? data.results : []));
+          // mark as seen for dedupe
+          items.forEach(b => SEEN.add((b.identifier || b.title || '').toString()));
           renderGrid(items, featuredGrid);
         } catch (e) {
           featuredGrid.innerHTML = '<div class="hint">Could not load featured books. Try refreshing.</div>';
@@ -196,13 +224,13 @@
           const data = await r.json();
           const shelves = Array.isArray(data.shelves) ? data.shelves : [];
           shelvesRoot.innerHTML = shelves.map(shelfTemplate).join('');
+          enableImageFallbacks(shelvesRoot);
         } catch (e) {
           console.error('shelves error', e);
         }
       }
 
-      loadFeatured();
-      loadShelves();
+      loadFeatured().then(loadShelves);
     })();
   </script>
 </body>
