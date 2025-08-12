@@ -1,0 +1,126 @@
+<!-- views/admin/settings.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('../partials/head.ejs', {
+    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : 'Admin • Settings',
+    pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Edit site-wide settings'
+  }) %>
+  <style>
+    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --link:#1256b3; --brand:#111; --brandHover:#333; --ok:#065f46; --okbg:#d1fae5; --err:#b45309; --errbg:#fef3c7; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+    main { max-width: 960px; margin: 2rem auto 3rem; padding: 0 1rem; }
+    .back-link { display:inline-block; margin-bottom:1rem; color:var(--link); text-decoration:none; font-size:.95rem; }
+    .back-link:hover{ text-decoration:underline; }
+    h1 { margin:0 0 1.25rem 0; font-size: clamp(1.6rem, 2.5vw, 2rem); }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.06);
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .card h2 { margin: 0 0 .75rem 0; font-size: 1.1rem; }
+
+    form .row { display: grid; grid-template-columns: 1fr; gap: .75rem; }
+    @media (min-width: 720px){ form .row { grid-template-columns: 1fr 1fr; } }
+    .full { grid-column: 1 / -1; }
+
+    label { font-weight: 600; display:block; margin: .3rem 0; }
+    input[type="text"], textarea {
+      width: 100%;
+      padding: .7rem .8rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      font-size: 1rem;
+    }
+    textarea { min-height: 120px; resize: vertical; }
+
+    .actions { margin-top: .75rem; display:flex; gap:.5rem; }
+    .btn {
+      padding: .7rem 1rem; border: 1px solid var(--border); border-radius: 10px;
+      background: var(--brand); color: #fff; font-weight: 600; cursor: pointer;
+    }
+    .btn:hover { background: var(--brandHover); }
+    .btn.secondary { background:#fff; color:var(--text); }
+
+    .flash-ok   { background: var(--okbg); color: var(--ok); padding:.65rem .8rem; border-radius:10px; font-weight:600; }
+    .flash-err  { background: var(--errbg); color: var(--err); padding:.65rem .8rem; border-radius:10px; font-weight:600; }
+
+    /* Simple live preview of homepage hero */
+    .preview {
+      margin-top: .75rem;
+      border: 1px dashed var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      background:
+        radial-gradient(1200px 500px at 20% -10%, #e9f0ff 0%, transparent 55%),
+        radial-gradient(900px 400px at 90% 0%, #e8fff7 0%, transparent 60%),
+        #f7f9fc;
+    }
+    .preview h3 { margin:0 0 .4rem 0; font-size: 22px; }
+    .preview p  { margin:0; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <%- include('../partials/navbar.ejs') %>
+
+  <main>
+    <a href="/admin" class="back-link">← Back to Admin</a>
+    <h1>Site Settings</h1>
+
+    <% if (typeof ok !== 'undefined' && ok) { %>
+      <div class="flash-ok">Saved!</div>
+    <% } %>
+    <% if (typeof err !== 'undefined' && err) { %>
+      <div class="flash-err"><%= err %></div>
+    <% } %>
+
+    <section class="card">
+      <h2>Homepage Hero Copy</h2>
+      <form action="/admin/settings" method="POST">
+        <div class="row">
+          <div class="full">
+            <label for="heroHeadline">Headline (max 160 chars)</label>
+            <input
+              type="text"
+              id="heroHeadline"
+              name="heroHeadline"
+              maxlength="160"
+              value="<%= (settings && settings.heroHeadline) ? settings.heroHeadline : '' %>"
+              placeholder="e.g., Books, beautifully."
+            />
+          </div>
+          <div class="full">
+            <label for="heroSubhead">Subhead (max 300 chars)</label>
+            <textarea
+              id="heroSubhead"
+              name="heroSubhead"
+              maxlength="300"
+              placeholder="Short sentence describing what BookLantern offers."><%= (settings && settings.heroSubhead) ? settings.heroSubhead : '' %></textarea>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" type="submit">Save Settings</button>
+          <a class="btn secondary" href="/">View Homepage</a>
+        </div>
+
+        <div class="preview">
+          <h3><%= (settings && settings.heroHeadline) ? settings.heroHeadline : 'Books, beautifully.' %></h3>
+          <p><%= (settings && settings.heroSubhead) ? settings.heroSubhead : 'Search the open stacks—Archive.org, Open Library, and Project Gutenberg. Read in a focused, book-like experience that stays out of the way.' %></p>
+        </div>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
