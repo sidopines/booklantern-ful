@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('../partials/head.ejs', {
+    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : 'Admin • Genres',
+    pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Manage video genres'
+  }) %>
+  <style>
+    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --link:#1256b3; --brand:#111; --brandHover:#333; --danger:#b42318; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    main { max-width: 900px; margin: 2rem auto 3rem; padding: 0 1rem; }
+
+    .crumbs { display:flex; align-items:center; gap:.5rem; margin-bottom: 1rem; }
+    .crumbs a { color: var(--link); text-decoration: none; font-size: .95rem; }
+    .crumbs a:hover { text-decoration: underline; }
+
+    h1 { margin: 0 0 1rem 0; font-size: clamp(1.6rem, 2.5vw, 2rem); }
+
+    .notice { margin: 10px 0; padding: 10px 12px; border-radius: 10px; font-size: .95rem; }
+    .notice.ok  { background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; }
+    .notice.err { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
+
+    .grid { display:grid; grid-template-columns: 1fr; gap: 1rem; }
+    @media (min-width: 960px){ .grid { grid-template-columns: 1fr 1fr; } }
+
+    .card { background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow:0 8px 28px rgba(0,0,0,.06); padding: 1rem; }
+    .card h2 { margin: 0 0 .75rem 0; font-size: 1.1rem; }
+
+    form.flex { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+    form.flex input[type="text"]{
+      flex: 1 1 220px; min-width: 200px;
+      padding: .6rem .7rem; border:1px solid var(--border); border-radius:10px; background:#fff;
+    }
+    .btn { padding:.65rem 1rem; border:1px solid var(--border); border-radius:10px; background:var(--brand); color:#fff; font-weight:600; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px;}
+    .btn:hover{ background: var(--brandHover); }
+    .btn.outline{ background:#fff; color:var(--text); }
+    .btn.danger{ background:var(--danger); border-color:#fca5a5; }
+    .btn.small{ padding:.45rem .7rem; border-radius:8px; font-size:.9rem; }
+
+    ul.list { list-style:none; margin:.25rem 0 0 0; padding:0; }
+    ul.list li{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:.75rem; padding:.6rem .2rem; border-bottom:1px solid var(--border);
+    }
+    ul.list li:last-child{ border-bottom:0; }
+    .name { font-weight: 700; }
+    .row-actions { display:flex; gap:.4rem; }
+    .row-actions form { display:inline; }
+  </style>
+</head>
+<body>
+  <%- include('../partials/navbar.ejs') %>
+
+  <main>
+    <div class="crumbs">
+      <a href="/admin">← Admin</a>
+      <span style="color:#94a3b8">/</span>
+      <span>Genres</span>
+    </div>
+
+    <h1>Genres</h1>
+
+    <% if (ok) { %><div class="notice ok">✅ Saved.</div><% } %>
+    <% if (err) { %><div class="notice err">⚠️ <%= err %></div><% } %>
+
+    <div class="grid">
+      <!-- Add Genre -->
+      <section class="card">
+        <h2>Add New Genre</h2>
+        <form class="flex" method="POST" action="/admin/genres">
+          <input type="text" name="name" placeholder="e.g., Science, History, Philosophy" required />
+          <button class="btn" type="submit">Add Genre</button>
+        </form>
+        <p style="color:#667085; font-size:.92rem; margin:.6rem 0 0;">
+          Genres are used to organize videos on the Watch page.
+        </p>
+      </section>
+
+      <!-- Existing Genres -->
+      <section class="card">
+        <h2>Existing Genres</h2>
+        <% if (!genres || genres.length === 0) { %>
+          <p style="color:#667085;">No genres yet.</p>
+        <% } else { %>
+          <ul class="list">
+            <% genres.forEach(function(g){ %>
+              <li>
+                <span class="name"><%= g.name %></span>
+                <div class="row-actions">
+                  <form method="POST" action="/admin/genres/<%= g._id %>/delete" onsubmit="return confirm('Delete genre “<%= g.name %>”?')">
+                    <button class="btn small danger" type="submit">Delete</button>
+                  </form>
+                </div>
+              </li>
+            <% }) %>
+          </ul>
+        <% } %>
+      </section>
+    </div>
+
+    <div style="margin-top: 16px;">
+      <a href="/admin" class="btn outline">← Back to Admin</a>
+    </div>
+  </main>
+</body>
+</html>
