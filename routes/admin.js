@@ -13,16 +13,6 @@ const SiteSettings = require('../models/SiteSettings');
 // Small async wrapper to avoid try/catch in every route
 const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-// Simple helper to read a clean "next" path (avoid open redirects)
-function safeNext(url) {
-  if (!url || typeof url !== 'string') return null;
-  try {
-    // Only allow same-site relative paths
-    if (url.startsWith('/') && !url.startsWith('//')) return url;
-  } catch (_) {}
-  return null;
-}
-
 // Flash-like helper using query param
 function ok(res, path) {
   const sep = path.includes('?') ? '&' : '?';
@@ -65,7 +55,7 @@ router.get('/settings', ah(async (req, res) => {
   const settings = await SiteSettings.getSingleton();
   res.render('admin/settings', {
     pageTitle: 'Admin • Settings',
-    pageDescription: 'Edit site-wide settings',
+    pageDescription: 'Edit site-wide settings and homepage copy',
     settings,
     ok: req.query.ok === '1',
     err: req.query.err || ''
@@ -89,7 +79,7 @@ router.get('/users', ah(async (req, res) => {
   const find = q
     ? { $or: [{ email: new RegExp(q, 'i') }, { name: new RegExp(q, 'i') }] }
     : {};
-  const users = await User.find(find).sort({ createdAt: -1 }).limit(100).lean();
+  const users = await User.find(find).sort({ createdAt: -1 }).limit(200).lean();
 
   res.render('admin/users', {
     pageTitle: 'Admin • Users',
@@ -101,13 +91,24 @@ router.get('/users', ah(async (req, res) => {
   });
 }));
 
+// Toggle admin flag (safety: cannot change your own flag, cannot remove last admin)
 router.post('/users/:id/admin', ah(async (req, res) => {
   const id = req.params.id;
+
   if (String(id) === String(req.session.user?._id)) {
     return err(res, '/admin/users', 'You cannot change your own admin flag here.');
   }
+
   const user = await User.findById(id);
   if (!user) return err(res, '/admin/users', 'User not found');
+
+  if (user.isAdmin) {
+    const adminsCount = await User.countDocuments({ isAdmin: true });
+    if (adminsCount <= 1) {
+      return err(res, '/admin/users', 'Cannot remove the last admin.');
+    }
+  }
+
   user.isAdmin = !user.isAdmin;
   await user.save();
   return ok(res, '/admin/users');
@@ -118,8 +119,18 @@ router.post('/users/:id/delete', ah(async (req, res) => {
   if (String(id) === String(req.session.user?._id)) {
     return err(res, '/admin/users', 'You cannot delete your own account from Admin.');
   }
-  const del = await User.findByIdAndDelete(id);
-  if (!del) return err(res, '/admin/users', 'User not found');
+  const user = await User.findById(id);
+  if (!user) return err(res, '/admin/users', 'User not found');
+
+  // Prevent deleting the last remaining admin
+  if (user.isAdmin) {
+    const adminsCount = await User.countDocuments({ isAdmin: true });
+    if (adminsCount <= 1) {
+      return err(res, '/admin/users', 'Cannot delete the last admin.');
+    }
+  }
+
+  await User.findByIdAndDelete(id);
   return ok(res, '/admin/users');
 }));
 
@@ -140,12 +151,19 @@ router.get('/genres', ah(async (req, res) => {
 router.post('/genres', ah(async (req, res) => {
   const name = (req.body.name || '').trim();
   if (!name) return err(res, '/admin/genres', 'Name required');
+
+  const exists = await Genre.findOne({ name: new RegExp(`^${name}$`, 'i') });
+  if (exists) return err(res, '/admin/genres', 'Genre already exists');
+
   await Genre.create({ name });
   return ok(res, '/admin/genres');
 }));
 
 router.post('/genres/:id/delete', ah(async (req, res) => {
-  await Genre.findByIdAndDelete(req.params.id);
+  const id = req.params.id;
+  // Detach the genre from any videos first
+  await Video.updateMany({ genre: id }, { $unset: { genre: "" } });
+  await Genre.findByIdAndDelete(id);
   return ok(res, '/admin/genres');
 }));
 
@@ -169,6 +187,7 @@ router.get('/videos', ah(async (req, res) => {
 router.post('/videos', ah(async (req, res) => {
   const { title = '', youtubeUrl = '', thumbnail = '', genre = '', description = '' } = req.body;
   if (!title || !youtubeUrl) return err(res, '/admin/videos', 'Title and YouTube URL are required');
+
   await Video.create({
     title: title.trim(),
     youtubeUrl: youtubeUrl.trim(),
@@ -201,6 +220,7 @@ router.get('/books', ah(async (req, res) => {
 router.post('/books', ah(async (req, res) => {
   const { title = '', author = '', sourceUrl = '', coverImage = '', description = '' } = req.body;
   if (!title || !sourceUrl) return err(res, '/admin/books', 'Title and Source URL are required');
+
   await Book.create({
     title: title.trim(),
     author: author.trim(),
