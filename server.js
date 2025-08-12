@@ -7,7 +7,6 @@ const path       = require('path');
 const session    = require('express-session');
 const MongoStore = require('connect-mongo');
 
-// Routes
 const authRoutes  = require('./routes/auth');
 const bookRoutes  = require('./routes/bookRoutes');
 const indexRoutes = require('./routes/index');
@@ -19,6 +18,12 @@ const Video = require('./models/Video');
 const Genre = require('./models/Genre');
 
 const app = express();
+const isProd = process.env.NODE_ENV === 'production';
+
+// (Optional) keep startup quiet/fast in production
+if (isProd) {
+  mongoose.set('autoIndex', false);
+}
 
 // ─── 1) CONNECT TO MONGODB ────────────────────────────────────────────────────
 mongoose
@@ -30,6 +35,7 @@ mongoose
   });
 
 // ─── 2) CORE EXPRESS + TRUST PROXY (Render/Cloud) ─────────────────────────────
+app.disable('x-powered-by');
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
@@ -37,14 +43,19 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', 1);
 
 // Static files
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: isProd ? '7d' : 0,
+  setHeaders: (res) => {
+    // Allow fonts/images/CSS to be cached by the browser
+    if (isProd) res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+  }
+}));
 
 // Body parsers (needed for login, forms, and bookmark POST JSON)
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 // ─── 3) SESSION (Mongo-backed) ────────────────────────────────────────────────
-const isProd = process.env.NODE_ENV === 'production';
 app.use(session({
   secret: process.env.JWT_SECRET || 'change-me',
   resave: false,
@@ -74,7 +85,7 @@ app.use('/', authRoutes);        // login / register / dashboard / settings
 app.use('/admin', adminRoutes);  // Admin console (protected by middleware)
 app.use('/', bookRoutes);        // /read, /read/book/:identifier, bookmarks, favorites
 
-// ─── 6) WATCH + PLAYER (subscribers) ─────────────────────────────────────────
+// Public watch + player
 app.get('/watch', async (req, res) => {
   try {
     const genreFilter = req.query.genre || '';
@@ -114,7 +125,10 @@ app.get('/player/:id', async (req, res) => {
   }
 });
 
-// ─── 7) STATIC / 404 / ERROR ─────────────────────────────────────────────────
+// Simple healthcheck (useful for Render)
+app.get('/healthz', (req, res) => res.type('text/plain').send('ok'));
+
+// ─── 6) STATIC / 404 / ERROR ─────────────────────────────────────────────────
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain');
   res.sendFile(path.join(__dirname, 'public', 'robots.txt'));
@@ -132,6 +146,6 @@ app.use((err, req, res, next) => {
   res.status(500).send('Internal Server Error');
 });
 
-// ─── 8) START ────────────────────────────────────────────────────────────────
+// ─── 7) START ────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
