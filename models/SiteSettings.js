@@ -1,32 +1,52 @@
 // models/SiteSettings.js
 const mongoose = require('mongoose');
 
-const siteSettingsSchema = new mongoose.Schema({
-  // Homepage hero copy (editable by Admin)
-  heroHeadline: {
-    type: String,
-    default: 'Books, beautifully.',
-    trim: true,
-  },
-  heroSubhead: {
-    type: String,
-    default: 'Search the open stacks—Archive.org, Open Library, and Project Gutenberg. Read in a focused, book-like experience that stays out of the way.',
-    trim: true,
-  },
+/**
+ * Singleton document that stores site-wide, admin-editable settings
+ * (hero headline/subhead for homepage, and room to grow).
+ *
+ * We pin the _id to "singleton" so there is exactly one document.
+ */
+const siteSettingsSchema = new mongoose.Schema(
+  {
+    _id: { type: String, default: 'singleton' },
 
-  // Reserved for future Admin customization (leave here; harmless defaults)
-  // e.g., gateGuests: { type: Boolean, default: true },
-  // featuredOverride: [ { identifier, title, ... } ],
-}, { timestamps: true });
+    // Homepage hero copy (editable at /admin/settings)
+    heroHeadline: {
+      type: String,
+      default: 'Books, beautifully.',
+      maxlength: 160,
+      trim: true,
+    },
+    heroSubhead: {
+      type: String,
+      default:
+        'Search the open stacks—Archive.org, Open Library, and Project Gutenberg. Read in a focused, book-like experience that stays out of the way.',
+      maxlength: 300,
+      trim: true,
+    },
+
+    // (Future) Allow toggles/flags without schema changes
+    flags: {
+      type: Map,
+      of: Boolean,
+      default: {},
+    },
+
+    // (Future) Put curated shelf presets here if you want to manage them in UI
+    // shelves: [{ title: String, q: String }]
+  },
+  { timestamps: true }
+);
 
 /**
- * Singleton helper:
- * Always return exactly one document. If none exists, create with defaults.
+ * Get the singleton settings document, creating it if missing.
+ * Always returns a real mongoose document (not lean).
  */
-siteSettingsSchema.statics.getSingleton = async function () {
-  let doc = await this.findOne({});
+siteSettingsSchema.statics.getSingleton = async function getSingleton() {
+  let doc = await this.findById('singleton');
   if (!doc) {
-    doc = await this.create({});
+    doc = await this.create({ _id: 'singleton' });
   }
   return doc;
 };
