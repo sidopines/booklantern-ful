@@ -1,264 +1,219 @@
 // routes/admin.js
 const express = require('express');
 const router = express.Router();
-const { requireAdmin } = require('../middleware/auth');
+const { ensureAuthenticated, ensureAdmin } = require('../middleware/auth');
 
-const User  = require('../models/User');
-const Book  = require('../models/Book');
-const Video = require('../models/Video');
-const Genre = require('../models/Genre');
+// Models
+const User         = require('../models/User');
+const Book         = require('../models/Book');
+const Video        = require('../models/Video');
+const Genre        = require('../models/Genre');
+const SiteSettings = require('../models/SiteSettings');
 
-// All admin pages/APIs require admin login
-router.use(requireAdmin);
+// Small async wrapper to avoid try/catch in every route
+const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-/* =========================
-   DASHBOARD
-   ========================= */
-router.get('/', async (req, res) => {
+// Simple helper to read a clean "next" path (avoid open redirects)
+function safeNext(url) {
+  if (!url || typeof url !== 'string') return null;
   try {
-    const [users, books, videos, genres] = await Promise.all([
-      User.countDocuments({}),
-      Book.countDocuments({}),
-      Video.countDocuments({}),
-      Genre.countDocuments({}),
-    ]);
+    // Only allow same-site relative paths
+    if (url.startsWith('/') && !url.startsWith('//')) return url;
+  } catch (_) {}
+  return null;
+}
 
-    res.render('admin/dashboard', {
-      pageTitle: 'Admin · Dashboard',
-      pageDescription: 'Overview',
-      counts: { users, books, videos, genres },
-    });
-  } catch (e) {
-    console.error('admin dashboard error:', e);
-    res.status(500).send('Admin dashboard error');
+// Flash-like helper using query param
+function ok(res, path) {
+  const sep = path.includes('?') ? '&' : '?';
+  return res.redirect(`${path}${sep}ok=1`);
+}
+function err(res, path, msg = 'error') {
+  const sep = path.includes('?') ? '&' : '?';
+  return res.redirect(`${path}${sep}err=${encodeURIComponent(msg)}`);
+}
+
+/* ============================================================================
+ *  GUARD ALL ADMIN ROUTES
+ * ==========================================================================*/
+router.use(ensureAuthenticated, ensureAdmin);
+
+/* ============================================================================
+ *  ADMIN: DASHBOARD
+ * ==========================================================================*/
+router.get('/', ah(async (req, res) => {
+  const [users, books, videos, genres] = await Promise.all([
+    User.countDocuments({}),
+    Book.countDocuments({}),
+    Video.countDocuments({}),
+    Genre.countDocuments({}),
+  ]);
+
+  res.render('admin/index', {
+    pageTitle: 'Admin • Dashboard',
+    pageDescription: 'Admin overview and shortcuts',
+    stats: { users, books, videos, genres },
+    ok: req.query.ok === '1',
+    err: req.query.err || ''
+  });
+}));
+
+/* ============================================================================
+ *  ADMIN: SITE SETTINGS (Homepage copy)
+ * ==========================================================================*/
+router.get('/settings', ah(async (req, res) => {
+  const settings = await SiteSettings.getSingleton();
+  res.render('admin/settings', {
+    pageTitle: 'Admin • Settings',
+    pageDescription: 'Edit site-wide settings',
+    settings,
+    ok: req.query.ok === '1',
+    err: req.query.err || ''
+  });
+}));
+
+router.post('/settings', ah(async (req, res) => {
+  const { heroHeadline = '', heroSubhead = '' } = req.body;
+  const settings = await SiteSettings.getSingleton();
+  settings.heroHeadline = String(heroHeadline).trim().slice(0, 160);
+  settings.heroSubhead  = String(heroSubhead).trim().slice(0, 300);
+  await settings.save();
+  return ok(res, '/admin/settings');
+}));
+
+/* ============================================================================
+ *  ADMIN: USERS
+ * ==========================================================================*/
+router.get('/users', ah(async (req, res) => {
+  const q = (req.query.q || '').trim();
+  const find = q
+    ? { $or: [{ email: new RegExp(q, 'i') }, { name: new RegExp(q, 'i') }] }
+    : {};
+  const users = await User.find(find).sort({ createdAt: -1 }).limit(100).lean();
+
+  res.render('admin/users', {
+    pageTitle: 'Admin • Users',
+    pageDescription: 'Manage users',
+    users,
+    q,
+    ok: req.query.ok === '1',
+    err: req.query.err || ''
+  });
+}));
+
+router.post('/users/:id/admin', ah(async (req, res) => {
+  const id = req.params.id;
+  if (String(id) === String(req.session.user?._id)) {
+    return err(res, '/admin/users', 'You cannot change your own admin flag here.');
   }
-});
+  const user = await User.findById(id);
+  if (!user) return err(res, '/admin/users', 'User not found');
+  user.isAdmin = !user.isAdmin;
+  await user.save();
+  return ok(res, '/admin/users');
+}));
 
-/* =========================
-   BOOKS
-   ========================= */
-router.get('/books', async (req, res) => {
-  try {
-    const books = await Book.find({}).sort({ createdAt: -1 }).lean();
-    res.render('admin/books', {
-      pageTitle: 'Admin · Books',
-      pageDescription: 'Manage local/curated books',
-      books,
-    });
-  } catch (e) {
-    console.error('admin books list error:', e);
-    res.status(500).send('Admin books error');
+router.post('/users/:id/delete', ah(async (req, res) => {
+  const id = req.params.id;
+  if (String(id) === String(req.session.user?._id)) {
+    return err(res, '/admin/users', 'You cannot delete your own account from Admin.');
   }
-});
+  const del = await User.findByIdAndDelete(id);
+  if (!del) return err(res, '/admin/users', 'User not found');
+  return ok(res, '/admin/users');
+}));
 
-router.post('/books', async (req, res) => {
-  try {
-    const { title, author, sourceUrl, coverImage, genre, description } = req.body;
-    await Book.create({
-      title,
-      author,
-      sourceUrl,
-      coverImage,
-      genre,        // optional free-text in your schema
-      description,
-    });
-    res.redirect('/admin/books');
-  } catch (e) {
-    console.error('admin create book error:', e);
-    res.status(500).send('Failed to add book');
-  }
-});
+/* ============================================================================
+ *  ADMIN: GENRES
+ * ==========================================================================*/
+router.get('/genres', ah(async (req, res) => {
+  const genres = await Genre.find({}).sort({ name: 1 }).lean();
+  res.render('admin/genres', {
+    pageTitle: 'Admin • Genres',
+    pageDescription: 'Manage video genres',
+    genres,
+    ok: req.query.ok === '1',
+    err: req.query.err || ''
+  });
+}));
 
-router.post('/books/:id/delete', async (req, res) => {
-  try {
-    await Book.findByIdAndDelete(req.params.id);
-    res.redirect('/admin/books');
-  } catch (e) {
-    console.error('admin delete book error:', e);
-    res.status(500).send('Failed to delete book');
-  }
-});
+router.post('/genres', ah(async (req, res) => {
+  const name = (req.body.name || '').trim();
+  if (!name) return err(res, '/admin/genres', 'Name required');
+  await Genre.create({ name });
+  return ok(res, '/admin/genres');
+}));
 
-/* =========================
-   VIDEOS
-   ========================= */
-router.get('/videos', async (req, res) => {
-  try {
-    const [videos, genres] = await Promise.all([
-      Video.find({}).populate('genre').sort({ createdAt: -1 }).lean(),
-      Genre.find({}).sort({ name: 1 }).lean(),
-    ]);
-    res.render('admin/videos', {
-      pageTitle: 'Admin · Videos',
-      pageDescription: 'Manage videos',
-      videos,
-      genres,
-    });
-  } catch (e) {
-    console.error('admin videos list error:', e);
-    res.status(500).send('Admin videos error');
-  }
-});
+router.post('/genres/:id/delete', ah(async (req, res) => {
+  await Genre.findByIdAndDelete(req.params.id);
+  return ok(res, '/admin/genres');
+}));
 
-router.post('/videos', async (req, res) => {
-  try {
-    const { title, youtubeUrl, thumbnail, genre, description } = req.body;
-    await Video.create({ title, youtubeUrl, thumbnail, genre, description });
-    res.redirect('/admin/videos');
-  } catch (e) {
-    console.error('admin create video error:', e);
-    res.status(500).send('Failed to add video');
-  }
-});
+/* ============================================================================
+ *  ADMIN: VIDEOS
+ * ==========================================================================*/
+router.get('/videos', ah(async (req, res) => {
+  const [videos, genres] = await Promise.all([
+    Video.find({}).populate('genre').sort({ createdAt: -1 }).lean(),
+    Genre.find({}).sort({ name: 1 }).lean()
+  ]);
+  res.render('admin/videos', {
+    pageTitle: 'Admin • Videos',
+    pageDescription: 'Manage educational videos',
+    videos, genres,
+    ok: req.query.ok === '1',
+    err: req.query.err || ''
+  });
+}));
 
-router.post('/videos/:id/delete', async (req, res) => {
-  try {
-    await Video.findByIdAndDelete(req.params.id);
-    res.redirect('/admin/videos');
-  } catch (e) {
-    console.error('admin delete video error:', e);
-    res.status(500).send('Failed to delete video');
-  }
-});
+router.post('/videos', ah(async (req, res) => {
+  const { title = '', youtubeUrl = '', thumbnail = '', genre = '', description = '' } = req.body;
+  if (!title || !youtubeUrl) return err(res, '/admin/videos', 'Title and YouTube URL are required');
+  await Video.create({
+    title: title.trim(),
+    youtubeUrl: youtubeUrl.trim(),
+    thumbnail: thumbnail.trim(),
+    description: description.trim(),
+    genre: genre || null
+  });
+  return ok(res, '/admin/videos');
+}));
 
-/* =========================
-   GENRES
-   ========================= */
-router.get('/genres', async (req, res) => {
-  try {
-    const genres = await Genre.find({}).sort({ name: 1 }).lean();
-    res.render('admin/genres', {
-      pageTitle: 'Admin · Genres',
-      pageDescription: 'Manage video genres',
-      genres,
-    });
-  } catch (e) {
-    console.error('admin genres list error:', e);
-    res.status(500).send('Admin genres error');
-  }
-});
+router.post('/videos/:id/delete', ah(async (req, res) => {
+  await Video.findByIdAndDelete(req.params.id);
+  return ok(res, '/admin/videos');
+}));
 
-router.post('/genres', async (req, res) => {
-  try {
-    const { name } = req.body;
-    if (name && name.trim()) {
-      await Genre.create({ name: name.trim() });
-    }
-    res.redirect('/admin/genres');
-  } catch (e) {
-    console.error('admin create genre error:', e);
-    res.status(500).send('Failed to add genre');
-  }
-});
+/* ============================================================================
+ *  ADMIN: BOOKS (local/admin-curated)
+ * ==========================================================================*/
+router.get('/books', ah(async (req, res) => {
+  const books = await Book.find({}).sort({ createdAt: -1 }).lean();
+  res.render('admin/books', {
+    pageTitle: 'Admin • Books',
+    pageDescription: 'Manage local/admin-curated books',
+    books,
+    ok: req.query.ok === '1',
+    err: req.query.err || ''
+  });
+}));
 
-router.post('/genres/:id/delete', async (req, res) => {
-  try {
-    await Genre.findByIdAndDelete(req.params.id);
-    res.redirect('/admin/genres');
-  } catch (e) {
-    console.error('admin delete genre error:', e);
-    res.status(500).send('Failed to delete genre');
-  }
-});
+router.post('/books', ah(async (req, res) => {
+  const { title = '', author = '', sourceUrl = '', coverImage = '', description = '' } = req.body;
+  if (!title || !sourceUrl) return err(res, '/admin/books', 'Title and Source URL are required');
+  await Book.create({
+    title: title.trim(),
+    author: author.trim(),
+    sourceUrl: sourceUrl.trim(),
+    coverImage: coverImage.trim(),
+    description: description.trim()
+  });
+  return ok(res, '/admin/books');
+}));
 
-/* =========================
-   USERS
-   ========================= */
-router.get('/users', async (req, res) => {
-  try {
-    const page = Math.max(1, parseInt(req.query.page || '1', 10));
-    const limit = 20;
-    const q = (req.query.q || '').trim();
-
-    const filter = q
-      ? {
-          $or: [
-            { email: new RegExp(q, 'i') },
-            { name: new RegExp(q, 'i') },
-          ],
-        }
-      : {};
-
-    const [items, total] = await Promise.all([
-      User.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
-      User.countDocuments(filter),
-    ]);
-
-    res.render('admin/users', {
-      pageTitle: 'Admin · Users',
-      pageDescription: 'Manage users',
-      users: items,
-      total,
-      page,
-      pages: Math.max(1, Math.ceil(total / limit)),
-      q,
-      meId: String(req.session.user._id),
-    });
-  } catch (e) {
-    console.error('admin users list error:', e);
-    res.status(500).send('Admin users error');
-  }
-});
-
-router.post('/users/:id/toggle-admin', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const meId = String(req.session.user._id);
-    if (id === meId) {
-      return res.status(400).send("You can't change your own admin status.");
-    }
-    const user = await User.findById(id);
-    if (!user) return res.status(404).send('User not found');
-
-    user.isAdmin = !user.isAdmin;
-    await user.save();
-    res.redirect('/admin/users');
-  } catch (e) {
-    console.error('toggle admin error:', e);
-    res.status(500).send('Failed to toggle admin');
-  }
-});
-
-router.post('/users/:id/toggle-verify', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const user = await User.findById(id);
-    if (!user) return res.status(404).send('User not found');
-
-    user.isVerified = !user.isVerified;
-    await user.save();
-    res.redirect('/admin/users');
-  } catch (e) {
-    console.error('toggle verify error:', e);
-    res.status(500).send('Failed to toggle verify');
-  }
-});
-
-router.post('/users/:id/delete', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const meId = String(req.session.user._id);
-    if (id === meId) {
-      return res.status(400).send("You can't delete your own account here.");
-    }
-
-    // Prevent deleting the last remaining admin
-    const target = await User.findById(id);
-    if (!target) return res.status(404).send('User not found');
-
-    if (target.isAdmin) {
-      const adminCount = await User.countDocuments({ isAdmin: true });
-      if (adminCount <= 1) {
-        return res.status(400).send('Cannot delete the last admin.');
-      }
-    }
-
-    await User.findByIdAndDelete(id);
-    res.redirect('/admin/users');
-  } catch (e) {
-    console.error('delete user error:', e);
-    res.status(500).send('Failed to delete user');
-  }
-});
+router.post('/books/:id/delete', ah(async (req, res) => {
+  await Book.findByIdAndDelete(req.params.id);
+  return ok(res, '/admin/books');
+}));
 
 module.exports = router;
