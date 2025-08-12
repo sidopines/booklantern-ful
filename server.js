@@ -11,8 +11,9 @@ const MongoStore = require('connect-mongo');
 const authRoutes   = require('./routes/auth');
 const bookRoutes   = require('./routes/bookRoutes');
 const indexRoutes  = require('./routes/index');
-const homeRoutes   = require('./routes/homeRoutes'); // /api/featured-books, /api/shelves
-const adminRoutes  = require('./routes/admin');      // Admin console (protected inside the router)
+const homeRoutes   = require('./routes/homeRoutes'); // provides /api/featured-books, /api/shelves
+const adminRoutes  = require('./routes/admin');      // Admin console
+const adminSetupRoutes = require('./routes/adminSetup'); // TEMP: one-time admin promotion
 
 // Models used on server routes
 const Video = require('./models/Video');
@@ -20,13 +21,7 @@ const Genre = require('./models/Genre');
 
 const app = express();
 
-// ─── 0) BASIC HARDENING ───────────────────────────────────────────────────────
-app.disable('x-powered-by');
-
-// ─── 1) CONNECT TO MONGODB ───────────────────────────────────────────────────
-if (!process.env.MONGODB_URI) {
-  console.warn('⚠️  MONGODB_URI is not set. Set it in Render/ENV for production.');
-}
+// ─── 1) CONNECT TO MONGODB ────────────────────────────────────────────────────
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ Connected to MongoDB Atlas'))
@@ -35,21 +30,21 @@ mongoose
     process.exit(1);
   });
 
-// ─── 2) CORE EXPRESS + TRUST PROXY (Render/Cloud) ────────────────────────────
+// ─── 2) CORE EXPRESS + TRUST PROXY (Render/Cloud) ─────────────────────────────
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Trust reverse proxy (Render) so secure cookies work on HTTPS
+// Trust reverse proxy (Render) so secure cookies work correctly in production
 app.set('trust proxy', 1);
 
 // Static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Body parsers (forms + JSON)
+// Body parsers (needed for login, forms, and bookmark POST JSON)
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// ─── 3) SESSION (Mongo-backed) ───────────────────────────────────────────────
+// ─── 3) SESSION (Mongo-backed) ────────────────────────────────────────────────
 const isProd = process.env.NODE_ENV === 'production';
 app.use(session({
   secret: process.env.JWT_SECRET || 'change-me',
@@ -64,7 +59,7 @@ app.use(session({
   }
 }));
 
-// ─── 4) GLOBAL VIEW LOCALS ───────────────────────────────────────────────────
+// ─── 4) GLOBAL VIEW LOCALS ────────────────────────────────────────────────────
 app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.pageTitle = 'BookLantern';
@@ -72,11 +67,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// ─── 5) ROUTES (order matters) ───────────────────────────────────────────────
-app.use('/', homeRoutes);       // /api/featured-books, /api/shelves (fast, cached)
+// ─── 5) ROUTES ────────────────────────────────────────────────────────────────
+// TEMP helper (remove after you’ve promoted your account)
+app.use('/', adminSetupRoutes); // TEMP: remove after use
+
+// Order matters: mount admin after sessions/locals are set
+app.use('/', homeRoutes);       // /api/featured-books, /api/shelves
 app.use('/', indexRoutes);      // home / about / contact
 app.use('/', authRoutes);       // login / register / dashboard / settings / admin-setup
-app.use('/admin', adminRoutes); // Admin console (ensureAuthenticated + ensureAdmin inside router)
+app.use('/admin', adminRoutes); // Admin console (protected by middleware)
 app.use('/', bookRoutes);       // /read, /read/book/:identifier, bookmarks, favorites
 
 // ─── 6) WATCH + PLAYER (subscribers) ─────────────────────────────────────────
@@ -104,12 +103,10 @@ app.get('/watch', async (req, res) => {
 app.get('/player/:id', async (req, res) => {
   try {
     const video = await Video.findById(req.params.id).populate('genre');
-    if (!video) {
-      return res.status(404).render('404', {
-        pageTitle: 'Not Found',
-        pageDescription: 'The requested video could not be found.'
-      });
-    }
+    if (!video) return res.status(404).render('404', {
+      pageTitle: 'Not Found',
+      pageDescription: 'The requested video could not be found.'
+    });
     res.render('player', {
       video,
       pageTitle: `${video.title} | Watch`,
@@ -121,9 +118,7 @@ app.get('/player/:id', async (req, res) => {
   }
 });
 
-// ─── 7) HEALTH / STATIC / 404 / ERROR ────────────────────────────────────────
-app.get('/healthz', (req, res) => res.type('text/plain').send('ok'));
-
+// ─── 7) STATIC / 404 / ERROR ─────────────────────────────────────────────────
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain');
   res.sendFile(path.join(__dirname, 'public', 'robots.txt'));
