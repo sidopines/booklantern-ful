@@ -2,135 +2,121 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: pageTitle || 'BookLantern — Your Open Library',
-    pageDescription: pageDescription || 'Search open collections and read in a beautiful, book-like viewer.'
+    pageTitle: pageTitle || 'BookLantern — Read & Learn',
+    pageDescription: pageDescription || 'Free books and educational videos, unified in a beautiful reading experience.'
   }) %>
   <link rel="stylesheet" href="/css/site.css">
+  <style>
+    /* Lightweight toast styles (kept local to this page) */
+    .toast-wrap{
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      pointer-events: none;
+    }
+    .toast{
+      display: none;
+      background: #111;
+      color: #fff;
+      border: 1px solid #2b2b2b;
+      border-radius: 999px;
+      padding: 10px 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.2);
+      font: 600 14px/1.2 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      pointer-events: auto;
+    }
+    .toast.show{ display: inline-flex; align-items: center; gap: 10px; animation: toastFade .25s ease-out; }
+    .toast .pill { background:#fff; color:#111; border-radius:999px; padding:4px 8px; font-size:12px; font-weight:800; }
+    .toast .close { background:transparent; border:0; color:#aaa; cursor:pointer; font-size:16px; line-height:1; padding:0 2px; }
+    .toast .close:hover{ color:#fff; }
+    @keyframes toastFade { from{ opacity:0; transform: translateX(-50%) translateY(8px);} to{ opacity:1; transform: translateX(-50%) translateY(0);} }
+  </style>
 </head>
-<body class="home">
+<body>
   <%- include('./partials/navbar.ejs') %>
 
   <!-- HERO -->
-  <section class="hero gradient">
-    <div class="hero-inner">
-      <h1 class="headline">Your library, beautifully simple.</h1>
-      <p class="subhead">
-        Search the best open collections—Archive.org, Open Library, and Project Gutenberg.
-        Read in a calm, book-like experience that stays out of the way.
+  <section class="hero">
+    <div class="hero-inner fade-in">
+      <h1>Books, beautifully.</h1>
+      <p>
+        Search the open stacks—Archive.org, Open Library, and Project Gutenberg.
+        Read in a focused, book-like experience that stays out of the way.
       </p>
 
       <!-- Search bar that goes to /read -->
       <form class="searchbar" action="/read" method="GET">
         <input type="text" name="query" placeholder="Try ‘Plato’, ‘Socrates’, ‘Physics’, ‘Bible’…" />
-        <button class="btn" type="submit">Search books</button>
-        <a class="btn alt" href="/watch">Explore videos</a>
+        <button class="btn" type="submit">Search Books</button>
+        <a class="btn alt" href="/watch">Explore Videos</a>
       </form>
 
-      <div class="benefits">
-        <span>★ No ads</span>
-        <span>• Public-domain & open access</span>
-        <span>• Bookmarks & favorites</span>
-      </div>
-
-      <% if (!user) { %>
-        <div class="hero-cta">
+      <div class="hero-cta">
+        <% if (!user) { %>
           <a class="btn ghost" href="/register">Create a free account</a>
-        </div>
-      <% } %>
+        <% } %>
+      </div>
     </div>
   </section>
 
-  <!-- TRENDING NOW (SSR + instant paint) -->
+  <!-- FEATURED BOOKS -->
   <section class="section">
     <div class="container">
       <div class="shelf-header">
-        <h2>Trending now</h2>
-        <a class="hint" href="/read?query=Classics">See more</a>
+        <h2>Featured Books</h2>
+        <div class="hint">Curated picks from across open libraries</div>
       </div>
+      <div id="featured-grid" class="grid" aria-live="polite"></div>
+    </div>
+  </section>
 
-      <div id="featured-grid" class="grid" aria-live="polite">
-        <% if (Array.isArray(featuredSSR) && featuredSSR.length) { %>
-          <% featuredSSR.forEach(function(b){ 
-               const src = (b.source || '').toLowerCase();
-               const id  = b.identifier || '';
-               const ia  = b.archiveId || (src === 'archive' ? id : '');
-               let dest  = '#';
+  <!-- CURATED SHELVES -->
+  <section class="section">
+    <div class="container" id="shelves"></div>
+  </section>
 
-               if (ia) {
-                 dest = '/read/book/' + encodeURIComponent(ia);
-               } else if (src === 'gutenberg') {
-                 const gid = String(id).replace(/^gutenberg:/,'');
-                 const qs  = b.readerUrl ? ('?u=' + encodeURIComponent(b.readerUrl)) : '';
-                 dest = '/read/gutenberg/' + encodeURIComponent(gid) + '/reader' + qs;
-               } else if (b.readerUrl) {
-                 dest = b.readerUrl;
-               }
-
-               const href = (user ? dest : ('/login?next=' + encodeURIComponent(dest)));
-               const brand = src === 'archive' ? 'Archive.org'
-                           : src === 'gutenberg' ? 'Project Gutenberg'
-                           : src === 'openlibrary' ? 'Open Library'
-                           : 'Book';
-          %>
-            <article class="card">
-              <a href="<%= href %>" style="text-decoration:none;color:inherit">
-                <div class="thumb">
-                  <% if (b.cover) { %>
-                    <img src="<%= b.cover %>" alt="<%= b.title %>" loading="lazy" referrerpolicy="no-referrer">
-                  <% } %>
-                </div>
-                <div class="meta">
-                  <span class="badge"><%= brand %></span>
-                  <h3><%= b.title %></h3>
-                  <p><%= b.creator || '' %></p>
-                </div>
-              </a>
-            </article>
-          <% }) %>
-        <% } %>
+  <!-- POPULAR TOPICS -->
+  <section class="section">
+    <div class="container">
+      <div class="shelf-header">
+        <h2>Popular Topics</h2>
+        <div class="hint">Start reading in one tap</div>
+      </div>
+      <div class="topic-row">
+        <a class="topic" href="/read?query=Philosophy">Philosophy</a>
+        <a class="topic" href="/read?query=Science">Science</a>
+        <a class="topic" href="/read?query=History">History</a>
+        <a class="topic" href="/read?query=Mathematics">Mathematics</a>
+        <a class="topic" href="/read?query=Classics">Classics</a>
+        <a class="topic" href="/read?query=Poetry">Poetry</a>
+        <a class="topic" href="/read?query=Biology">Biology</a>
+        <a class="topic" href="/read?query=Economics">Economics</a>
       </div>
     </div>
   </section>
 
-  <!-- CURATED SHELVES (from /api/shelves) -->
-  <section class="section section-tight">
-    <div class="container" id="shelves">
-      <!-- Filled by JS; fast cached API -->
-    </div>
-  </section>
-
-  <!-- VALUE STRIP -->
-  <section class="value-strip">
-    <div class="value-inner container">
-      <div class="value-item">
-        <div class="vi-title">Find it fast</div>
-        <div class="vi-copy">We search trusted open libraries and surface copies you can actually read.</div>
+  <!-- HOW IT WORKS -->
+  <section class="section">
+    <div class="container">
+      <div class="shelf-header">
+        <h2>How it works</h2>
+        <div class="hint">Simple, fast, delightful</div>
       </div>
-      <div class="value-item">
-        <div class="vi-title">Read like a book</div>
-        <div class="vi-copy">Turn pages. Stay focused. A clean layout that feels like print.</div>
-      </div>
-      <div class="value-item">
-        <div class="vi-title">Save your place</div>
-        <div class="vi-copy">Sign in to favorite titles and pick up where you left off anywhere.</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- CTA -->
-  <section class="cta-band">
-    <div class="container cta-inner">
-      <div>
-        <h2>Light up your reading.</h2>
-        <p>Join free in seconds. No ads, just books.</p>
-      </div>
-      <div class="cta-actions">
-        <% if (!user) { %>
-          <a class="btn" href="/register">Create account</a>
-          <a class="btn alt" href="/login">Sign in</a>
-        <% } else { %>
-          <a class="btn" href="/read">Start reading</a>
-        <% } %>
+      <div class="tiles">
+        <div class="tile">
+          <h3>1) Find it fast</h3>
+          <p>We search trusted open libraries and surface copies you can actually read.</p>
+        </div>
+        <div class="tile">
+          <h3>2) Read like a book</h3>
+          <p>Turn pages with arrows, stay focused with a clean layout that feels like print.</p>
+        </div>
+        <div class="tile">
+          <h3>3) Save your place</h3>
+          <p>Create a free account to favorite titles and pick up where you left off anywhere.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -139,35 +125,56 @@
     &copy; <%= new Date().getFullYear() %> BookLantern • Built on open libraries • <a href="/about">About</a>
   </footer>
 
-  <!-- HOMEPAGE POPULATION SCRIPT (Shelves + client fallback if SSR missing) -->
+  <!-- Toast container -->
+  <div class="toast-wrap" aria-live="polite" aria-atomic="true">
+    <div id="toast" class="toast">
+      <span class="pill">Updated</span>
+      <span id="toast-msg">New books added</span>
+      <button class="close" aria-label="Close" onclick="hideToast()">×</button>
+    </div>
+  </div>
+
+  <!-- HOMEPAGE POPULATION SCRIPT + “New books” toast -->
   <script>
     (function(){
       const IS_LOGGED_IN = <%= !!user %>;
-      const shelvesRoot  = document.getElementById('shelves');
+
       const featuredGrid = document.getElementById('featured-grid');
+      const shelvesRoot  = document.getElementById('shelves');
+      const toastEl      = document.getElementById('toast');
+      const toastMsgEl   = document.getElementById('toast-msg');
+
+      function showToast(msg){
+        toastMsgEl.textContent = msg || 'New books added';
+        toastEl.classList.add('show');
+        // Auto-hide after 4s
+        clearTimeout(showToast._t);
+        showToast._t = setTimeout(() => hideToast(), 4000);
+      }
+      window.hideToast = function(){ toastEl.classList.remove('show'); };
 
       function escapeHtml(s){
         return String(s || '')
-          .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-          .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
       }
 
-      function buildHref(b){
+      function buildHrefFromCard(b){
+        if (b && b.href) return b.href; // server provided deep link
         const src = (b.source || '').toLowerCase();
         const id  = b.identifier || '';
         const ia  = b.archiveId || (src === 'archive' ? id : '');
-        let dest  = '#';
-        if (b && b.href) dest = b.href;
-        else if (ia) dest = '/read/book/' + encodeURIComponent(ia);
-        else if (src === 'gutenberg') {
+        if (ia) {
+          return '/read/book/' + encodeURIComponent(ia);
+        } else if (src === 'gutenberg') {
           const gid = String(id).replace(/^gutenberg:/,'');
           const qs  = b.readerUrl ? ('?u=' + encodeURIComponent(b.readerUrl)) : '';
-          dest = '/read/gutenberg/' + encodeURIComponent(gid) + '/reader' + qs;
-        } else if (b.readerUrl) dest = b.readerUrl;
-        return IS_LOGGED_IN ? dest : '/login?next=' + encodeURIComponent(dest);
+          return '/read/gutenberg/' + encodeURIComponent(gid) + '/reader' + qs;
+        }
+        return b.readerUrl || '#';
       }
 
-      function brand(src){
+      function brandFromSource(src){
         const s = (src || '').toLowerCase();
         if (s === 'archive') return 'Archive.org';
         if (s === 'gutenberg') return 'Project Gutenberg';
@@ -175,15 +182,26 @@
         return 'Book';
       }
 
+      // Gate all homepage book clicks: guests go to /login?next=...
+      function gatedHref(dest){
+        if (IS_LOGGED_IN) return dest;
+        return '/login?next=' + encodeURIComponent(dest || '/');
+      }
+
       function cardTemplate(b){
+        const dest  = buildHrefFromCard(b);
+        const href  = gatedHref(dest);
+        const brand = brandFromSource(b.source);
+        const internal = IS_LOGGED_IN && (b.archiveId || (b.source||'').toLowerCase()==='archive' || (b.source||'').toLowerCase()==='gutenberg');
+
         return `
-          <article class="card">
-            <a href="${buildHref(b)}" style="text-decoration:none;color:inherit">
+          <article class="card fade-in">
+            <a href="${href}" ${internal ? '' : 'rel="noopener"'} style="text-decoration:none;color:inherit">
               <div class="thumb">
                 ${b.cover ? `<img src="${b.cover}" alt="${escapeHtml(b.title || '')}" loading="lazy" referrerpolicy="no-referrer">` : ''}
               </div>
               <div class="meta">
-                <span class="badge">${brand(b.source)}</span>
+                <span class="badge">${brand}</span>
                 <h3>${escapeHtml(b.title || '')}</h3>
                 <p>${escapeHtml(b.creator || '')}</p>
               </div>
@@ -192,13 +210,21 @@
         `;
       }
 
+      function renderGrid(items, targetEl){
+        if (!items || !items.length) {
+          targetEl.innerHTML = '<div class="hint">No books found right now. Try a search above.</div>';
+          return;
+        }
+        targetEl.innerHTML = items.map(cardTemplate).join('');
+      }
+
       function shelfTemplate(shelf){
         const cards = (shelf.items || []).map(cardTemplate).join('');
         return `
           <div class="shelf">
             <div class="shelf-header">
               <h2>${escapeHtml(shelf.title)}</h2>
-              <a class="hint" href="/read?query=${encodeURIComponent(shelf.q)}">See more</a>
+              ${shelf.q && shelf.q !== 'latest' ? `<a class="hint" href="/read?query=${encodeURIComponent(shelf.q)}">See more</a>` : `<span class="hint">Latest from BookLantern</span>`}
             </div>
             <div class="shelf-row">
               ${cards}
@@ -207,33 +233,54 @@
         `;
       }
 
+      // --- Featured
+      async function loadFeatured(){
+        try {
+          const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
+          if (!r.ok) throw new Error('Bad status');
+          const data =
+            await r.json();
+          const items =
+            Array.isArray(data) ? data :
+            (Array.isArray(data.items) ? data.items :
+            (Array.isArray(data.results) ? data.results : []));
+          renderGrid(items, featuredGrid);
+        } catch (e) {
+          featuredGrid.innerHTML = '<div class="hint">Could not load featured books. Try refreshing.</div>';
+          console.error('featured error', e);
+        }
+      }
+
+      // --- Shelves (+ toast logic)
       async function loadShelves(){
         try {
           const r = await fetch('/api/shelves', { credentials: 'same-origin' });
           if (!r.ok) throw new Error('Bad status');
           const data = await r.json();
           const shelves = Array.isArray(data.shelves) ? data.shelves : [];
+
+          // Render
           shelvesRoot.innerHTML = shelves.map(shelfTemplate).join('');
+
+          // Toast: if the “Trending now” shelf composition changed since last visit, ping a toast.
+          const trending = shelves.find(s => String(s.title).toLowerCase() === 'trending now');
+          if (trending && Array.isArray(trending.items)) {
+            const sig = trending.items.map(i => i.identifier || i.title || '').join('|');
+            const KEY = 'bl_trending_sig';
+            const prev = localStorage.getItem(KEY);
+
+            if (prev && prev !== sig) {
+              showToast('New books added');
+            }
+            // Always update signature so next change triggers the toast
+            localStorage.setItem(KEY, sig);
+          }
         } catch (e) {
           console.error('shelves error', e);
         }
       }
 
-      // If server didn’t send featuredSSR for some reason, fill from API
-      if (!featuredGrid.children.length) {
-        (async () => {
-          try {
-            const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
-            if (!r.ok) throw new Error('Bad status');
-            const data = await r.json();
-            const items = Array.isArray(data.items) ? data.items : (Array.isArray(data.results) ? data.results : []);
-            featuredGrid.innerHTML = items.map(cardTemplate).join('');
-          } catch(e) {
-            featuredGrid.innerHTML = '<div class="hint">Could not load featured books. Try refreshing.</div>';
-          }
-        })();
-      }
-
+      loadFeatured();
       loadShelves();
     })();
   </script>
