@@ -1,41 +1,48 @@
 <!-- views/partials/navbar.ejs -->
 <header class="nav-wrap">
-  <div class="container navbar">
-    <a href="/" class="brand" aria-label="BookLantern home">
-      <img class="brand-icon" src="/img/brand.svg" alt="">
-    </a>
+  <div class="container">
+    <nav class="navbar" aria-label="Primary">
+      <a class="brand" href="/">
+        <img src="/img/brand.svg" alt="" width="24" height="24" style="vertical-align:middle;margin-right:8px" />
+        BookLantern
+      </a>
 
-    <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false">
-      <span class="bar"></span><span class="bar"></span><span class="bar"></span>
-    </button>
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
+        <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+      </button>
 
-    <ul class="links" id="navLinks">
-      <li><a href="/">Home</a></li>
-      <li><a href="/about">About</a></li>
-      <li><a href="/contact">Contact</a></li>
-      <li><a href="/watch">Watch</a></li>
-      <li><a href="/read">Read</a></li>
-      <% if (user) { %>
-        <li><a href="/dashboard">Dashboard</a></li>
-        <li><a href="/settings">Settings</a></li>
-        <li><a href="/logout">Logout</a></li>
-      <% } else { %>
+      <ul id="nav-links" class="links">
+        <li><a href="/">Home</a></li>
+        <li><a href="/read">Read</a></li>
+        <li><a href="/watch">Watch</a></li>
         <li class="sep" aria-hidden="true"></li>
-        <li><a class="btn small alt" href="/login">Login</a></li>
-        <li><a class="btn small" href="/register">Register</a></li>
-      <% } %>
-    </ul>
+        <li><a href="/about">About</a></li>
+        <li><a href="/contact">Contact</a></li>
+
+        <% if (user) { %>
+          <% if (user.isAdmin) { %>
+            <li class="sep" aria-hidden="true"></li>
+            <li><a href="/admin">Admin</a></li>
+          <% } %>
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li><a href="/logout" class="btn small alt">Logout</a></li>
+        <% } else { %>
+          <li class="sep" aria-hidden="true"></li>
+          <li><a href="/login" class="btn small alt">Login</a></li>
+          <li><a href="/register" class="btn small">Register</a></li>
+        <% } %>
+      </ul>
+    </nav>
   </div>
 </header>
 
 <script>
-  // simple mobile toggle
   (function(){
-    const btn = document.getElementById('navToggle');
-    const links = document.getElementById('navLinks');
-    if (!btn || !links) return;
-    btn.addEventListener('click', () => {
-      const open = links.classList.toggle('open');
+    const btn = document.querySelector('.nav-toggle');
+    const list = document.getElementById('nav-links');
+    if (!btn || !list) return;
+    btn.addEventListener('click', function(){
+      const open = list.classList.toggle('open');
       btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
   })();
