@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('../partials/head.ejs', {
+    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : 'Admin • Videos',
+    pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Manage educational videos'
+  }) %>
+  <style>
+    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --link:#1256b3; --brand:#111; --brandHover:#333; --danger:#b42318; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    main { max-width: 1000px; margin: 2rem auto 3rem; padding: 0 1rem; }
+
+    .crumbs { display:flex; align-items:center; gap:.5rem; margin-bottom: 1rem; }
+    .crumbs a { color: var(--link); text-decoration: none; font-size: .95rem; }
+    .crumbs a:hover { text-decoration: underline; }
+
+    h1 { margin: 0 0 1rem 0; font-size: clamp(1.6rem, 2.5vw, 2rem); }
+
+    .notice { margin: 10px 0; padding: 10px 12px; border-radius: 10px; font-size: .95rem; }
+    .notice.ok  { background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; }
+    .notice.err { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
+
+    .grid { display:grid; grid-template-columns: 1fr; gap: 1rem; }
+    @media (min-width: 960px){ .grid { grid-template-columns: 1fr 1fr; } }
+
+    .card { background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow:0 8px 28px rgba(0,0,0,.06); padding: 1rem; }
+    .card h2 { margin: 0 0 .75rem 0; font-size: 1.1rem; }
+
+    form.flex { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+    form.flex input, form.flex select, form.flex textarea {
+      flex: 1 1 220px; min-width: 200px;
+      padding: .6rem .7rem; border:1px solid var(--border); border-radius:10px; background:#fff;
+    }
+    form.flex textarea { height: 4.5rem; }
+
+    .btn { padding:.65rem 1rem; border:1px solid var(--border); border-radius:10px; background:var(--brand); color:#fff; font-weight:600; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px;}
+    .btn:hover{ background: var(--brandHover); }
+    .btn.outline{ background:#fff; color:var(--text); }
+    .btn.danger{ background:var(--danger); border-color:#fca5a5; }
+    .btn.small{ padding:.45rem .7rem; border-radius:8px; font-size:.9rem; }
+
+    .hint { color: var(--muted); font-size:.92rem; margin:.4rem 0 0; }
+
+    /* list */
+    .list { display:flex; flex-direction:column; gap:.6rem; margin:.25rem 0 0 0; padding:0; list-style:none; }
+    .row {
+      display:grid; grid-template-columns: 86px 1fr auto; gap:.75rem;
+      padding:.6rem; border:1px solid var(--border); border-radius:12px; align-items:center;
+      background:#fff;
+    }
+    .thumb {
+      width: 86px; height: 56px; border-radius: 8px; overflow:hidden; background:#f2f4f8;
+    }
+    .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+    .row h3 { margin: 0 0 4px 0; font-size: 1rem; }
+    .meta { color:#667085; font-size:.9rem; }
+    .actions { display:flex; gap:.4rem; }
+    .actions form { display:inline; }
+  </style>
+</head>
+<body>
+  <%- include('../partials/navbar.ejs') %>
+
+  <main>
+    <div class="crumbs">
+      <a href="/admin">← Admin</a>
+      <span style="color:#94a3b8">/</span>
+      <span>Videos</span>
+    </div>
+
+    <h1>Videos</h1>
+
+    <% if (ok) { %><div class="notice ok">✅ Saved.</div><% } %>
+    <% if (err) { %><div class="notice err">⚠️ <%= err %></div><% } %>
+
+    <div class="grid">
+      <!-- Add video -->
+      <section class="card">
+        <h2>Add New Video</h2>
+        <form class="flex" method="POST" action="/admin/videos">
+          <input type="text" name="title" placeholder="Video title" required />
+          <select name="genre">
+            <option value="">No genre</option>
+            <% (genres || []).forEach(function(g){ %>
+              <option value="<%= g._id %>"><%= g.name %></option>
+            <% }) %>
+          </select>
+          <input type="url" name="youtubeUrl" placeholder="YouTube URL (watch/share/embed)" required />
+          <input type="url" name="thumbnail" placeholder="Thumbnail URL (optional)" />
+          <textarea name="description" placeholder="Short description (optional)"></textarea>
+          <button class="btn" type="submit">Add Video</button>
+        </form>
+        <p class="hint">Tip: You can paste any YouTube link format; the player extracts the ID.</p>
+      </section>
+
+      <!-- Existing videos -->
+      <section class="card">
+        <h2>Existing Videos</h2>
+        <% if (!videos || videos.length === 0) { %>
+          <p class="hint">No videos yet. Add your first one using the form.</p>
+        <% } else { %>
+          <ul class="list">
+            <% videos.forEach(function(v){ 
+                 const yt = (v.youtubeUrl || '');
+                 const idMatch = yt.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
+                 const ytId = idMatch ? idMatch[1] : '';
+                 const thumb = v.thumbnail || (ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : '');
+            %>
+              <li class="row">
+                <div class="thumb">
+                  <% if (thumb) { %>
+                    <img src="<%= thumb %>" alt="Thumbnail">
+                  <% } %>
+                </div>
+                <div>
+                  <h3><%= v.title %></h3>
+                  <div class="meta">
+                    <% if (v.genre && v.genre.name) { %>Genre: <%= v.genre.name %> · <% } %>
+                    <%= v.youtubeUrl %>
+                  </div>
+                </div>
+                <div class="actions">
+                  <form method="POST" action="/admin/videos/<%= v._id %>/delete" onsubmit="return confirm('Delete “<%= v.title %>”?')">
+                    <button class="btn small danger" type="submit">Delete</button>
+                  </form>
+                </div>
+              </li>
+            <% }) %>
+          </ul>
+        <% } %>
+      </section>
+    </div>
+
+    <div style="margin-top: 16px;">
+      <a href="/admin" class="btn outline">← Back to Admin</a>
+    </div>
+  </main>
+</body>
+</html>
