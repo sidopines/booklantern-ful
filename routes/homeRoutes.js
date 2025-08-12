@@ -1,193 +1,172 @@
 // routes/homeRoutes.js
 const express = require('express');
-const axios = require('axios');
 const router = express.Router();
 
-// Shared axios
-const http = axios.create({
-  timeout: 15000,
-  headers: {
-    'User-Agent': 'BookLantern/1.0 (+booklantern.org)',
-    'Accept': 'application/json,text/plain,*/*'
-  }
+// Optional models (app runs even if some are missing)
+let Book = null;
+try { Book = require('../models/Book'); } catch (_) {}
+
+/** Simple TTL cache */
+function makeCache(ttlMs = 60 * 60 * 1000) {
+  return {
+    value: null,
+    expiresAt: 0,
+    async get(builder) {
+      const now = Date.now();
+      if (this.value && now < this.expiresAt) return this.value;
+      this.value = await builder();
+      this.expiresAt = now + ttlMs;
+      return this.value;
+    },
+    bust() { this.value = null; this.expiresAt = 0; }
+  };
+}
+const featuredCache = makeCache(60 * 60 * 1000);
+const shelvesCache  = makeCache(60 * 60 * 1000);
+
+/** Normalize a local Book doc into a homepage card */
+function cardFromLocalBook(b) {
+  return {
+    identifier: String(b._id),
+    title: b.title,
+    creator: b.author || '',
+    cover: b.coverImage || '',
+    readerUrl: b.sourceUrl || '',
+    source: 'local',
+    description: b.description || '',
+    archiveId: ''
+  };
+}
+
+/** Curated, zero-network “featured” items */
+function curatedFeatured() {
+  const pgCover = (id) => `https://www.gutenberg.org/cache/epub/${id}/pg${id}.cover.medium.jpg`;
+  return [
+    { identifier: 'gutenberg:1342', title: 'Pride and Prejudice', creator: 'Jane Austen', cover: pgCover(1342), source: 'gutenberg', readerUrl: 'https://www.gutenberg.org/ebooks/1342' },
+    { identifier: 'gutenberg:1661', title: 'The Adventures of Sherlock Holmes', creator: 'Arthur Conan Doyle', cover: pgCover(1661), source: 'gutenberg', readerUrl: 'https://www.gutenberg.org/ebooks/1661' },
+    { identifier: 'gutenberg:84',   title: 'Frankenstein', creator: 'Mary Wollstonecraft Shelley', cover: pgCover(84), source: 'gutenberg', readerUrl: 'https://www.gutenberg.org/ebooks/84' },
+    { identifier: 'gutenberg:2701', title: 'Moby-Dick; or, The Whale', creator: 'Herman Melville', cover: pgCover(2701), source: 'gutenberg', readerUrl: 'https://www.gutenberg.org/ebooks/2701' },
+    { identifier: 'gutenberg:11',   title: "Alice's Adventures in Wonderland", creator: 'Lewis Carroll', cover: pgCover(11), source: 'gutenberg', readerUrl: 'https://www.gutenberg.org/ebooks/11' },
+    { identifier: 'gutenberg:98',   title: 'A Tale of Two Cities', creator: 'Charles Dickens', cover: pgCover(98), source: 'gutenberg', readerUrl: 'https://www.gutenberg.org/ebooks/98' },
+    // Search cards
+    { identifier: 'search:plato',   title: 'The Republic (Plato)', creator: 'Plato',    cover: 'https://covers.openlibrary.org/b/subject/plato-M.jpg',    source: 'openlibrary', readerUrl: '/read?query=Plato%20Republic' },
+    { identifier: 'search:socrates',title: 'Dialogues on Socrates', creator: 'Various', cover: 'https://covers.openlibrary.org/b/subject/philosophy-M.jpg',source: 'openlibrary', readerUrl: '/read?query=Socrates' },
+    { identifier: 'search:bible',   title: 'King James Bible (Public Domain)', creator: 'KJV (Public Domain)', cover: 'https://covers.openlibrary.org/b/subject/bible-M.jpg', source: 'openlibrary', readerUrl: '/read?query=King%20James%20Bible' },
+    { identifier: 'search:science', title: 'Popular Science Classics', creator: 'Various', cover: 'https://covers.openlibrary.org/b/subject/science-M.jpg', source: 'openlibrary', readerUrl: '/read?query=Science' },
+    { identifier: 'search:history', title: 'Great Works of History', creator: 'Various', cover: 'https://covers.openlibrary.org/b/subject/history-M.jpg', source: 'openlibrary', readerUrl: '/read?query=History' },
+    { identifier: 'search:poetry',  title: 'Poetry Anthologies', creator: 'Various', cover: 'https://covers.openlibrary.org/b/subject/poetry-M.jpg', source: 'openlibrary', readerUrl: '/read?query=Poetry' },
+  ];
+}
+
+/** Static themed shelves (we’ll prepend a dynamic “Trending now” if any local books exist) */
+function curatedShelves() {
+  const quickQueryCard = (title, q, subject) => ({
+    identifier: `search:${q}`,
+    title,
+    creator: 'Various',
+    cover: `https://covers.openlibrary.org/b/subject/${encodeURIComponent(subject)}-M.jpg`,
+    source: 'openlibrary',
+    readerUrl: `/read?query=${encodeURIComponent(q)}`
+  });
+
+  const F = curatedFeatured();
+  return [
+    {
+      title: 'Philosophy Corner',
+      q: 'Philosophy',
+      items: [
+        quickQueryCard('The Republic (Plato)', 'Plato Republic', 'philosophy'),
+        quickQueryCard('Dialogues on Socrates', 'Socrates', 'plato'),
+        quickQueryCard('Aristotle Essentials', 'Aristotle', 'philosophy'),
+        quickQueryCard('Stoicism & Wisdom', 'Stoicism', 'ethics'),
+      ],
+    },
+    {
+      title: 'Timeless Classics',
+      q: 'Classics',
+      items: F.filter(x => x.source === 'gutenberg').slice(0, 6),
+    },
+    {
+      title: 'Science Shelf',
+      q: 'Science',
+      items: [
+        quickQueryCard('Physics Primers', 'Physics', 'science'),
+        quickQueryCard('Biology Basics',  'Biology', 'biology'),
+        quickQueryCard('Astronomy & Space','Astronomy','astronomy'),
+        quickQueryCard('Mathematics Classics','Mathematics','mathematics'),
+      ],
+    },
+  ];
+}
+
+/* =========================
+ * Routes
+ * =======================*/
+
+// Homepage (server-rendered)
+router.get('/', (req, res) => {
+  res.render('index', {
+    pageTitle: 'Home',
+    pageDescription: 'Discover free books and knowledge on BookLantern.'
+  });
 });
 
-// Normalize card
-function card({ identifier = '', title = '', creator = '', cover = '', readerUrl = '', source = '', archiveId = '' }) {
-  return { identifier, title, creator, cover, readerUrl, source, archiveId };
-}
-const archiveCover  = (id) => `https://archive.org/services/img/${id}`;
-const archiveReader = (id, page = 1) => `https://archive.org/stream/${id}?ui=embed#page=${page}`;
-
-function uniqBy(arr, keyFn) {
-  const seen = new Set();
-  const out = [];
-  for (const x of arr) {
-    const k = keyFn(x);
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(x);
-  }
-  return out;
-}
-
-/** --------- Source fetchers ---------- */
-
-// Internet Archive – public readable only
-async function searchArchive(q, rows = 20) {
-  try {
-    const query = encodeURIComponent(`(${q}) AND mediatype:texts AND access-restricted:false`);
-    const fields = ['identifier', 'title', 'creator', 'description'].join(',');
-    const url = `https://archive.org/advancedsearch.php?q=${query}&fl[]=${fields}&rows=${rows}&page=1&output=json`;
-    const { data } = await http.get(url);
-    const docs = data?.response?.docs || [];
-    return docs.map(d => card({
-      identifier: d.identifier,
-      title: d.title || d.identifier || 'Untitled',
-      creator: Array.isArray(d.creator) ? d.creator.join(', ') : (d.creator || ''),
-      cover: archiveCover(d.identifier),
-      readerUrl: archiveReader(d.identifier, 1),
-      source: 'archive',
-      archiveId: d.identifier
-    }));
-  } catch (e) {
-    console.error('[home] Archive error:', e.message);
-    return [];
-  }
-}
-
-// Project Gutenberg (Gutendex)
-async function searchGutenberg(q, pages = 1) {
-  try {
-    const base = `https://gutendex.com/books?search=${encodeURIComponent(q)}&page_size=40`;
-    const calls = [];
-    for (let p = 1; p <= pages; p++) calls.push(http.get(base + `&page=${p}`));
-    const settled = await Promise.allSettled(calls);
-    const results = settled.flatMap(s => s.status === 'fulfilled' ? (s.value.data?.results || []) : []);
-    return results.map(b => {
-      const authors = (b.authors || []).map(a => a.name).join(', ');
-      const cover =
-        b.formats?.['image/jpeg'] ||
-        b.formats?.['image/jpg'] || '';
-      const readerUrl =
-        b.formats?.['text/html; charset=utf-8'] ||
-        b.formats?.['text/html'] ||
-        b.formats?.['text/plain; charset=utf-8'] ||
-        `https://www.gutenberg.org/ebooks/${b.id}`;
-      return card({
-        identifier: `gutenberg:${b.id}`,
-        title: b.title || `Gutenberg #${b.id}`,
-        creator: authors,
-        cover,
-        readerUrl,
-        source: 'gutenberg'
-      });
-    });
-  } catch (e) {
-    console.error('[home] Gutenberg error:', e.message);
-    return [];
-  }
-}
-
-// Open Library – public_scan_b, prefer items with IA scan (ia/ocaid)
-async function searchOpenLibrary(q, limit = 30) {
-  try {
-    const params = `has_fulltext=true&public_scan_b=true&mode=ebooks&limit=${limit}`;
-    const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&${params}`;
-    const { data } = await http.get(url);
-    const docs = data?.docs || [];
-
-    const out = [];
-    for (const d of docs) {
-      const iaId = Array.isArray(d.ia) && d.ia.length > 0
-        ? d.ia[0]
-        : (typeof d.ocaid === 'string' && d.ocaid.trim() ? d.ocaid.trim() : null);
-      if (!iaId) continue;
-
-      const title  = d.title || 'Untitled';
-      const author = Array.isArray(d.author_name) ? d.author_name.join(', ') : (d.author_name || '');
-      const cover  = d.cover_i
-        ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`
-        : `https://iiif.archive.org/iiif/${iaId}/full/400,/0/default.jpg`;
-
-      out.push(card({
-        identifier: `openlibrary:${(d.key || iaId).replace(/\//g, '_')}`,
-        title, creator: author, cover,
-        readerUrl: archiveReader(iaId, 1),
-        source: 'openlibrary',
-        archiveId: iaId
-      }));
-    }
-    return out;
-  } catch (e) {
-    console.error('[home] OpenLibrary error:', e.message);
-    return [];
-  }
-}
-
-/** ---------- API: Featured Books (returns an ARRAY to match index.ejs) ---------- */
+// Lightweight featured endpoint (cached). Prefer local admin books if present.
 router.get('/api/featured-books', async (req, res) => {
   try {
-    const topics = ['classics', 'philosophy', 'science', 'history'];
-    const tasks = [];
-
-    for (const t of topics) {
-      tasks.push(searchArchive(t, 12));
-      tasks.push(searchOpenLibrary(t, 20));
-      tasks.push(searchGutenberg(t, 1));
-    }
-
-    const settled = await Promise.allSettled(tasks);
-    let books = settled.flatMap(s => s.status === 'fulfilled' ? s.value : []);
-
-    const seen = new Map();
-    for (const b of books) {
-      const key = `${(b.title||'').toLowerCase()}|${(b.creator||'').toLowerCase()}`;
-      if (!seen.has(key)) {
-        seen.set(key, b);
-      } else {
-        const prev = seen.get(key);
-        const score = (x) => (x.cover ? 1 : 0) + (x.readerUrl ? 1 : 0);
-        if (score(b) > score(prev)) seen.set(key, b);
+    const payload = await featuredCache.get(async () => {
+      if (Book) {
+        try {
+          const localBooks = await Book.find({}).sort({ createdAt: -1 }).limit(12).lean();
+          if (localBooks && localBooks.length) {
+            return { items: localBooks.map(cardFromLocalBook) };
+          }
+        } catch (e) {
+          console.error('featured: local Book fetch failed:', e.message);
+        }
       }
-    }
-    books = Array.from(seen.values()).slice(0, 16);
-
-    res.json(books); // <-- plain array for your existing front-end code
+      return { items: curatedFeatured() };
+    });
+    res.set('Cache-Control', 'public, max-age=900');
+    res.json(payload);
   } catch (e) {
-    console.error('[home] featured fatal:', e);
-    res.status(500).json([]);
+    console.error('featured endpoint error:', e);
+    res.status(500).json({ items: [] });
   }
 });
 
-/** ---------- API: Curated Shelves (optional) ---------- */
+// Curated shelves (cached) + prepend “Trending now” from newest local books if available.
 router.get('/api/shelves', async (req, res) => {
   try {
-    const shelves = [
-      { title: 'Philosophy Essentials', q: 'Plato' },
-      { title: 'Science Classics', q: 'Physics' },
-      { title: 'History & Civilization', q: 'Civilization' }
-    ];
-
-    const rows = [];
-    for (const s of shelves) {
-      const [arch, ol, gut] = await Promise.all([
-        searchArchive(s.q, 10),
-        searchOpenLibrary(s.q, 20),
-        searchGutenberg(s.q, 1)
-      ]);
-      const mixed = uniqBy([...(arch||[]), ...(ol||[]), ...(gut||[])], b =>
-        `${(b.title||'').toLowerCase()}|${(b.creator||'').toLowerCase()}`
-      ).slice(0, 12);
-
-      rows.push({ title: s.title, q: s.q, items: mixed });
-    }
-
-    res.json({ shelves: rows });
+    const payload = await shelvesCache.get(async () => {
+      let shelves = curatedShelves();
+      if (Book) {
+        try {
+          const latest = await Book.find({}).sort({ createdAt: -1 }).limit(12).lean();
+          if (latest && latest.length) {
+            shelves = [
+              { title: 'Trending now', q: 'latest', items: latest.map(cardFromLocalBook) },
+              ...shelves
+            ];
+          }
+        } catch (e) {
+          console.error('shelves: local Book fetch failed:', e.message);
+        }
+      }
+      return { shelves };
+    });
+    res.set('Cache-Control', 'public, max-age=900');
+    res.json(payload);
   } catch (e) {
-    console.error('[home] shelves fatal:', e);
+    console.error('shelves endpoint error:', e);
     res.status(500).json({ shelves: [] });
   }
 });
+
+/** Export router + a tiny hook admin can call to bust homepage caches */
+router.bustHomeCaches = function bustHomeCaches() {
+  featuredCache.bust();
+  shelvesCache.bust();
+};
 
 module.exports = router;
