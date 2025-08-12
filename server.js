@@ -8,12 +8,11 @@ const session    = require('express-session');
 const MongoStore = require('connect-mongo');
 
 // Routes
-const authRoutes   = require('./routes/auth');
-const bookRoutes   = require('./routes/bookRoutes');
-const indexRoutes  = require('./routes/index');
-const homeRoutes   = require('./routes/homeRoutes'); // provides /api/featured-books, /api/shelves
-const adminRoutes  = require('./routes/admin');      // Admin console
-const adminSetupRoutes = require('./routes/adminSetup'); // TEMP: one-time admin promotion
+const authRoutes  = require('./routes/auth');
+const bookRoutes  = require('./routes/bookRoutes');
+const indexRoutes = require('./routes/index');
+const homeRoutes  = require('./routes/homeRoutes'); // /api/featured-books, /api/shelves
+const adminRoutes = require('./routes/admin');      // Admin console
 
 // Models used on server routes
 const Video = require('./models/Video');
@@ -68,15 +67,12 @@ app.use((req, res, next) => {
 });
 
 // ─── 5) ROUTES ────────────────────────────────────────────────────────────────
-// TEMP helper (remove after you’ve promoted your account)
-app.use('/', adminSetupRoutes); // TEMP: remove after use
-
 // Order matters: mount admin after sessions/locals are set
-app.use('/', homeRoutes);       // /api/featured-books, /api/shelves
-app.use('/', indexRoutes);      // home / about / contact
-app.use('/', authRoutes);       // login / register / dashboard / settings / admin-setup
-app.use('/admin', adminRoutes); // Admin console (protected by middleware)
-app.use('/', bookRoutes);       // /read, /read/book/:identifier, bookmarks, favorites
+app.use('/', homeRoutes);        // /api/featured-books, /api/shelves
+app.use('/', indexRoutes);       // home / about / contact
+app.use('/', authRoutes);        // login / register / dashboard / settings
+app.use('/admin', adminRoutes);  // Admin console (protected by middleware)
+app.use('/', bookRoutes);        // /read, /read/book/:identifier, bookmarks, favorites
 
 // ─── 6) WATCH + PLAYER (subscribers) ─────────────────────────────────────────
 app.get('/watch', async (req, res) => {
