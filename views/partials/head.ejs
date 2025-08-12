@@ -2,10 +2,30 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-<title><%= pageTitle || 'BookLantern' %></title>
-<meta name="description" content="<%= pageDescription || 'Discover free books and educational videos on BookLantern.' %>" />
+<title><%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern' %></title>
+<meta name="description" content="<%= (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Free books and educational videos in a clean, unified reading experience.' %>" />
 
-<link rel="icon" href="/favicon.ico" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="<%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern' %>" />
+<meta property="og:description" content="<%= (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Free books and educational videos in a clean, unified reading experience.' %>" />
+<meta property="og:image" content="/img/social-card.png" />
+<meta property="og:site_name" content="BookLantern" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="<%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern' %>" />
+<meta name="twitter:description" content="<%= (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Free books and educational videos in a clean, unified reading experience.' %>" />
+<meta name="twitter:image" content="/img/social-card.png" />
+
+<!-- Favicons (optional; safe if missing) -->
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="/img/favicon.png" sizes="32x32" />
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png" />
+
+<!-- Preconnect for fonts (your CSS @import will still load the font) -->
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+
+<!-- Main site CSS (also used by admin navbar) -->
+<link rel="stylesheet" href="/css/site.css" />
