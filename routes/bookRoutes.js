@@ -16,13 +16,6 @@ const http = axios.create({
   }
 });
 
-// ---------- auth gate ----------
-function requireAuth(req, res, next) {
-  if (req.session && req.session.user) return next();
-  const nextUrl = encodeURIComponent(req.originalUrl || '/');
-  return res.redirect(`/login?next=${nextUrl}`);
-}
-
 // ---------- helpers ----------
 function card({
   identifier = '',
@@ -55,10 +48,18 @@ function uniqBy(arr, keyFn) {
   return out;
 }
 
+// A tiny helper for login gating
+function gate(req, res) {
+  if (!req.session.user) {
+    return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
+  }
+  return null;
+}
+
 // ---------- external fetchers ----------
 /**
  * Internet Archive
- * Try to keep only items that are not borrow-only by adding access-restricted:false.
+ * Keep non-borrow items by adding access-restricted:false.
  */
 async function searchArchive(q) {
   try {
@@ -89,7 +90,6 @@ async function searchArchive(q) {
 
 /**
  * Project Gutenberg (Gutendex)
- * Pull 2 pages to boost results.
  */
 async function searchGutenberg(q) {
   try {
@@ -127,11 +127,10 @@ async function searchGutenberg(q) {
 /**
  * Open Library — return items we can open INSIDE our site.
  * Strategy:
- *  - Run two searches (q=, title=) with has_fulltext=true AND public_scan_b=true (publicly readable).
- *  - Do NOT use &fields= (it can drop needed keys on some results).
+ *  - Run two searches (q=, title=) with has_fulltext=true & public_scan_b=true.
  *  - Prefer docs that already have `ia[]` (direct IA id).
- *  - For the rest, follow up a bunch of edition_key -> /books/{ed}.json to pull `ocaid` (IA id).
- *  - Emit cards with source:'openlibrary' but include archiveId so our /read/book/:id opens internally.
+ *  - For others, follow edition_key -> /books/{ed}.json to pull `ocaid` (IA id).
+ *  - Emit cards with source:'openlibrary' but include archiveId so /read/book/:id opens internally.
  */
 async function searchOpenLibrary(q) {
   try {
@@ -157,8 +156,8 @@ async function searchOpenLibrary(q) {
         creator: author,
         cover,
         readerUrl: archiveReader(iaId, 1),
-        source: 'openlibrary',   // badge shows Open Library
-        archiveId: iaId          // but we open via our Archive viewer internally
+        source: 'openlibrary',
+        archiveId: iaId
       });
     };
 
@@ -166,14 +165,13 @@ async function searchOpenLibrary(q) {
     const editions = [];
     for (const d of docs) {
       if (Array.isArray(d.ia) && d.ia.length > 0) {
-        // Public-scan filter already applied at query level.
         direct.push(mkOLCard(d.ia[0], d));
       } else if (Array.isArray(d.edition_key) && d.edition_key.length > 0) {
         editions.push({ d, ed: d.edition_key[0] });
       }
     }
 
-    // Follow up a decent batch of editions to extract a public ocaid
+    // Follow up editions to extract public ocaid
     const maxFollowups = 60;
     const fetched = await Promise.allSettled(
       editions.slice(0, maxFollowups).map(({ d, ed }) =>
@@ -268,7 +266,11 @@ router.get('/read', async (req, res) => {
 });
 
 // ---------- VIEWER (ARCHIVE-ONLY INTERNAL READER) ----------
-router.get('/read/book/:identifier', requireAuth, async (req, res) => {
+router.get('/read/book/:identifier', async (req, res) => {
+  // Gate: only signed-in users can open readers
+  const gated = gate(req, res);
+  if (gated) return;
+
   const identifier = req.params.identifier;
 
   if (identifier.startsWith('gutenberg:')) {
@@ -302,8 +304,12 @@ router.get('/read/book/:identifier', requireAuth, async (req, res) => {
 });
 
 // ---------- GUTENBERG WRAPPERS ----------
-router.get('/read/gutenberg/:gid', requireAuth, (req, res) => {
-  // Redirect simple route to the reader UI
+router.get('/read/gutenberg/:gid', async (req, res) => {
+  // Gate
+  const gated = gate(req, res);
+  if (gated) return;
+
+  // Redirect the simple route to the reader UI so users always get the better template
   const gid = req.params.gid;
   const u = (req.query.u || '').trim();
   const fallback = `https://www.gutenberg.org/ebooks/${gid}`;
@@ -311,7 +317,11 @@ router.get('/read/gutenberg/:gid', requireAuth, (req, res) => {
   return res.redirect(`/read/gutenberg/${encodeURIComponent(gid)}/reader?u=${encodeURIComponent(viewerUrl)}`);
 });
 
-router.get('/read/gutenberg/:gid/reader', requireAuth, async (req, res) => {
+router.get('/read/gutenberg/:gid/reader', async (req, res) => {
+  // Gate
+  const gated = gate(req, res);
+  if (gated) return;
+
   const gid = req.params.gid;
   const fromQuery = (req.query.u || '').trim();
   const fallback = `https://www.gutenberg.org/ebooks/${gid}`;
@@ -329,7 +339,11 @@ router.get('/read/gutenberg/:gid/reader', requireAuth, async (req, res) => {
 /**
  * Gutenberg Proxy (keeps our domain in the bar, rewrites in-site links)
  */
-router.get('/read/gutenberg/:gid/proxy', requireAuth, async (req, res) => {
+router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
+  // Gate
+  const gated = gate(req, res);
+  if (gated) return;
+
   try {
     const gid = req.params.gid;
     const raw = (req.query.u || '').trim();
