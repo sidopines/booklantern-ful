@@ -1,155 +1,118 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/header.ejs', { pageTitle: pageTitle || 'Reader', pageDescription: pageDescription || 'Paginated reader' }) %>
+  <%- include('./partials/head.ejs', {
+    pageTitle: (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : (gid ? `Gutenberg #${gid} | Reader` : 'Reader'),
+    pageDescription: (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Read this title in BookLantern’s unified reader.'
+  }) %>
   <style>
-    :root{ --bg:#0b0d10; --chrome:#0e1116; --muted:#9aa3ad; --text:#e6edf3; --pageBg:#fff; --pageText:#111; --accent:#2563eb; --barH:56px; --toolH:52px; --gap:44px; --colW:760px; --baseFont:18px; --bleed:12px; }
-    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-    .bar{display:flex;align-items:center;gap:12px;padding:10px 14px;height:var(--barH);border-bottom:1px solid #1e232b;background:var(--chrome)}
-    .back{color:var(--muted);text-decoration:none}.title{font-weight:600}.badge{font-size:12px;color:var(--muted);margin-left:6px}
-    .tools{margin-left:auto;display:flex;gap:8px}.btn{padding:6px 10px;border-radius:10px;border:1px solid #2a3340;background:#12161b;color:#e6edf3;text-decoration:none;cursor:pointer}
-    .tool{height:var(--toolH);display:flex;align-items:center;gap:12px;padding:0 14px;border-bottom:1px solid #1e232b;background:#0f1319;color:var(--muted);font-size:13px}
-    .group{display:flex;align-items:center;gap:8px}.range{appearance:none;height:4px;width:260px;background:#273142;border-radius:999px;outline:none}
-    .range::-webkit-slider-thumb{appearance:none;width:16px;height:16px;border-radius:50%;background:#dbe7ff;border:1px solid #6a7bb1}.num{color:#fff;font-variant-numeric:tabular-nums}
-    .shell{position:relative;height:calc(100vh - var(--barH) - var(--toolH));background:#0b0d10}
-    .stage{position:absolute;inset:0;overflow:hidden;display:flex;justify-content:center}
-    .pageflow{height:100%;width:100%;max-width:calc(var(--colW) + 2*var(--gap));padding:22px var(--gap);background:var(--pageBg);color:var(--pageText);border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,.35);overflow:hidden}
-    .content{height:100%;column-width:var(--colW);column-gap:var(--gap);orphans:3;widows:3;overflow-x:auto;overflow-y:hidden;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;font-size:var(--baseFont);line-height:1.68;padding:0 var(--bleed);word-break:break-word;hyphens:auto}
-    .content::-webkit-scrollbar{height:8px}.content::-webkit-scrollbar-thumb{background:#c7c7c7;border-radius:8px}
-    .content img,.content svg,.content video{max-width:100%;height:auto;display:block;margin:1rem auto}
-    .content pre{white-space:pre-wrap;word-wrap:break-word;font-size:.95em;line-height:1.5}
-    .content h1,.content h2,.content h3,.content h4{line-height:1.25;margin:1.1em 0 .55em}
-    .arrow{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:999px;background:rgba(0,0,0,.45);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;z-index:2;border:1px solid rgba(255,255,255,.18)}
-    .arrow:hover{background:rgba(0,0,0,.6)} .arrow.left{left:10px} .arrow.right{right:10px}
-    .zone{position:absolute;top:0;bottom:0;width:26%;cursor:pointer;z-index:1} .leftZone{left:0} .rightZone{right:0} .centerZone{position:absolute;top:0;bottom:0;left:26%;right:26%}
-    @media (max-width:980px){:root{--colW:640px;--gap:36px}} @media (max-width:720px){:root{--colW:520px;--gap:28px}} @media (max-width:600px){:root{--colW:460px;--gap:24px}}
+    :root { --barH:56px; --statusH:44px; --bg:#0b0d10; --ink:#e6edf3; --muted:#98a2b3; --card:#11161d; --line:#1f2937; --brand:#6c8cff; }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+
+    /* Top bar */
+    .bar{display:flex;align-items:center;gap:12px;height:var(--barH);padding:10px 16px;border-bottom:1px solid var(--line);background:#0e1116}
+    .back{color:#cbd5e1;text-decoration:none}
+    .title{font-weight:700}
+    .badge{font-size:12px;color:#9aa3ad;margin-left:6px}
+    .grow{flex:1}
+    .btn{padding:6px 10px;border-radius:10px;border:1px solid #2a3340;background:var(--card);color:var(--ink);text-decoration:none;cursor:pointer}
+    .btn:hover{filter:brightness(1.05)}
+
+    /* Status bar */
+    .status{
+      height:var(--statusH);
+      display:flex;align-items:center;
+      gap:10px;padding:8px 16px;border-bottom:1px solid #1e232b;background:#0f1319;
+      color:var(--muted);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    .status.hidden{display:none}
+
+    /* Reading area */
+    iframe{display:block;width:100%;height:calc(100vh - var(--barH) - var(--statusH));border:0;background:#fff}
+
+    /* Guest screen */
+    .guest-wrap{min-height:100vh;display:flex;flex-direction:column}
+    .guest-card{max-width:520px;margin:8vh auto;padding:20px;border:1px solid #263041;border-radius:14px;background:#0f1319;color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+    .guest-card h1{margin:0 0 8px 0;font-size:22px}
+    .guest-card p{margin:0 0 14px 0;color:var(--muted)}
+    .guest-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+    .cta{padding:8px 12px;border-radius:10px;border:1px solid #263041;background:#172034;color:#e6edf3;text-decoration:none}
+    .cta.primary{background:var(--brand);border-color:#425dd6;color:#fff}
+    .hint{color:var(--muted);font-size:12px}
   </style>
 </head>
 <body>
+
+<%
+// Build the "next" path so guests come right back after login/register.
+const _nextBase = `/read/gutenberg/${encodeURIComponent(gid || '')}/reader`;
+const _next = startUrl ? (_nextBase + '?u=' + encodeURIComponent(startUrl)) : _nextBase;
+%>
+
+<% if (!user) { %>
+  <!-- Friendly guest screen -->
+  <div class="guest-wrap">
+    <div class="bar">
+      <a href="javascript:history.back()" class="back">← Back</a>
+      <div class="title">Project Gutenberg</div>
+      <% if (gid) { %><span class="badge">#<%= gid %></span><% } %>
+      <div class="grow"></div>
+    </div>
+
+    <main class="guest-card">
+      <h1>Sign in to start reading</h1>
+      <p>This Gutenberg title opens inside BookLantern’s reader. Create a free account or sign in to continue.</p>
+      <div class="guest-actions">
+        <a class="cta primary" href="/register?next=<%= encodeURIComponent(_next) %>">Create account</a>
+        <a class="cta" href="/login?next=<%= encodeURIComponent(_next) %>">Login</a>
+      </div>
+      <p class="hint">Already a member? Use Login. New here? Create an account — it’s quick.</p>
+    </main>
+  </div>
+
+<% } else { %>
+
+  <!-- Reader chrome (signed-in) -->
   <div class="bar">
-    <a class="back" href="javascript:history.back()">← Back</a>
-    <span class="title"><%= source === 'gutenberg' ? 'Project Gutenberg' : 'Reader' %></span>
-    <% if (typeof gid !== 'undefined') { %><span class="badge">#<%= gid %></span><% } %>
-    <div class="tools">
-      <a class="btn" id="openOriginal" href="<%= startUrl %>" target="_blank" rel="noopener">Open ↗</a>
-      <a class="btn" href="" onclick="location.reload();return false;">Reload</a>
-    </div>
+    <a href="javascript:history.back()" class="back">← Back</a>
+    <div class="title">Project Gutenberg</div>
+    <% if (gid) { %><span class="badge">#<%= gid %></span><% } %>
+    <div class="grow"></div>
+    <% if (startUrl) { %>
+      <a class="btn" href="<%= startUrl %>" target="_blank" rel="noopener">Open original ↗</a>
+    <% } %>
+    <button class="btn" onclick="location.reload()">Reload</button>
   </div>
 
-  <div class="tool" id="tool">
-    <div class="group"><span>Page</span><span class="num" id="cur">1</span><span>/</span><span class="num" id="tot">1</span><input class="range" id="slider" type="range" min="1" max="1" value="1" /></div>
-    <div class="group"><span>Font</span><button class="btn" id="fontMinus">A−</button><button class="btn" id="fontPlus">A+</button></div>
-    <div class="group"><span>Theme</span><button class="btn" data-theme="light">Light</button><button class="btn" data-theme="sepia">Sepia</button><button class="btn" data-theme="night">Night</button></div>
-    <div class="group"><span>Go to</span><input id="goto" type="number" min="1" value="1" style="width:68px;padding:4px 6px;border-radius:8px;border:1px solid #2a3340;background:#0c1016;color:#e6edf3" /><button class="btn" id="goBtn">Go</button></div>
-  </div>
+  <div id="status" class="status">Loading… rendering via BookLantern viewer.</div>
 
-  <div class="shell">
-    <div class="stage" id="stage">
-      <div class="pageflow" id="pageflow"><div id="content" class="content"></div></div>
-      <div class="arrow left" id="btnPrev">‹</div><div class="arrow right" id="btnNext">›</div>
-      <div class="zone leftZone" id="zonePrev"></div><div class="zone rightZone" id="zoneNext"></div><div class="centerZone" id="zoneCenter"></div>
-    </div>
-  </div>
+  <iframe id="gFrame"
+          src="/read/gutenberg/<%= encodeURIComponent(gid || '') %>/proxy<% if (startUrl) { %>?u=<%= encodeURIComponent(startUrl) %><% } %>"
+          allowfullscreen
+          referrerpolicy="no-referrer">
+  </iframe>
 
   <script>
     (function(){
-      const gid = <%- JSON.stringify(gid || '') %>;
-      const startUrl = <%- JSON.stringify(startUrl || '') %>;
-      const content = document.getElementById('content');
-      const pageflow = document.getElementById('pageflow');
-      const tool = document.getElementById('tool');
-      const curEl = document.getElementById('cur'); const totEl = document.getElementById('tot'); const slider = document.getElementById('slider');
-      const gotoInput = document.getElementById('goto'); const goBtn = document.getElementById('goBtn');
-      const btnPrev = document.getElementById('btnPrev'); const btnNext = document.getElementById('btnNext');
-      const zonePrev = document.getElementById('zonePrev'); const zoneNext = document.getElementById('zoneNext'); const zoneCenter = document.getElementById('zoneCenter');
+      const status = document.getElementById('status');
+      const frame  = document.getElementById('gFrame');
+      let loaded = false;
 
-      document.querySelectorAll('[data-theme]').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-          document.body.classList.remove('theme-sepia','theme-night');
-          const t = btn.getAttribute('data-theme');
-          if (t==='sepia') document.body.classList.add('theme-sepia');
-          if (t==='night') document.body.classList.add('theme-night');
-        });
+      frame.addEventListener('load', function(){
+        loaded = true;
+        status.classList.add('hidden');
       });
 
-      function pageWidthPx(){
-        const cs = getComputedStyle(pageflow);
-        // subtract a tiny bleed so right edge never clips characters
-        return Math.max(1, pageflow.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2);
-      }
-
-      function pickMain(doc){
-        const wrap = doc.querySelector('#bl-wrap') || doc.body;
-        const candidates = ['#content','main','article','.booktext','.text','.chapter','.entry-content','#main','.main']
-          .map(sel => wrap.querySelector(sel)).filter(Boolean);
-        if (!candidates.length) return wrap;
-        candidates.sort((a,b)=> (b.textContent||'').length - (a.textContent||'').length);
-        return candidates[0];
-      }
-
-      async function loadBook(){
-        const proxied = `/read/gutenberg/${encodeURIComponent(gid)}/proxy?u=${encodeURIComponent(startUrl)}`;
-        const html = await fetch(proxied, { credentials:'omit' }).then(r=>r.text());
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-
-        let main = pickMain(doc);
-        if (main && main.children.length === 0 && (main.textContent||'').trim().length > 0){
-          const pre = doc.createElement('pre'); pre.textContent = main.textContent; main = pre;
+      // Gentle fallback if the upstream is slow
+      setTimeout(function(){
+        if (!loaded) {
+          status.textContent = "Still loading… If it stalls, tap “Open original”.";
         }
-        Array.from(main.querySelectorAll('header, nav')).forEach(el => el.remove());
-        Array.from(main.querySelectorAll('hr')).slice(0,2).forEach(el => el.remove());
-
-        content.innerHTML = main.innerHTML;
-
-        // wait images to size
-        await Promise.all(Array.from(content.querySelectorAll('img')).map(img => new Promise(res => {
-          if (img.complete) return res();
-          img.addEventListener('load', res, { once:true }); img.addEventListener('error', res, { once:true });
-        })));
-
-        computeTotal(); goTo(1);
-      }
-
-      let totalPages = 1, page = 1;
-      function computeTotal(){
-        const totalWidth = content.scrollWidth;
-        const pw = pageWidthPx();
-        totalPages = Math.max(1, Math.ceil(totalWidth / pw));
-        slider.max = String(totalPages); gotoInput.max = String(totalPages);
-        curEl.textContent = String(page); totEl.textContent = String(totalPages); slider.value = String(page);
-      }
-      function updateUI(){ curEl.textContent = String(page); slider.value = String(page); }
-      function goTo(p){ page = Math.max(1, Math.min(totalPages, p|0)); const x = pageWidthPx() * (page - 1); content.scrollTo({ left:x, behavior:'smooth' }); updateUI(); }
-      function next(){ goTo(page + 1); } function prev(){ goTo(page - 1); }
-
-      let scrollTick=null;
-      content.addEventListener('scroll', ()=> {
-        if (scrollTick) return;
-        scrollTick = requestAnimationFrame(()=>{
-          const pw = pageWidthPx();
-          const p = Math.floor((content.scrollLeft + 1) / pw) + 1; // +1 guard
-          if (p !== page){ page = Math.max(1, Math.min(totalPages, p)); updateUI(); }
-          scrollTick=null;
-        });
-      });
-
-      slider.addEventListener('input', ()=> goTo(parseInt(slider.value,10)));
-      goBtn.addEventListener('click', ()=> goTo(parseInt(gotoInput.value||'1',10)));
-      gotoInput.addEventListener('keydown', (e)=>{ if (e.key==='Enter') goTo(parseInt(gotoInput.value||'1',10)); });
-      btnNext.addEventListener('click', next); btnPrev.addEventListener('click', prev);
-      zoneNext.addEventListener('click', next); zonePrev.addEventListener('click', prev);
-      zoneCenter.addEventListener('click', ()=> tool.classList.toggle('hidden'));
-      window.addEventListener('keydown', (e)=>{ if (e.key==='ArrowRight' || e.key==='PageDown'){ e.preventDefault(); next(); } if (e.key==='ArrowLeft' || e.key==='PageUp'){ e.preventDefault(); prev(); } });
-
-      function setFont(px){ const clamped = Math.max(14, Math.min(22, px|0)); document.documentElement.style.setProperty('--baseFont', clamped + 'px'); computeTotal(); goTo(page); }
-      document.getElementById('fontMinus').addEventListener('click', ()=> setFont(parseInt(getComputedStyle(document.documentElement).getPropertyValue('--baseFont')) - 1));
-      document.getElementById('fontPlus').addEventListener('click',  ()=> setFont(parseInt(getComputedStyle(document.documentElement).getPropertyValue('--baseFont')) + 1));
-
-      const ro1 = new ResizeObserver(()=>{ computeTotal(); goTo(page); }); ro1.observe(pageflow);
-      const ro2 = new ResizeObserver(()=>{ computeTotal(); goTo(page); }); ro2.observe(content);
-
-      loadBook().catch(()=>{ content.innerHTML = '<div style="padding:2rem;font-size:16px">Failed to load this Gutenberg page. Try “Open original”.</div>'; });
+      }, 2000);
     })();
   </script>
+
+<% } %>
 </body>
 </html>
