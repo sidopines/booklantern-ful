@@ -48,18 +48,10 @@ function uniqBy(arr, keyFn) {
   return out;
 }
 
-// A tiny helper for login gating
-function gate(req, res) {
-  if (!req.session.user) {
-    return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
-  }
-  return null;
-}
-
 // ---------- external fetchers ----------
 /**
  * Internet Archive
- * Keep non-borrow items by adding access-restricted:false.
+ * Try to keep only items that are not borrow-only by adding access-restricted:false.
  */
 async function searchArchive(q) {
   try {
@@ -90,6 +82,7 @@ async function searchArchive(q) {
 
 /**
  * Project Gutenberg (Gutendex)
+ * Pull 2 pages to boost results.
  */
 async function searchGutenberg(q) {
   try {
@@ -126,11 +119,6 @@ async function searchGutenberg(q) {
 
 /**
  * Open Library — return items we can open INSIDE our site.
- * Strategy:
- *  - Run two searches (q=, title=) with has_fulltext=true & public_scan_b=true.
- *  - Prefer docs that already have `ia[]` (direct IA id).
- *  - For others, follow edition_key -> /books/{ed}.json to pull `ocaid` (IA id).
- *  - Emit cards with source:'openlibrary' but include archiveId so /read/book/:id opens internally.
  */
 async function searchOpenLibrary(q) {
   try {
@@ -171,7 +159,6 @@ async function searchOpenLibrary(q) {
       }
     }
 
-    // Follow up editions to extract public ocaid
     const maxFollowups = 60;
     const fetched = await Promise.allSettled(
       editions.slice(0, maxFollowups).map(({ d, ed }) =>
@@ -267,10 +254,6 @@ router.get('/read', async (req, res) => {
 
 // ---------- VIEWER (ARCHIVE-ONLY INTERNAL READER) ----------
 router.get('/read/book/:identifier', async (req, res) => {
-  // Gate: only signed-in users can open readers
-  const gated = gate(req, res);
-  if (gated) return;
-
   const identifier = req.params.identifier;
 
   if (identifier.startsWith('gutenberg:')) {
@@ -305,10 +288,6 @@ router.get('/read/book/:identifier', async (req, res) => {
 
 // ---------- GUTENBERG WRAPPERS ----------
 router.get('/read/gutenberg/:gid', async (req, res) => {
-  // Gate
-  const gated = gate(req, res);
-  if (gated) return;
-
   // Redirect the simple route to the reader UI so users always get the better template
   const gid = req.params.gid;
   const u = (req.query.u || '').trim();
@@ -318,19 +297,29 @@ router.get('/read/gutenberg/:gid', async (req, res) => {
 });
 
 router.get('/read/gutenberg/:gid/reader', async (req, res) => {
-  // Gate
-  const gated = gate(req, res);
-  if (gated) return;
-
   const gid = req.params.gid;
   const fromQuery = (req.query.u || '').trim();
   const fallback = `https://www.gutenberg.org/ebooks/${gid}`;
   const viewerUrl = fromQuery || fallback;
 
+  // NEW: compute favorite state for this Gutenberg work
+  let isFavorite = false;
+  if (req.session.user) {
+    try {
+      isFavorite = !!(await Favorite.exists({
+        user: req.session.user._id,
+        archiveId: `gutenberg:${gid}`,
+      }));
+    } catch (e) {
+      console.error('Gutenberg favorite lookup error:', e.message);
+    }
+  }
+
   return res.render('unified-reader', {
     source: 'gutenberg',
     gid,
     startUrl: viewerUrl,
+    isFavorite,
     pageTitle: `Gutenberg #${gid} | Reader`,
     pageDescription: `Paginated reader for Gutenberg #${gid}`
   });
@@ -340,10 +329,6 @@ router.get('/read/gutenberg/:gid/reader', async (req, res) => {
  * Gutenberg Proxy (keeps our domain in the bar, rewrites in-site links)
  */
 router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
-  // Gate
-  const gated = gate(req, res);
-  if (gated) return;
-
   try {
     const gid = req.params.gid;
     const raw = (req.query.u || '').trim();
@@ -452,7 +437,7 @@ router.get('/read/book/:identifier/bookmark', async (req, res) => {
   }
 });
 
-// ---------- FAVORITES TOGGLE (ARCHIVE-ONLY HERE) ----------
+// ---------- FAVORITES TOGGLE (ARCHIVE + GUTENBERG VIA IDENTIFIER) ----------
 router.post('/read/book/:identifier/favorite', async (req, res) => {
   if (!req.session.user) return res.status(401).send('Login required');
   try {
