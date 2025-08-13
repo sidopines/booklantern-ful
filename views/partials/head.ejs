@@ -8,19 +8,28 @@
 
 <title><%= t %></title>
 <meta name="description" content="<%= d %>">
-<meta name="theme-color" content="#ffffff">
-<meta name="color-scheme" content="light">
 
 <!-- Favicons / Icons -->
-<link rel="icon" href="/favicon.ico" sizes="any"><!-- legacy fallback -->
-<link rel="icon" href="/img/brand.svg" type="image/svg+xml"><!-- crisp SVG -->
+<!-- Legacy fallback: /favicon.ico at the root -->
+<link rel="icon" href="/favicon.ico" sizes="any">
+<!-- Preferred vector (falls back to PNG if missing) -->
+<link rel="icon" href="/img/brand.svg" type="image/svg+xml">
+<!-- Small PNGs many UIs still read -->
 <link rel="icon" href="/img/favicon-32.png" sizes="32x32">
 <link rel="icon" href="/img/favicon-16.png" sizes="16x16">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">
-<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#111111"><!-- optional -->
-<link rel="manifest" href="/site.webmanifest"><!-- optional PWA manifest -->
+<!-- iOS homescreen -->
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<!-- PWA manifest (Chrome/Edge/Android) -->
+<link rel="manifest" href="/site.webmanifest">
+<!-- Safari pinned tab (optional monochrome) -->
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#111111">
+<!-- Browser UI color -->
+<meta name="theme-color" content="#ffffff">
+<meta name="application-name" content="BookLantern">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BookLantern">
 
-<!-- Social -->
+<!-- Social preview -->
 <meta property="og:type" content="website">
 <meta property="og:title" content="<%= t %>">
 <meta property="og:description" content="<%= d %>">
@@ -32,7 +41,6 @@
 <meta name="twitter:description" content="<%= d %>">
 <meta name="twitter:image" content="/img/social-card.png">
 
-<!-- Performance -->
-<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<!-- Perf -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="/css/site.css">
