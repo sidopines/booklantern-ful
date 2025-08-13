@@ -5,9 +5,8 @@
     pageTitle: pageTitle || 'BookLantern — Read & Learn',
     pageDescription: pageDescription || 'Free books and educational videos, unified in a beautiful reading experience.'
   }) %>
-  <link rel="stylesheet" href="/css/site.css">
 </head>
-<body class="home">
+<body>
   <%- include('./partials/navbar.ejs') %>
 
   <!-- HERO -->
@@ -19,6 +18,7 @@
         Read in a focused, book-like experience that stays out of the way.
       </p>
 
+      <!-- Search bar that goes to /read -->
       <form class="searchbar" action="/read" method="GET">
         <input type="text" name="query" placeholder="Try ‘Plato’, ‘Socrates’, ‘Physics’, ‘Bible’…" />
         <button class="btn" type="submit">Search Books</button>
@@ -33,20 +33,40 @@
     </div>
   </section>
 
-  <!-- TRENDING (single instance) -->
-  <section class="section section-tight">
+  <!-- TRENDING (one single section) -->
+  <section class="section">
     <div class="container">
       <div class="shelf-header">
         <h2>Trending now</h2>
         <div class="hint">Latest from BookLantern</div>
       </div>
-      <div id="featured-grid" class="grid" aria-live="polite"></div>
+      <div id="trending-grid" class="grid" aria-live="polite"></div>
     </div>
   </section>
 
   <!-- CURATED SHELVES -->
   <section class="section">
     <div class="container" id="shelves"></div>
+  </section>
+
+  <!-- POPULAR TOPICS -->
+  <section class="section">
+    <div class="container">
+      <div class="shelf-header">
+        <h2>Popular Topics</h2>
+        <div class="hint">Start reading in one tap</div>
+      </div>
+      <div class="topic-row">
+        <a class="topic" href="/read?query=Philosophy">Philosophy</a>
+        <a class="topic" href="/read?query=Science">Science</a>
+        <a class="topic" href="/read?query=History">History</a>
+        <a class="topic" href="/read?query=Mathematics">Mathematics</a>
+        <a class="topic" href="/read?query=Classics">Classics</a>
+        <a class="topic" href="/read?query=Poetry">Poetry</a>
+        <a class="topic" href="/read?query=Biology">Biology</a>
+        <a class="topic" href="/read?query=Economics">Economics</a>
+      </div>
+    </div>
   </section>
 
   <!-- HOW IT WORKS -->
@@ -82,11 +102,8 @@
     (function(){
       const IS_LOGGED_IN = <%= !!user %>;
 
-      const featuredGrid = document.getElementById('featured-grid');
+      const trendingGrid = document.getElementById('trending-grid');
       const shelvesRoot  = document.getElementById('shelves');
-
-      // track identifiers shown in Trending to avoid duplicates below
-      const SEEN = new Set();
 
       function escapeHtml(s){
         return String(s || '')
@@ -94,8 +111,17 @@
           .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
       }
 
+      function brandFromSource(src){
+        const s = (src || '').toLowerCase();
+        if (s === 'archive') return 'Archive.org';
+        if (s === 'gutenberg') return 'Project Gutenberg';
+        if (s === 'openlibrary') return 'Open Library';
+        if (s === 'local') return 'BookLantern';
+        return 'Book';
+      }
+
       function buildHrefFromCard(b){
-        if (b && b.href) return b.href;
+        if (b && b.href) return b.href; // server provided link
         const src = (b.source || '').toLowerCase();
         const id  = b.identifier || '';
         const ia  = b.archiveId || (src === 'archive' ? id : '');
@@ -107,58 +133,35 @@
         }
         return b.readerUrl || '#';
       }
-      function brandFromSource(src){
-        const s = (src || '').toLowerCase();
-        if (s === 'archive') return 'Archive.org';
-        if (s === 'gutenberg') return 'Project Gutenberg';
-        if (s === 'openlibrary') return 'Open Library';
-        return 'Book';
-      }
+
+      // Gate: visitors → /login?next=...
       function gatedHref(dest){
-        if (IS_LOGGED_IN) return dest;
-        return '/login?next=' + encodeURIComponent(dest || '/');
+        return IS_LOGGED_IN ? dest : '/login?next=' + encodeURIComponent(dest || '/');
       }
 
-      // gradient fallback tile (never show an empty card)
-      function fallbackTile(title){
-        const t = escapeHtml(title || 'Explore');
-        return `
-          <div class="thumb" style="background:linear-gradient(180deg,#f4f7ff,#eefcf7);display:flex;align-items:center;justify-content:center;">
-            <div style="text-align:center;">
-              <div style="font-size:40px;line-height:1.1">📖</div>
-              <div style="margin-top:6px;color:#667085;font-size:12px">${t}</div>
-            </div>
-          </div>`;
-      }
-
-      // attach onerror fallbacks AFTER we inject the grid
-      function enableImageFallbacks(root){
-        root.querySelectorAll('img[data-cover]').forEach(img => {
-          img.addEventListener('error', () => {
-            const title = img.getAttribute('data-title') || 'Explore';
-            const parent = img.parentElement;
-            if (parent) parent.innerHTML = fallbackTile(title);
-          }, { once:true });
-        });
+      function imgTag(src, alt){
+        const safeAlt = escapeHtml(alt || '');
+        // If image fails (404/CORS), fall back to local SVG
+        return `<img src="${src}" alt="${safeAlt}" loading="lazy" onerror="this.onerror=null;this.src='/img/cover-fallback.svg'">`;
       }
 
       function cardTemplate(b){
         const dest  = gatedHref(buildHrefFromCard(b));
         const brand = brandFromSource(b.source);
-        const internal = IS_LOGGED_IN && (b.archiveId || (b.source||'').toLowerCase()==='archive' || (b.source||'').toLowerCase()==='gutenberg');
-
-        const title = escapeHtml(b.title || '');
-        const thumb = b.cover
-          ? `<div class="thumb"><img data-cover data-title="${title}" src="${b.cover}" alt="${title}" loading="lazy" referrerpolicy="no-referrer"></div>`
-          : fallbackTile(b.title);
-
+        const hasInternal = IS_LOGGED_IN && (
+          (b.archiveId) ||
+          (b.source||'').toLowerCase()==='archive' ||
+          (b.source||'').toLowerCase()==='gutenberg'
+        );
         return `
           <article class="card fade-in">
-            <a href="${dest}" ${internal ? '' : 'rel="noopener"'} style="text-decoration:none;color:inherit">
-              ${thumb}
+            <a href="${dest}" ${hasInternal ? '' : 'rel="noopener"'} style="text-decoration:none;color:inherit">
+              <div class="thumb">
+                ${b.cover ? imgTag(b.cover, b.title) : imgTag('/img/cover-fallback.svg', b.title)}
+              </div>
               <div class="meta">
                 <span class="badge">${brand}</span>
-                <h3>${title}</h3>
+                <h3>${escapeHtml(b.title || '')}</h3>
                 <p>${escapeHtml(b.creator || '')}</p>
               </div>
             </a>
@@ -172,20 +175,10 @@
           return;
         }
         targetEl.innerHTML = items.map(cardTemplate).join('');
-        enableImageFallbacks(targetEl);
       }
 
       function shelfTemplate(shelf){
-        // remove anything already shown in Trending
-        const deduped = (shelf.items || []).filter(x => {
-          const key = (x.identifier || x.title || '').toString();
-          return key && !SEEN.has(key);
-        }).slice(0, 12);
-
-        const cards = deduped.map(cardTemplate).join('');
-        // record these so we don’t repeat in later shelves either
-        deduped.forEach(x => SEEN.add((x.identifier || x.title || '').toString()));
-
+        const cards = (shelf.items || []).map(cardTemplate).join('');
         return `
           <div class="shelf">
             <div class="shelf-header">
@@ -199,7 +192,8 @@
         `;
       }
 
-      async function loadFeatured(){
+      // Load “Trending now” (uses local Books first; falls back to curated)
+      async function loadTrending(){
         try {
           const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
           if (!r.ok) throw new Error('Bad status');
@@ -208,12 +202,19 @@
             Array.isArray(data) ? data :
             (Array.isArray(data.items) ? data.items :
             (Array.isArray(data.results) ? data.results : []));
-          // mark as seen for dedupe
-          items.forEach(b => SEEN.add((b.identifier || b.title || '').toString()));
-          renderGrid(items, featuredGrid);
+          // De-dupe just in case
+          const seen = new Set();
+          const unique = [];
+          for (const b of items) {
+            const k = ((b.title||'') + '|' + (b.creator||'')).toLowerCase();
+            if (seen.has(k)) continue;
+            seen.add(k);
+            unique.push(b);
+          }
+          renderGrid(unique, trendingGrid);
         } catch (e) {
-          featuredGrid.innerHTML = '<div class="hint">Could not load featured books. Try refreshing.</div>';
-          console.error('featured error', e);
+          console.error('trending error', e);
+          trendingGrid.innerHTML = '<div class="hint">Could not load books. Try refreshing.</div>';
         }
       }
 
@@ -224,13 +225,23 @@
           const data = await r.json();
           const shelves = Array.isArray(data.shelves) ? data.shelves : [];
           shelvesRoot.innerHTML = shelves.map(shelfTemplate).join('');
-          enableImageFallbacks(shelvesRoot);
         } catch (e) {
           console.error('shelves error', e);
         }
       }
 
-      loadFeatured().then(loadShelves);
+      loadTrending();
+      loadShelves();
+
+      // Optional “New books added” toast if ?refreshed=1 is present
+      (function toastIfRefreshed(){
+        if (!/[\?&]refreshed=1\b/.test(location.search)) return;
+        const b = document.createElement('div');
+        b.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:9999;font-weight:600';
+        b.textContent = 'New books added';
+        document.body.appendChild(b);
+        setTimeout(()=>b.remove(), 2600);
+      })();
     })();
   </script>
 </body>
