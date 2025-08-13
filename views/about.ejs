@@ -3,28 +3,34 @@
 <head>
   <%- include('./partials/head.ejs', {
     pageTitle: 'About BookLantern',
-    pageDescription: 'BookLantern is an open library that brings together the web’s trusted open stacks so you can read in one clean place.'
+    pageDescription: 'Learn how BookLantern brings together results from globally trusted libraries so you can discover millions of books in one place.'
   }) %>
   <link rel="stylesheet" href="/css/site.css">
   <style>
-    .about-hero{background: radial-gradient(1000px 420px at 10% -10%, #e9f0ff 0%, transparent 55%), radial-gradient(800px 340px at 95% 0%, #e8fff7 0%, transparent 60%), #f7f9fc; padding: 64px 0 24px;}
-    .about-hero .inner{max-width: 880px; margin:0 auto; text-align:center; padding:24px;}
-    .about-hero h1{font-size: clamp(36px, 6vw, 56px); letter-spacing:-.02em; margin:0 0 12px;}
-    .about-hero p{max-width:820px; margin:0 auto 16px; color:#556070; font-size:clamp(16px,2vw,20px);}
-    .cta-row{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:12px;}
+    .about-hero{
+      background:
+        radial-gradient(1000px 420px at 10% -10%, #e9f0ff 0%, transparent 55%),
+        radial-gradient(800px 340px at 95% 0%, #e8fff7 0%, transparent 60%),
+        #f7f9fc;
+      padding: 64px 0 24px;
+    }
+    .about-hero .inner{max-width:880px;margin:0 auto;text-align:center;padding:24px;}
+    .about-hero h1{font-size:clamp(36px,6vw,56px);letter-spacing:-.02em;margin:0 0 12px;}
+    .about-hero p{max-width:820px;margin:0 auto 16px;color:#556070;font-size:clamp(16px,2vw,20px);}
+    .cta-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;}
+    .section-copy{max-width:820px;color:#556070;line-height:1.6;}
+    .mt-2{margin-top:12px;}
+    .mt-3{margin-top:18px;}
   </style>
 </head>
 <body>
   <%- include('./partials/navbar.ejs') %>
 
+  <!-- HERO -->
   <section class="about-hero">
     <div class="inner">
       <h1>About BookLantern</h1>
-      <p>
-        BookLantern brings together results from <strong>globally trusted libraries</strong> across the web
-        so you can discover <strong>millions of free and public-domain books</strong> in one place—then read
-        them in a clean, unified reader.
-      </p>
+      <p>BookLantern brings together results from globally trusted libraries across the web so you can discover millions of books in one place.</p>
       <div class="cta-row">
         <a class="btn" href="/read">Browse Books</a>
         <a class="btn alt" href="/watch">Explore Videos</a>
@@ -32,15 +38,16 @@
     </div>
   </section>
 
+  <!-- VALUE STRIP -->
   <section class="value-strip">
     <div class="container value-inner">
       <div class="value-item">
         <div class="vi-title">Millions+ titles</div>
-        <div class="vi-copy">Search across vast public-domain and free-to-read catalogs.</div>
+        <div class="vi-copy">Search an ever-growing catalog brought together for easy discovery.</div>
       </div>
       <div class="value-item">
         <div class="vi-title">From globally trusted libraries</div>
-        <div class="vi-copy">One search, many sources—kept simple for readers.</div>
+        <div class="vi-copy">One search that unifies open stacks across the web.</div>
       </div>
       <div class="value-item">
         <div class="vi-title">One clean reader</div>
@@ -49,27 +56,44 @@
     </div>
   </section>
 
+  <!-- MISSION -->
   <main class="section">
     <div class="container">
       <div class="shelf-header">
         <h2>Our mission</h2>
+        <div class="hint">Make finding and reading great books effortless</div>
+      </div>
+      <p class="section-copy">
+        BookLantern helps the open book web feel like one great library. We organize results from
+        reputable catalogs, then present them in a simple interface so readers can search once, save
+        favorites, and pick up where they left off—without juggling different sites and accounts.
+      </p>
+
+      <div class="shelf-header mt-3">
+        <h2>What makes BookLantern different</h2>
+        <div class="hint">Clarity, speed, and focus</div>
+      </div>
+      <p class="section-copy">
+        We prioritize reading experience. Pages turn quickly, controls stay out of the way, and your
+        place is remembered across devices. When a title is available to read, we surface it clearly.
+        When it isn’t, we point you to where it lives—no runaround, no clutter.
+      </p>
+
+      <div class="shelf-header mt-3">
+        <h2>Our promise to readers</h2>
         <div class="hint">Access + delight</div>
       </div>
-      <p style="max-width:820px; color:#556070; line-height:1.6;">
-        BookLantern is an <strong>open library</strong> in the marketplace sense. We don’t try to own every
-        book—just as an open marketplace doesn’t own every product. Instead, we <strong>index and organize</strong>
-        freely available texts from around the web, so readers don’t have to create ten accounts on ten sites
-        or learn ten different interfaces. Create <strong>one account</strong> on BookLantern, search once, and
-        <strong>read in one place</strong>.
-      </p>
-      <p style="max-width:820px; color:#556070; line-height:1.6;">
-        We respect availability and always keep you focused on the text. No clutter, no gimmicks—just books.
+      <p class="section-copy">
+        BookLantern exists to make books easier to reach and more enjoyable to read. We keep the
+        experience calm and consistent, respect availability, and continuously expand the catalog so
+        you can discover more with less effort.
       </p>
     </div>
   </main>
 
   <footer class="footer">
-    &copy; <%= new Date().getFullYear() %> BookLantern • Built on open libraries • <a href="/read">Start reading</a>
+    &copy; <%= new Date().getFullYear() %> BookLantern • Built on open libraries •
+    <a href="/read">Start reading</a>
   </footer>
 </body>
 </html>
