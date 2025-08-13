@@ -1,12 +1,23 @@
 {
+  "id": "/",
   "name": "BookLantern",
   "short_name": "BookLantern",
-  "start_url": "/",
+  "description": "Search and read millions of books in one clean, unified reader.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
   "icons": [
     { "src": "/img/pwa-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "/img/pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
-  ]
+  ],
+  "shortcuts": [
+    { "name": "Browse Books", "short_name": "Books", "url": "/read" },
+    { "name": "Explore Videos", "short_name": "Videos", "url": "/watch" }
+  ],
+  "categories": ["books", "education", "productivity"],
+  "lang": "en",
+  "dir": "ltr"
 }
