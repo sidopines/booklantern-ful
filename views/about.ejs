@@ -2,78 +2,67 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: "About | BookLantern",
-    pageDescription: "Learn what BookLantern is and how it offers free access to books, documentaries, and educational content."
+    pageTitle: 'About BookLantern',
+    pageDescription: 'Millions of free and public-domain books—one clean reader. Built on open libraries.'
   }) %>
-  <style>
-    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --link:#1256b3; --card:#fff; --border:#e5e7eb; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-    }
-    .container {
-      max-width: 880px;
-      margin: 2rem auto 3rem;
-      padding: 0 1rem;
-    }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      box-shadow: 0 8px 28px rgba(0,0,0,.06);
-      padding: 1.5rem 1.25rem;
-    }
-    h1 {
-      font-size: clamp(1.8rem, 3.2vw, 2.5rem);
-      line-height: 1.15;
-      margin: 0 0 0.75rem 0;
-      letter-spacing: -0.02em;
-    }
-    p {
-      font-size: 1.05rem;
-      line-height: 1.75;
-      margin: 0 0 1rem 0;
-      color: #1f2937;
-    }
-    .highlight { color: var(--link); font-weight: 600; }
-    .back-home {
-      display: inline-block;
-      margin-top: 1.25rem;
-      color: var(--link);
-      text-decoration: none;
-      font-weight: 600;
-    }
-    .back-home:hover { text-decoration: underline; }
-  </style>
+  <link rel="stylesheet" href="/css/site.css">
 </head>
 <body>
   <%- include('./partials/navbar.ejs') %>
 
-  <div class="container">
-    <div class="card">
+  <section class="hero">
+    <div class="hero-inner fade-in">
       <h1>About BookLantern</h1>
       <p>
-        <span class="highlight">BookLantern</span> is your free gateway to a world of knowledge and stories.
-        We connect readers and learners with an expansive archive of books and documentaries — at zero cost.
+        BookLantern brings together results from <strong>Internet Archive</strong>, <strong>Open Library</strong>,
+        and <strong>Project Gutenberg</strong> so you can discover <strong>millions of free and public-domain books</strong>
+        in one place—then read them in a clean, unified reader.
       </p>
-      <p>
-        We believe access to knowledge should be barrier-free. BookLantern fetches open-access and public-domain
-        books from trusted sources and presents them in a clean reading experience, without hassle.
-      </p>
-      <p>
-        Whether you’re exploring timeless classics, academic materials, or diving into documentaries on our Watch page,
-        BookLantern supports your curiosity.
-      </p>
-      <p>
-        Create a free account to save favorites, track your progress, and enjoy new educational content added regularly.
-      </p>
-      <p><strong>Your lantern to the world of knowledge starts here.</strong></p>
-
-      <a href="/" class="back-home">← Back to Home</a>
+      <div class="hero-cta">
+        <a class="btn" href="/read">Browse Books</a>
+        <a class="btn alt" href="/watch">Explore Videos</a>
+      </div>
     </div>
-  </div>
+  </section>
+
+  <!-- Value strip with simple numbers -->
+  <section class="value-strip">
+    <div class="container value-inner">
+      <div class="value-item">
+        <div class="vi-title">Millions+ titles</div>
+        <div class="vi-copy">Search across vast public-domain and free-to-read catalogs.</div>
+      </div>
+      <div class="value-item">
+        <div class="vi-title">3 open libraries</div>
+        <div class="vi-copy">Internet Archive, Open Library, and Project Gutenberg—one search.</div>
+      </div>
+      <div class="value-item">
+        <div class="vi-title">One clean reader</div>
+        <div class="vi-copy">Distraction-free pagination, bookmarks, and a consistent reading flow.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="shelf-header">
+        <h2>Our mission</h2>
+        <div class="hint">Access + delight</div>
+      </div>
+      <p style="max-width:800px">
+        We don’t try to be yet another library. Instead, we make the open stacks easy to search and
+        <em>delightful</em> to read. Results link back to the original sources and respect their availability.
+        Where possible, we open books right inside BookLantern so you can stay focused on the text.
+      </p>
+      <p style="max-width:800px">
+        Have suggestions or want to help? <a href="/contact">Contact us</a>. If you’d like to support the
+        source libraries, consider donating to Internet Archive, Open Library, or Project Gutenberg.
+      </p>
+    </div>
+  </section>
+
+  <footer class="footer">
+    &copy; <%= new Date().getFullYear() %> BookLantern • Built on open libraries • <a href="/read">Start reading</a>
+  </footer>
 </body>
 </html>
