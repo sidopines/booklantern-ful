@@ -139,10 +139,24 @@
         return IS_LOGGED_IN ? dest : '/login?next=' + encodeURIComponent(dest || '/');
       }
 
+      // Add a small cache-bust to Open Library cover URLs so failed thumbs refetch
+      function cacheBust(url){
+        try{
+          const u = new URL(url, location.origin);
+          if (/covers\.openlibrary\.org$/i.test(u.hostname)) {
+            u.searchParams.set('bl', '1');
+            return u.toString();
+          }
+        }catch(_){}
+        return url;
+      }
+
       function imgTag(src, alt){
         const safeAlt = escapeHtml(alt || '');
-        // If image fails (404/CORS), fall back to local SVG
-        return `<img src="${src}" alt="${safeAlt}" loading="lazy" onerror="this.onerror=null;this.src='/img/cover-fallback.svg'">`;
+        const s = cacheBust(src || '/img/cover-fallback.svg');
+        // NOTE: referrerpolicy added to make Open Library subject images load reliably
+        return `<img src="${s}" alt="${safeAlt}" loading="lazy" referrerpolicy="no-referrer"
+                 onerror="this.onerror=null;this.src='/img/cover-fallback.svg'">`;
       }
 
       function cardTemplate(b){
@@ -192,7 +206,7 @@
         `;
       }
 
-      // Load “Trending now” (uses local Books first; falls back to curated)
+      // Load “Trending now”
       async function loadTrending(){
         try {
           const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
@@ -202,7 +216,7 @@
             Array.isArray(data) ? data :
             (Array.isArray(data.items) ? data.items :
             (Array.isArray(data.results) ? data.results : []));
-          // De-dupe just in case
+          // De-dupe
           const seen = new Set();
           const unique = [];
           for (const b of items) {
@@ -233,7 +247,7 @@
       loadTrending();
       loadShelves();
 
-      // Optional “New books added” toast if ?refreshed=1 is present
+      // Optional toast if cache just busted
       (function toastIfRefreshed(){
         if (!/[\?&]refreshed=1\b/.test(location.search)) return;
         const b = document.createElement('div');
