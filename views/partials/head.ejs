@@ -8,23 +8,17 @@
 
 <title><%= t %></title>
 <meta name="description" content="<%= d %>">
+<meta name="theme-color" content="#ffffff">
+<meta name="color-scheme" content="light">
 
 <!-- Favicons / Icons -->
-<!-- Old-school ICO for universal fallback -->
-<link rel="icon" href="/favicon.ico" sizes="any">
-<!-- Crisp SVG in modern browsers -->
-<link rel="icon" href="/img/brand.svg" type="image/svg+xml">
-<!-- Small PNGs many UIs still read (bookmark bars, etc.) -->
+<link rel="icon" href="/favicon.ico" sizes="any"><!-- legacy fallback -->
+<link rel="icon" href="/img/brand.svg" type="image/svg+xml"><!-- crisp SVG -->
 <link rel="icon" href="/img/favicon-32.png" sizes="32x32">
 <link rel="icon" href="/img/favicon-16.png" sizes="16x16">
-<!-- iOS homescreen -->
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<!-- Safari pinned tab (monochrome mask) -->
-<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#111111">
-<!-- PWA manifest (icons for installable experience) -->
-<link rel="manifest" href="/site.webmanifest">
-<!-- Browser UI color -->
-<meta name="theme-color" content="#ffffff">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#111111"><!-- optional -->
+<link rel="manifest" href="/site.webmanifest"><!-- optional PWA manifest -->
 
 <!-- Social -->
 <meta property="og:type" content="website">
@@ -38,6 +32,7 @@
 <meta name="twitter:description" content="<%= d %>">
 <meta name="twitter:image" content="/img/social-card.png">
 
-<!-- Perf -->
+<!-- Performance -->
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="/css/site.css">
