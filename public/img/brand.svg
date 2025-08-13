@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">BookLantern logo</title>
+  <desc id="desc">Lantern framing an open book with a candle flame in the center</desc>
+
+  <!-- Colors (tuned to your brand image) -->
+  <defs>
+    <linearGradient id="pageShade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFE08A"/>
+      <stop offset="1" stop-color="#F6C957"/>
+    </linearGradient>
+    <linearGradient id="flameOuter" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFD76A"/>
+      <stop offset="1" stop-color="#F6B21A"/>
+    </linearGradient>
+    <linearGradient id="flameInner" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFB84D"/>
+      <stop offset="1" stop-color="#E38100"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Base group (brown strokes) -->
+  <g stroke="#7A4B2A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Top ring -->
+    <circle cx="128" cy="42" r="18" fill="none"/>
+    <!-- Lantern arch/frame -->
+    <path d="M48 184V108c0-47.5 35.5-78 80-78s80 30.5 80 78v76" fill="none"/>
+    <!-- Stand/base -->
+    <path d="M56 196c20 8 44 12 72 12s52-4 72-12" fill="none"/>
+  </g>
+
+  <!-- Book (left & right pages) -->
+  <g>
+    <!-- Left hard edge (brown) -->
+    <path d="M52 182c0-30 20-46 60-46 12 0 16 2 16 2v56s-4-2-16-2c-40 0-60 2-60-10z"
+          fill="url(#pageShade)" stroke="#7A4B2A" stroke-width="8" stroke-linejoin="round"/>
+    <!-- Right -->
+    <path d="M204 182c0-30-20-46-60-46-12 0-16 2-16 2v56s4-2 16-2c40 0 60 2 60-10z"
+          fill="url(#pageShade)" stroke="#7A4B2A" stroke-width="8" stroke-linejoin="round"/>
+    <!-- Page ribs (subtle) -->
+    <g stroke="#C8943A" stroke-width="4" opacity=".65">
+      <path d="M84 150c10 2 22 6 28 12"/>
+      <path d="M84 162c10 2 22 6 28 12"/>
+      <path d="M84 174c10 2 22 6 28 12"/>
+      <path d="M172 150c-10 2-22 6-28 12"/>
+      <path d="M172 162c-10 2-22 6-28 12"/>
+      <path d="M172 174c-10 2-22 6-28 12"/>
+    </g>
+  </g>
+
+  <!-- Center flame -->
+  <g>
+    <!-- Outer drop -->
+    <path d="M128 74c18 20 24 36 24 48 0 16-10 28-24 28s-24-12-24-28c0-12 6-28 24-48z"
+          fill="url(#flameOuter)" stroke="#7A4B2A" stroke-width="6"/>
+    <!-- Inner core -->
+    <path d="M128 98c10 12 13 21 13 28 0 8-6 14-13 14s-13-6-13-14c0-7 3-16 13-28z"
+          fill="url(#flameInner)"/>
+    <!-- Wick -->
+    <path d="M128 116v24" stroke="#7A4B2A" stroke-width="6" stroke-linecap="round"/>
+  </g>
+
+  <!-- Foot/holder -->
+  <path d="M52 184c20 14 44 22 76 22s56-8 76-22" fill="none" stroke="#7A4B2A" stroke-width="10" stroke-linecap="round"/>
+
+</svg>
