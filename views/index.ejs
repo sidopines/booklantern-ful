@@ -3,8 +3,9 @@
 <head>
   <%- include('./partials/head.ejs', {
     pageTitle: pageTitle || 'BookLantern — Read & Learn',
-    pageDescription: pageDescription || 'Free books and educational videos, unified in a beautiful reading experience.'
+    pageDescription: pageDescription || 'Millions of free and public-domain books—one clean reader.'
   }) %>
+  <link rel="stylesheet" href="/css/site.css">
 </head>
 <body>
   <%- include('./partials/navbar.ejs') %>
@@ -14,8 +15,8 @@
     <div class="hero-inner fade-in">
       <h1>Books, beautifully.</h1>
       <p>
-        Search the open stacks—Archive.org, Open Library, and Project Gutenberg.
-        Read in a focused, book-like experience that stays out of the way.
+        <strong>Millions of free and public-domain books—one clean reader.</strong>
+        Search across Internet Archive, Open Library, and Project Gutenberg.
       </p>
 
       <!-- Search bar that goes to /read -->
@@ -25,6 +26,13 @@
         <a class="btn alt" href="/watch">Explore Videos</a>
       </form>
 
+      <!-- quick proof points -->
+      <div class="benefits">
+        <span>Millions+ titles</span> •
+        <span>3 trusted libraries</span> •
+        <span>1 distraction-free reader</span>
+      </div>
+
       <div class="hero-cta">
         <% if (!user) { %>
           <a class="btn ghost" href="/register">Create a free account</a>
@@ -33,14 +41,14 @@
     </div>
   </section>
 
-  <!-- TRENDING (one single section) -->
+  <!-- TRENDING (formerly "Featured" on home) -->
   <section class="section">
     <div class="container">
       <div class="shelf-header">
         <h2>Trending now</h2>
         <div class="hint">Latest from BookLantern</div>
       </div>
-      <div id="trending-grid" class="grid" aria-live="polite"></div>
+      <div id="featured-grid" class="grid" aria-live="polite"></div>
     </div>
   </section>
 
@@ -102,7 +110,7 @@
     (function(){
       const IS_LOGGED_IN = <%= !!user %>;
 
-      const trendingGrid = document.getElementById('trending-grid');
+      const featuredGrid = document.getElementById('featured-grid');
       const shelvesRoot  = document.getElementById('shelves');
 
       function escapeHtml(s){
@@ -111,22 +119,15 @@
           .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
       }
 
-      function brandFromSource(src){
-        const s = (src || '').toLowerCase();
-        if (s === 'archive') return 'Archive.org';
-        if (s === 'gutenberg') return 'Project Gutenberg';
-        if (s === 'openlibrary') return 'Open Library';
-        if (s === 'local') return 'BookLantern';
-        return 'Book';
-      }
-
       function buildHrefFromCard(b){
-        if (b && b.href) return b.href; // server provided link
+        if (b && b.href) return b.href; // server provided deep link
+
         const src = (b.source || '').toLowerCase();
         const id  = b.identifier || '';
         const ia  = b.archiveId || (src === 'archive' ? id : '');
-        if (ia) return '/read/book/' + encodeURIComponent(ia);
-        if (src === 'gutenberg') {
+        if (ia) {
+          return '/read/book/' + encodeURIComponent(ia);
+        } else if (src === 'gutenberg') {
           const gid = String(id).replace(/^gutenberg:/,'');
           const qs  = b.readerUrl ? ('?u=' + encodeURIComponent(b.readerUrl)) : '';
           return '/read/gutenberg/' + encodeURIComponent(gid) + '/reader' + qs;
@@ -134,44 +135,31 @@
         return b.readerUrl || '#';
       }
 
-      // Gate: visitors → /login?next=...
+      function brandFromSource(src){
+        const s = (src || '').toLowerCase();
+        if (s === 'archive') return 'Archive.org';
+        if (s === 'gutenberg') return 'Project Gutenberg';
+        if (s === 'openlibrary') return 'Open Library';
+        return 'Book';
+      }
+
+      // Gate all homepage book clicks: guests go to /login?next=...
       function gatedHref(dest){
-        return IS_LOGGED_IN ? dest : '/login?next=' + encodeURIComponent(dest || '/');
-      }
-
-      // Add a small cache-bust to Open Library cover URLs so failed thumbs refetch
-      function cacheBust(url){
-        try{
-          const u = new URL(url, location.origin);
-          if (/covers\.openlibrary\.org$/i.test(u.hostname)) {
-            u.searchParams.set('bl', '1');
-            return u.toString();
-          }
-        }catch(_){}
-        return url;
-      }
-
-      function imgTag(src, alt){
-        const safeAlt = escapeHtml(alt || '');
-        const s = cacheBust(src || '/img/cover-fallback.svg');
-        // NOTE: referrerpolicy added to make Open Library subject images load reliably
-        return `<img src="${s}" alt="${safeAlt}" loading="lazy" referrerpolicy="no-referrer"
-                 onerror="this.onerror=null;this.src='/img/cover-fallback.svg'">`;
+        if (IS_LOGGED_IN) return dest;
+        return '/login?next=' + encodeURIComponent(dest || '/');
       }
 
       function cardTemplate(b){
-        const dest  = gatedHref(buildHrefFromCard(b));
+        const dest  = buildHrefFromCard(b);
+        const href  = gatedHref(dest);
         const brand = brandFromSource(b.source);
-        const hasInternal = IS_LOGGED_IN && (
-          (b.archiveId) ||
-          (b.source||'').toLowerCase()==='archive' ||
-          (b.source||'').toLowerCase()==='gutenberg'
-        );
+        const internal = IS_LOGGED_IN && (b.archiveId || (b.source||'').toLowerCase()==='archive' || (b.source||'').toLowerCase()==='gutenberg');
+
         return `
           <article class="card fade-in">
-            <a href="${dest}" ${hasInternal ? '' : 'rel="noopener"'} style="text-decoration:none;color:inherit">
+            <a href="${href}" ${internal ? '' : 'rel="noopener"'} style="text-decoration:none;color:inherit">
               <div class="thumb">
-                ${b.cover ? imgTag(b.cover, b.title) : imgTag('/img/cover-fallback.svg', b.title)}
+                ${b.cover ? `<img src="${b.cover}" alt="${escapeHtml(b.title || '')}" loading="lazy" referrerpolicy="no-referrer">` : ''}
               </div>
               <div class="meta">
                 <span class="badge">${brand}</span>
@@ -206,29 +194,20 @@
         `;
       }
 
-      // Load “Trending now”
-      async function loadTrending(){
+      async function loadFeatured(){
         try {
           const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
           if (!r.ok) throw new Error('Bad status');
           const data = await r.json();
+          // Accept both shapes
           const items =
             Array.isArray(data) ? data :
             (Array.isArray(data.items) ? data.items :
             (Array.isArray(data.results) ? data.results : []));
-          // De-dupe
-          const seen = new Set();
-          const unique = [];
-          for (const b of items) {
-            const k = ((b.title||'') + '|' + (b.creator||'')).toLowerCase();
-            if (seen.has(k)) continue;
-            seen.add(k);
-            unique.push(b);
-          }
-          renderGrid(unique, trendingGrid);
+          renderGrid(items, featuredGrid);
         } catch (e) {
-          console.error('trending error', e);
-          trendingGrid.innerHTML = '<div class="hint">Could not load books. Try refreshing.</div>';
+          featuredGrid.innerHTML = '<div class="hint">Could not load books. Try refreshing.</div>';
+          console.error('featured error', e);
         }
       }
 
@@ -244,18 +223,8 @@
         }
       }
 
-      loadTrending();
+      loadFeatured();
       loadShelves();
-
-      // Optional toast if cache just busted
-      (function toastIfRefreshed(){
-        if (!/[\?&]refreshed=1\b/.test(location.search)) return;
-        const b = document.createElement('div');
-        b.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:9999;font-weight:600';
-        b.textContent = 'New books added';
-        document.body.appendChild(b);
-        setTimeout(()=>b.remove(), 2600);
-      })();
     })();
   </script>
 </body>
