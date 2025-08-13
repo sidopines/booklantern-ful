@@ -2,12 +2,17 @@
 <header class="nav-wrap">
   <div class="container">
     <nav class="navbar" aria-label="Primary">
-      <a class="brand" href="/" aria-label="BookLantern — Home">
-        <img src="/img/brand.svg" alt="" width="24" height="24" decoding="async" fetchpriority="high" style="vertical-align:middle;margin-right:8px" />
-        BookLantern
+      <a class="brand" href="/" aria-label="BookLantern home">
+        <picture>
+          <!-- If you later upload a crisp SVG, browsers will use it -->
+          <source srcset="/img/brand.svg" type="image/svg+xml">
+          <!-- Fallback to your PNG logo automatically -->
+          <img src="/img/brand.png" alt="BookLantern" width="28" height="28" style="vertical-align:middle;margin-right:10px;border-radius:4px">
+        </picture>
+        <span class="brand-text">BookLantern</span>
       </a>
 
-      <button type="button" class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
         <span class="bar"></span><span class="bar"></span><span class="bar"></span>
       </button>
 
@@ -37,43 +42,13 @@
 </header>
 
 <script>
-  (function () {
-    const btn   = document.querySelector('.nav-toggle');
-    const list  = document.getElementById('nav-links');
-
+  (function(){
+    const btn  = document.querySelector('.nav-toggle');
+    const list = document.getElementById('nav-links');
     if (!btn || !list) return;
-
-    function setOpen(open) {
-      list.classList.toggle('open', open);
+    btn.addEventListener('click', function(){
+      const open = list.classList.toggle('open');
       btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    }
-
-    // Toggle on button click
-    btn.addEventListener('click', () => setOpen(!list.classList.contains('open')));
-
-    // Close when clicking a link (useful on mobile)
-    list.addEventListener('click', (e) => {
-      if (e.target.tagName === 'A') setOpen(false);
-    });
-
-    // Close on outside click
-    document.addEventListener('click', (e) => {
-      if (!list.classList.contains('open')) return;
-      const within = e.target.closest('.navbar');
-      if (!within) setOpen(false);
-    });
-
-    // Close on Escape
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') setOpen(false);
-    });
-
-    // If window is resized to desktop, ensure menu is reset
-    let lastW = window.innerWidth;
-    window.addEventListener('resize', () => {
-      const w = window.innerWidth;
-      if (w !== lastW && w >= 900) setOpen(false);
-      lastW = w;
     });
   })();
 </script>
