@@ -1,27 +1,23 @@
 // routes/homeRoutes.js
 const express = require('express');
-const axios = require('axios');
-const router = express.Router();
+const axios   = require('axios');
+const router  = express.Router();
 
-// Optional local Book model for admin-curated items
-let Book = null;
-try { Book = require('../models/Book'); } catch (_) {}
-
-// ─────────────────────────────────────────────────────────────
-// HTTP client
-// ─────────────────────────────────────────────────────────────
+/* ------------------------------------------------------------------ */
+/* Axios client                                                        */
+/* ------------------------------------------------------------------ */
 const http = axios.create({
-  timeout: 15000,
+  timeout: 12000,
   headers: {
     'User-Agent': 'BookLantern/1.0 (+booklantern.org)',
-    Accept: 'application/json,text/plain,*/*',
-  },
+    'Accept': 'application/json,text/plain,*/*'
+  }
 });
 
-// ─────────────────────────────────────────────────────────────
-// Small cache helper
-// ─────────────────────────────────────────────────────────────
-function makeCache(ttlMs = 30 * 60 * 1000) {
+/* ------------------------------------------------------------------ */
+/* Simple in-memory cache                                              */
+/* ------------------------------------------------------------------ */
+function makeCache(ttlMs = 60 * 60 * 1000) {
   return {
     value: null,
     expiresAt: 0,
@@ -32,187 +28,185 @@ function makeCache(ttlMs = 30 * 60 * 1000) {
       this.expiresAt = now + ttlMs;
       return this.value;
     },
-    bust() { this.value = null; this.expiresAt = 0; },
+    bust() { this.value = null; this.expiresAt = 0; }
   };
 }
-
 const featuredCache = makeCache(60 * 60 * 1000); // 1h
-const shelvesCache  = makeCache(30 * 60 * 1000); // 30m dynamic shelves
+const shelvesCache  = makeCache(30 * 60 * 1000); // 30m (rotate a bit quicker)
 
-// ─────────────────────────────────────────────────────────────
-// Card helpers (normalized shape for homepage)
-// ─────────────────────────────────────────────────────────────
-function card({ identifier='', title='', creator='', cover='', readerUrl='', source='', description='', archiveId='' }) {
-  return { identifier, title, creator, cover, readerUrl, source, description, archiveId };
+/* ------------------------------------------------------------------ */
+/* Helper: normalize a card                                            */
+/* ------------------------------------------------------------------ */
+function card({ identifier, title, creator, cover, readerUrl, source = 'openlibrary', archiveId = '' }) {
+  return { identifier, title, creator, cover, readerUrl, source, archiveId };
 }
 
-function cardFromLocalBook(b) {
-  return card({
-    identifier: String(b._id),
+/* ------------------------------------------------------------------ */
+/* Featured: known-good Gutenberg set (stable + with covers)           */
+/* ------------------------------------------------------------------ */
+function curatedFeatured() {
+  const pgCover = id => `https://www.gutenberg.org/cache/epub/${id}/pg${id}.cover.medium.jpg`;
+  return [
+    { id:'1342', title:'Pride and Prejudice', creator:'Jane Austen' },
+    { id:'1661', title:'The Adventures of Sherlock Holmes', creator:'Arthur Conan Doyle' },
+    { id:'84',   title:'Frankenstein', creator:'Mary Wollstonecraft Shelley' },
+    { id:'2701', title:'Moby-Dick; or, The Whale', creator:'Herman Melville' },
+    { id:'11',   title:"Alice's Adventures in Wonderland", creator:'Lewis Carroll' },
+    { id:'98',   title:'A Tale of Two Cities', creator:'Charles Dickens' },
+  ].map(b => card({
+    identifier: `gutenberg:${b.id}`,
     title: b.title,
-    creator: b.author || '',
-    cover: b.coverImage || '',
-    readerUrl: b.sourceUrl || '',
-    source: 'local',
-    description: b.description || '',
-    archiveId: '',
-  });
+    creator: b.creator,
+    cover: pgCover(b.id),
+    readerUrl: `https://www.gutenberg.org/ebooks/${b.id}`,
+    source: 'gutenberg'
+  }));
 }
 
-function pgCover(gid) {
-  // Very reliable for many classics
-  return `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.cover.medium.jpg`;
-}
-
-function cardFromGutendex(b) {
-  const authors = (b.authors || []).map(a => a.name).join(', ');
-  const cover =
-    b.formats?.['image/jpeg'] ||
-    b.formats?.['image/jpg']  ||
-    '';
-  // We’ll open everything inside our Gutenberg reader
-  const gid = b.id;
-  const html = b.formats?.['text/html; charset=utf-8'] || b.formats?.['text/html'] || '';
-  return card({
-    identifier: `gutenberg:${gid}`,
-    title: b.title || `Gutenberg #${gid}`,
-    creator: authors,
-    cover,
-    readerUrl: html || `https://www.gutenberg.org/ebooks/${gid}`,
-    source: 'gutenberg',
-  });
-}
-
-// ─────────────────────────────────────────────────────────────
-// Data sources for shelves
-// ─────────────────────────────────────────────────────────────
-async function gutendexSearch(q, take = 10) {
-  // Pull a little extra, then filter to items that have a cover
-  const url = `https://gutendex.com/books?search=${encodeURIComponent(q)}&page_size=${Math.max(
-    take * 2,
-    20
-  )}`;
+/* ------------------------------------------------------------------ */
+/* Open Library subjects (gives covers reliably)                       */
+/*  - Example: https://openlibrary.org/subjects/philosophy.json        */
+/*  - We require ebooks + public scans where possible.                 */
+/* ------------------------------------------------------------------ */
+async function fetchSubject(subject, limit = 18) {
   try {
+    const url = `https://openlibrary.org/subjects/${encodeURIComponent(subject)}.json?limit=${limit}&ebooks=true`;
     const { data } = await http.get(url);
-    const results = Array.isArray(data?.results) ? data.results : [];
-    const withCovers = results.filter(r => !!(r.formats && (r.formats['image/jpeg'] || r.formats['image/jpg'])));
-    // light shuffle
-    for (let i = withCovers.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [withCovers[i], withCovers[j]] = [withCovers[j], withCovers[i]];
-    }
-    return withCovers.slice(0, take).map(cardFromGutendex);
+    const works = Array.isArray(data?.works) ? data.works : [];
+
+    return works.slice(0, limit).map(w => {
+      const title = w.title || 'Untitled';
+      const author = Array.isArray(w.authors) && w.authors[0]?.name ? w.authors[0].name : 'Various';
+      const cover = w.cover_id ? `https://covers.openlibrary.org/b/id/${w.cover_id}-M.jpg` : '';
+      // We link to a read search that tends to find a readable copy quickly.
+      const q = encodeURIComponent(`${title} ${author}`);
+      return card({
+        identifier: `olwork:${w.key || title}`,
+        title,
+        creator: author,
+        cover,
+        readerUrl: `/read?query=${q}`,
+        source: 'openlibrary'
+      });
+    });
   } catch (e) {
-    console.error('gutendexSearch error:', e.message);
+    console.error(`[OL subject:${subject}]`, e.message);
     return [];
   }
 }
 
-function timelessClassics() {
-  // Hand-picked classics with stable Gutenberg covers
-  const ids = [1342, 1661, 84, 2701, 11, 98, 2542, 46]; // Austen, Holmes, Frankenstein, Moby, Alice, Two Cities, Aesop, Dickens
-  return ids.map(id =>
-    card({
-      identifier: `gutenberg:${id}`,
-      title: [
-        [1342, 'Pride and Prejudice'],
-        [1661, 'The Adventures of Sherlock Holmes'],
-        [84, 'Frankenstein'],
-        [2701, 'Moby-Dick; or, The Whale'],
-        [11, "Alice's Adventures in Wonderland"],
-        [98, 'A Tale of Two Cities'],
-        [2542, 'Aesop’s Fables'],
-        [46, 'A Christmas Carol'],
-      ].find(([gid]) => gid === id)?.[1] || `Gutenberg #${id}`,
-      creator: [
-        [1342, 'Jane Austen'],
-        [1661, 'Arthur Conan Doyle'],
-        [84, 'Mary Wollstonecraft Shelley'],
-        [2701, 'Herman Melville'],
-        [11, 'Lewis Carroll'],
-        [98, 'Charles Dickens'],
-        [2542, 'Aesop'],
-        [46, 'Charles Dickens'],
-      ].find(([gid]) => gid === id)?.[1] || '',
-      cover: pgCover(id),
-      readerUrl: `https://www.gutenberg.org/ebooks/${id}`,
-      source: 'gutenberg',
-    })
+/* ------------------------------------------------------------------ */
+/* Category-specific fallbacks (distinct per shelf)                    */
+/* ------------------------------------------------------------------ */
+function fallbackPhilosophy() {
+  // recognizable philosophy PD covers from Gutenberg
+  return [
+    { id:'1497', title:'The Republic', creator:'Plato' },
+    { id:'1404', title:'Meditations', creator:'Marcus Aurelius' },
+    { id:'571',  title:'Thus Spake Zarathustra', creator:'Friedrich Nietzsche' },
+    { id:'30202',title:'Apology', creator:'Plato' },
+    { id:'521',  title:'Beyond Good and Evil', creator:'Friedrich Nietzsche' },
+    { id:'authorAristotle', title:'Aristotle Essentials', creator:'Aristotle' }, // search card
+  ].map(b => b.id.startsWith('author')
+    ? card({
+        identifier:`search:aristotle`,
+        title:b.title,
+        creator:b.creator,
+        cover:'https://covers.openlibrary.org/b/subject/philosophy-M.jpg',
+        readerUrl:'/read?query=Aristotle'
+      })
+    : card({
+        identifier:`gutenberg:${b.id}`,
+        title:b.title, creator:b.creator,
+        cover:`https://www.gutenberg.org/cache/epub/${b.id}/pg${b.id}.cover.medium.jpg`,
+        readerUrl:`https://www.gutenberg.org/ebooks/${b.id}`,
+        source:'gutenberg'
+      })
   );
 }
+function fallbackScience() {
+  return [
+    { id:'41445', title:'On the Origin of Species', creator:'Charles Darwin' },
+    { id:'14988', title:'Relativity: The Special and General Theory', creator:'Albert Einstein' },
+    { id:'5001',  title:'A Brief Introduction to Astronomy', creator:'Various' },
+  ].map(b => card({
+    identifier:`search:${b.title.toLowerCase().replace(/\s+/g,'-')}`,
+    title:b.title, creator:b.creator,
+    cover:'https://covers.openlibrary.org/b/subject/science-M.jpg',
+    readerUrl:`/read?query=${encodeURIComponent(b.title)}`
+  }));
+}
 
-// ─────────────────────────────────────────────────────────────
-// Featured endpoint  (used by “Trending now” on homepage)
-// ─────────────────────────────────────────────────────────────
+/* ------------------------------------------------------------------ */
+/* Compose shelves                                                     */
+/* ------------------------------------------------------------------ */
+function uniqBy(arr, keyFn) {
+  const seen = new Set(); const out = [];
+  for (const it of arr) {
+    const k = keyFn(it);
+    if (seen.has(k)) continue;
+    seen.add(k); out.push(it);
+  }
+  return out;
+}
+
+async function buildShelves() {
+  // Pull distinct sets from OL subjects; each shelf has its own sources
+  const [philosophy, science] = await Promise.all([
+    (async () => {
+      const a = await fetchSubject('philosophy', 24);
+      const b = await fetchSubject('greek_philosophy', 18);
+      const c = await fetchSubject('stoicism', 12);
+      const merged = uniqBy([...a, ...b, ...c], x => (x.title||'').toLowerCase()).slice(0, 12);
+      return merged.length ? merged : fallbackPhilosophy().slice(0, 12);
+    })(),
+    (async () => {
+      const a = await fetchSubject('science', 24);
+      const b = await fetchSubject('physics', 18);
+      const c = await fetchSubject('astronomy', 18);
+      const d = await fetchSubject('biology', 18);
+      const merged = uniqBy([...a, ...b, ...c, ...d], x => (x.title||'').toLowerCase()).slice(0, 12);
+      return merged.length ? merged : fallbackScience().slice(0, 12);
+    })()
+  ]);
+
+  const timeless = curatedFeatured(); // still the classics set, on purpose
+
+  return [
+    { title: 'Philosophy Corner', q: 'Philosophy', items: philosophy },
+    { title: 'Timeless Classics', q: 'Classics',   items: timeless },
+    { title: 'Science Shelf',     q: 'Science',    items: science },
+  ];
+}
+
+/* ------------------------------------------------------------------ */
+/* Routes                                                              */
+/* ------------------------------------------------------------------ */
+
+// Lightweight page routes (home/about/contact handled elsewhere if needed)
+
 router.get('/api/featured-books', async (req, res) => {
   try {
-    const payload = await featuredCache.get(async () => {
-      // Prefer local admin-curated books if you have any
-      if (Book) {
-        try {
-          const localBooks = await Book.find({}).sort({ createdAt: -1 }).limit(12).lean();
-          if (localBooks && localBooks.length) {
-            return { items: localBooks.map(cardFromLocalBook) };
-          }
-        } catch (e) {
-          console.error('featured: local Book fetch failed:', e.message);
-        }
-      }
-      // Fall back to a few well-known Gutenberg picks (covers are reliable)
-      return {
-        items: timelessClassics().slice(0, 6),
-      };
-    });
-
-    res.set('Cache-Control', 'public, max-age=900'); // 15 minutes to browsers/CDN
-    return res.json(payload);
+    const payload = await featuredCache.get(async () => ({ items: curatedFeatured() }));
+    res.set('Cache-Control', 'public, max-age=900');
+    res.json(payload);
   } catch (e) {
     console.error('featured endpoint error:', e);
-    return res.status(500).json({ items: [] });
+    res.status(500).json({ items: [] });
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// Shelves endpoint  (dynamic Philosophy & Science, curated Classics)
-// ─────────────────────────────────────────────────────────────
 router.get('/api/shelves', async (req, res) => {
   try {
     const payload = await shelvesCache.get(async () => {
-      // Pull dynamic titles with real cover JPGs
-      const [philo, science] = await Promise.all([
-        gutendexSearch('philosophy OR Plato OR Aristotle OR Stoicism', 8),
-        gutendexSearch('science OR physics OR biology OR astronomy', 8),
-      ]);
-
-      // If API ever returns empty, keep the page pretty
-      const fallbackIfEmpty = (arr, alt) => (arr && arr.length ? arr : alt);
-
-      const shelves = [
-        {
-          title: 'Philosophy Corner',
-          q: 'Philosophy',
-          items: fallbackIfEmpty(philo, timelessClassics().slice(0, 6)),
-        },
-        {
-          title: 'Timeless Classics',
-          q: 'Classics',
-          items: timelessClassics().slice(0, 8),
-        },
-        {
-          title: 'Science Shelf',
-          q: 'Science',
-          items: fallbackIfEmpty(science, timelessClassics().slice(2, 8)),
-        },
-      ];
-
+      const shelves = await buildShelves();
       return { shelves };
     });
-
-    res.set('Cache-Control', 'public, max-age=900'); // 15 minutes
-    return res.json(payload);
+    res.set('Cache-Control', 'public, max-age=600'); // 10 minutes
+    res.json(payload);
   } catch (e) {
     console.error('shelves endpoint error:', e);
-    return res.status(500).json({ shelves: [] });
+    res.status(500).json({ shelves: [] });
   }
 });
 
