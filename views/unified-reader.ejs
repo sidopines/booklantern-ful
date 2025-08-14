@@ -2,169 +2,85 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : (gid ? `Gutenberg #${gid} | Reader` : 'Reader'),
-    pageDescription: (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Read this title in BookLantern’s unified reader.'
+    pageTitle: (book && book.title) ? (book.title + ' — Reader') : 'Reader',
+    pageDescription: (book && book.description) ? book.description : 'Read in a clean, paginated reader with themes, bookmarks, and audio.'
   }) %>
-  <style>
-    :root { --barH:56px; --statusH:44px; --bg:#0b0d10; --ink:#e6edf3; --muted:#98a2b3; --card:#11161d; --line:#1f2937; --brand:#6c8cff; }
-    *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-
-    /* Top bar */
-    .bar{display:flex;align-items:center;gap:12px;height:var(--barH);padding:10px 16px;border-bottom:1px solid var(--line);background:#0e1116}
-    .back{color:#cbd5e1;text-decoration:none}
-    .title{font-weight:700}
-    .badge{font-size:12px;color:#9aa3ad;margin-left:6px}
-    .grow{flex:1}
-    .btn{padding:6px 10px;border-radius:10px;border:1px solid #2a3340;background:var(--card);color:var(--ink);text-decoration:none;cursor:pointer}
-    .btn:hover{filter:brightness(1.05)}
-    .btn.fav.active{background:#1a2432;border-color:#2b3a52}
-    .btn.fav .heart{margin-right:6px}
-
-    /* Status bar */
-    .status{
-      height:var(--statusH);
-      display:flex;align-items:center;
-      gap:10px;padding:8px 16px;border-bottom:1px solid #1e232b;background:#0f1319;
-      color:var(--muted);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    }
-    .status.hidden{display:none}
-
-    /* Reading area */
-    iframe{display:block;width:100%;height:calc(100vh - var(--barH) - var(--statusH));border:0;background:#fff}
-
-    /* Guest screen */
-    .guest-wrap{min-height:100vh;display:flex;flex-direction:column}
-    .guest-card{max-width:520px;margin:8vh auto;padding:20px;border:1px solid #263041;border-radius:14px;background:#0f1319;color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.35)}
-    .guest-card h1{margin:0 0 8px 0;font-size:22px}
-    .guest-card p{margin:0 0 14px 0;color:var(--muted)}
-    .guest-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
-    .cta{padding:8px 12px;border-radius:10px;border:1px solid #263041;background:#172034;color:#e6edf3;text-decoration:none}
-    .cta.primary{background:var(--brand);border-color:#425dd6;color:#fff}
-    .hint{color:var(--muted);font-size:12px}
-  </style>
+  <link rel="stylesheet" href="/css/reader.css">
 </head>
-<body>
+<body class="reader-body">
+  <%- include('./partials/navbar.ejs') %>
 
-<%
-  // Build the "next" path so guests come right back after login/register.
-  const _nextBase = `/read/gutenberg/${encodeURIComponent(gid || '')}/reader`;
-  const _next = startUrl ? (_nextBase + '?u=' + encodeURIComponent(startUrl)) : _nextBase;
-%>
+  <% /* Guard: this page should only render for logged-in users.
+         The route should already protect it, but we keep a friendly fallback. */ %>
+  <% if (!user) { %>
+    <main class="reader-wrap">
+      <div class="guest-wall">
+        <h1>Sign in to read</h1>
+        <p>You need an account to open this book in the reader.</p>
+        <p><a class="btn" href="/login?next=<%= encodeURIComponent(req.originalUrl || '/read') %>">Login</a>
+           <a class="btn alt" href="/register">Create free account</a></p>
+      </div>
+    </main>
+  <% } else { %>
+  <main class="reader-wrap">
+    <!-- Toolbar -->
+    <header class="reader-toolbar" role="toolbar" aria-label="Reader controls">
+      <a class="btn alt small" href="javascript:history.back()">← Back</a>
 
-<% if (!user) { %>
-  <!-- Friendly guest screen -->
-  <div class="guest-wrap">
-    <div class="bar">
-      <a href="javascript:history.back()" class="back">← Back</a>
-      <div class="title">Project Gutenberg</div>
-      <% if (gid) { %><span class="badge">#<%= gid %></span><% } %>
-      <div class="grow"></div>
+      <div class="title">
+        <div class="t1"><%= book && book.title ? book.title : 'Untitled' %></div>
+        <div class="t2"><%= (book && (book.creator || book.author)) ? (book.creator || book.author) : '' %></div>
+      </div>
+
+      <div class="tools">
+        <button id="listenBtn" class="tool" title="Listen (Text-to-Speech)" aria-pressed="false">🔊 Listen</button>
+
+        <div class="sep" aria-hidden="true"></div>
+
+        <button id="fontDec" class="tool" title="Smaller text" aria-label="Smaller text">A−</button>
+        <button id="fontInc" class="tool" title="Larger text" aria-label="Larger text">A+</button>
+
+        <div class="sep" aria-hidden="true"></div>
+
+        <button id="themeLight" class="tool" title="Light theme" aria-label="Light theme">☀️</button>
+        <button id="themeSepia" class="tool" title="Sepia theme" aria-label="Sepia theme">🟨</button>
+        <button id="themeDark"  class="tool" title="Dark theme"  aria-label="Dark theme">🌙</button>
+      </div>
+    </header>
+
+    <!-- Progress -->
+    <div class="reader-progress" aria-live="polite">
+      <div class="progress-label"><span id="pageNow">1</span> / <span id="pageTotal">1</span></div>
+      <div class="progress-bar"><div id="progressFill"></div></div>
     </div>
 
-    <main class="guest-card">
-      <h1>Sign in to start reading</h1>
-      <p>This Gutenberg title opens inside BookLantern’s reader. Create a free account or sign in to continue.</p>
-      <div class="guest-actions">
-        <a class="cta primary" href="/register?next=<%= encodeURIComponent(_next) %>">Create account</a>
-        <a class="cta" href="/login?next=<%= encodeURIComponent(_next) %>">Login</a>
+    <!-- Reader viewport -->
+    <section id="reader" class="reader theme-light" tabindex="0" aria-label="Book content">
+      <div id="readerContent" class="content">
+        <!-- Book HTML will be injected here -->
+        <noscript>Please enable JavaScript to read.</noscript>
       </div>
-      <p class="hint">Already a member? Use Login. New here? Create an account — it’s quick.</p>
-    </main>
-  </div>
 
-<% } else { %>
-
-  <!-- Reader chrome (signed-in) -->
-  <div class="bar">
-    <a href="javascript:history.back()" class="back">← Back</a>
-    <div class="title">Project Gutenberg</div>
-    <% if (gid) { %><span class="badge">#<%= gid %></span><% } %>
-    <div class="grow"></div>
-
-    <!-- NEW: Favorite toggle -->
-    <button id="favBtn" class="btn fav" type="button" aria-pressed="<%= isFavorite ? 'true' : 'false' %>">
-      <span class="heart"><%= isFavorite ? '❤️' : '🤍' %></span>
-      <span class="fav-label"><%= isFavorite ? 'Favorited' : 'Add to Favorites' %></span>
-    </button>
-
-    <% if (startUrl) { %>
-      <a class="btn" href="<%= startUrl %>" target="_blank" rel="noopener">Open original ↗</a>
-    <% } %>
-    <button class="btn" onclick="location.reload()">Reload</button>
-  </div>
-
-  <div id="status" class="status">Loading… rendering via BookLantern viewer.</div>
-
-  <iframe id="gFrame"
-          src="/read/gutenberg/<%= encodeURIComponent(gid || '') %>/proxy<% if (startUrl) { %>?u=<%= encodeURIComponent(startUrl) %><% } %>"
-          allowfullscreen
-          referrerpolicy="no-referrer">
-  </iframe>
+      <!-- Tap/Click zones -->
+      <button id="prevPage" class="zone prev" aria-label="Previous page"></button>
+      <button id="nextPage" class="zone next" aria-label="Next page"></button>
+    </section>
+  </main>
 
   <script>
-    (function(){
-      const status = document.getElementById('status');
-      const frame  = document.getElementById('gFrame');
-      let loaded = false;
-
-      frame.addEventListener('load', function(){
-        loaded = true;
-        status.classList.add('hidden');
-      });
-
-      // Gentle fallback if the upstream is slow
-      setTimeout(function(){
-        if (!loaded) {
-          status.textContent = "Still loading… If it stalls, tap “Open original”.";
-        }
-      }, 2000);
-
-      // ===== Favorite chip logic =====
-      const gid = "<%= String(gid || '') %>";
-      const favBtn = document.getElementById('favBtn');
-      if (favBtn && gid) {
-        let isFav = <%= isFavorite ? 'true' : 'false' %>;
-
-        const update = () => {
-          favBtn.setAttribute('aria-pressed', isFav ? 'true' : 'false');
-          favBtn.classList.toggle('active', isFav);
-          favBtn.querySelector('.heart').textContent = isFav ? '❤️' : '🤍';
-          favBtn.querySelector('.fav-label').textContent = isFav ? 'Favorited' : 'Add to Favorites';
-        };
-        update();
-
-        const toast = (msg) => {
-          status.textContent = msg;
-          status.classList.remove('hidden');
-          setTimeout(() => status.classList.add('hidden'), 1500);
-        };
-
-        favBtn.addEventListener('click', async () => {
-          try {
-            const resp = await fetch('/read/book/' + encodeURIComponent('gutenberg:' + gid) + '/favorite', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'same-origin'
-            });
-            if (resp.status === 401) {
-              location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search);
-              return;
-            }
-            const text = await resp.text();
-            if (/Added/.test(text)) isFav = true;
-            else if (/Removed/.test(text)) isFav = false;
-            else isFav = !isFav;
-            update();
-            toast(text);
-          } catch (e) {
-            toast('Failed to update favorite');
-          }
-        });
+    // Bootstrap data from server for JS
+    window.READER_BOOTSTRAP = {
+      gutenbergId: "<%= gutenbergId %>",
+      fetchHtmlUrl: "/api/gutenberg/<%= gutenbergId %>/html<%= readerUrl ? ('?u=' + encodeURIComponent(readerUrl)) : '' %>",
+      book: {
+        id: "<%= book && (book._id || book.identifier || '') %>",
+        title: "<%- (book && book.title) ? book.title.replace(/"/g, '&quot;') : '' %>",
+        author: "<%- (book && (book.creator || book.author)) ? (book.creator || book.author).replace(/"/g, '&quot;') : '' %>"
       }
-    })();
+    };
   </script>
-
-<% } %>
+  <script src="/js/reader.js"></script>
+  <script src="/js/tts.js"></script>
+  <% } %>
 </body>
 </html>
