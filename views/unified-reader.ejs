@@ -3,22 +3,22 @@
 <head>
   <%- include('./partials/head.ejs', {
     pageTitle: (book && book.title) ? (book.title + ' — Reader') : 'Reader',
-    pageDescription: (book && book.description) ? book.description : 'Read in a clean, paginated reader with themes, bookmarks, and audio.'
+    pageDescription: (book && book.description) ? book.description : 'Read in a clean, paginated reader with themes, bookmarks, audio, and chapters.'
   }) %>
   <link rel="stylesheet" href="/css/reader.css">
 </head>
 <body class="reader-body">
   <%- include('./partials/navbar.ejs') %>
 
-  <% /* Guard: this page should only render for logged-in users.
-         The route should already protect it, but we keep a friendly fallback. */ %>
   <% if (!user) { %>
     <main class="reader-wrap">
       <div class="guest-wall">
         <h1>Sign in to read</h1>
         <p>You need an account to open this book in the reader.</p>
-        <p><a class="btn" href="/login?next=<%= encodeURIComponent(req.originalUrl || '/read') %>">Login</a>
-           <a class="btn alt" href="/register">Create free account</a></p>
+        <p>
+          <a class="btn" href="/login?next=<%= encodeURIComponent(req.originalUrl || '/read') %>">Login</a>
+          <a class="btn alt" href="/register">Create free account</a>
+        </p>
       </div>
     </main>
   <% } else { %>
@@ -33,7 +33,21 @@
       </div>
 
       <div class="tools">
+        <!-- Favorite -->
+        <button id="favBtn" class="tool" title="Favorite">♡ Favorite</button>
+
+        <div class="sep" aria-hidden="true"></div>
+
+        <!-- Chapters drawer -->
+        <button id="chaptersBtn" class="tool" title="Chapters" aria-expanded="false" aria-controls="chaptersPanel">☰ Chapters</button>
+
+        <div class="sep" aria-hidden="true"></div>
+
+        <!-- Listen (client TTS) -->
         <button id="listenBtn" class="tool" title="Listen (Text-to-Speech)" aria-pressed="false">🔊 Listen</button>
+
+        <!-- Server audio (Phase B) -->
+        <a id="audioBtn" class="tool" title="Download MP3 (server)" href="#" download>⬇️ Audio</a>
 
         <div class="sep" aria-hidden="true"></div>
 
@@ -54,10 +68,18 @@
       <div class="progress-bar"><div id="progressFill"></div></div>
     </div>
 
+    <!-- Chapters panel -->
+    <aside id="chaptersPanel" class="chapters" aria-hidden="true">
+      <div class="chapters-head">
+        <strong>Chapters</strong>
+        <button id="chaptersClose" class="tool" aria-label="Close chapters">✕</button>
+      </div>
+      <nav id="chaptersList" class="chapters-list" aria-label="Chapters"></nav>
+    </aside>
+
     <!-- Reader viewport -->
     <section id="reader" class="reader theme-light" tabindex="0" aria-label="Book content">
       <div id="readerContent" class="content">
-        <!-- Book HTML will be injected here -->
         <noscript>Please enable JavaScript to read.</noscript>
       </div>
 
@@ -68,10 +90,14 @@
   </main>
 
   <script>
-    // Bootstrap data from server for JS
     window.READER_BOOTSTRAP = {
       gutenbergId: "<%= gutenbergId %>",
       fetchHtmlUrl: "/api/gutenberg/<%= gutenbergId %>/html<%= readerUrl ? ('?u=' + encodeURIComponent(readerUrl)) : '' %>",
+      ttsMp3Url: "/api/gutenberg/<%= gutenbergId %>/tts.mp3<%= readerUrl ? ('?u=' + encodeURIComponent(readerUrl)) : '' %>",
+      favorite: {
+        get: "/read/gutenberg/<%= gutenbergId %>/favorite",
+        toggle: "/read/gutenberg/<%= gutenbergId %>/favorite"
+      },
       book: {
         id: "<%= book && (book._id || book.identifier || '') %>",
         title: "<%- (book && book.title) ? book.title.replace(/"/g, '&quot;') : '' %>",
