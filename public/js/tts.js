@@ -12,7 +12,6 @@
   function supportsTTS(){ return !!synth && 'SpeechSynthesisUtterance' in window; }
 
   function splitIntoSentenceSpans(container){
-    // idempotent – if spans already present, reuse.
     if (container.querySelector('.tts-s')) {
       spans = Array.from(container.querySelectorAll('.tts-s'));
       return spans;
@@ -31,7 +30,7 @@
       const parent = node.parentNode;
       const frag = document.createDocumentFragment();
       const t = node.nodeValue;
-      let m, last = 0;
+      let m;
       if (!t) return;
       while ((m = sentenceRegex.exec(t)) !== null) {
         const s = (m[0] || '').trim();
@@ -56,7 +55,6 @@
     const span = spans[i];
     if (!span) return;
     span.classList.add('tts-current');
-    // ensure visible
     span.scrollIntoView({ block:'nearest', inline:'nearest' });
   }
 
@@ -84,7 +82,6 @@
     clearHighlight();
   }
 
-  // Public API
   window.BL_TTS = {
     toggle(container){
       if (!supportsTTS()) { alert('Text-to-Speech is not supported on this browser.'); return false; }
