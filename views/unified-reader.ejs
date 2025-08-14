@@ -2,33 +2,124 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : 'Reader',
+    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : (gid ? `Reader • Gutenberg #${gid}` : 'Reader'),
     pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Read in BookLantern'
   }) %>
   <style>
-    :root { --bg:#0b1220; --ink:#0b1220; --muted:#667085; --line:#e5e7eb; --card:#fff; }
-    * { box-sizing: border-box; }
-    html, body { margin:0; padding:0; height:100%; }
-    body { background:#f6f7fb; color:#111; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-    .wrap { min-height:100vh; display:flex; flex-direction:column; }
+    :root{
+      --line:#e5e7eb;
+      --ink:#0f172a;
+      --muted:#667085;
+      --bg:#f6f7fb;
+      --card:#ffffff;
+
+      /* Reader theming */
+      --r-bg:#ffffff;
+      --r-fg:#111111;
+      --r-muted:#6b7280;
+      --r-gap: 2rem;
+      --r-col-width: 40rem;   /* target "page" width */
+      --r-font: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+      --r-size: 18px;         /* user adjustable */
+      --r-line: 1.6;
+    }
+    [data-theme="sepia"]{
+      --r-bg:#fbf1d3; --r-fg:#2d2418;
+    }
+    [data-theme="dark"]{
+      --r-bg:#0b1220; --r-fg:#e5e7eb; --r-muted:#9aa3b2;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ margin:0; padding:0; height:100%; }
+    body{
+      background: var(--bg);
+      color:#111;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    /* Top bar */
     header.reader-bar{
-      position: sticky; top:0; z-index:20;
+      position: sticky; top:0; z-index:30;
       background:#fff; border-bottom:1px solid var(--line);
     }
     .reader-bar-inner{
-      max-width:1100px; margin:0 auto; padding:.6rem 1rem;
+      max-width:1100px; margin:0 auto; padding:.55rem 1rem;
       display:flex; align-items:center; justify-content:space-between; gap:.75rem;
     }
     .brand-link{ text-decoration:none; color:#111; font-weight:800; letter-spacing:-.01em; display:flex; align-items:center; gap:.5rem; }
     .brand-link img{ width:20px; height:20px; }
-    .controls{ display:flex; gap:.5rem; align-items:center; }
-    .btn{ padding:.5rem .7rem; border:1px solid var(--line); background:#fff; border-radius:10px; cursor:pointer; font-weight:600; }
+
+    .controls{ display:flex; gap:.45rem; align-items:center; flex-wrap:wrap; }
+    .btn{
+      padding:.45rem .65rem; border:1px solid var(--line); background:#fff; border-radius:10px;
+      cursor:pointer; font-weight:600; text-decoration:none; color:#111; display:inline-flex; align-items:center; gap:.35rem;
+    }
     .btn:hover{ background:#f5f7fb; }
-    main{ flex:1 1 auto; display:flex; align-items:stretch; }
+    .sep{ width:1px; height:24px; background:var(--line); }
+
+    .select, .range{
+      border:1px solid var(--line); border-radius:10px; background:#fff; padding:.35rem .5rem;
+    }
+    .range{ padding:.25rem; }
+    .label{ color:#6b7280; font-size:.85rem; }
+
+    /* Main area */
+    .wrap{ min-height:100vh; display:flex; flex-direction:column; }
+
+    /* Iframe (fallback/”original”) */
     iframe.reader{
       border:0; width:100%; height:calc(100vh - 58px);
       background:#fff;
     }
+
+    /* Paged Reader */
+    .reader-shell{
+      display:none; /* hidden until “Reader mode” is built */
+      background: var(--r-bg);
+      color: var(--r-fg);
+    }
+    .reader-chrome{
+      max-width:1100px; margin:0 auto;
+      padding: 10px 12px;
+      display:flex; align-items:center; justify-content:space-between; gap:.5rem;
+      border-bottom: 1px solid rgba(0,0,0,.06);
+    }
+    .reader-chrome .mini{
+      display:flex; align-items:center; gap:.35rem; flex-wrap:wrap; color:var(--r-muted); font-size:.9rem;
+    }
+    .reader-viewport{
+      height: calc(100vh - 58px - 48px);
+      overflow-x: auto; overflow-y: hidden;
+      scroll-behavior: smooth;
+      background: var(--r-bg);
+    }
+    .reader-viewport::-webkit-scrollbar{ height: 10px; }
+    .reader-viewport::-webkit-scrollbar-thumb{ background: rgba(0,0,0,.25); border-radius:999px; }
+    .pages{
+      padding: 24px 24px 32px;
+    }
+    .pages .content{
+      /* CSS multi-columns create “pages” horizontally */
+      column-width: var(--r-col-width);
+      column-gap: var(--r-gap);
+      /* Make it feel bookish */
+      font-family: var(--r-font);
+      font-size: var(--r-size);
+      line-height: var(--r-line);
+      hyphens: auto;
+    }
+    .pages .content h1, .pages .content h2, .pages .content h3{
+      break-inside: avoid;
+      line-height: 1.2;
+      margin: 0 0 .4em 0;
+    }
+    .pages .content p{ margin: 0 0 1em 0; }
+    .pages .content img, .pages .content svg, .pages .content video{
+      max-width:100%; height:auto; break-inside: avoid; page-break-inside: avoid;
+    }
+
+    /* Guard for guests */
     .guard{
       max-width:700px; margin:3rem auto; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 30px rgba(2,6,23,.08);
       padding:1.25rem;
@@ -37,16 +128,22 @@
     .guard p{ color:#667085; }
     .split{ display:flex; gap:10px; flex-wrap:wrap; margin-top:.6rem; }
     .btn.brand{ background:#111; color:#fff; border-color:#111; }
+
+    /* Small screens: keep controls usable */
+    @media (max-width: 640px){
+      .reader-chrome{ padding: 8px; }
+      .reader-viewport{ height: calc(100vh - 58px - 44px); }
+      .pages{ padding: 12px; }
+    }
   </style>
 </head>
 <body>
-  <!-- If user not logged in, show a friendly guard (do not crash) -->
   <% if (!user) { %>
     <%- include('./partials/navbar.ejs') %>
     <main class="container">
       <div class="guard">
         <h1>Sign in to read</h1>
-        <p>Create a free account to read in BookLantern’s distraction-free reader.</p>
+        <p>Create a free account to read in BookLantern’s distraction-free reader and use audio.</p>
         <div class="split">
           <a class="btn brand" href="/login?next=<%= encodeURIComponent(req.originalUrl) %>">Login</a>
           <a class="btn" href="/register?next=<%= encodeURIComponent(req.originalUrl) %>">Create account</a>
@@ -54,33 +151,238 @@
       </div>
     </main>
   <% } else { %>
-    <header class="reader-bar">
-      <div class="reader-bar-inner">
-        <a class="brand-link" href="/">
-          <img src="/img/brand.svg" alt="">
-          BookLantern
-        </a>
-        <div class="controls">
-          <a class="btn" href="javascript:history.back()">← Back</a>
-          <a class="btn" href="/read">All Books</a>
+    <div class="wrap">
+      <!-- Top app bar -->
+      <header class="reader-bar">
+        <div class="reader-bar-inner">
+          <a class="brand-link" href="/">
+            <img src="/img/brand.svg" alt="">
+            BookLantern
+          </a>
+          <div class="controls">
+            <a class="btn" href="javascript:history.back()">← Back</a>
+            <a class="btn" href="/read">All Books</a>
+            <span class="sep" aria-hidden="true"></span>
+            <button id="btnMode" class="btn" type="button" title="Toggle Reader/Original">Reader mode (beta)</button>
+            <label class="label" for="themeSel">Theme</label>
+            <select id="themeSel" class="select" title="Theme">
+              <option value="light">Light</option>
+              <option value="sepia">Sepia</option>
+              <option value="dark">Dark</option>
+            </select>
+            <label class="label">Type</label>
+            <button id="fontMinus" class="btn" type="button" title="Smaller type">A−</button>
+            <button id="fontPlus"  class="btn" type="button" title="Larger type">A+</button>
+            <span class="sep" aria-hidden="true"></span>
+            <button id="prevPage" class="btn" type="button" title="Previous page">←</button>
+            <button id="nextPage" class="btn" type="button" title="Next page">→</button>
+            <span class="sep" aria-hidden="true"></span>
+            <button id="ttsPlay"  class="btn" type="button" title="Listen (browser)">▶︎ Listen</button>
+            <button id="ttsPause" class="btn" type="button" title="Pause">⏸</button>
+            <button id="ttsStop"  class="btn" type="button" title="Stop">⏹</button>
+            <label class="label" for="rateRange">Speed</label>
+            <input id="rateRange" class="range" type="range" min="0.6" max="1.6" step="0.1" value="1.0" style="width:90px">
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
 
-    <main>
-      <% 
+      <!-- ORIGINAL (proxied Gutenberg in same-origin iframe) -->
+      <%
         const safeUrl = (typeof startUrl === 'string' && startUrl) ? startUrl : (gid ? `https://www.gutenberg.org/ebooks/${gid}` : 'about:blank');
         const _gid = typeof gid !== 'undefined' ? String(gid) : '';
         const proxied = `/read/gutenberg/${encodeURIComponent(_gid)}/proxy?u=${encodeURIComponent(safeUrl)}`;
       %>
-      <iframe
-        class="reader"
-        src="<%= proxied %>"
-        referrerpolicy="no-referrer"
-        allow="clipboard-read; clipboard-write"
-        title="Reader">
-      </iframe>
-    </main>
+      <iframe id="originalFrame" class="reader" src="<%= proxied %>" referrerpolicy="no-referrer" allow="clipboard-read; clipboard-write" title="Original text"></iframe>
+
+      <!-- READER MODE (paged) -->
+      <section id="readerShell" class="reader-shell" data-theme="light" aria-hidden="true">
+        <div class="reader-chrome">
+          <div class="mini">
+            <span id="pageInfo">Page 1</span>
+          </div>
+          <div class="mini" id="readerHint">Tip: select text then press “Listen”.</div>
+        </div>
+        <div id="viewport" class="reader-viewport">
+          <div class="pages">
+            <article id="content" class="content"></article>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      (function(){
+        // Elements
+        const iframe    = document.getElementById('originalFrame');
+        const shell     = document.getElementById('readerShell');
+        const contentEl = document.getElementById('content');
+        const viewport  = document.getElementById('viewport');
+        const pageInfo  = document.getElementById('pageInfo');
+
+        const btnMode   = document.getElementById('btnMode');
+        const themeSel  = document.getElementById('themeSel');
+        const fontMinus = document.getElementById('fontMinus');
+        const fontPlus  = document.getElementById('fontPlus');
+        const prevPage  = document.getElementById('prevPage');
+        const nextPage  = document.getElementById('nextPage');
+
+        // TTS controls
+        const ttsPlay   = document.getElementById('ttsPlay');
+        const ttsPause  = document.getElementById('ttsPause');
+        const ttsStop   = document.getElementById('ttsStop');
+        const rateRange = document.getElementById('rateRange');
+
+        // State
+        let readerBuilt = false;
+        let fontSize = 18; // px
+        let currentTheme = 'light';
+
+        // --- Utilities ---
+        function sanitize(html){
+          // rudimentary sanitizer: strip scripts/styles/iframes/forms
+          const tmp = document.createElement('div');
+          tmp.innerHTML = html;
+          tmp.querySelectorAll('script,style,link,iframe,form,noscript').forEach(el=>el.remove());
+          // Remove obvious site chrome elements sometimes present
+          tmp.querySelectorAll('header, nav, .header, .topnav').forEach(el=>el.remove());
+          return tmp.innerHTML;
+        }
+
+        async function buildReader(){
+          if (readerBuilt) return true;
+          try{
+            const doc = iframe.contentDocument;
+            if (!doc){ console.warn('Reader: iframe not ready'); return false; }
+            const body = doc.body;
+            if (!body){ console.warn('Reader: no body in iframe'); return false; }
+
+            // Prefer a main content node if present
+            let main = body.querySelector('main') || body.querySelector('#book') || body.querySelector('#content') || body;
+            const html = sanitize(main.innerHTML);
+
+            contentEl.innerHTML = html;
+
+            // Basic typographic polish for Gutenberg’s common markup
+            contentEl.querySelectorAll('p').forEach(p=>{
+              if (!p.innerText.trim()) p.remove();
+            });
+
+            applyType();
+            updatePageInfoThrottled();
+            readerBuilt = true;
+            return true;
+          }catch(e){
+            console.error('Reader build error', e);
+            return false;
+          }
+        }
+
+        function applyType(){
+          contentEl.style.setProperty('--r-size', fontSize + 'px');
+          shell.setAttribute('data-theme', currentTheme);
+        }
+
+        function toggleMode(){
+          if (!readerBuilt){
+            buildReader().then(ok=>{
+              if (!ok){
+                alert('Could not build Reader mode yet. Try again in a moment.');
+                return;
+              }
+              showReader(true);
+            });
+          } else {
+            showReader(shell.style.display !== 'block');
+          }
+        }
+        function showReader(show){
+          if (show){
+            shell.style.display = 'block';
+            shell.setAttribute('aria-hidden','false');
+            iframe.style.display = 'none';
+            btnMode.textContent = 'Original';
+            setTimeout(()=>updatePageInfoThrottled(), 60);
+          } else {
+            shell.style.display = 'none';
+            shell.setAttribute('aria-hidden','true');
+            iframe.style.display = 'block';
+            btnMode.textContent = 'Reader mode (beta)';
+          }
+        }
+
+        function pageLeft(){ viewport.scrollBy({ left: -viewport.clientWidth, behavior:'smooth' }); }
+        function pageRight(){ viewport.scrollBy({ left:  viewport.clientWidth, behavior:'smooth' }); }
+
+        function updatePageInfo(){
+          const total = Math.max(1, Math.round(viewport.scrollWidth / viewport.clientWidth));
+          const current = Math.min(total, Math.max(1, Math.round(viewport.scrollLeft / viewport.clientWidth) + 1));
+          pageInfo.textContent = `Page ${current} / ${total}`;
+        }
+        const updatePageInfoThrottled = throttle(updatePageInfo, 100);
+
+        function throttle(fn, ms){
+          let t=0; return function(){ const now=Date.now(); if (now-t>ms){ t=now; fn(); } };
+        }
+
+        // --- TTS (Listen Phase A, browser SpeechSynthesis) ---
+        const synth = 'speechSynthesis' in window ? window.speechSynthesis : null;
+        let utter = null;
+
+        function selectedText(){
+          const sel = window.getSelection && window.getSelection();
+          const s = sel ? String(sel.toString()).trim() : '';
+          return s;
+        }
+        function currentChunkText(){
+          // If selection exists, read that. Otherwise read visible “page” slice.
+          const sel = selectedText();
+          if (sel) return sel;
+
+          // Approximation: grab text from contentEl and slice based on scroll ratio.
+          const full = contentEl.innerText || '';
+          if (full.length < 1000) return full;
+
+          const ratio = viewport.scrollLeft / Math.max(1, (viewport.scrollWidth - viewport.clientWidth));
+          const start = Math.floor(ratio * full.length);
+          const end = Math.min(full.length, start + 4000); // ~ a few pages
+          return full.slice(start, end);
+        }
+
+        function ttsStart(){
+          if (!synth){ alert('Text-to-speech is not supported in this browser.'); return; }
+          if (utter){ synth.cancel(); utter = null; }
+
+          const text = currentChunkText();
+          if (!text){ alert('Select some text or switch to Reader mode.'); return; }
+
+          utter = new SpeechSynthesisUtterance(text);
+          utter.rate = Number(rateRange.value || 1.0);
+          synth.speak(utter);
+        }
+        function ttsPause(){ if (synth && !synth.paused) synth.pause(); }
+        function ttsStop(){ if (synth){ synth.cancel(); utter = null; } }
+
+        // --- Events ---
+        btnMode.addEventListener('click', toggleMode);
+        themeSel.addEventListener('change', (e)=>{ currentTheme = e.target.value; applyType(); });
+        fontMinus.addEventListener('click', ()=>{ fontSize = Math.max(14, fontSize-1); applyType(); updatePageInfoThrottled(); });
+        fontPlus .addEventListener('click', ()=>{ fontSize = Math.min(24, fontSize+1); applyType(); updatePageInfoThrottled(); });
+
+        prevPage.addEventListener('click', pageLeft);
+        nextPage.addEventListener('click', pageRight);
+        viewport.addEventListener('scroll', updatePageInfoThrottled);
+        window.addEventListener('resize', updatePageInfoThrottled);
+
+        ttsPlay .addEventListener('click', ttsStart);
+        ttsPause.addEventListener('click', ttsPause);
+        ttsStop .addEventListener('click', ttsStop);
+        rateRange.addEventListener('change', ()=>{ if (utter) { utter.rate = Number(rateRange.value||1.0); } });
+
+        // Optional: build Reader automatically once iframe loads, so the toggle is instant
+        iframe.addEventListener('load', ()=>{ buildReader(); });
+
+      })();
+    </script>
   <% } %>
 </body>
 </html>
