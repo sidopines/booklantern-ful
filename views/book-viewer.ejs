@@ -2,168 +2,80 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : (book && book.title ? `${book.title} | Read` : 'Read'),
-    pageDescription: (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Read this title in BookLantern’s unified reader.'
+    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : (book && book.title ? (book.title + ' | Reader') : 'Reader'),
+    pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Read in BookLantern'
   }) %>
   <style>
-    :root { --barH:56px; --statusH:44px; --bg:#0b0d10; --ink:#e6edf3; --muted:#98a2b3; --card:#11161d; --line:#1f2937; --brand:#6c8cff; }
-    *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-
-    /* Top bar */
-    .bar{display:flex;align-items:center;gap:12px;height:var(--barH);padding:10px 16px;border-bottom:1px solid var(--line);background:#0e1116}
-    .back{color:#cbd5e1;text-decoration:none}
-    .title{font-weight:700}
-    .badge{font-size:12px;color:#9aa3ad;margin-left:6px}
-    .grow{flex:1}
-    .btn{padding:6px 10px;border-radius:10px;border:1px solid #2a3340;background:var(--card);color:var(--ink);text-decoration:none;cursor:pointer}
-    .btn:hover{filter:brightness(1.05)}
-    .btn.fav.active{background:#1a2432;border-color:#2b3a52}
-    .btn.fav .heart{margin-right:6px}
-
-    /* Status bar */
-    .status{
-      height:var(--statusH);
-      display:flex;align-items:center;
-      gap:10px;padding:8px 16px;border-bottom:1px solid #1e232b;background:#0f1319;
-      color:var(--muted);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    :root { --line:#e5e7eb; }
+    * { box-sizing:border-box; }
+    html, body { margin:0; padding:0; height:100%; }
+    body { background:#f6f7fb; color:#111; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    header.reader-bar{
+      position: sticky; top:0; z-index:20;
+      background:#fff; border-bottom:1px solid var(--line);
     }
-    .status.hidden{display:none}
-
-    /* Reading area */
-    iframe{display:block;width:100%;height:calc(100vh - var(--barH) - var(--statusH));border:0;background:#fff}
-
-    /* Guest screen */
-    .guest-wrap{min-height:100vh;display:flex;flex-direction:column}
-    .guest-card{max-width:520px;margin:8vh auto;padding:20px;border:1px solid #263041;border-radius:14px;background:#0f1319;color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.35)}
-    .guest-card h1{margin:0 0 8px 0;font-size:22px}
-    .guest-card p{margin:0 0 14px 0;color:var(--muted)}
-    .guest-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
-    .cta{padding:8px 12px;border-radius:10px;border:1px solid #263041;background:#172034;color:#e6edf3;text-decoration:none}
-    .cta.primary{background:var(--brand);border-color:#425dd6;color:#fff}
-    .hint{color:var(--muted);font-size:12px}
+    .reader-bar-inner{
+      max-width:1100px; margin:0 auto; padding:.6rem 1rem;
+      display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+    }
+    .brand-link{ text-decoration:none; color:#111; font-weight:800; letter-spacing:-.01em; display:flex; align-items:center; gap:.5rem; }
+    .brand-link img{ width:20px; height:20px; }
+    .controls{ display:flex; gap:.5rem; align-items:center; }
+    .btn{ padding:.5rem .7rem; border:1px solid var(--line); background:#fff; border-radius:10px; cursor:pointer; font-weight:600; text-decoration:none; color:#111; }
+    .btn:hover{ background:#f5f7fb; }
+    .guard{
+      max-width:700px; margin:3rem auto; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 30px rgba(2,6,23,.08);
+      padding:1.25rem;
+    }
+    .guard h1{ margin:.2rem 0 .6rem; font-size:1.4rem; }
+    .guard p{ color:#667085; }
+    .split{ display:flex; gap:10px; flex-wrap:wrap; margin-top:.6rem; }
+    .btn.brand{ background:#111; color:#fff; border-color:#111; }
+    .frame-wrap{ height:calc(100vh - 58px); }
+    iframe.viewer{ border:0; width:100%; height:100%; background:#fff; }
   </style>
 </head>
 <body>
-
-<%
-  const iaId = book && book.archiveId ? String(book.archiveId) : '';
-  const streamUrl = iaId ? `https://archive.org/stream/${encodeURIComponent(iaId)}?ui=embed#page=1` : '';
-  const originalUrl = iaId ? `https://archive.org/details/${encodeURIComponent(iaId)}` : '#';
-
-  // Build the "next" path so guests come right back after login/register.
-  const _next = iaId ? `/read/book/${encodeURIComponent(iaId)}` : '/';
-%>
-
-<% if (!user) { %>
-  <!-- Friendly guest screen (Archive / Open Library via IA) -->
-  <div class="guest-wrap">
-    <div class="bar">
-      <a href="javascript:history.back()" class="back">← Back</a>
-      <div class="title"><%= book && book.title ? book.title : 'Book' %></div>
-      <% if (iaId) { %><span class="badge"><%= iaId %></span><% } %>
-      <div class="grow"></div>
-    </div>
-
-    <main class="guest-card">
-      <h1>Sign in to start reading</h1>
-      <p>This title opens inside BookLantern’s reader. Create a free account or sign in to continue.</p>
-      <div class="guest-actions">
-        <a class="cta primary" href="/register?next=<%= encodeURIComponent(_next) %>">Create account</a>
-        <a class="cta" href="/login?next=<%= encodeURIComponent(_next) %>">Login</a>
+  <% if (!user) { %>
+    <%- include('./partials/navbar.ejs') %>
+    <main class="container">
+      <div class="guard">
+        <h1>Sign in to read</h1>
+        <p>Create a free account to open this book in the reader.</p>
+        <div class="split">
+          <a class="btn brand" href="/login?next=<%= encodeURIComponent(req.originalUrl) %>">Login</a>
+          <a class="btn" href="/register?next=<%= encodeURIComponent(req.originalUrl) %>">Create account</a>
+        </div>
       </div>
-      <p class="hint">Already a member? Use Login. New here? Create an account — it’s quick.</p>
     </main>
-  </div>
+  <% } else { %>
+    <header class="reader-bar">
+      <div class="reader-bar-inner">
+        <a class="brand-link" href="/">
+          <img src="/img/brand.svg" alt="">
+          BookLantern
+        </a>
+        <div class="controls">
+          <a class="btn" href="javascript:history.back()">← Back</a>
+          <a class="btn" href="/read">All Books</a>
+        </div>
+      </div>
+    </header>
 
-<% } else { %>
-
-  <!-- Reader chrome (signed-in) -->
-  <div class="bar">
-    <a href="javascript:history.back()" class="back">← Back</a>
-    <div class="title"><%= book && book.title ? book.title : 'Project Gutenberg' %></div>
-    <% if (iaId) { %><span class="badge"><%= iaId %></span><% } %>
-    <div class="grow"></div>
-
-    <!-- Favorite toggle -->
-    <button id="favBtn" class="btn fav" type="button" aria-pressed="<%= isFavorite ? 'true' : 'false' %>">
-      <span class="heart"><%= isFavorite ? '❤️' : '🤍' %></span>
-      <span class="fav-label"><%= isFavorite ? 'Favorited' : 'Add to Favorites' %></span>
-    </button>
-
-    <a class="btn" href="<%= originalUrl %>" target="_blank" rel="noopener">Open original ↗</a>
-    <button class="btn" onclick="location.reload()">Reload</button>
-  </div>
-
-  <div id="status" class="status">Loading… rendering via BookLantern viewer.</div>
-
-  <iframe id="iaFrame"
-          src="<%= streamUrl %>"
-          allowfullscreen
-          referrerpolicy="no-referrer">
-  </iframe>
-
-  <script>
-    (function(){
-      const status = document.getElementById('status');
-      const frame  = document.getElementById('iaFrame');
-      let loaded = false;
-
-      frame && frame.addEventListener('load', function(){
-        loaded = true;
-        status.classList.add('hidden');
-      });
-
-      // Soft fallback if the upstream is slow
-      setTimeout(function(){
-        if (!loaded) status.textContent = "Still loading… If it stalls, tap “Open original”.";
-      }, 2000);
-
-      // ===== Favorite chip logic =====
-      const iaId = "<%= iaId %>";
-      const favBtn = document.getElementById('favBtn');
-      if (favBtn && iaId) {
-        let isFav = <%= isFavorite ? 'true' : 'false' %>;
-
-        const update = () => {
-          favBtn.setAttribute('aria-pressed', isFav ? 'true' : 'false');
-          favBtn.classList.toggle('active', isFav);
-          favBtn.querySelector('.heart').textContent = isFav ? '❤️' : '🤍';
-          favBtn.querySelector('.fav-label').textContent = isFav ? 'Favorited' : 'Add to Favorites';
-        };
-        update();
-
-        const toast = (msg) => {
-          status.textContent = msg;
-          status.classList.remove('hidden');
-          setTimeout(() => status.classList.add('hidden'), 1500);
-        };
-
-        favBtn.addEventListener('click', async () => {
-          try {
-            const resp = await fetch('/read/book/' + encodeURIComponent(iaId) + '/favorite', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'same-origin'
-            });
-            if (resp.status === 401) {
-              location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search);
-              return;
-            }
-            const text = await resp.text();
-            if (/Added/.test(text)) isFav = true;
-            else if (/Removed/.test(text)) isFav = false;
-            else isFav = !isFav;
-            update();
-            toast(text);
-          } catch (e) {
-            toast('Failed to update favorite');
-          }
-        });
-      }
-    })();
-  </script>
-
-<% } %>
+    <div class="frame-wrap">
+      <% 
+        const ia = book && (book.archiveId || book.identifier || '');
+        const safeId = ia ? String(ia) : '';
+        const stream = safeId ? `https://archive.org/stream/${encodeURIComponent(safeId)}?ui=embed#page=1` : 'about:blank';
+      %>
+      <iframe
+        class="viewer"
+        src="<%= stream %>"
+        referrerpolicy="no-referrer"
+        allow="clipboard-read; clipboard-write"
+        title="<%= book && book.title ? book.title : 'Book' %>">
+      </iframe>
+    </div>
+  <% } %>
 </body>
 </html>
