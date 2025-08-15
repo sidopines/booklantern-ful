@@ -1,252 +1,213 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <%
-    const t = (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : `Read • ${gid}`;
-    const d = (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : `Read this book on BookLantern in a clean, paginated reader.`;
-  %>
-  <%- include('./partials/head.ejs', { pageTitle: t, pageDescription: d }) %>
+  <%- include('./partials/head.ejs', {
+    pageTitle: (book && book.title) ? (book.title + ' — Reader') : 'Reader',
+    pageDescription: (book && book.creator) ? ('Read ' + book.title + ' by ' + book.creator) : 'Read this book in BookLantern’s clean reader'
+  }) %>
+
   <style>
     :root{
-      --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#ffffff; --bg-soft:#f8fafc; --brand:#5b7cfa;
+      --bg:#ffffff; --ink:#0f172a; --muted:#667085; --line:#e5e7eb;
+      --paper:#fff; --accent:#5b74ff; --sepia:#f7f1e1; --darkbg:#0b0f17; --darkink:#e5edf5;
     }
-    html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif;}
-    .app{display:flex;flex-direction:column;height:100vh}
+    *{ box-sizing: border-box; }
+    html,body{ height:100%; margin:0; background:var(--bg); color:var(--ink); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    .reader-wrap{ display:flex; flex-direction:column; height:100%; }
 
+    /* Toolbar */
     .toolbar{
-      position:sticky; top:0; z-index:20;
-      display:flex; align-items:center; gap:.5rem;
-      padding:.5rem .75rem; background:linear-gradient(180deg,#fff,#fbfdff);
-      border-bottom:1px solid var(--line);
+      position: sticky; top:0; z-index:5;
+      display:flex; gap:8px; align-items:center; padding:8px 12px;
+      border-bottom:1px solid var(--line); background:#fff;
     }
-    .brand{display:flex;align-items:center;gap:.5rem;text-decoration:none;color:var(--ink);font-weight:800}
-    .brand img{width:20px;height:20px}
-    .spacer{flex:1}
-    .btn{appearance:none;border:1px solid var(--line);background:#fff;color:var(--ink);
-      padding:.45rem .65rem;border-radius:10px;cursor:pointer;font-weight:600}
-    .btn:hover{filter:brightness(.97)}
-    .btn.primary{background:var(--brand);color:#fff;border-color:transparent}
-    .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
-    .seg button{border:0;border-right:1px solid var(--line);background:#fff;padding:.45rem .6rem}
-    .seg button:last-child{border-right:0}
-    .seg button.active{background:#eef2ff;font-weight:700}
+    .toolbar .left{ display:flex; gap:8px; align-items:center; }
+    .toolbar .grow{ flex:1 1 auto; }
+    .toolbtn{
+      appearance:none; border:1px solid var(--line); background:#fff; padding:7px 10px; border-radius:10px; cursor:pointer; font-weight:600;
+    }
+    .toolbtn.primary{ background:var(--accent); color:#fff; border-color:transparent; }
+    .toolbtn[disabled]{ opacity:.5; cursor:not-allowed; }
+    .slider{ width:220px; }
 
+    /* Stage */
     .stage{
-      display:grid; grid-template-columns: 60px 1fr 60px; gap:0;
-      background:var(--bg-soft); min-height:0; flex:1;
+      display:grid; grid-template-columns: minmax(12px, 1fr) minmax(280px, 860px) minmax(12px, 1fr);
+      grid-template-rows: 1fr;
+      gap: 0;
+      height: calc(100% - 54px);
     }
-    .navbtn{border:0; background:transparent; cursor:pointer; color:var(--muted); font-weight:700}
-    .navbtn:hover{color:var(--ink)}
-    .canvas-wrap{position:relative; min-width:0; overflow:hidden}
-    .canvas{
-      height:100%; width:100%;
-      padding:32px 28px;
-      column-gap:48px;
-      column-fill:auto;
-      overflow:auto;
-      background:#fff;
-      border-left:1px solid var(--line); border-right:1px solid var(--line);
+    .edge{ display:flex; align-items:center; justify-content:center; }
+    .edge button{ opacity:.65; }
+    .book{
+      display:flex; align-items:stretch; justify-content:center;
+      background:var(--paper);
+      border-left:1px solid var(--line);
+      border-right:1px solid var(--line);
     }
-    .page{break-inside:avoid}
-    .canvas p{margin:0 0 1rem 0; line-height:1.55}
-    .canvas .h1{font-weight:800;font-size:1.4rem;margin:0 0 1rem}
-    .canvas .h2{font-weight:700;font-size:1.15rem;margin:1.2rem 0 .4rem}
-    .meta{color:var(--muted); font-size:.9rem; padding:.4rem .75rem; border-bottom:1px solid var(--line); background:#fff}
+    #viewer{
+      width:100%; height:100%;
+    }
 
-    .theme-dark .canvas{ background:#0b1020; color:#e5ecff; border-color:#1b2545}
-    .theme-dark .meta{ background:#0b1020; color:#a8b3cf; border-color:#1b2545}
-    .theme-sepia .canvas{ background:#fbf1e2; color:#3b2918; }
-    .theme-sepia .meta{ background:#fbf1e2; color:#725b43; }
+    /* Dark / Sepia */
+    .sepia body, .sepia .toolbar{ background:var(--sepia); }
+    .sepia .book{ background:#fbf6e8; }
+    .dark body{ background:var(--darkbg); color:var(--darkink); }
+    .dark .toolbar{ background:#0f1522; border-color:#1e293b; }
+    .dark .toolbtn{ background:#0f1522; color:#dbe6f5; border-color:#1e293b; }
+    .dark .book{ background:#0c121d; border-color:#1e293b; }
 
-    @media (max-width:900px){
-      .stage{ grid-template-columns: 44px 1fr 44px; }
-      .canvas{ padding:24px 20px; column-gap:36px }
-    }
-    @media (max-width:640px){
-      .brand span{display:none}
-      .stage{ grid-template-columns: 36px 1fr 36px; }
-      .canvas{ padding:18px 16px; column-gap:28px }
+    /* Mobile */
+    @media (max-width: 780px){
+      .stage{ grid-template-columns: 12px 1fr 12px; }
+      .slider{ width:140px; }
+      .toolbar{ flex-wrap:wrap; gap:6px; }
+      .grow{ width:100%; order:3; }
     }
   </style>
 </head>
 <body>
-<div id="app" class="app theme-light">
-  <div class="toolbar" role="navigation" aria-label="Reader toolbar">
-    <a class="brand" href="/"><img src="/img/brand.svg" alt=""><span>BookLantern</span></a>
-    <button class="btn" onclick="history.back()">← Back</button>
-    <div class="spacer"></div>
+  <%- include('./partials/navbar.ejs') %>
 
-    <div class="seg" role="group" aria-label="Theme">
-      <button id="th-light" class="active" onclick="setTheme('light')">Light</button>
-      <button id="th-sepia" onclick="setTheme('sepia')">Sepia</button>
-      <button id="th-dark" onclick="setTheme('dark')">Dark</button>
+  <div class="reader-wrap" id="app">
+    <div class="toolbar" role="toolbar" aria-label="Reader controls">
+      <div class="left">
+        <a href="javascript:history.back()" class="toolbtn" aria-label="Back">← Back</a>
+        <strong><%= (book && book.title) ? book.title : 'Book' %></strong>
+      </div>
+      <div class="grow"></div>
+
+      <button id="prev" class="toolbtn" title="Previous page">←</button>
+      <input id="progress" class="slider" type="range" min="0" max="100" value="0" aria-label="Progress">
+      <button id="next" class="toolbtn" title="Next page">→</button>
+
+      <button id="fs-decrease" class="toolbtn" title="Smaller text">A−</button>
+      <button id="fs-increase" class="toolbtn" title="Larger text">A+</button>
+
+      <select id="theme" class="toolbtn" aria-label="Theme">
+        <option value="light">Light</option>
+        <option value="sepia">Sepia</option>
+        <option value="dark">Dark</option>
+      </select>
+
+      <button id="listen" class="toolbtn primary" title="Listen / Pause">► Listen</button>
     </div>
 
-    <div class="seg" role="group" aria-label="Text size">
-      <button onclick="bump(-1)">A−</button>
-      <button onclick="bump(1)">A+</button>
-    </div>
-
-    <div class="seg" role="group" aria-label="Typeface">
-      <button id="tf-serif" onclick="setFace('serif')">Serif</button>
-      <button id="tf-sans" class="active" onclick="setFace('sans')">Sans</button>
-    </div>
-
-    <div class="seg" role="group" aria-label="Listen">
-      <button id="listen-play" onclick="listenToggle()">► Listen</button>
-      <button id="listen-stop" onclick="listenStop()">■</button>
+    <div class="stage">
+      <div class="edge"><button id="edge-prev" class="toolbtn" aria-label="Previous page">←</button></div>
+      <div class="book"><div id="viewer"></div></div>
+      <div class="edge"><button id="edge-next" class="toolbtn" aria-label="Next page">→</button></div>
     </div>
   </div>
 
-  <div class="meta" id="titlebar">Loading…</div>
+  <!-- ePub.js -->
+  <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3/dist/epub.min.js"></script>
 
-  <div class="stage">
-    <button class="navbtn" onclick="page(-1)" aria-label="Previous page">‹</button>
-    <div class="canvas-wrap">
-      <div id="canvas" class="canvas" tabindex="0" role="document" aria-label="Book pages"></div>
-    </div>
-    <button class="navbtn" onclick="page(1)" aria-label="Next page">›</button>
-  </div>
-</div>
+  <script>
+    // Inputs from server
+    const GID     = "<%= gid %>";
+    // We proxy the ePub to avoid CORS
+    const EPUBURL = "/proxy/gutenberg-epub/" + encodeURIComponent(GID);
 
-<script>
-  const GID = "<%= gid %>";
-  const START_URL = "<%= typeof startUrl === 'string' ? startUrl : '' %>";
-
-  const app = document.getElementById('app');
-  const canvas = document.getElementById('canvas');
-  const titlebar = document.getElementById('titlebar');
-
-  let fontSize = 18; let face = 'sans';
-  function applyTypography(){
-    canvas.style.fontSize = fontSize + 'px';
-    canvas.style.fontFamily = face === 'serif'
-      ? "Georgia, 'Times New Roman', Times, serif"
-      : "Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
-    const w = canvas.clientWidth || canvas.getBoundingClientRect().width || 800;
-    canvas.style.columnWidth = Math.max(360, Math.floor(w)) + 'px';
-  }
-  function setFace(f){
-    face = f;
-    document.getElementById('tf-serif').classList.toggle('active', f==='serif');
-    document.getElementById('tf-sans').classList.toggle('active', f==='sans');
-    applyTypography();
-  }
-  function bump(dir){
-    fontSize = Math.min(28, Math.max(14, fontSize + (dir>0 ? 1 : -1)));
-    applyTypography();
-  }
-  function setTheme(name){
-    app.classList.remove('theme-light','theme-sepia','theme-dark');
-    app.classList.add('theme-'+name);
-    document.getElementById('th-light').classList.toggle('active', name==='light');
-    document.getElementById('th-sepia').classList.toggle('active', name==='sepia');
-    document.getElementById('th-dark').classList.toggle('active', name==='dark');
-  }
-  function page(dir){
-    const delta = (canvas.clientWidth || 800) - 32;
-    canvas.scrollBy({ left: dir>0 ? delta : -delta, behavior: 'smooth' });
-  }
-  window.addEventListener('resize', applyTypography);
-
-  // --- Listen (browser TTS) ---
-  function listenToggle(){
-    if ('speechSynthesis' in window === false) { alert('Text-to-speech is not supported in this browser.'); return; }
-    if (speechSynthesis.speaking && !speechSynthesis.paused){ speechSynthesis.pause(); return; }
-    if (speechSynthesis.paused){ speechSynthesis.resume(); return; }
-    const text = canvas.innerText.slice(0, 250000);
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = 1.0; speechSynthesis.speak(u);
-  }
-  function listenStop(){ if (speechSynthesis) speechSynthesis.cancel(); }
-
-  // --- Cleaners / parsers ---
-  function stripGutenbergLicense(str){
-    try{
-      const start = str.search(/START OF (THIS|THE) PROJECT GUTENBERG EBOOK/i);
-      const end   = str.search(/END OF THE PROJECT GUTENBERG EBOOK/i);
-      if (start >= 0 && end > start) return str.slice(start).replace(/.*?\n/,'').slice(0, end - start);
-      return str;
-    }catch(_){ return str; }
-  }
-
-  function htmlToParagraphs(html){
-    const tmp = document.createElement('div');
-    tmp.innerHTML = html;
-
-    // Remove non-content
-    tmp.querySelectorAll('style,script,noscript,header,footer,nav').forEach(n=>n.remove());
-    // Common Gutenberg wrappers
-    tmp.querySelectorAll('[id^="pg-"], .pgheader, .pgfooter, .copyright, .license, .catalog, .toc').forEach(n=>n.remove());
-
-    // Extract content nodes
-    const nodes = tmp.querySelectorAll('h1,h2,h3,h4,p,li,blockquote');
-    const out = [];
-    nodes.forEach(n => {
-      let t = (n.textContent || '').replace(/\s+/g,' ').trim();
-      if (!t) return;
-      if (n.tagName === 'LI') t = '• ' + t;
-      out.push(t);
+    // ePub.js
+    const book    = ePub(EPUBURL);
+    const viewer  = document.getElementById('viewer');
+    const rendition = book.renderTo(viewer, {
+      width: "100%",
+      height: "100%",
+      flow: "paginated",
+      spread: "auto"
     });
 
-    if (out.length) return out;
+    let fontSize = 100; // %
+    function applyFont(){ rendition.themes.override("font-size", fontSize + "%"); }
+    rendition.display();
 
-    // Fallback: plain text split
-    const text = (tmp.textContent || '').replace(/\r/g,'');
-    return text.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
-  }
-
-  function textToParagraphs(txt){
-    const clean = stripGutenbergLicense(txt).replace(/\r/g,'');
-    return clean.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
-  }
-
-  function renderParagraphs(paras, title){
-    titlebar.textContent = title || ('Project Gutenberg #' + GID);
-    const frag = document.createDocumentFragment();
-    if (title) {
-      const h = document.createElement('div'); h.className='h1 page'; h.textContent = title;
-      frag.appendChild(h);
+    // Progress
+    const progress = document.getElementById('progress');
+    function updateProgress(){
+      book.locations.generate(1000).then(() => {
+        const cfi = rendition.currentLocation().start.cfi;
+        const pct = book.locations.percentageFromCfi(cfi) * 100;
+        progress.value = Math.max(0, Math.min(100, Math.round(pct)));
+      }).catch(()=>{});
     }
-    for (const p of paras){
-      const el = document.createElement('p'); el.textContent = p; frag.appendChild(el);
-    }
-    canvas.textContent = '';
-    canvas.appendChild(frag);
-    applyTypography();
-  }
+    rendition.on("rendered", updateProgress);
+    progress.addEventListener('input', async (e)=>{
+      try{
+        const goto = parseFloat(e.target.value) / 100;
+        const cfi  = book.locations.cfiFromPercentage(goto);
+        await rendition.display(cfi);
+      }catch(_){}
+    });
 
-  async function loadText(){
-    try{
-      const r = await fetch(`/read/gutenberg/${GID}/text`, { credentials:'same-origin' });
-      if (!r.ok) throw new Error('bad status');
-      const data = await r.json(); // { type:'text'|'html', content, title }
-      const title = data.title || '';
-      if (data.type === 'html'){
-        const paras = htmlToParagraphs(String(data.content||''));
-        renderParagraphs(paras, title);
-      } else {
-        const paras = textToParagraphs(String(data.content||''));
-        renderParagraphs(paras, title);
-      }
-    }catch(e){
-      console.error('reader fetch error', e);
-      titlebar.textContent = 'Could not load book. You can try the source page (opens in a new tab).';
-      const a = document.createElement('a');
-      a.href = START_URL || `https://www.gutenberg.org/ebooks/${GID}`;
-      a.target = '_blank'; a.rel = 'noopener';
-      a.textContent = 'Open on Project Gutenberg ↗';
-      const p = document.createElement('p'); p.appendChild(a);
-      canvas.textContent = ''; canvas.appendChild(p);
-    }
-  }
+    // Pager
+    document.getElementById('prev').onclick = ()=>rendition.prev();
+    document.getElementById('next').onclick = ()=>rendition.next();
+    document.getElementById('edge-prev').onclick = ()=>rendition.prev();
+    document.getElementById('edge-next').onclick = ()=>rendition.next();
 
-  setTheme('light'); setFace('sans'); applyTypography(); loadText();
-  document.addEventListener('keydown', (e)=>{
-    if (e.key === 'ArrowRight') page(1);
-    else if (e.key === 'ArrowLeft') page(-1);
-  });
-</script>
+    // Font size
+    document.getElementById('fs-increase').onclick = ()=>{ fontSize = Math.min(160, fontSize+8); applyFont(); };
+    document.getElementById('fs-decrease').onclick = ()=>{ fontSize = Math.max(80,  fontSize-8); applyFont(); };
+
+    // Theme
+    const themeSel = document.getElementById('theme');
+    themeSel.onchange = ()=>{
+      document.documentElement.classList.remove('sepia','dark');
+      if (themeSel.value==='sepia') document.documentElement.classList.add('sepia');
+      if (themeSel.value==='dark')  document.documentElement.classList.add('dark');
+    };
+
+    // ============ Listen (Web Speech) ============
+    // Phase A: speak current visible text; pause/resume; continue across page turns.
+    const listenBtn = document.getElementById('listen');
+    let utter = null, speaking = false;
+
+    function getVisibleText(){
+      try{
+        const ifr = viewer.querySelector('iframe');
+        if (!ifr) return '';
+        const sel = ifr.contentDocument.body;
+        if (!sel) return '';
+        // Grab readable text only
+        return sel.innerText.replace(/\s+/g,' ').trim();
+      }catch(_){ return ''; }
+    }
+
+    function startSpeak(){
+      const text = getVisibleText();
+      if (!text) return;
+      utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 1.0;
+      utter.onend = () => { speaking=false; rendition.next(); }; // auto-advance
+      speaking = true;
+      speechSynthesis.speak(utter);
+      listenBtn.textContent = '❚❚ Pause';
+    }
+    function pauseSpeak(){
+      speechSynthesis.pause(); speaking=false; listenBtn.textContent = '► Listen';
+    }
+    function resumeSpeak(){
+      speechSynthesis.resume(); speaking=true; listenBtn.textContent = '❚❚ Pause';
+    }
+    function stopSpeak(){
+      speechSynthesis.cancel(); speaking=false; listenBtn.textContent = '► Listen';
+    }
+
+    listenBtn.onclick = ()=>{
+      if (!('speechSynthesis' in window)) { alert('Text-to-speech not supported in this browser.'); return; }
+      if (speechSynthesis.speaking && !speechSynthesis.paused) { pauseSpeak(); return; }
+      if (speechSynthesis.paused) { resumeSpeak(); return; }
+      stopSpeak(); startSpeak();
+    };
+    rendition.on('relocated', ()=>{ if (speechSynthesis.speaking) { stopSpeak(); startSpeak(); } });
+
+    // Stop speech when user leaves
+    window.addEventListener('beforeunload', stopSpeak, { once:true });
+
+    // Initial styles
+    applyFont();
+  </script>
 </body>
 </html>
