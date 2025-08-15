@@ -14,7 +14,6 @@
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif;}
     .app{display:flex;flex-direction:column;height:100vh}
 
-    /* Top toolbar */
     .toolbar{
       position:sticky; top:0; z-index:20;
       display:flex; align-items:center; gap:.5rem;
@@ -33,14 +32,11 @@
     .seg button:last-child{border-right:0}
     .seg button.active{background:#eef2ff;font-weight:700}
 
-    /* Reader area */
     .stage{
       display:grid; grid-template-columns: 60px 1fr 60px; gap:0;
       background:var(--bg-soft); min-height:0; flex:1;
     }
-    .navbtn{
-      border:0; background:transparent; cursor:pointer; color:var(--muted); font-weight:700;
-    }
+    .navbtn{border:0; background:transparent; cursor:pointer; color:var(--muted); font-weight:700}
     .navbtn:hover{color:var(--ink)}
     .canvas-wrap{position:relative; min-width:0; overflow:hidden}
     .canvas{
@@ -57,9 +53,7 @@
     .canvas .h1{font-weight:800;font-size:1.4rem;margin:0 0 1rem}
     .canvas .h2{font-weight:700;font-size:1.15rem;margin:1.2rem 0 .4rem}
     .meta{color:var(--muted); font-size:.9rem; padding:.4rem .75rem; border-bottom:1px solid var(--line); background:#fff}
-    .hidden{display:none}
 
-    /* Themes */
     .theme-dark .canvas{ background:#0b1020; color:#e5ecff; border-color:#1b2545}
     .theme-dark .meta{ background:#0b1020; color:#a8b3cf; border-color:#1b2545}
     .theme-sepia .canvas{ background:#fbf1e2; color:#3b2918; }
@@ -83,26 +77,22 @@
     <button class="btn" onclick="history.back()">← Back</button>
     <div class="spacer"></div>
 
-    <!-- Theme -->
     <div class="seg" role="group" aria-label="Theme">
       <button id="th-light" class="active" onclick="setTheme('light')">Light</button>
       <button id="th-sepia" onclick="setTheme('sepia')">Sepia</button>
       <button id="th-dark" onclick="setTheme('dark')">Dark</button>
     </div>
 
-    <!-- Font size -->
     <div class="seg" role="group" aria-label="Text size">
       <button onclick="bump(-1)">A−</button>
       <button onclick="bump(1)">A+</button>
     </div>
 
-    <!-- Typeface -->
     <div class="seg" role="group" aria-label="Typeface">
       <button id="tf-serif" onclick="setFace('serif')">Serif</button>
       <button id="tf-sans" class="active" onclick="setFace('sans')">Sans</button>
     </div>
 
-    <!-- Listen -->
     <div class="seg" role="group" aria-label="Listen">
       <button id="listen-play" onclick="listenToggle()">► Listen</button>
       <button id="listen-stop" onclick="listenStop()">■</button>
@@ -121,7 +111,6 @@
 </div>
 
 <script>
-  // Runtime state
   const GID = "<%= gid %>";
   const START_URL = "<%= typeof startUrl === 'string' ? startUrl : '' %>";
 
@@ -129,15 +118,12 @@
   const canvas = document.getElementById('canvas');
   const titlebar = document.getElementById('titlebar');
 
-  // ---------- Theme / Typeface / Size ----------
-  let fontSize = 18; // px
-  let face = 'sans'; // or 'serif'
+  let fontSize = 18; let face = 'sans';
   function applyTypography(){
     canvas.style.fontSize = fontSize + 'px';
     canvas.style.fontFamily = face === 'serif'
       ? "Georgia, 'Times New Roman', Times, serif"
       : "Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
-    // paginate via CSS columns: set a column width equal to container width
     const w = canvas.clientWidth || canvas.getBoundingClientRect().width || 800;
     canvas.style.columnWidth = Math.max(360, Math.floor(w)) + 'px';
   }
@@ -158,35 +144,24 @@
     document.getElementById('th-sepia').classList.toggle('active', name==='sepia');
     document.getElementById('th-dark').classList.toggle('active', name==='dark');
   }
-
-  // ---------- Pagination ----------
   function page(dir){
-    const view = canvas;
-    const delta = (view.clientWidth || 800) - 32; // leave tiny overlap
-    view.scrollBy({ left: dir>0 ? delta : -delta, behavior: 'smooth' });
+    const delta = (canvas.clientWidth || 800) - 32;
+    canvas.scrollBy({ left: dir>0 ? delta : -delta, behavior: 'smooth' });
   }
   window.addEventListener('resize', applyTypography);
 
-  // ---------- Listen (browser TTS) ----------
-  let utter = null;
+  // --- Listen (browser TTS) ---
   function listenToggle(){
-    if ('speechSynthesis' in window === false) {
-      alert('Text-to-speech is not supported in this browser.');
-      return;
-    }
-    if (speechSynthesis.speaking && !speechSynthesis.paused){
-      speechSynthesis.pause(); return;
-    }
+    if ('speechSynthesis' in window === false) { alert('Text-to-speech is not supported in this browser.'); return; }
+    if (speechSynthesis.speaking && !speechSynthesis.paused){ speechSynthesis.pause(); return; }
     if (speechSynthesis.paused){ speechSynthesis.resume(); return; }
-
-    const text = canvas.innerText.slice(0, 250000); // keep it sane
-    utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 1.0; // basic default
-    speechSynthesis.speak(utter);
+    const text = canvas.innerText.slice(0, 250000);
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.0; speechSynthesis.speak(u);
   }
   function listenStop(){ if (speechSynthesis) speechSynthesis.cancel(); }
 
-  // ---------- Fetch book text from server ----------
+  // --- Cleaners / parsers ---
   function stripGutenbergLicense(str){
     try{
       const start = str.search(/START OF (THIS|THE) PROJECT GUTENBERG EBOOK/i);
@@ -195,16 +170,38 @@
       return str;
     }catch(_){ return str; }
   }
+
   function htmlToParagraphs(html){
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
-    const text = tmp.innerText || tmp.textContent || '';
+
+    // Remove non-content
+    tmp.querySelectorAll('style,script,noscript,header,footer,nav').forEach(n=>n.remove());
+    // Common Gutenberg wrappers
+    tmp.querySelectorAll('[id^="pg-"], .pgheader, .pgfooter, .copyright, .license, .catalog, .toc').forEach(n=>n.remove());
+
+    // Extract content nodes
+    const nodes = tmp.querySelectorAll('h1,h2,h3,h4,p,li,blockquote');
+    const out = [];
+    nodes.forEach(n => {
+      let t = (n.textContent || '').replace(/\s+/g,' ').trim();
+      if (!t) return;
+      if (n.tagName === 'LI') t = '• ' + t;
+      out.push(t);
+    });
+
+    if (out.length) return out;
+
+    // Fallback: plain text split
+    const text = (tmp.textContent || '').replace(/\r/g,'');
     return text.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
   }
+
   function textToParagraphs(txt){
     const clean = stripGutenbergLicense(txt).replace(/\r/g,'');
     return clean.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
   }
+
   function renderParagraphs(paras, title){
     titlebar.textContent = title || ('Project Gutenberg #' + GID);
     const frag = document.createDocumentFragment();
@@ -224,12 +221,12 @@
     try{
       const r = await fetch(`/read/gutenberg/${GID}/text`, { credentials:'same-origin' });
       if (!r.ok) throw new Error('bad status');
-      const data = await r.json(); // { type:'text'|'html', content:'...', title? }
+      const data = await r.json(); // { type:'text'|'html', content, title }
       const title = data.title || '';
       if (data.type === 'html'){
         const paras = htmlToParagraphs(String(data.content||''));
         renderParagraphs(paras, title);
-      }else{
+      } else {
         const paras = textToParagraphs(String(data.content||''));
         renderParagraphs(paras, title);
       }
@@ -245,9 +242,7 @@
     }
   }
 
-  // init
   setTheme('light'); setFace('sans'); applyTypography(); loadText();
-  // keyboard shortcuts
   document.addEventListener('keydown', (e)=>{
     if (e.key === 'ArrowRight') page(1);
     else if (e.key === 'ArrowLeft') page(-1);
