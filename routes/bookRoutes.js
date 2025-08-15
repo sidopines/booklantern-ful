@@ -43,7 +43,6 @@ async function searchGutenberg(q, limit = 64) {
     const author = Array.isArray(b.authors) && b.authors[0] ? b.authors[0].name : '';
     const cover = `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.cover.medium.jpg`;
     const startUrl = `https://www.gutenberg.org/ebooks/${gid}`;
-    // IMPORTANT: always drive to our reader
     const readerUrl = `/read/gutenberg/${gid}/reader?u=${encodeURIComponent(startUrl)}`;
     return card({
       identifier: `gutenberg:${gid}`,
@@ -142,13 +141,11 @@ router.get('/read/book/:identifier', async (req, res) => {
 });
 
 /* --------------------------- Gutenberg reader (internal) ------------------- */
-// guard: only subscribers can read
 function requireUser(req, res, next){
   if (!req.session?.user) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
   next();
 }
 
-// Render the reader shell
 router.get('/read/gutenberg/:gid/reader', requireUser, (req, res) => {
   const gid = String(req.params.gid || '').trim();
   const startUrl = typeof req.query.u === 'string' && req.query.u ? req.query.u : `https://www.gutenberg.org/ebooks/${gid}`;
@@ -160,7 +157,9 @@ router.get('/read/gutenberg/:gid/reader', requireUser, (req, res) => {
   });
 });
 
-// Server-side text provider: fetch formats from Gutendex and return text/html
+/* Server-side text provider:
+   1) Prefer TEXT formats to avoid embedded CSS.
+   2) Fall back to HTML/XHTML and let the client strip style/script. */
 router.get('/read/gutenberg/:gid/text', requireUser, async (req, res) => {
   try{
     const gid = String(req.params.gid || '').trim();
@@ -170,7 +169,6 @@ router.get('/read/gutenberg/:gid/text', requireUser, async (req, res) => {
     const title = meta?.title || `Project Gutenberg #${gid}`;
     const formats = meta?.formats || {};
 
-    // Pick best non-zip format
     const pick = (...keys) => {
       for (const k of keys) {
         const url = formats[k];
@@ -179,9 +177,10 @@ router.get('/read/gutenberg/:gid/text', requireUser, async (req, res) => {
       return null;
     };
 
+    // Prefer TEXT first, then HTML
     const url =
-      pick('text/html; charset=utf-8','text/html','application/xhtml+xml') ||
-      pick('text/plain; charset=utf-8','text/plain; charset=us-ascii','text/plain');
+      pick('text/plain; charset=utf-8','text/plain; charset=us-ascii','text/plain') ||
+      pick('text/html; charset=utf-8','text/html','application/xhtml+xml');
 
     if (!url) return res.status(404).json({ error:'No readable format found' });
 
