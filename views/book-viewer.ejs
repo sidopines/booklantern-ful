@@ -1,74 +1,50 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <% 
-    const t = (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : `Read • ${title || iaId}`;
-    const d = (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : `Read ${title || iaId} on BookLantern`;
-  %>
-  <%- include('./partials/head.ejs', { pageTitle: t, pageDescription: d }) %>
+  <%- include('./partials/head.ejs', {
+    pageTitle: (title ? (title + ' — Book Viewer') : 'Book Viewer'),
+    pageDescription: 'Read this item in BookLantern'
+  }) %>
   <style>
-    :root{
-      --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
-      --bg:#ffffff; --bg-soft:#f8fafc; --brand:#5b7cfa;
+    html,body{ height:100%; margin:0; background:#0b0f17; }
+    #wrap{ display:flex; flex-direction:column; height:100%; }
+    .bar{
+      display:flex; align-items:center; gap:10px; padding:8px 12px;
+      background:#0f1522; color:#dfe7f5; border-bottom:1px solid #1e293b;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     }
-    html,body{height:100%;margin:0;background:#fff;color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-    .shell{display:flex;flex-direction:column;height:100vh}
-    .toolbar{
-      display:flex;align-items:center;gap:.5rem;
-      padding:.5rem .75rem;border-bottom:1px solid var(--line);
-      background:linear-gradient(180deg,#ffffff, #fbfdff);
-      position:sticky;top:0;z-index:10;
-    }
-    .brand{display:flex;align-items:center;gap:.5rem;text-decoration:none;color:var(--ink);font-weight:800}
-    .brand img{width:20px;height:20px}
-    .spacer{flex:1}
-    .btn{appearance:none;border:1px solid var(--line);background:#fff;padding:.45rem .7rem;
-         border-radius:10px;cursor:pointer;font-weight:600}
-    .btn.primary{background:var(--brand);color:#fff;border-color:transparent}
-    .btn:hover{filter:brightness(.97)}
-    .frame-wrap{position:relative;flex:1;min-height:0;background:var(--bg-soft)}
-    iframe.viewer{
-      position:absolute;inset:0;width:100%;height:100%;
-      border:0;background:#000;
-    }
-    .titlebar{padding:.25rem .75rem .5rem;color:var(--muted);font-size:.9rem;border-bottom:1px solid var(--line)}
-    .titlebar strong{color:var(--ink)}
-    @media (max-width:640px){
-      .brand span{display:none}
-      .titlebar{font-size:.85rem}
+    .bar a{ color:#cbd9ff; text-decoration:none; }
+    .bar a:hover{ text-decoration:underline; }
+    #frame{ flex:1 1 auto; width:100%; border:0; background:#000; }
+    .fallback{
+      color:#c5d3e6; padding:12px; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      border-top:1px solid #1e293b; background:#0f1522;
     }
   </style>
 </head>
 <body>
-<div class="shell">
-  <div class="toolbar" role="navigation" aria-label="Reader toolbar">
-    <a class="brand" href="/">
-      <img src="/img/brand.svg" alt="">
-      <span>BookLantern</span>
-    </a>
+  <%- include('./partials/navbar.ejs') %>
 
-    <button class="btn" onclick="history.back()" aria-label="Go back">← Back</button>
+  <div id="wrap">
+    <div class="bar">
+      <a href="javascript:history.back()">← Back</a>
+      <div style="flex:1 1 auto; font-weight:600;"><%= title || iaId %></div>
+      <a href="https://archive.org/details/<%= iaId %>" target="_blank" rel="noopener">Open on archive.org ↗</a>
+    </div>
 
-    <div class="spacer"></div>
-
-    <!-- Open on Archive.org (some users prefer the full controls) -->
-    <a class="btn" href="https://archive.org/details/<%= iaId %>" target="_blank" rel="noopener">Open on Archive.org ↗</a>
-  </div>
-
-  <div class="titlebar">
-    <strong><%= title || iaId %></strong>
-  </div>
-
-  <div class="frame-wrap">
-    <!-- IA embed. Their viewer handles pagination, zoom, full screen, etc. -->
+    <!-- Official IA embed (keeps users on BookLantern) -->
     <iframe
-      class="viewer"
-      src="https://archive.org/details/<%= iaId %>?ui=embed"
-      allow="fullscreen"
+      id="frame"
+      src="https://archive.org/details/<%= iaId %>?ui=embed#mode/1up"
+      allowfullscreen
       referrerpolicy="no-referrer"
-      title="Reader">
+      title="Internet Archive Embed">
     </iframe>
+
+    <div class="fallback">
+      If the book does not appear above, this item may be restricted or removed on the Internet Archive.
+      You can try the direct page <a href="https://archive.org/details/<%= iaId %>" target="_blank" rel="noopener">here</a>.
+    </div>
   </div>
-</div>
 </body>
 </html>
