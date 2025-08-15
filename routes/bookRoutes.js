@@ -2,15 +2,12 @@
 const express = require('express');
 const router = express.Router();
 
-// Optional: if you want to hard-gate guests before reading IA books, we can
-// perform that check directly in the route (implemented below).
-
-/* ---------------------------- helpers / normalize --------------------------- */
+/* Helpers */
 function card({ identifier, title, creator = '', cover = '', source, readerUrl = '', archiveId = '' }) {
   return { identifier, title, creator, cover, source, readerUrl, archiveId };
 }
 
-/* -------------------------------- Open Library ------------------------------ */
+/* --------------------------- Open Library search --------------------------- */
 async function searchOpenLibrary(q, limit = 60) {
   const url = `https://openlibrary.org/search.json?mode=everything&limit=${limit}&q=${encodeURIComponent(q)}`;
   const r = await fetch(url);
@@ -34,7 +31,7 @@ async function searchOpenLibrary(q, limit = 60) {
   });
 }
 
-/* -------------------------------- Gutenberg --------------------------------- */
+/* ------------------------------ Gutenberg search --------------------------- */
 async function searchGutenberg(q, limit = 64) {
   const url = `https://gutendex.com/books?search=${encodeURIComponent(q)}`;
   const r = await fetch(url);
@@ -46,6 +43,7 @@ async function searchGutenberg(q, limit = 64) {
     const author = Array.isArray(b.authors) && b.authors[0] ? b.authors[0].name : '';
     const cover = `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.cover.medium.jpg`;
     const startUrl = `https://www.gutenberg.org/ebooks/${gid}`;
+    // IMPORTANT: always drive to our reader
     const readerUrl = `/read/gutenberg/${gid}/reader?u=${encodeURIComponent(startUrl)}`;
     return card({
       identifier: `gutenberg:${gid}`,
@@ -58,7 +56,7 @@ async function searchGutenberg(q, limit = 64) {
   });
 }
 
-/* ----------------------------- Internet Archive ----------------------------- */
+/* ----------------------------- Internet Archive ---------------------------- */
 async function searchArchive(q, rows = 40) {
   const api = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(
     `${q} AND mediatype:texts`
@@ -84,7 +82,7 @@ async function searchArchive(q, rows = 40) {
   });
 }
 
-/* ------------------------------- READ (search) ------------------------------ */
+/* --------------------------------- /read ----------------------------------- */
 router.get('/read', async (req, res) => {
   try {
     const query = (req.query.query || '').trim();
@@ -121,22 +119,12 @@ router.get('/read', async (req, res) => {
   }
 });
 
-/* ------------------------ Internet Archive INTERNAL VIEW -------------------- */
-/**
- * GET /read/book/:identifier
- * Renders an embedded Internet Archive BookReader inside BookLantern.
- * Guests are gated to login first.
- */
+/* ------------------------ Internet Archive internal view ------------------- */
 router.get('/read/book/:identifier', async (req, res) => {
   const id = String(req.params.identifier || '').trim();
   if (!id) return res.redirect('/read');
+  if (!req.session?.user) return res.redirect(`/login?next=${encodeURIComponent('/read/book/' + id)}`);
 
-  // Gate guests to login/register
-  if (!req.session?.user) {
-    return res.redirect(`/login?next=${encodeURIComponent('/read/book/' + id)}`);
-  }
-
-  // Fetch minimal metadata for title (best effort)
   let title = id;
   try {
     const metaR = await fetch(`https://archive.org/metadata/${encodeURIComponent(id)}`);
@@ -145,7 +133,6 @@ router.get('/read/book/:identifier', async (req, res) => {
       if (meta?.metadata?.title) title = meta.metadata.title;
     }
   } catch (_) {}
-
   return res.render('book-viewer', {
     iaId: id,
     title,
@@ -154,21 +141,17 @@ router.get('/read/book/:identifier', async (req, res) => {
   });
 });
 
-/* --------------------------- Gutenberg reader + proxy ----------------------- */
-function allowGutenberg(urlStr) {
-  try {
-    const u = new URL(urlStr);
-    const host = u.hostname.replace(/^www\./, '').toLowerCase();
-    return ['gutenberg.org', 'gutenberg.net', 'gutenberg.pglaf.org'].includes(host);
-  } catch (_) { return false; }
-}
-function canonicalGutenbergUrl(gid) {
-  return `https://www.gutenberg.org/ebooks/${encodeURIComponent(gid)}`;
+/* --------------------------- Gutenberg reader (internal) ------------------- */
+// guard: only subscribers can read
+function requireUser(req, res, next){
+  if (!req.session?.user) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
+  next();
 }
 
-router.get('/read/gutenberg/:gid/reader', (req, res) => {
+// Render the reader shell
+router.get('/read/gutenberg/:gid/reader', requireUser, (req, res) => {
   const gid = String(req.params.gid || '').trim();
-  const startUrl = typeof req.query.u === 'string' && req.query.u ? req.query.u : canonicalGutenbergUrl(gid);
+  const startUrl = typeof req.query.u === 'string' && req.query.u ? req.query.u : `https://www.gutenberg.org/ebooks/${gid}`;
   return res.render('unified-reader', {
     gid,
     startUrl,
@@ -177,24 +160,45 @@ router.get('/read/gutenberg/:gid/reader', (req, res) => {
   });
 });
 
-router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
-  try {
+// Server-side text provider: fetch formats from Gutendex and return text/html
+router.get('/read/gutenberg/:gid/text', requireUser, async (req, res) => {
+  try{
     const gid = String(req.params.gid || '').trim();
-    const q = String(req.query.u || '').trim();
-    const target = allowGutenberg(q) ? q : canonicalGutenbergUrl(gid);
-    const rsp = await fetch(target, { redirect: 'follow' });
-    const html = await rsp.text();
-    const base = new URL(target);
-    const rewritten = html.replace(/(src|href)=["'](\/[^"']*)["']/gi, (m, attr, url) => {
-      try { return `${attr}="${new URL(url, base).toString()}"`; } catch { return m; }
-    });
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-    res.setHeader('Cache-Control', 'public, max-age=300');
-    return res.send(rewritten);
-  } catch (err) {
-    console.error('Gutenberg proxy error:', err);
-    return res.status(502).send('<!doctype html><meta charset="utf-8"><title>Proxy Error</title><pre>Could not fetch the book page.</pre>');
+    const metaR = await fetch(`https://gutendex.com/books/${gid}`);
+    if (!metaR.ok) throw new Error('meta not ok');
+    const meta = await metaR.json();
+    const title = meta?.title || `Project Gutenberg #${gid}`;
+    const formats = meta?.formats || {};
+
+    // Pick best non-zip format
+    const pick = (...keys) => {
+      for (const k of keys) {
+        const url = formats[k];
+        if (url && !/\.zip($|\?)/i.test(url)) return url;
+      }
+      return null;
+    };
+
+    const url =
+      pick('text/html; charset=utf-8','text/html','application/xhtml+xml') ||
+      pick('text/plain; charset=utf-8','text/plain; charset=us-ascii','text/plain');
+
+    if (!url) return res.status(404).json({ error:'No readable format found' });
+
+    const bookR = await fetch(url, { redirect:'follow' });
+    const ctype = (bookR.headers.get('content-type') || '').toLowerCase();
+    const raw = await bookR.text();
+
+    if (ctype.includes('html') || /<\/?[a-z][\s\S]*>/i.test(raw)) {
+      res.setHeader('Cache-Control','public, max-age=600');
+      return res.json({ type:'html', content: raw, title });
+    } else {
+      res.setHeader('Cache-Control','public, max-age=600');
+      return res.json({ type:'text', content: raw, title });
+    }
+  }catch(err){
+    console.error('gutenberg text error:', err);
+    return res.status(502).json({ error:'Fetch failed' });
   }
 });
 
