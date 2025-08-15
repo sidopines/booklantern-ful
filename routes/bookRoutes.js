@@ -140,65 +140,66 @@ router.get('/read/book/:identifier', async (req, res) => {
   });
 });
 
-/* --------------------------- Gutenberg reader (internal) ------------------- */
+/* ----------------------------- Auth helper --------------------------------- */
 function requireUser(req, res, next){
   if (!req.session?.user) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
   next();
 }
 
-router.get('/read/gutenberg/:gid/reader', requireUser, (req, res) => {
-  const gid = String(req.params.gid || '').trim();
-  const startUrl = typeof req.query.u === 'string' && req.query.u ? req.query.u : `https://www.gutenberg.org/ebooks/${gid}`;
+/* -------------------------------------------------------------------------- */
+/*                      GUTENBERG (ePub.js READER + PROXY)                    */
+/* -------------------------------------------------------------------------- */
+
+/** ePub proxy (avoids CORS). We try multiple canonical URLs:
+ *  - /ebooks/{gid}.epub.images?download
+ *  - /ebooks/{gid}.epub.noimages?download
+ *  - /cache/epub/{gid}/pg{gid}-images.epub
+ *  - /cache/epub/{gid}/pg{gid}.epub
+ * Sends Content-Type: application/epub+zip and streams the body.
+ */
+router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
+  try {
+    const gid = String(req.params.gid).replace(/[^0-9]/g,'');
+    if (!gid) return res.status(400).send('Bad id');
+    const urls = [
+      `https://www.gutenberg.org/ebooks/${gid}.epub.images?download`,
+      `https://www.gutenberg.org/ebooks/${gid}.epub.noimages?download`,
+      `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}-images.epub`,
+      `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.epub`
+    ];
+    let resp;
+    for (const u of urls) {
+      resp = await fetch(u, { redirect: 'follow' });
+      if (resp.ok) {
+        res.set('Content-Type', 'application/epub+zip');
+        // Node 18+ global fetch returns a web stream; pipe via .body
+        return resp.body.pipe(res);
+      }
+    }
+    return res.status(404).send('ePub not found');
+  } catch (e) {
+    console.error('proxy gutenberg epub err', e);
+    res.status(500).send('Proxy error');
+  }
+});
+
+/** Reader page: renders views/unified-reader.ejs which loads the ePub
+ *  from /proxy/gutenberg-epub/:gid and displays with ePub.js.
+ *  Protected for logged-in users.
+ */
+router.get('/read/gutenberg/:gid/reader', requireUser, async (req, res) => {
+  const gid = String(req.params.gid).replace(/[^0-9]/g,'');
   return res.render('unified-reader', {
     gid,
-    startUrl,
+    book: {
+      title: req.query.title || '',
+      creator: req.query.author || ''
+    },
     pageTitle: `Read • #${gid}`,
     pageDescription: 'Distraction-free reading'
   });
 });
 
-/* Server-side text provider:
-   1) Prefer TEXT formats to avoid embedded CSS.
-   2) Fall back to HTML/XHTML and let the client strip style/script. */
-router.get('/read/gutenberg/:gid/text', requireUser, async (req, res) => {
-  try{
-    const gid = String(req.params.gid || '').trim();
-    const metaR = await fetch(`https://gutendex.com/books/${gid}`);
-    if (!metaR.ok) throw new Error('meta not ok');
-    const meta = await metaR.json();
-    const title = meta?.title || `Project Gutenberg #${gid}`;
-    const formats = meta?.formats || {};
-
-    const pick = (...keys) => {
-      for (const k of keys) {
-        const url = formats[k];
-        if (url && !/\.zip($|\?)/i.test(url)) return url;
-      }
-      return null;
-    };
-
-    // Prefer TEXT first, then HTML
-    const url =
-      pick('text/plain; charset=utf-8','text/plain; charset=us-ascii','text/plain') ||
-      pick('text/html; charset=utf-8','text/html','application/xhtml+xml');
-
-    if (!url) return res.status(404).json({ error:'No readable format found' });
-
-    const bookR = await fetch(url, { redirect:'follow' });
-    const ctype = (bookR.headers.get('content-type') || '').toLowerCase();
-    const raw = await bookR.text();
-
-    if (ctype.includes('html') || /<\/?[a-z][\s\S]*>/i.test(raw)) {
-      res.setHeader('Cache-Control','public, max-age=600');
-      return res.json({ type:'html', content: raw, title });
-    } else {
-      res.setHeader('Cache-Control','public, max-age=600');
-      return res.json({ type:'text', content: raw, title });
-    }
-  }catch(err){
-    console.error('gutenberg text error:', err);
-    return res.status(502).json({ error:'Fetch failed' });
-  }
-});
+/* -------------------------------------------------------------------------- */
 
 module.exports = router;
