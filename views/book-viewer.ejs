@@ -1,81 +1,74 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <%- include('./partials/head.ejs', {
-    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : (book && book.title ? (book.title + ' | Reader') : 'Reader'),
-    pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Read in BookLantern'
-  }) %>
+  <% 
+    const t = (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : `Read • ${title || iaId}`;
+    const d = (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : `Read ${title || iaId} on BookLantern`;
+  %>
+  <%- include('./partials/head.ejs', { pageTitle: t, pageDescription: d }) %>
   <style>
-    :root { --line:#e5e7eb; }
-    * { box-sizing:border-box; }
-    html, body { margin:0; padding:0; height:100%; }
-    body { background:#f6f7fb; color:#111; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-    header.reader-bar{
-      position: sticky; top:0; z-index:20;
-      background:#fff; border-bottom:1px solid var(--line);
+    :root{
+      --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+      --bg:#ffffff; --bg-soft:#f8fafc; --brand:#5b7cfa;
     }
-    .reader-bar-inner{
-      max-width:1100px; margin:0 auto; padding:.6rem 1rem;
-      display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+    html,body{height:100%;margin:0;background:#fff;color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .shell{display:flex;flex-direction:column;height:100vh}
+    .toolbar{
+      display:flex;align-items:center;gap:.5rem;
+      padding:.5rem .75rem;border-bottom:1px solid var(--line);
+      background:linear-gradient(180deg,#ffffff, #fbfdff);
+      position:sticky;top:0;z-index:10;
     }
-    .brand-link{ text-decoration:none; color:#111; font-weight:800; letter-spacing:-.01em; display:flex; align-items:center; gap:.5rem; }
-    .brand-link img{ width:20px; height:20px; }
-    .controls{ display:flex; gap:.5rem; align-items:center; }
-    .btn{ padding:.5rem .7rem; border:1px solid var(--line); background:#fff; border-radius:10px; cursor:pointer; font-weight:600; text-decoration:none; color:#111; }
-    .btn:hover{ background:#f5f7fb; }
-    .guard{
-      max-width:700px; margin:3rem auto; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 30px rgba(2,6,23,.08);
-      padding:1.25rem;
+    .brand{display:flex;align-items:center;gap:.5rem;text-decoration:none;color:var(--ink);font-weight:800}
+    .brand img{width:20px;height:20px}
+    .spacer{flex:1}
+    .btn{appearance:none;border:1px solid var(--line);background:#fff;padding:.45rem .7rem;
+         border-radius:10px;cursor:pointer;font-weight:600}
+    .btn.primary{background:var(--brand);color:#fff;border-color:transparent}
+    .btn:hover{filter:brightness(.97)}
+    .frame-wrap{position:relative;flex:1;min-height:0;background:var(--bg-soft)}
+    iframe.viewer{
+      position:absolute;inset:0;width:100%;height:100%;
+      border:0;background:#000;
     }
-    .guard h1{ margin:.2rem 0 .6rem; font-size:1.4rem; }
-    .guard p{ color:#667085; }
-    .split{ display:flex; gap:10px; flex-wrap:wrap; margin-top:.6rem; }
-    .btn.brand{ background:#111; color:#fff; border-color:#111; }
-    .frame-wrap{ height:calc(100vh - 58px); }
-    iframe.viewer{ border:0; width:100%; height:100%; background:#fff; }
+    .titlebar{padding:.25rem .75rem .5rem;color:var(--muted);font-size:.9rem;border-bottom:1px solid var(--line)}
+    .titlebar strong{color:var(--ink)}
+    @media (max-width:640px){
+      .brand span{display:none}
+      .titlebar{font-size:.85rem}
+    }
   </style>
 </head>
 <body>
-  <% if (!user) { %>
-    <%- include('./partials/navbar.ejs') %>
-    <main class="container">
-      <div class="guard">
-        <h1>Sign in to read</h1>
-        <p>Create a free account to open this book in the reader.</p>
-        <div class="split">
-          <a class="btn brand" href="/login?next=<%= encodeURIComponent(req.originalUrl) %>">Login</a>
-          <a class="btn" href="/register?next=<%= encodeURIComponent(req.originalUrl) %>">Create account</a>
-        </div>
-      </div>
-    </main>
-  <% } else { %>
-    <header class="reader-bar">
-      <div class="reader-bar-inner">
-        <a class="brand-link" href="/">
-          <img src="/img/brand.svg" alt="">
-          BookLantern
-        </a>
-        <div class="controls">
-          <a class="btn" href="javascript:history.back()">← Back</a>
-          <a class="btn" href="/read">All Books</a>
-        </div>
-      </div>
-    </header>
+<div class="shell">
+  <div class="toolbar" role="navigation" aria-label="Reader toolbar">
+    <a class="brand" href="/">
+      <img src="/img/brand.svg" alt="">
+      <span>BookLantern</span>
+    </a>
 
-    <div class="frame-wrap">
-      <% 
-        const ia = book && (book.archiveId || book.identifier || '');
-        const safeId = ia ? String(ia) : '';
-        const stream = safeId ? `https://archive.org/stream/${encodeURIComponent(safeId)}?ui=embed#page=1` : 'about:blank';
-      %>
-      <iframe
-        class="viewer"
-        src="<%= stream %>"
-        referrerpolicy="no-referrer"
-        allow="clipboard-read; clipboard-write"
-        title="<%= book && book.title ? book.title : 'Book' %>">
-      </iframe>
-    </div>
-  <% } %>
+    <button class="btn" onclick="history.back()" aria-label="Go back">← Back</button>
+
+    <div class="spacer"></div>
+
+    <!-- Open on Archive.org (some users prefer the full controls) -->
+    <a class="btn" href="https://archive.org/details/<%= iaId %>" target="_blank" rel="noopener">Open on Archive.org ↗</a>
+  </div>
+
+  <div class="titlebar">
+    <strong><%= title || iaId %></strong>
+  </div>
+
+  <div class="frame-wrap">
+    <!-- IA embed. Their viewer handles pagination, zoom, full screen, etc. -->
+    <iframe
+      class="viewer"
+      src="https://archive.org/details/<%= iaId %>?ui=embed"
+      allow="fullscreen"
+      referrerpolicy="no-referrer"
+      title="Reader">
+    </iframe>
+  </div>
+</div>
 </body>
 </html>
