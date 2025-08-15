@@ -2,119 +2,57 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : (gid ? `Reader • Gutenberg #${gid}` : 'Reader'),
-    pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Read in BookLantern'
+    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : (gid ? `Reader • #${gid}` : 'Reader'),
+    pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Distraction-free reading'
   }) %>
   <style>
     :root{
-      --line:#e5e7eb;
-      --ink:#0f172a;
-      --muted:#667085;
-      --bg:#f6f7fb;
-      --card:#ffffff;
-
-      /* Reader theming */
-      --r-bg:#ffffff;
-      --r-fg:#111111;
-      --r-muted:#6b7280;
-      --r-gap: 2rem;
-      --r-col-width: 42rem;   /* target "page" width */
-      --r-font: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
-      --r-size: 19px;         /* user adjustable */
-      --r-line: 1.6;
+      --line:#e5e7eb; --ink:#0f172a; --muted:#667085; --bg:#f6f7fb; --card:#ffffff;
+      --r-bg:#ffffff; --r-fg:#111111; --r-muted:#6b7280; --r-gap:2rem; --r-col-width:42rem; --r-font:Georgia,'Iowan Old Style','Times New Roman',serif; --r-size:19px; --r-line:1.6;
     }
     [data-theme="sepia"]{ --r-bg:#fbf1d3; --r-fg:#2d2418; }
     [data-theme="dark"]{  --r-bg:#0b1220; --r-fg:#e5e7eb; --r-muted:#9aa3b2; }
 
-    *{ box-sizing: border-box; }
-    html,body{ margin:0; padding:0; height:100%; }
-    body{
-      background: var(--bg);
-      color:#111;
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-    }
+    *{ box-sizing:border-box }
+    html,body{ margin:0; padding:0; height:100%; background:var(--bg); font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color:var(--ink); }
 
-    /* Top bar */
-    header.reader-bar{
-      position: sticky; top:0; z-index:30;
-      background:#fff; border-bottom:1px solid var(--line);
-    }
-    .reader-bar-inner{
-      max-width:1100px; margin:0 auto; padding:.55rem 1rem;
-      display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap;
-    }
+    header.reader-bar{ position:sticky; top:0; z-index:30; background:#fff; border-bottom:1px solid var(--line); }
+    .reader-bar-inner{ max-width:1100px; margin:0 auto; padding:.55rem 1rem; display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; }
     .brand-link{ text-decoration:none; color:#111; font-weight:800; letter-spacing:-.01em; display:flex; align-items:center; gap:.5rem; }
     .brand-link img{ width:20px; height:20px; }
-
     .controls{ display:flex; gap:.45rem; align-items:center; flex-wrap:wrap; }
-    .btn{
-      padding:.45rem .65rem; border:1px solid var(--line); background:#fff; border-radius:10px;
-      cursor:pointer; font-weight:600; text-decoration:none; color:#111; display:inline-flex; align-items:center; gap:.35rem;
-    }
+    .btn{ padding:.45rem .65rem; border:1px solid var(--line); background:#fff; border-radius:10px; cursor:pointer; font-weight:600; text-decoration:none; color:#111; display:inline-flex; align-items:center; gap:.35rem; }
     .btn:hover{ background:#f5f7fb; }
     .sep{ width:1px; height:24px; background:var(--line); }
-
-    .select, .range{
-      border:1px solid var(--line); border-radius:10px; background:#fff; padding:.35rem .5rem;
-    }
+    .select,.range{ border:1px solid var(--line); border-radius:10px; background:#fff; padding:.35rem .5rem; }
     .range{ padding:.25rem; }
     .label{ color:#6b7280; font-size:.85rem; }
 
-    /* Main area */
-    .wrap{ min-height:100vh; display:flex; flex-direction:column; }
+    iframe.reader{ border:0; width:100%; height:calc(100vh - 58px); background:#fff; }
 
-    /* Iframe (fallback/original) */
-    iframe.reader{
-      border:0; width:100%; height:calc(100vh - 58px);
-      background:#fff;
-    }
+    .reader-shell{ display:none; background:var(--r-bg); color:var(--r-fg); }
+    .reader-chrome{ max-width:1100px; margin:0 auto; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:.5rem; flex-wrap:wrap; border-bottom:1px solid rgba(0,0,0,.06); color:var(--r-muted); }
+    .reader-viewport{ height:calc(100vh - 58px - 48px); overflow-x:auto; overflow-y:hidden; scroll-behavior:smooth; background:var(--r-bg); }
+    .reader-viewport::-webkit-scrollbar{ height:10px; } .reader-viewport::-webkit-scrollbar-thumb{ background:rgba(0,0,0,.25); border-radius:999px; }
+    .pages{ padding:24px 24px 32px; }
+    .pages .content{ column-width:var(--r-col-width); column-gap:var(--r-gap); font-family:var(--r-font); font-size:var(--r-size); line-height:var(--r-line); hyphens:auto; }
+    .pages .content h1,.pages .content h2,.pages .content h3{ break-inside:avoid; line-height:1.2; margin:0 0 .4em 0; }
+    .pages .content p{ margin:0 0 1em 0; }
+    .pages .content img, .pages .content svg, .pages .content video{ max-width:100%; height:auto; break-inside:avoid; page-break-inside:avoid; }
 
-    /* Paged Reader */
-    .reader-shell{ display:none; background: var(--r-bg); color: var(--r-fg); }
-    .reader-chrome{
-      max-width:1100px; margin:0 auto; padding: 10px 12px;
-      display:flex; align-items:center; justify-content:space-between; gap:.5rem; flex-wrap:wrap;
-      border-bottom: 1px solid rgba(0,0,0,.06);
-      color: var(--r-muted);
-    }
-    .reader-viewport{
-      height: calc(100vh - 58px - 48px);
-      overflow-x: auto; overflow-y: hidden;
-      scroll-behavior: smooth;
-      background: var(--r-bg);
-    }
-    .reader-viewport::-webkit-scrollbar{ height: 10px; }
-    .reader-viewport::-webkit-scrollbar-thumb{ background: rgba(0,0,0,.25); border-radius:999px; }
-    .pages{ padding: 24px 24px 32px; }
-    .pages .content{
-      column-width: var(--r-col-width);
-      column-gap: var(--r-gap);
-      font-family: var(--r-font);
-      font-size: var(--r-size);
-      line-height: var(--r-line);
-      hyphens: auto;
-    }
-    .pages .content h1, .pages .content h2, .pages .content h3{
-      break-inside: avoid; line-height: 1.2; margin: 0 0 .4em 0;
-    }
-    .pages .content p{ margin: 0 0 1em 0; }
-    .pages .content img, .pages .content svg, .pages .content video{
-      max-width:100%; height:auto; break-inside: avoid; page-break-inside: avoid;
-    }
-
-    /* Guard for guests */
-    .guard{
-      max-width:700px; margin:3rem auto; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 30px rgba(2,6,23,.08);
-      padding:1.25rem;
-    }
-    .guard h1{ margin:.2rem 0 .6rem; font-size:1.4rem; }
-    .guard p{ color:#667085; }
+    .guard{ max-width:700px; margin:3rem auto; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 30px rgba(2,6,23,.08); padding:1.25rem; }
+    .guard h1{ margin:.2rem 0 .6rem; font-size:1.4rem; } .guard p{ color:#667085; }
     .split{ display:flex; gap:10px; flex-wrap:wrap; margin-top:.6rem; }
     .btn.brand{ background:#111; color:#fff; border-color:#111; }
 
+    .spinner { display:none; place-items:center; height:calc(100vh - 58px); }
+    .spinner .dot{ width:10px; height:10px; border-radius:50%; background:#111; animation:bounce 1s infinite alternate; }
+    .spinner .dot:nth-child(2){ animation-delay:.15s } .spinner .dot:nth-child(3){ animation-delay:.3s }
+    @keyframes bounce{ to{ transform: translateY(-6px); opacity:.5 } }
+
     @media (max-width: 640px){
-      .reader-viewport{ height: calc(100vh - 58px - 44px); }
-      .pages{ padding: 12px; }
+      .reader-viewport{ height:calc(100vh - 58px - 44px); }
+      .pages{ padding:12px; }
     }
   </style>
 </head>
@@ -126,7 +64,7 @@
         <h1>Sign in to read</h1>
         <p>Create a free account to read in BookLantern’s distraction-free reader and use audio.</p>
         <div class="split">
-          <% 
+          <%
             const _gid = typeof gid !== 'undefined' ? String(gid) : '';
             const herePath = '/read/gutenberg/' + encodeURIComponent(_gid) + '/reader' + (startUrl ? ('?u=' + encodeURIComponent(startUrl)) : '');
           %>
@@ -136,65 +74,71 @@
       </div>
     </main>
   <% } else { %>
-    <div class="wrap">
-      <!-- Top app bar -->
-      <header class="reader-bar">
-        <div class="reader-bar-inner">
-          <a class="brand-link" href="/"><img src="/img/brand.svg" alt="">BookLantern</a>
-          <div class="controls">
-            <a class="btn" href="javascript:history.back()">← Back</a>
-            <a class="btn" href="/read">All Books</a>
-            <span class="sep" aria-hidden="true"></span>
-            <button id="btnMode" class="btn" type="button" title="Toggle Reader/Original">Reader mode (beta)</button>
-            <label class="label" for="themeSel">Theme</label>
-            <select id="themeSel" class="select" title="Theme">
-              <option value="light">Light</option>
-              <option value="sepia">Sepia</option>
-              <option value="dark">Dark</option>
-            </select>
-            <label class="label">Type</label>
-            <button id="fontMinus" class="btn" type="button" title="Smaller type">A−</button>
-            <button id="fontPlus"  class="btn" type="button" title="Larger type">A+</button>
-            <span class="sep" aria-hidden="true"></span>
-            <button id="prevPage" class="btn" type="button" title="Previous page">←</button>
-            <button id="nextPage" class="btn" type="button" title="Next page">→</button>
-            <span class="sep" aria-hidden="true"></span>
-            <button id="ttsPlay"  class="btn" type="button" title="Listen (browser)">▶︎ Listen</button>
-            <button id="ttsPause" class="btn" type="button" title="Pause">⏸</button>
-            <button id="ttsStop"  class="btn" type="button" title="Stop">⏹</button>
-            <label class="label" for="rateRange">Speed</label>
-            <input id="rateRange" class="range" type="range" min="0.6" max="1.6" step="0.1" value="1.0" style="width:90px">
-          </div>
+    <header class="reader-bar">
+      <div class="reader-bar-inner">
+        <a class="brand-link" href="/"><img src="/img/brand.svg" alt="">BookLantern</a>
+        <div class="controls">
+          <a class="btn" href="javascript:history.back()">← Back</a>
+          <a class="btn" href="/read">All Books</a>
+          <span class="sep" aria-hidden="true"></span>
+          <button id="btnMode" class="btn" type="button" title="Toggle Reader/Original">Reader mode (beta)</button>
+          <label class="label" for="themeSel">Theme</label>
+          <select id="themeSel" class="select" title="Theme">
+            <option value="light">Light</option>
+            <option value="sepia">Sepia</option>
+            <option value="dark">Dark</option>
+          </select>
+          <label class="label">Type</label>
+          <button id="fontMinus" class="btn" type="button" title="Smaller type">A−</button>
+          <button id="fontPlus"  class="btn" type="button" title="Larger type">A+</button>
+          <span class="sep" aria-hidden="true"></span>
+          <button id="prevPage" class="btn" type="button" title="Previous page">←</button>
+          <button id="nextPage" class="btn" type="button" title="Next page">→</button>
+          <span class="sep" aria-hidden="true"></span>
+          <button id="ttsPlay"  class="btn" type="button" title="Listen (browser)">▶︎ Listen</button>
+          <button id="ttsPause" class="btn" type="button" title="Pause">⏸</button>
+          <button id="ttsStop"  class="btn" type="button" title="Stop">⏹</button>
+          <label class="label" for="rateRange">Speed</label>
+          <input id="rateRange" class="range" type="range" min="0.6" max="1.6" step="0.1" value="1.0" style="width:90px">
         </div>
-      </header>
+      </div>
+    </header>
 
-      <% 
-        const safeUrl = (typeof startUrl === 'string' && startUrl) ? startUrl : (gid ? `https://www.gutenberg.org/ebooks/${gid}` : 'about:blank');
-        const _gid2 = typeof gid !== 'undefined' ? String(gid) : '';
-        const proxied = `/read/gutenberg/${encodeURIComponent(_gid2)}/proxy?u=${encodeURIComponent(safeUrl)}`;
-      %>
-      <iframe id="originalFrame" class="reader" src="<%= proxied %>" referrerpolicy="no-referrer" allow="clipboard-read; clipboard-write" title="Original text"></iframe>
+    <%
+      const _gid2 = typeof gid !== 'undefined' ? String(gid) : '';
+      const safeUrl = (typeof startUrl === 'string' && startUrl) ? startUrl : (_gid2 ? `https://www.gutenberg.org/ebooks/${_gid2}` : 'about:blank');
+      const proxied = `/read/gutenberg/${encodeURIComponent(_gid2)}/proxy?u=${encodeURIComponent(safeUrl)}`;
+    %>
 
-      <!-- READER MODE (paged) -->
-      <section id="readerShell" class="reader-shell" data-theme="light" aria-hidden="true">
-        <div class="reader-chrome">
-          <div id="pageInfo">Page 1</div>
-          <div id="readerHint">Tip: select text then press “Listen”.</div>
-        </div>
-        <div id="viewport" class="reader-viewport">
-          <div class="pages"><article id="content" class="content"></article></div>
-        </div>
-      </section>
+    <!-- Original (fallback) -->
+    <iframe id="originalFrame" class="reader" src="<%= proxied %>" referrerpolicy="no-referrer" title="Original text"></iframe>
+
+    <!-- Reader Mode -->
+    <section id="readerShell" class="reader-shell" data-theme="light" aria-hidden="true">
+      <div class="reader-chrome">
+        <div id="pageInfo">Page 1</div>
+        <div id="readerHint">Tip: select text then press “Listen”.</div>
+      </div>
+      <div id="viewport" class="reader-viewport">
+        <div class="pages"><article id="content" class="content"></article></div>
+      </div>
+    </section>
+
+    <div id="spinner" class="spinner">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
     </div>
 
     <script>
       (function(){
+        const PROXY_URL = "<%- proxied %>";
+
         // Elements
         const iframe    = document.getElementById('originalFrame');
         const shell     = document.getElementById('readerShell');
         const contentEl = document.getElementById('content');
         const viewport  = document.getElementById('viewport');
         const pageInfo  = document.getElementById('pageInfo');
+        const spinner   = document.getElementById('spinner');
 
         const btnMode   = document.getElementById('btnMode');
         const themeSel  = document.getElementById('themeSel');
@@ -209,160 +153,92 @@
         const ttsStop   = document.getElementById('ttsStop');
         const rateRange = document.getElementById('rateRange');
 
-        // State
-        let readerBuilt = false;
-        let fontSize = 19; // px
-        let currentTheme = 'light';
+        let readerBuilt = false, fontSize = 19, currentTheme = 'light';
 
-        // --- Utilities ---
         function sanitize(html){
           const tmp = document.createElement('div');
           tmp.innerHTML = html;
-          tmp.querySelectorAll('script,style,link,iframe,form,noscript').forEach(el=>el.remove());
-          tmp.querySelectorAll('header, nav, .header, .topnav').forEach(el=>el.remove());
+          // Remove chrome
+          tmp.querySelectorAll('script,style,link,iframe,form,noscript,header,nav,footer,.header,.topnav,.masthead').forEach(el=>el.remove());
           return tmp.innerHTML;
         }
-
-        async function buildFromIframe(){
-          try{
-            const doc = iframe.contentDocument;
-            if (!doc) return false;
-            const body = doc.body;
-            if (!body) return false;
-            let main = body.querySelector('main') || body.querySelector('#book') || body.querySelector('#content') || body;
-            contentEl.innerHTML = sanitize(main.innerHTML);
-            polish();
-            return true;
-          }catch(e){
-            console.warn('Reader build from iframe failed:', e);
-            return false;
-          }
-        }
-
-        async function buildFromFetch(){
-          try{
-            const res = await fetch(iframe.src, { credentials: 'same-origin' });
-            if (!res.ok) throw new Error('proxy fetch bad status');
-            const html = await res.text();
-            // Try to isolate <body> if present
-            const wrap = document.createElement('html');
-            wrap.innerHTML = html;
-            const body = wrap.querySelector('body') || wrap;
-            let main = body.querySelector('main') || body.querySelector('#book') || body.querySelector('#content') || body;
-            contentEl.innerHTML = sanitize(main.innerHTML);
-            polish();
-            return true;
-          }catch(e){
-            console.error('Reader build from fetch failed:', e);
-            return false;
-          }
-        }
-
-        function polish(){
-          contentEl.querySelectorAll('p').forEach(p=>{
-            if (!p.innerText.trim()) p.remove();
-          });
-          applyType();
-          updatePageInfoThrottled();
-          readerBuilt = true;
-        }
-
-        function applyType(){
-          contentEl.style.setProperty('--r-size', fontSize + 'px');
-          shell.setAttribute('data-theme', currentTheme);
-        }
-
+        function applyType(){ contentEl.style.setProperty('--r-size', fontSize+'px'); shell.setAttribute('data-theme', currentTheme); }
         function showReader(show){
-          if (show){
-            shell.style.display = 'block';
-            shell.setAttribute('aria-hidden','false');
-            iframe.style.display = 'none';
-            btnMode.textContent = 'Original';
-            setTimeout(()=>updatePageInfoThrottled(), 60);
-          } else {
-            shell.style.display = 'none';
-            shell.setAttribute('aria-hidden','true');
-            iframe.style.display = 'block';
-            btnMode.textContent = 'Reader mode (beta)';
-          }
+          if (show){ shell.style.display='block'; shell.setAttribute('aria-hidden','false'); iframe.style.display='none'; btnMode.textContent='Original'; }
+          else     { shell.style.display='none';  shell.setAttribute('aria-hidden','true');  iframe.style.display='block'; btnMode.textContent='Reader mode (beta)'; }
         }
-
-        async function toggleMode(){
-          if (!readerBuilt){
-            // Try iframe first, then fetch as fallback
-            let ok = await buildFromIframe();
-            if (!ok) ok = await buildFromFetch();
-            if (!ok){
-              alert('Could not build Reader mode yet. Try again in a moment.');
-              return;
-            }
-            showReader(true);
-          } else {
-            showReader(shell.style.display !== 'block');
-          }
-        }
-
-        function pageLeft(){ viewport.scrollBy({ left: -viewport.clientWidth, behavior:'smooth' }); }
-        function pageRight(){ viewport.scrollBy({ left:  viewport.clientWidth, behavior:'smooth' }); }
-
-        function updatePageInfo(){
-          const total = Math.max(1, Math.round(viewport.scrollWidth / viewport.clientWidth));
-          const current = Math.min(total, Math.max(1, Math.round(viewport.scrollLeft / viewport.clientWidth) + 1));
-          pageInfo.textContent = `Page ${current} / ${total}`;
-        }
+        function throttle(fn, ms){ let t=0; return ()=>{ const n=Date.now(); if(n-t>ms){ t=n; fn(); } }; }
+        function pageLeft(){ viewport.scrollBy({ left:-viewport.clientWidth, behavior:'smooth' }); }
+        function pageRight(){ viewport.scrollBy({ left: viewport.clientWidth, behavior:'smooth' }); }
+        function updatePageInfo(){ const total=Math.max(1,Math.round(viewport.scrollWidth/viewport.clientWidth)); const cur=Math.min(total,Math.max(1,Math.round(viewport.scrollLeft/viewport.clientWidth)+1)); pageInfo.textContent=`Page ${cur} / ${total}`; }
         const updatePageInfoThrottled = throttle(updatePageInfo, 100);
-        function throttle(fn, ms){ let t=0; return ()=>{ const now=Date.now(); if (now-t>ms){ t=now; fn(); } }; }
 
-        // --- TTS (browser SpeechSynthesis) ---
-        const synth = 'speechSynthesis' in window ? window.speechSynthesis : null;
-        let utter = null;
-
-        function selectedText(){
-          const sel = window.getSelection && window.getSelection();
-          const s = sel ? String(sel.toString()).trim() : '';
-          return s;
+        async function buildFromProxy(){
+          spinner.style.display='grid';
+          try{
+            const res = await fetch(PROXY_URL, { credentials:'same-origin' });
+            if(!res.ok) throw new Error('bad status '+res.status);
+            const html = await res.text();
+            const wrap = document.createElement('html'); wrap.innerHTML = html;
+            const body = wrap.querySelector('body') || wrap;
+            const main = body.querySelector('main, #book, #content, article') || body;
+            contentEl.innerHTML = sanitize(main.innerHTML);
+            // Trim empty paras
+            contentEl.querySelectorAll('p').forEach(p=>{ if(!p.innerText.trim()) p.remove(); });
+            applyType();
+            readerBuilt = true;
+            spinner.style.display='none';
+            showReader(true);
+            setTimeout(updatePageInfoThrottled, 60);
+          }catch(e){
+            console.error('[Reader] build failed:', e);
+            spinner.style.display='none';
+            // Keep original iframe visible
+          }
         }
-        function currentChunkText(){
-          const sel = selectedText();
-          if (sel) return sel;
-          const full = contentEl.innerText || '';
-          if (full.length < 1000) return full;
-          const ratio = viewport.scrollLeft / Math.max(1, (viewport.scrollWidth - viewport.clientWidth));
-          const start = Math.floor(ratio * full.length);
-          const end = Math.min(full.length, start + 4000);
-          return full.slice(start, end);
-        }
-        function ttsStart(){
-          if (!synth){ alert('Text-to-speech is not supported in this browser.'); return; }
-          if (utter){ synth.cancel(); utter = null; }
-          const text = shell.style.display === 'block' ? currentChunkText() : '';
-          if (!text){ alert('Switch to Reader mode or select some text.'); return; }
-          utter = new SpeechSynthesisUtterance(text);
-          utter.rate = Number(rateRange.value || 1.0);
-          synth.speak(utter);
-        }
-        function ttsPause(){ if (synth && !synth.paused) synth.pause(); }
-        function ttsStop(){ if (synth){ synth.cancel(); utter = null; } }
 
-        // Events
-        btnMode.addEventListener('click', toggleMode);
-        themeSel.addEventListener('change', (e)=>{ currentTheme = e.target.value; applyType(); });
-        fontMinus.addEventListener('click', ()=>{ fontSize = Math.max(14, fontSize-1); applyType(); updatePageInfoThrottled(); });
-        fontPlus .addEventListener('click', ()=>{ fontSize = Math.min(24, fontSize+1); applyType(); updatePageInfoThrottled(); });
+        // Auto-build reader on load
+        window.addEventListener('DOMContentLoaded', buildFromProxy);
 
+        // Toggle
+        btnMode.addEventListener('click', ()=>{ if(readerBuilt){ showReader(shell.style.display!=='block'); } else { buildFromProxy(); } });
+
+        // Theme/Type
+        themeSel.addEventListener('change', e=>{ currentTheme=e.target.value; applyType(); });
+        fontMinus.addEventListener('click', ()=>{ fontSize=Math.max(14,fontSize-1); applyType(); updatePageInfoThrottled(); });
+        fontPlus .addEventListener('click', ()=>{ fontSize=Math.min(24,fontSize+1); applyType(); updatePageInfoThrottled(); });
+
+        // Paging
         prevPage.addEventListener('click', pageLeft);
         nextPage.addEventListener('click', pageRight);
         viewport.addEventListener('scroll', updatePageInfoThrottled);
         window.addEventListener('resize', updatePageInfoThrottled);
 
+        // --- Browser TTS ---
+        const synth = 'speechSynthesis' in window ? window.speechSynthesis : null;
+        let utter=null;
+        function selectedText(){ const s = window.getSelection ? String(window.getSelection().toString()).trim() : ''; return s; }
+        function currentChunkText(){
+          const sel = selectedText(); if (sel) return sel;
+          const full = contentEl.innerText || '';
+          if (full.length < 1000) return full;
+          const ratio = viewport.scrollLeft / Math.max(1,(viewport.scrollWidth-viewport.clientWidth));
+          const start = Math.floor(ratio * full.length);
+          return full.slice(start, Math.min(full.length, start+4000));
+        }
+        function ttsStart(){
+          if(!synth){ alert('Text-to-speech not supported in this browser.'); return; }
+          if(shell.style.display!=='block'){ alert('Switch to Reader mode first.'); return; }
+          if(utter){ synth.cancel(); utter=null; }
+          const text = currentChunkText(); if(!text){ alert('Select some text to read.'); return; }
+          utter = new SpeechSynthesisUtterance(text); utter.rate = Number(rateRange.value||1.0); synth.speak(utter);
+        }
+        function ttsPause(){ if(synth && !synth.paused) synth.pause(); }
+        function ttsStop(){ if(synth){ synth.cancel(); utter=null; } }
         ttsPlay .addEventListener('click', ttsStart);
         ttsPause.addEventListener('click', ttsPause);
         ttsStop .addEventListener('click', ttsStop);
-        rateRange.addEventListener('change', ()=>{ if (utter) utter.rate = Number(rateRange.value||1.0); });
-
-        // Prebuild after iframe loads so the first toggle is instant (best effort)
-        iframe.addEventListener('load', async ()=>{ if (!readerBuilt){ await buildFromIframe().catch(()=>{}); } });
-
+        rateRange.addEventListener('change', ()=>{ if(utter) utter.rate = Number(rateRange.value||1.0); });
       })();
     </script>
   <% } %>
