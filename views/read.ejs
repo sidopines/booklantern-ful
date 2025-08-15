@@ -3,51 +3,50 @@
 <head>
   <%- include('./partials/head.ejs', {
     pageTitle: 'Read Books Online',
-    pageDescription: "Browse and read books fetched from multiple free sources using BookLantern's modern reader experience."
+    pageDescription: "Browse and read books fetched from free sources using BookLantern's modern reader."
   }) %>
   <link rel="stylesheet" href="/css/site.css">
   <style>
-    /* small page-local tweaks */
-    .page-wrap{max-width:1100px;margin:0 auto;padding:24px}
-    .back-link{display:inline-block;margin-bottom:10px;color:#1256b3;text-decoration:none;font-size:.95rem}
-    .back-link:hover{text-decoration:underline}
-    h1{margin:8px 0 14px 0}
-    form.read-search{display:flex;gap:10px;margin:10px 0 6px 0}
-    form.read-search input[type="text"]{flex:1;padding:.7rem .8rem;border:1px solid #e5e7eb;border-radius:12px;background:#fff}
-    form.read-search button{padding:.7rem 1rem;border:0;border-radius:12px;background:#111;color:#fff;font-weight:600;cursor:pointer}
-    .empty{color:#667085;margin:24px 0}
-    .grid, .book-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(210px, 1fr));gap:18px}
-    .book-card{background:#fff;border:1px solid #eaeef3;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(2,6,23,.08)}
-    .book-card .thumb{position:relative;aspect-ratio:3/4;background:#eef2f7;display:flex;align-items:center;justify-content:center}
-    .book-card .thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-    .no-cover{color:#667085;font-size:.9rem}
-    .book-card h3{margin:.6rem .8rem .2rem .8rem;font-size:1rem}
-    .book-card p{margin:0 .8rem .4rem .8rem;color:#667085;font-size:.9rem}
-    .meta-row{display:flex;align-items:center;gap:.5rem;margin:.3rem .8rem .8rem .8rem}
-    .badge{display:inline-block;font-size:.75rem;background:#eef4ff;color:#1256b3;border:1px solid #d6e4ff;padding:.2rem .5rem;border-radius:999px}
-    .action{margin:.6rem .8rem 1rem .8rem;color:#1256b3;font-weight:600}
+    .wrap{ max-width:1100px; margin:0 auto; padding:16px 16px 40px; }
+    .back-link{ display:inline-block; margin:8px 0 10px; color:#1256b3; text-decoration:none; }
+    .back-link:hover{ text-decoration:underline; }
+    .title{ margin:6px 0 12px; }
+    .searchbar{ display:flex; gap:10px; }
+    .searchbar input{ flex:1 1 auto; }
+    .book-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(210px,1fr)); gap:18px; margin-top:18px; }
+    .book-card{ background:#fff; border:1px solid #e5e7eb; border-radius:14px; overflow:hidden; box-shadow:0 8px 28px rgba(0,0,0,.06); }
+    .book-card .thumb{ width:100%; aspect-ratio:3/4; background:#eef2f7; position:relative; }
+    .book-card .thumb img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+    .book-card h3{ margin:8px 12px 2px; font-size:16px; }
+    .book-card p{ margin:0 12px 10px; color:#667085; font-size:13px; }
+    .meta-row{ margin:0 12px 12px; }
+    .badge{ display:inline-block; padding:4px 8px; border:1px solid #e5e7eb; border-radius:999px; font-size:11px; background:#fff; color:#1f2937; }
+    .action{ margin:0 12px 14px; }
+    .action span{ display:inline-flex; align-items:center; gap:6px; background:#5b74ff; color:#fff; padding:8px 12px; border-radius:10px; font-weight:600; }
+    .empty{ margin:18px 0; color:#667085; }
+    @media (max-width: 720px){ .searchbar{ flex-direction:column; } }
   </style>
 </head>
 <body>
   <%- include('./partials/navbar.ejs') %>
 
-  <div class="page-wrap">
+  <main class="wrap">
     <a href="javascript:history.back()" class="back-link">← Back</a>
-    <h1>📚 Explore Free Books</h1>
+    <h1 class="title">📚 Explore Free Books</h1>
 
-    <form class="read-search" action="/read" method="GET">
+    <form class="searchbar" action="/read" method="GET">
       <input
         type="text"
         name="query"
         placeholder="Search books by title or author"
         value="<%= typeof query !== 'undefined' ? query : '' %>">
-      <button type="submit">Search</button>
+      <button class="btn" type="submit">Search</button>
     </form>
 
     <% const hasQuery = (typeof query !== 'undefined' && String(query).trim() !== ''); %>
 
-    <!-- STAFF PICKS: only when there's no search -->
     <% if (!hasQuery) { %>
+    <!-- Staff picks when there's no search -->
     <section class="section">
       <div class="container">
         <div class="shelf-header">
@@ -59,151 +58,108 @@
     </section>
     <% } %>
 
-    <!-- SEARCH RESULTS: render ONLY when there IS a query -->
-    <% if (hasQuery) { %>
-      <% if (!books || books.length === 0) { %>
-        <div class="empty">No books found. Try another search term.</div>
-      <% } else { %>
-        <div class="book-grid">
-          <% books.forEach(function(book){
-               const src  = (book.source || '').toLowerCase();
-               const id   = book.identifier || book._id || '';
+    <% if (!books || books.length === 0) { %>
+      <div class="empty">No books found. Try another search term.</div>
+    <% } else { %>
+      <div class="book-grid">
+        <% books.forEach(function(book){
+             const src  = (book.source || '').toLowerCase();
+             const id   = book.identifier || book._id || '';
 
-               const isArchive   = (src === 'archive');
-               const isGutenberg = (src === 'gutenberg');
-               const gutenId     = isGutenberg ? String(id).replace(/^gutenberg:/,'') : '';
+             const isArchive   = (src === 'archive');
+             const isGutenberg = (src === 'gutenberg');
+             const gutenId     = isGutenberg ? String(id).replace(/^gutenberg:/,'') : '';
 
-               let dest = isArchive
-                 ? `/read/book/${encodeURIComponent(id)}`
-                 : (isGutenberg
-                     ? `/read/gutenberg/${encodeURIComponent(gutenId)}/reader${book.readerUrl ? ('?u=' + encodeURIComponent(book.readerUrl)) : ''}`
-                     : (book.readerUrl || '#'));
-
-               // Gate visitors to login/register before reading
-               if (!user) {
-                 dest = '/login?next=' + encodeURIComponent(dest);
+             // Build internal destinations
+             let dest;
+             if (isArchive) {
+               // archive: always open inside BookLantern viewer
+               const ia = String(id).replace(/^archive:/,'').replace(/^ia:/,'');
+               dest = '/read/book/' + encodeURIComponent(ia);
+             } else if (isGutenberg) {
+               dest = '/read/gutenberg/' + encodeURIComponent(gutenId) + '/reader';
+             } else {
+               // openlibrary or unknown: prefer a specific readerUrl, else route back to /read with a query for more copies
+               if (book.readerUrl) {
+                 dest = book.readerUrl;
+               } else {
+                 const q = encodeURIComponent(book.title || '');
+                 dest = '/read?query=' + q;
                }
-          %>
-            <div class="book-card" data-source="<%= src %>">
-              <a href="<%= dest %>" <%= (isArchive || isGutenberg) ? '' : 'target="_blank" rel="noopener"' %> style="text-decoration:none;color:inherit">
-                <div class="thumb">
-                  <% if (book.cover) { %>
-                    <img src="<%= book.cover %>" alt="<%= book.title %>" loading="lazy" referrerpolicy="no-referrer">
-                  <% } else { %>
-                    <div class="no-cover">No Cover</div>
-                  <% } %>
-                </div>
-                <h3><%= book.title %></h3>
-                <p><%= book.creator || book.author || '' %></p>
-                <div class="meta-row">
-                  <% if (src) { %>
-                    <span class="badge">
-                      <%= src === 'archive' ? 'Archive.org' : (src === 'gutenberg' ? 'Project Gutenberg' : (src === 'openlibrary' ? 'Open Library' : src)) %>
-                    </span>
-                  <% } %>
-                </div>
-                <div class="action">📖 Read Now</div>
-              </a>
-            </div>
-          <% }) %>
-        </div>
-      <% } %>
+             }
+
+             // Gate visitors to login/register
+             const finalHref = (<%= !!user %>) ? dest : ('/login?next=' + encodeURIComponent(dest));
+        %>
+          <div class="book-card" data-source="<%= src %>">
+            <a href="<%= finalHref %>" <%= (isArchive || isGutenberg) ? '' : 'rel="noopener"' %> style="text-decoration:none;color:inherit">
+              <div class="thumb">
+                <% if (book.cover) { %>
+                  <img src="<%= book.cover %>" alt="<%= book.title %>" loading="lazy" referrerpolicy="no-referrer">
+                <% } %>
+              </div>
+              <h3><%= book.title %></h3>
+              <p><%= book.creator || book.author || '' %></p>
+              <div class="meta-row">
+                <% if (src) { %>
+                  <span class="badge"><%= src === 'archive' ? 'Archive.org' : (src === 'gutenberg' ? 'Project Gutenberg' : (src === 'openlibrary' ? 'Open Library' : 'Book')) %></span>
+                <% } %>
+              </div>
+              <div class="action"><span>📖 Read Now</span></div>
+            </a>
+          </div>
+        <% }) %>
+      </div>
     <% } %>
-  </div>
+  </main>
 
   <footer class="footer">
     &copy; <%= new Date().getFullYear() %> BookLantern • Built on open libraries • <a href="/about">About</a>
   </footer>
 
   <% if (!hasQuery) { %>
-  <!-- FETCH Staff picks -->
   <script>
     (function(){
-      const IS_LOGGED_IN = <%= !!user %>;
       const grid = document.getElementById('featured-grid');
-
-      function escapeHtml(s){
-        return String(s || '')
-          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-      }
-
+      function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
       function hrefFromCard(b){
-        if (b && b.href) return b.href;
         const src = (b.source || '').toLowerCase();
         const id  = b.identifier || '';
-        const ia  = b.archiveId || (src === 'archive' ? id : '');
-        if (ia) return '/read/book/' + encodeURIComponent(ia);
-        if (src === 'gutenberg') {
+        const ia  = b.archiveId || (src==='archive' ? id : '');
+        if (ia) return '/read/book/' + encodeURIComponent(String(ia).replace(/^archive:/,'').replace(/^ia:/,''));
+        if (src==='gutenberg') {
           const gid = String(id).replace(/^gutenberg:/,'');
-          const qs  = b.readerUrl ? ('?u=' + encodeURIComponent(b.readerUrl)) : '';
-          return '/read/gutenberg/' + encodeURIComponent(gid) + '/reader' + qs;
+          return '/read/gutenberg/' + encodeURIComponent(gid) + '/reader';
         }
-        return b.readerUrl || '#';
+        // openlibrary or unknown
+        if (b.readerUrl) return b.readerUrl;
+        return '/read?query=' + encodeURIComponent(b.title || '');
       }
-
-      function gated(dest){
-        return IS_LOGGED_IN ? dest : '/login?next=' + encodeURIComponent(dest || '/');
-      }
-
-      function brand(src){
-        const s = (src||'').toLowerCase();
-        return s==='archive' ? 'Archive.org' : (s==='gutenberg' ? 'Project Gutenberg' : (s==='openlibrary' ? 'Open Library' : 'Book'));
-      }
-
-      // pretty fallback tile (when no cover)
-      function fallbackTile(title){
-        const t = escapeHtml(title || 'Explore');
-        return `
-          <div class="thumb" style="background:linear-gradient(180deg,#f4f7ff,#eefcf7);display:flex;align-items:center;justify-content:center;">
-            <div style="text-align:center;">
-              <div style="font-size:40px;line-height:1.1">🔎</div>
-              <div style="margin-top:6px;color:#667085;font-size:12px">${t}</div>
-            </div>
-          </div>`;
-      }
-
       function cardTemplate(b){
-        const dest = gated(hrefFromCard(b));
-        const internal = IS_LOGGED_IN && (b.archiveId || (b.source||'').toLowerCase()==='archive' || (b.source||'').toLowerCase()==='gutenberg');
-        const thumb = b.cover
-          ? `<div class="thumb"><img src="${b.cover}" alt="${escapeHtml(b.title||'')}" loading="lazy" referrerpolicy="no-referrer"></div>`
-          : fallbackTile(b.title);
-
+        const dest = hrefFromCard(b);
         return `
           <article class="card fade-in">
-            <a href="${dest}" ${internal ? '' : 'rel="noopener"'} style="text-decoration:none;color:inherit">
-              ${thumb}
+            <a href="${dest}" style="text-decoration:none;color:inherit">
+              <div class="thumb">${b.cover ? `<img src="${b.cover}" alt="${escapeHtml(b.title||'')}" loading="lazy" referrerpolicy="no-referrer">` : ''}</div>
               <div class="meta">
-                <span class="badge">${brand(b.source)}</span>
-                <h3>${escapeHtml(b.title || '')}</h3>
-                <p>${escapeHtml(b.creator || '')}</p>
+                <span class="badge">${ (b.source||'Book') }</span>
+                <h3>${escapeHtml(b.title||'')}</h3>
+                <p>${escapeHtml(b.creator||'')}</p>
               </div>
             </a>
           </article>
         `;
       }
-
       async function loadFeatured(){
         try{
-          const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
-          if (!r.ok) throw new Error('bad status');
+          const r = await fetch('/api/featured-books', { credentials:'same-origin' });
           const data = await r.json();
-          const items =
-            Array.isArray(data) ? data :
-            (Array.isArray(data.items) ? data.items :
-            (Array.isArray(data.results) ? data.results : []));
-          if (!items.length) {
-            grid.innerHTML = '<div class="hint">No picks right now. Try a search above.</div>';
-            return;
-          }
+          const items = Array.isArray(data) ? data : (Array.isArray(data.items)?data.items:(Array.isArray(data.results)?data.results:[]));
           grid.innerHTML = items.map(cardTemplate).join('');
-        } catch(e){
-          console.error('featured error', e);
-          grid.innerHTML = '<div class="hint">Could not load picks. Try refreshing.</div>';
+        }catch(e){
+          grid.innerHTML = '<div class="hint">Could not load picks.</div>';
         }
       }
-
       loadFeatured();
     })();
   </script>
