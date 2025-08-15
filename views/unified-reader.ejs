@@ -18,19 +18,15 @@
       --r-fg:#111111;
       --r-muted:#6b7280;
       --r-gap: 2rem;
-      --r-col-width: 40rem;   /* target "page" width */
+      --r-col-width: 42rem;   /* target "page" width */
       --r-font: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
-      --r-size: 18px;         /* user adjustable */
+      --r-size: 19px;         /* user adjustable */
       --r-line: 1.6;
     }
-    [data-theme="sepia"]{
-      --r-bg:#fbf1d3; --r-fg:#2d2418;
-    }
-    [data-theme="dark"]{
-      --r-bg:#0b1220; --r-fg:#e5e7eb; --r-muted:#9aa3b2;
-    }
+    [data-theme="sepia"]{ --r-bg:#fbf1d3; --r-fg:#2d2418; }
+    [data-theme="dark"]{  --r-bg:#0b1220; --r-fg:#e5e7eb; --r-muted:#9aa3b2; }
 
-    *{ box-sizing:border-box; }
+    *{ box-sizing: border-box; }
     html,body{ margin:0; padding:0; height:100%; }
     body{
       background: var(--bg);
@@ -45,7 +41,7 @@
     }
     .reader-bar-inner{
       max-width:1100px; margin:0 auto; padding:.55rem 1rem;
-      display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+      display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap;
     }
     .brand-link{ text-decoration:none; color:#111; font-weight:800; letter-spacing:-.01em; display:flex; align-items:center; gap:.5rem; }
     .brand-link img{ width:20px; height:20px; }
@@ -67,26 +63,19 @@
     /* Main area */
     .wrap{ min-height:100vh; display:flex; flex-direction:column; }
 
-    /* Iframe (fallback/”original”) */
+    /* Iframe (fallback/original) */
     iframe.reader{
       border:0; width:100%; height:calc(100vh - 58px);
       background:#fff;
     }
 
     /* Paged Reader */
-    .reader-shell{
-      display:none; /* hidden until “Reader mode” is built */
-      background: var(--r-bg);
-      color: var(--r-fg);
-    }
+    .reader-shell{ display:none; background: var(--r-bg); color: var(--r-fg); }
     .reader-chrome{
-      max-width:1100px; margin:0 auto;
-      padding: 10px 12px;
-      display:flex; align-items:center; justify-content:space-between; gap:.5rem;
+      max-width:1100px; margin:0 auto; padding: 10px 12px;
+      display:flex; align-items:center; justify-content:space-between; gap:.5rem; flex-wrap:wrap;
       border-bottom: 1px solid rgba(0,0,0,.06);
-    }
-    .reader-chrome .mini{
-      display:flex; align-items:center; gap:.35rem; flex-wrap:wrap; color:var(--r-muted); font-size:.9rem;
+      color: var(--r-muted);
     }
     .reader-viewport{
       height: calc(100vh - 58px - 48px);
@@ -96,23 +85,17 @@
     }
     .reader-viewport::-webkit-scrollbar{ height: 10px; }
     .reader-viewport::-webkit-scrollbar-thumb{ background: rgba(0,0,0,.25); border-radius:999px; }
-    .pages{
-      padding: 24px 24px 32px;
-    }
+    .pages{ padding: 24px 24px 32px; }
     .pages .content{
-      /* CSS multi-columns create “pages” horizontally */
       column-width: var(--r-col-width);
       column-gap: var(--r-gap);
-      /* Make it feel bookish */
       font-family: var(--r-font);
       font-size: var(--r-size);
       line-height: var(--r-line);
       hyphens: auto;
     }
     .pages .content h1, .pages .content h2, .pages .content h3{
-      break-inside: avoid;
-      line-height: 1.2;
-      margin: 0 0 .4em 0;
+      break-inside: avoid; line-height: 1.2; margin: 0 0 .4em 0;
     }
     .pages .content p{ margin: 0 0 1em 0; }
     .pages .content img, .pages .content svg, .pages .content video{
@@ -129,9 +112,7 @@
     .split{ display:flex; gap:10px; flex-wrap:wrap; margin-top:.6rem; }
     .btn.brand{ background:#111; color:#fff; border-color:#111; }
 
-    /* Small screens: keep controls usable */
     @media (max-width: 640px){
-      .reader-chrome{ padding: 8px; }
       .reader-viewport{ height: calc(100vh - 58px - 44px); }
       .pages{ padding: 12px; }
     }
@@ -145,8 +126,12 @@
         <h1>Sign in to read</h1>
         <p>Create a free account to read in BookLantern’s distraction-free reader and use audio.</p>
         <div class="split">
-          <a class="btn brand" href="/login?next=<%= encodeURIComponent(req.originalUrl) %>">Login</a>
-          <a class="btn" href="/register?next=<%= encodeURIComponent(req.originalUrl) %>">Create account</a>
+          <% 
+            const _gid = typeof gid !== 'undefined' ? String(gid) : '';
+            const herePath = '/read/gutenberg/' + encodeURIComponent(_gid) + '/reader' + (startUrl ? ('?u=' + encodeURIComponent(startUrl)) : '');
+          %>
+          <a class="btn brand" href="/login?next=<%= herePath %>">Login</a>
+          <a class="btn" href="/register?next=<%= herePath %>">Create account</a>
         </div>
       </div>
     </main>
@@ -155,10 +140,7 @@
       <!-- Top app bar -->
       <header class="reader-bar">
         <div class="reader-bar-inner">
-          <a class="brand-link" href="/">
-            <img src="/img/brand.svg" alt="">
-            BookLantern
-          </a>
+          <a class="brand-link" href="/"><img src="/img/brand.svg" alt="">BookLantern</a>
           <div class="controls">
             <a class="btn" href="javascript:history.back()">← Back</a>
             <a class="btn" href="/read">All Books</a>
@@ -186,26 +168,21 @@
         </div>
       </header>
 
-      <!-- ORIGINAL (proxied Gutenberg in same-origin iframe) -->
-      <%
+      <% 
         const safeUrl = (typeof startUrl === 'string' && startUrl) ? startUrl : (gid ? `https://www.gutenberg.org/ebooks/${gid}` : 'about:blank');
-        const _gid = typeof gid !== 'undefined' ? String(gid) : '';
-        const proxied = `/read/gutenberg/${encodeURIComponent(_gid)}/proxy?u=${encodeURIComponent(safeUrl)}`;
+        const _gid2 = typeof gid !== 'undefined' ? String(gid) : '';
+        const proxied = `/read/gutenberg/${encodeURIComponent(_gid2)}/proxy?u=${encodeURIComponent(safeUrl)}`;
       %>
       <iframe id="originalFrame" class="reader" src="<%= proxied %>" referrerpolicy="no-referrer" allow="clipboard-read; clipboard-write" title="Original text"></iframe>
 
       <!-- READER MODE (paged) -->
       <section id="readerShell" class="reader-shell" data-theme="light" aria-hidden="true">
         <div class="reader-chrome">
-          <div class="mini">
-            <span id="pageInfo">Page 1</span>
-          </div>
-          <div class="mini" id="readerHint">Tip: select text then press “Listen”.</div>
+          <div id="pageInfo">Page 1</div>
+          <div id="readerHint">Tip: select text then press “Listen”.</div>
         </div>
         <div id="viewport" class="reader-viewport">
-          <div class="pages">
-            <article id="content" class="content"></article>
-          </div>
+          <div class="pages"><article id="content" class="content"></article></div>
         </div>
       </section>
     </div>
@@ -234,47 +211,60 @@
 
         // State
         let readerBuilt = false;
-        let fontSize = 18; // px
+        let fontSize = 19; // px
         let currentTheme = 'light';
 
         // --- Utilities ---
         function sanitize(html){
-          // rudimentary sanitizer: strip scripts/styles/iframes/forms
           const tmp = document.createElement('div');
           tmp.innerHTML = html;
           tmp.querySelectorAll('script,style,link,iframe,form,noscript').forEach(el=>el.remove());
-          // Remove obvious site chrome elements sometimes present
           tmp.querySelectorAll('header, nav, .header, .topnav').forEach(el=>el.remove());
           return tmp.innerHTML;
         }
 
-        async function buildReader(){
-          if (readerBuilt) return true;
+        async function buildFromIframe(){
           try{
             const doc = iframe.contentDocument;
-            if (!doc){ console.warn('Reader: iframe not ready'); return false; }
+            if (!doc) return false;
             const body = doc.body;
-            if (!body){ console.warn('Reader: no body in iframe'); return false; }
-
-            // Prefer a main content node if present
+            if (!body) return false;
             let main = body.querySelector('main') || body.querySelector('#book') || body.querySelector('#content') || body;
-            const html = sanitize(main.innerHTML);
-
-            contentEl.innerHTML = html;
-
-            // Basic typographic polish for Gutenberg’s common markup
-            contentEl.querySelectorAll('p').forEach(p=>{
-              if (!p.innerText.trim()) p.remove();
-            });
-
-            applyType();
-            updatePageInfoThrottled();
-            readerBuilt = true;
+            contentEl.innerHTML = sanitize(main.innerHTML);
+            polish();
             return true;
           }catch(e){
-            console.error('Reader build error', e);
+            console.warn('Reader build from iframe failed:', e);
             return false;
           }
+        }
+
+        async function buildFromFetch(){
+          try{
+            const res = await fetch(iframe.src, { credentials: 'same-origin' });
+            if (!res.ok) throw new Error('proxy fetch bad status');
+            const html = await res.text();
+            // Try to isolate <body> if present
+            const wrap = document.createElement('html');
+            wrap.innerHTML = html;
+            const body = wrap.querySelector('body') || wrap;
+            let main = body.querySelector('main') || body.querySelector('#book') || body.querySelector('#content') || body;
+            contentEl.innerHTML = sanitize(main.innerHTML);
+            polish();
+            return true;
+          }catch(e){
+            console.error('Reader build from fetch failed:', e);
+            return false;
+          }
+        }
+
+        function polish(){
+          contentEl.querySelectorAll('p').forEach(p=>{
+            if (!p.innerText.trim()) p.remove();
+          });
+          applyType();
+          updatePageInfoThrottled();
+          readerBuilt = true;
         }
 
         function applyType(){
@@ -282,19 +272,6 @@
           shell.setAttribute('data-theme', currentTheme);
         }
 
-        function toggleMode(){
-          if (!readerBuilt){
-            buildReader().then(ok=>{
-              if (!ok){
-                alert('Could not build Reader mode yet. Try again in a moment.');
-                return;
-              }
-              showReader(true);
-            });
-          } else {
-            showReader(shell.style.display !== 'block');
-          }
-        }
         function showReader(show){
           if (show){
             shell.style.display = 'block';
@@ -310,6 +287,21 @@
           }
         }
 
+        async function toggleMode(){
+          if (!readerBuilt){
+            // Try iframe first, then fetch as fallback
+            let ok = await buildFromIframe();
+            if (!ok) ok = await buildFromFetch();
+            if (!ok){
+              alert('Could not build Reader mode yet. Try again in a moment.');
+              return;
+            }
+            showReader(true);
+          } else {
+            showReader(shell.style.display !== 'block');
+          }
+        }
+
         function pageLeft(){ viewport.scrollBy({ left: -viewport.clientWidth, behavior:'smooth' }); }
         function pageRight(){ viewport.scrollBy({ left:  viewport.clientWidth, behavior:'smooth' }); }
 
@@ -319,12 +311,9 @@
           pageInfo.textContent = `Page ${current} / ${total}`;
         }
         const updatePageInfoThrottled = throttle(updatePageInfo, 100);
+        function throttle(fn, ms){ let t=0; return ()=>{ const now=Date.now(); if (now-t>ms){ t=now; fn(); } }; }
 
-        function throttle(fn, ms){
-          let t=0; return function(){ const now=Date.now(); if (now-t>ms){ t=now; fn(); } };
-        }
-
-        // --- TTS (Listen Phase A, browser SpeechSynthesis) ---
+        // --- TTS (browser SpeechSynthesis) ---
         const synth = 'speechSynthesis' in window ? window.speechSynthesis : null;
         let utter = null;
 
@@ -334,27 +323,20 @@
           return s;
         }
         function currentChunkText(){
-          // If selection exists, read that. Otherwise read visible “page” slice.
           const sel = selectedText();
           if (sel) return sel;
-
-          // Approximation: grab text from contentEl and slice based on scroll ratio.
           const full = contentEl.innerText || '';
           if (full.length < 1000) return full;
-
           const ratio = viewport.scrollLeft / Math.max(1, (viewport.scrollWidth - viewport.clientWidth));
           const start = Math.floor(ratio * full.length);
-          const end = Math.min(full.length, start + 4000); // ~ a few pages
+          const end = Math.min(full.length, start + 4000);
           return full.slice(start, end);
         }
-
         function ttsStart(){
           if (!synth){ alert('Text-to-speech is not supported in this browser.'); return; }
           if (utter){ synth.cancel(); utter = null; }
-
-          const text = currentChunkText();
-          if (!text){ alert('Select some text or switch to Reader mode.'); return; }
-
+          const text = shell.style.display === 'block' ? currentChunkText() : '';
+          if (!text){ alert('Switch to Reader mode or select some text.'); return; }
           utter = new SpeechSynthesisUtterance(text);
           utter.rate = Number(rateRange.value || 1.0);
           synth.speak(utter);
@@ -362,7 +344,7 @@
         function ttsPause(){ if (synth && !synth.paused) synth.pause(); }
         function ttsStop(){ if (synth){ synth.cancel(); utter = null; } }
 
-        // --- Events ---
+        // Events
         btnMode.addEventListener('click', toggleMode);
         themeSel.addEventListener('change', (e)=>{ currentTheme = e.target.value; applyType(); });
         fontMinus.addEventListener('click', ()=>{ fontSize = Math.max(14, fontSize-1); applyType(); updatePageInfoThrottled(); });
@@ -376,10 +358,10 @@
         ttsPlay .addEventListener('click', ttsStart);
         ttsPause.addEventListener('click', ttsPause);
         ttsStop .addEventListener('click', ttsStop);
-        rateRange.addEventListener('change', ()=>{ if (utter) { utter.rate = Number(rateRange.value||1.0); } });
+        rateRange.addEventListener('change', ()=>{ if (utter) utter.rate = Number(rateRange.value||1.0); });
 
-        // Optional: build Reader automatically once iframe loads, so the toggle is instant
-        iframe.addEventListener('load', ()=>{ buildReader(); });
+        // Prebuild after iframe loads so the first toggle is instant (best effort)
+        iframe.addEventListener('load', async ()=>{ if (!readerBuilt){ await buildFromIframe().catch(()=>{}); } });
 
       })();
     </script>
