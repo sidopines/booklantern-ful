@@ -2,27 +2,19 @@
 const express = require('express');
 const router = express.Router();
 
-// If you have auth middleware and want to gate IA reading, you can import it:
-// const { ensureAuthenticated } = require('../middleware/auth');
-
-// Optional local admin-curated model (not required for search)
-let Book = null;
-try { Book = require('../models/Book'); } catch (_) {}
+// Optional: if you want to hard-gate guests before reading IA books, we can
+// perform that check directly in the route (implemented below).
 
 /* ---------------------------- helpers / normalize --------------------------- */
-
-// Build a unified "card" the views can render
 function card({ identifier, title, creator = '', cover = '', source, readerUrl = '', archiveId = '' }) {
   return { identifier, title, creator, cover, source, readerUrl, archiveId };
 }
 
-/* ------------------------------ Open Library -------------------------------- */
-
+/* -------------------------------- Open Library ------------------------------ */
 async function searchOpenLibrary(q, limit = 60) {
   const url = `https://openlibrary.org/search.json?mode=everything&limit=${limit}&q=${encodeURIComponent(q)}`;
   const r = await fetch(url);
   const data = await r.json();
-
   const docs = Array.isArray(data.docs) ? data.docs : [];
   return docs.map(d => {
     const id = d.key || d.work_key || d.edition_key?.[0] || '';
@@ -30,7 +22,6 @@ async function searchOpenLibrary(q, limit = 60) {
     let cover = '';
     if (d.cover_i) cover = `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`;
     else if (d.edition_key && d.edition_key[0]) cover = `https://covers.openlibrary.org/b/olid/${d.edition_key[0]}-M.jpg`;
-    // For OL, we link back to /read search so users stay in your site
     const readerUrl = `/read?query=${encodeURIComponent(`${d.title || ''} ${author || ''}`)}`;
     return card({
       identifier: `openlibrary:${id}`,
@@ -44,13 +35,11 @@ async function searchOpenLibrary(q, limit = 60) {
 }
 
 /* -------------------------------- Gutenberg --------------------------------- */
-
 async function searchGutenberg(q, limit = 64) {
   const url = `https://gutendex.com/books?search=${encodeURIComponent(q)}`;
   const r = await fetch(url);
   const data = await r.json();
   const results = Array.isArray(data.results) ? data.results.slice(0, limit) : [];
-
   return results.map(b => {
     const gid = b.id;
     const title = b.title || '(Untitled)';
@@ -70,9 +59,7 @@ async function searchGutenberg(q, limit = 64) {
 }
 
 /* ----------------------------- Internet Archive ----------------------------- */
-
 async function searchArchive(q, rows = 40) {
-  // Simple, book-only text results
   const api = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(
     `${q} AND mediatype:texts`
   )}&fl[]=identifier&fl[]=title&fl[]=creator&rows=${rows}&page=1&output=json`;
@@ -84,8 +71,7 @@ async function searchArchive(q, rows = 40) {
     const title = d.title || '(Untitled)';
     const author = d.creator || '';
     const cover = `https://archive.org/services/img/${id}`;
-    // For now, link out to IA details; can be swapped to internal viewer easily
-    const readerUrl = `https://archive.org/details/${id}`;
+    const readerUrl = `/read/book/${encodeURIComponent(id)}`;
     return card({
       identifier: `archive:${id}`,
       title,
@@ -99,15 +85,9 @@ async function searchArchive(q, rows = 40) {
 }
 
 /* ------------------------------- READ (search) ------------------------------ */
-/**
- * GET /read
- * Renders the search page. With ?query=... it searches OL + Gutenberg + IA.
- */
 router.get('/read', async (req, res) => {
   try {
     const query = (req.query.query || '').trim();
-
-    // No query -> render the page with empty results; the view shows "Staff picks"
     if (!query) {
       return res.render('read', {
         pageTitle: 'Read Books Online',
@@ -116,20 +96,13 @@ router.get('/read', async (req, res) => {
         query
       });
     }
-
-    // Run the three searches in parallel
     const [ol, gb, ia] = await Promise.all([
       searchOpenLibrary(query).catch(() => []),
       searchGutenberg(query).catch(() => []),
       searchArchive(query).catch(() => [])
     ]);
-
-    // Merge — prioritize Gutenberg + Archive first (they’re readable directly),
-    // then add Open Library cards.
     const books = [...gb, ...ia, ...ol];
-
     console.log(`READ SEARCH "${query}" — archive:${ia.length} gutenberg:${gb.length} openlibrary:${ol.length}`);
-
     return res.render('read', {
       pageTitle: `Search • ${query}`,
       pageDescription: `Results for “${query}”`,
@@ -148,23 +121,40 @@ router.get('/read', async (req, res) => {
   }
 });
 
-/* ---------------------------- Internet Archive book ------------------------- */
+/* ------------------------ Internet Archive INTERNAL VIEW -------------------- */
 /**
  * GET /read/book/:identifier
- * Minimal handler that opens the IA details page. If you prefer the internal
- * viewer we built earlier, we can swap this to render `views/book-viewer.ejs`.
+ * Renders an embedded Internet Archive BookReader inside BookLantern.
+ * Guests are gated to login first.
  */
 router.get('/read/book/:identifier', async (req, res) => {
   const id = String(req.params.identifier || '').trim();
   if (!id) return res.redirect('/read');
-  // If you want to require login here, uncomment next line:
-  // if (!req.session.user) return res.redirect(`/login?next=${encodeURIComponent('/read/book/' + id)}`);
-  return res.redirect(`https://archive.org/details/${encodeURIComponent(id)}`);
+
+  // Gate guests to login/register
+  if (!req.session?.user) {
+    return res.redirect(`/login?next=${encodeURIComponent('/read/book/' + id)}`);
+  }
+
+  // Fetch minimal metadata for title (best effort)
+  let title = id;
+  try {
+    const metaR = await fetch(`https://archive.org/metadata/${encodeURIComponent(id)}`);
+    if (metaR.ok) {
+      const meta = await metaR.json();
+      if (meta?.metadata?.title) title = meta.metadata.title;
+    }
+  } catch (_) {}
+
+  return res.render('book-viewer', {
+    iaId: id,
+    title,
+    pageTitle: `Read • ${title}`,
+    pageDescription: `Read ${title} on BookLantern`
+  });
 });
 
 /* --------------------------- Gutenberg reader + proxy ----------------------- */
-
-// Decide if a URL is a safe Gutenberg origin
 function allowGutenberg(urlStr) {
   try {
     const u = new URL(urlStr);
@@ -176,7 +166,6 @@ function canonicalGutenbergUrl(gid) {
   return `https://www.gutenberg.org/ebooks/${encodeURIComponent(gid)}`;
 }
 
-/** Reader shell */
 router.get('/read/gutenberg/:gid/reader', (req, res) => {
   const gid = String(req.params.gid || '').trim();
   const startUrl = typeof req.query.u === 'string' && req.query.u ? req.query.u : canonicalGutenbergUrl(gid);
@@ -188,22 +177,17 @@ router.get('/read/gutenberg/:gid/reader', (req, res) => {
   });
 });
 
-/** Same-origin proxy (HTML only) */
 router.get('/read/gutenberg/:gid/proxy', async (req, res) => {
   try {
     const gid = String(req.params.gid || '').trim();
     const q = String(req.query.u || '').trim();
     const target = allowGutenberg(q) ? q : canonicalGutenbergUrl(gid);
-
     const rsp = await fetch(target, { redirect: 'follow' });
     const html = await rsp.text();
-
-    // Make relative links absolute so images load inside the iframe
     const base = new URL(target);
     const rewritten = html.replace(/(src|href)=["'](\/[^"']*)["']/gi, (m, attr, url) => {
       try { return `${attr}="${new URL(url, base).toString()}"`; } catch { return m; }
     });
-
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Cache-Control', 'public, max-age=300');
