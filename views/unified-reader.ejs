@@ -1,426 +1,401 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/head.ejs', {
-    pageTitle: (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'Read',
-    pageDescription: (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Distraction-free reading'
-  }) %>
+  <% // Safe page meta defaults %>
+  <% const pTitle = (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'Book | Reader'; %>
+  <% const pDesc  = (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Read in a clean, paginated reader.'; %>
+  <%- include('./partials/head.ejs', { pageTitle: pTitle, pageDescription: pDesc }) %>
+
   <style>
     :root{
-      --bg:#0b1020;            /* content bg in ePub mode */
-      --paper:#0f1428;         /* page bg in ePub mode */
-      --text:#0b1220;          /* toolbar text */
-      --ink:#0f172a;           /* text mode ink */
-      --muted:#667085;
-      --bar:#ffffff;
-      --barBG:#ffffff;
-      --accent:#4f6ae6;
-      --accent2:#eef2ff;
+      --bg:#ffffff; --paper:#ffffff; --ink:#0b1220; --muted:#667085;
+      --ui:#f2f4f7; --accent:#4763ff; --accent-ink:#fff;
+      --page-w: 760px; --page-h: calc(100vh - 170px); --radius: 14px;
+      --font-size: 18px; --line: 1.6;
     }
-    @media (prefers-color-scheme: dark){
-      :root{ --barBG:#0f1428; --bar:#ffffff; }
+    body.theme-sepia { --bg:#f9f6f1; --paper:#fbf7ef; --ink:#2b1d10; }
+    body.theme-dark  { --bg:#0b1220; --paper:#0f172a; --ink:#e5e7eb; --ui:#111827; --muted:#9aa4b2; }
+
+    body { background: var(--bg); color: var(--ink); }
+    .reader-wrap { max-width: calc(var(--page-w) + 2rem); margin: 0 auto 2rem; padding: 0 1rem; }
+    .toolbar {
+      position: sticky; top: 0; z-index: 20; background: linear-gradient(var(--bg), var(--bg));
+      padding: 12px 0; display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+      border-bottom: 1px solid rgba(0,0,0,.06);
+    }
+    .btn, .chip {
+      display: inline-flex; align-items: center; justify-content: center; gap: .35rem;
+      padding: .55rem .7rem; border: 1px solid rgba(0,0,0,.08); border-radius: 10px;
+      background: var(--paper); color: var(--ink); cursor: pointer; user-select: none;
+    }
+    .btn:hover { background: var(--ui); }
+    .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+    .title { font-weight: 700; margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 52vw; }
+    .range { display: inline-flex; align-items: center; gap: .4rem; }
+    .range input[type="range"]{ width: 240px; }
+
+    /* Shared page chrome */
+    .page-shell{
+      width: 100%; display: flex; justify-content: center; margin-top: 12px;
+    }
+    .page {
+      width: 100%; max-width: var(--page-w); height: var(--page-h);
+      background: var(--paper); border: 1px solid rgba(0,0,0,.08); border-radius: var(--radius);
+      box-shadow: 0 20px 60px rgba(0,0,0,.10); overflow: hidden; position: relative;
     }
 
-    html,body{ height:100%; }
-    body{
-      margin:0;
-      background:#f7f8fb;
-      color:var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-      overflow:hidden; /* we page within the viewport */
-    }
+    /* ePub.js surface */
+    #epub-root { display: none; }
+    #epub-view { width: 100%; height: 100%; }
 
-    /* Top toolbar */
-    .reader-bar{
-      display:flex; align-items:center; gap:.6rem;
-      height:56px; padding:0 .75rem;
-      border-bottom:1px solid rgba(17,24,39,.08);
-      background:var(--barBG);
-      position:sticky; top:0; z-index:10;
+    /* Fallback HTML/TXT pages (client-paginated) */
+    #html-root { display: none; }
+    #html-page{
+      width: 100%; height: 100%; overflow: auto; padding: 28px 34px;
+      font-size: var(--font-size); line-height: var(--line);
     }
-    .reader-bar .spacer{ flex:1; }
-    .btn{
-      display:inline-flex; align-items:center; justify-content:center;
-      height:34px; padding:0 .8rem; border-radius:10px;
-      border:1px solid rgba(17,24,39,.12); background:#fff; color:#111; cursor:pointer;
-      font-weight:600; font-size:.92rem;
-    }
-    .btn:hover{ background:#f4f6ff; border-color:#dfe4ff; }
-    .btn.icon{ width:34px; padding:0; }
-    .btn.primary{ background:var(--accent); color:#fff; border-color:transparent; }
-    .btn.primary:hover{ filter:brightness(.95); }
-    .seg{
-      display:inline-flex; align-items:center; gap:.25rem;
-      padding:.2rem; border:1px solid rgba(17,24,39,.12); border-radius:12px; background:#fff;
-    }
-    .seg .btn{ border:0; height:30px; }
-    .brand{
-      font-weight:800; letter-spacing:.2px; margin-right:.25rem;
-    }
-    .title{
-      font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:42vw;
-    }
-    @media (max-width:900px){ .title{ display:none; } }
+    #html-page h1, #html-page h2, #html-page h3 { margin: 1.2em 0 .5em; line-height: 1.25; }
+    #html-page p, #html-page li, #html-page blockquote { margin: .8em 0; }
+    #html-page blockquote { padding-left: 1em; border-left: 3px solid rgba(0,0,0,.12); }
+    .meta-bar { color: var(--muted); font-size: .9rem; padding: .4rem 0 .6rem; }
 
-    /* Viewports */
-    #stage{
-      position:absolute; inset:56px 0 0 0; /* below bar */
-      display:grid; grid-template-columns: 1fr; grid-template-areas: "view";
-      background:var(--bg);
+    /* Nav arrows for keyboard/mouse */
+    .nav-arrow{
+      position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,.06);
+      border: 0; width: 34px; height: 34px; border-radius: 999px; cursor: pointer;
+      display: grid; place-items: center; color: var(--ink);
     }
+    .nav-arrow:hover{ background: rgba(0,0,0,.12); }
+    .left { left: 8px; } .right{ right: 8px; }
 
-    /* ePub canvas */
-    #epubView{
-      grid-area:view;
-      height:100%; width:100%;
-      display:flex; align-items:center; justify-content:center;
-      background:var(--bg);
-    }
-    #epubMount{
-      height:100%; width:min(1100px, 100%); 
-      background:var(--paper);
-      box-shadow: 0 20px 80px rgba(0,0,0,.35);
-      overflow:hidden;
-      border-radius:12px;
-    }
-
-    /* Fallback text/HTML mode (column pagination) */
-    #textMode{
-      grid-area:view; display:none;
-      height:100%; width:100%;
-      background:#fff; color:var(--ink);
-    }
-    #textScroller{
-      height:100%; width:100%;
-      overflow:hidden; /* we pan with JS to emulate pages */
-      background:#fff;
-    }
-    #textColumns{
-      height:100%;
-      column-width: 48ch;          /* approximate page width */
-      column-gap: 4rem;
-      padding: 3rem clamp(1rem,3vw,2rem);
-      font-size: clamp(16px, 1.9vh, 19px);
-      line-height: 1.55;
-      hyphens: auto;
-    }
-    .dim{ color:var(--muted); font-size:.9rem; }
-
-    /* Mini toast */
-    .toast{
-      position:fixed; bottom:16px; left:50%; transform:translateX(-50%);
-      background:#111; color:#fff; padding:.6rem .85rem; border-radius:10px;
-      font-size:.9rem; opacity:0; pointer-events:none; transition:.25s;
-    }
-    .toast.show{ opacity:1; }
-
-    /* Skeleton / error */
-    .center{
-      display:flex; align-items:center; justify-content:center; height:100%; width:100%;
-      color:#9aa0ae;
+    @media (max-width: 880px){
+      :root{ --page-w: 100%; --page-h: calc(100vh - 210px); }
+      .title { max-width: 45vw; }
+      .range input[type="range"]{ width: 160px; }
     }
   </style>
 </head>
-<body>
-  <div class="reader-bar" role="toolbar" aria-label="Reader controls">
-    <a class="btn" id="backBtn" href="/read">← Back</a>
+<body class="theme-light">
+  <%- include('./partials/navbar.ejs') %>
 
-    <div class="title">
-      <span class="brand">BookLantern</span>
-      <span id="bookTitle"><%= (book && book.title) ? book.title : ('Gutenberg #' + (gid||'')) %></span>
-      <% if (book && book.creator) { %>
-        <span class="dim"> · <%= book.creator %></span>
-      <% } %>
+  <div class="reader-wrap">
+    <div class="toolbar" role="toolbar" aria-label="Reader controls">
+      <button class="btn" id="backBtn" title="Back">← Back</button>
+      <div class="title" id="bookTitle">Book</div>
+
+      <div class="range" aria-label="Progress">
+        <button class="btn" id="prevBtn" title="Previous page">←</button>
+        <input type="range" min="0" max="1000" step="1" value="0" id="progress">
+        <button class="btn" id="nextBtn" title="Next page">→</button>
+      </div>
+
+      <div class="range" aria-label="Text size">
+        <button class="btn" id="smaller">A−</button>
+        <button class="btn" id="larger">A+</button>
+      </div>
+
+      <div class="range" aria-label="Theme">
+        <button class="btn" id="theme">Light</button>
+      </div>
+
+      <button class="btn primary" id="listen">▶ Listen</button>
+      <span id="loc" class="meta-bar"></span>
     </div>
 
-    <div class="spacer"></div>
+    <!-- ePub surface -->
+    <div id="epub-root" class="page-shell" aria-live="polite">
+      <div class="page">
+        <div id="epub-view"></div>
+        <button class="nav-arrow left" id="epubPrev" title="Previous">←</button>
+        <button class="nav-arrow right" id="epubNext" title="Next">→</button>
+      </div>
+    </div>
 
-    <!-- Paging -->
-    <span class="seg" aria-label="Page">
-      <button class="btn icon" id="prevBtn" title="Previous page">←</button>
-      <input id="pageSlider" type="range" min="0" max="100" value="0" aria-label="Progress" style="width:min(42vw,340px)">
-      <button class="btn icon" id="nextBtn" title="Next page">→</button>
-    </span>
-
-    <!-- Type size -->
-    <span class="seg" aria-label="Text size">
-      <button class="btn" id="smallerBtn">A−</button>
-      <button class="btn" id="biggerBtn">A+</button>
-    </span>
-
-    <!-- Theme -->
-    <span class="seg" aria-label="Theme">
-      <button class="btn" id="lightBtn">Light</button>
-      <button class="btn" id="sepiaBtn">Sepia</button>
-      <button class="btn" id="darkBtn">Dark</button>
-    </span>
-
-    <!-- Listen -->
-    <button class="btn primary" id="listenBtn">▶ Listen</button>
+    <!-- Fallback HTML/TXT surface -->
+    <div id="html-root" class="page-shell" aria-live="polite">
+      <div class="page">
+        <div id="html-page"></div>
+        <button class="nav-arrow left" id="htmlPrev" title="Previous">←</button>
+        <button class="nav-arrow right" id="htmlNext" title="Next">→</button>
+      </div>
+    </div>
   </div>
 
-  <main id="stage" aria-live="polite">
-    <!-- ePub mode -->
-    <section id="epubView">
-      <div id="epubMount" role="region" aria-label="Book"></div>
-    </section>
-
-    <!-- Fallback text/HTML mode -->
-    <section id="textMode" aria-hidden="true">
-      <div id="textScroller">
-        <article id="textColumns"></article>
-      </div>
-    </section>
-
-    <!-- Tiny status -->
-    <div class="toast" id="toast" role="status"></div>
-  </main>
-
-  <!-- ePub.js (client-side only) -->
-  <script src="https://unpkg.com/epubjs/dist/epub.js"></script>
+  <!-- ePub.js (only used if the ePub proxy loads) -->
+  <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3/dist/epub.min.js"></script>
   <script>
-  (function(){
-    const GID = '<%= String(gid || "").replace(/[^0-9]/g,"") %>';
-    const TITLE = document.getElementById('bookTitle').textContent.trim() || ('Gutenberg #' + GID);
-    const toast = (msg) => {
-      const el = document.getElementById('toast');
-      el.textContent = msg;
-      el.classList.add('show');
-      setTimeout(()=>el.classList.remove('show'), 2000);
-    };
-
-    // Back: prefer referrer; fallback /read
     (function(){
-      const back = document.getElementById('backBtn');
-      const ref = document.referrer || '';
-      if (ref && (new URL(ref, location.href)).host === location.host) {
-        back.addEventListener('click', (e)=>{ e.preventDefault(); history.back(); });
-      } else {
-        back.setAttribute('href','/read');
+      const GID = '<%= gid %>';
+      const forceText = new URLSearchParams(location.search).get('force') === 'text';
+
+      const $ = (sel) => document.querySelector(sel);
+      const byId = (id) => document.getElementById(id);
+
+      const backBtn   = byId('backBtn');
+      const prevBtn   = byId('prevBtn');
+      const nextBtn   = byId('nextBtn');
+      const smaller   = byId('smaller');
+      const larger    = byId('larger');
+      const themeBtn  = byId('theme');
+      const listenBtn = byId('listen');
+      const progress  = byId('progress');
+      const titleEl   = byId('bookTitle');
+      const locEl     = byId('loc');
+
+      const epubRoot  = byId('epub-root');
+      const epubView  = byId('epub-view');
+      const epubPrev  = byId('epubPrev');
+      const epubNext  = byId('epubNext');
+
+      const htmlRoot  = byId('html-root');
+      const htmlPage  = byId('html-page');
+      const htmlPrev  = byId('htmlPrev');
+      const htmlNext  = byId('htmlNext');
+
+      // State
+      let mode = null; // 'epub' | 'html'
+      let book = null; // epub.js Book
+      let rendition = null;
+
+      // Fallback pages
+      let PAGES = []; // array of HTML strings
+      let pageIndex = 0;
+
+      // TTS
+      let speaking = false;
+      let paused   = false;
+      let currentUtterance = null;
+
+      function setTitle(t){ if (t) titleEl.textContent = t; }
+      function setLocText(txt){ locEl.textContent = txt || ''; }
+
+      backBtn.onclick = () => { if (history.length > 1) history.back(); else location.href = '/read'; };
+
+      // THEME
+      const themes = ['Light','Sepia','Dark'];
+      function cycleTheme(){
+        const b = document.body;
+        if (b.classList.contains('theme-light')) { b.classList.remove('theme-light'); b.classList.add('theme-sepia'); themeBtn.textContent = 'Sepia'; }
+        else if (b.classList.contains('theme-sepia')) { b.classList.remove('theme-sepia'); b.classList.add('theme-dark'); themeBtn.textContent = 'Dark'; }
+        else { b.classList.remove('theme-dark'); b.classList.add('theme-light'); themeBtn.textContent = 'Light'; }
       }
-    })();
+      themeBtn.onclick = cycleTheme;
 
-    /* ----------------------------- ePub Mode ------------------------------ */
-    const mount = document.getElementById('epubMount');
-    const epubView = document.getElementById('epubView');
-    const textMode = document.getElementById('textMode');
-    const pageSlider = document.getElementById('pageSlider');
-    const prevBtn = document.getElementById('prevBtn');
-    const nextBtn = document.getElementById('nextBtn');
-    const smallerBtn = document.getElementById('smallerBtn');
-    const biggerBtn = document.getElementById('biggerBtn');
-    const lightBtn = document.getElementById('lightBtn');
-    const sepiaBtn = document.getElementById('sepiaBtn');
-    const darkBtn = document.getElementById('darkBtn');
-    const listenBtn = document.getElementById('listenBtn');
-
-    let book = null, rendition = null, locations = null;
-    let fontSize = 100;  // %
-    let theme = 'dark';  // dark|sepia|light
-
-    function applyTheme(r){
-      const themes = {
-        light: { 'body': { 'background': '#ffffff', 'color': '#111111'} },
-        sepia: { 'body': { 'background': '#f7f0e1', 'color': '#352f28'} },
-        dark:  { 'body': { 'background': '#0f1428', 'color': '#e5e7eb'} },
-      };
-      r.themes.register(themes);
-      r.themes.select(theme);
-      r.themes.fontSize(fontSize + '%');
-    }
-
-    function syncSlider(loc){
-      if (!locations) return;
-      try{
-        const current = book.rendition.currentLocation();
-        const percent = current && current.start && locations.percentageFromCfi
-          ? Math.floor(locations.percentageFromCfi(current.start.cfi) * 100)
-          : 0;
-        pageSlider.value = String(percent);
-      }catch(e){}
-    }
-
-    async function openEPub(){
-      // Try our proxy first, then common Gutenberg fallbacks.
-      const candidates = [
-        `/proxy/gutenberg-epub/${GID}`,                                 // our Node proxy (recommended)
-        `https://www.gutenberg.org/ebooks/${GID}.epub.images?download`, // direct fallbacks
-        `https://www.gutenberg.org/ebooks/${GID}.epub.noimages?download`,
-        `https://www.gutenberg.org/cache/epub/${GID}/pg${GID}-images.epub`,
-        `https://www.gutenberg.org/cache/epub/${GID}/pg${GID}.epub`,
-      ];
-
-      for (const href of candidates){
-        try{
-          book = ePub(href, { openAs: 'epub' });
-          rendition = book.renderTo(mount, {
-            width: "100%",
-            height: "100%",
-            spread: "never",
-            minSpreadWidth: 9999   // always single page
-          });
-
-          applyTheme(rendition);
-
-          rendition.on('relocated', syncSlider);
-          rendition.on('rendered', ()=> syncSlider());
-          await rendition.display();
-
-          // Build locations (for slider %)
-          try{
-            await book.ready;
-            locations = await book.locations.generate(1000);
-          }catch(_){}
-
-          // Wire controls (only once)
-          prevBtn.onclick = ()=> rendition.prev();
-          nextBtn.onclick = ()=> rendition.next();
-          pageSlider.oninput = (e)=>{
-            if (!locations) return;
-            const pct = Number(e.target.value)/100;
-            const cfi = locations.cfiFromPercentage(pct);
-            rendition.display(cfi);
-          };
-          smallerBtn.onclick = ()=>{ fontSize = Math.max(80, fontSize-10); rendition.themes.fontSize(fontSize+'%'); };
-          biggerBtn.onclick  = ()=>{ fontSize = Math.min(160, fontSize+10); rendition.themes.fontSize(fontSize+'%'); };
-          lightBtn.onclick   = ()=>{ theme='light'; applyTheme(rendition); };
-          sepiaBtn.onclick   = ()=>{ theme='sepia'; applyTheme(rendition); };
-          darkBtn.onclick    = ()=>{ theme='dark';  applyTheme(rendition); };
-
-          // Listen (browser TTS — simple)
-          let speaking = false;
-          let utter = null;
-          listenBtn.onclick = ()=>{
-            if (!window.speechSynthesis) { toast('Speech not supported'); return; }
-            if (speaking) {
-              window.speechSynthesis.cancel();
-              speaking = false; listenBtn.textContent = '▶ Listen';
-              return;
-            }
-            const txt = mount.innerText || '';
-            if (!txt.trim()) { toast('Nothing to read on this page'); return; }
-            utter = new SpeechSynthesisUtterance(txt);
-            utter.rate = 1.0;
-            utter.onend = ()=>{ speaking=false; listenBtn.textContent='▶ Listen'; };
-            window.speechSynthesis.speak(utter);
-            speaking = true; listenBtn.textContent = '⏸ Pause';
-          };
-
-          // Success – show ePub view, hide text mode
-          epubView.style.display = 'flex';
-          textMode.style.display = 'none';
-          toast('Loaded ePub');
-          return;
-        }catch(e){
-          console.warn('ePub candidate failed:', href, e);
+      // FONT SIZE
+      function fontDelta(dx){
+        const curr = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--font-size'));
+        const next = Math.max(14, Math.min(24, curr + dx));
+        document.documentElement.style.setProperty('--font-size', next + 'px');
+        if (mode === 'epub' && rendition){
+          rendition.themes.fontSize(next + 'px');
         }
       }
-      throw new Error('All ePub sources failed');
-    }
+      smaller.onclick = () => fontDelta(-2);
+      larger.onclick  = () => fontDelta(+2);
 
-    /* -------------------------- Fallback: Text Mode ------------------------ */
-    let colIndex = 0, maxCols = 0;
-    const textScroller = document.getElementById('textScroller');
-    const textColumns  = document.getElementById('textColumns');
+      // TTS helpers
+      function say(text){
+        stopTTS();
+        if (!text || !text.trim()) return;
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 1.0;
+        u.onend = () => { speaking = false; paused = false; currentUtterance = null; };
+        u.onerror = () => { speaking = false; paused = false; currentUtterance = null; };
+        currentUtterance = u;
+        speaking = true; paused = false;
+        speechSynthesis.speak(u);
+      }
+      function stopTTS(){ if (speechSynthesis.speaking) speechSynthesis.cancel(); speaking=false; paused=false; currentUtterance=null; }
+      function toggleListen(){
+        if (mode === 'epub' && rendition){
+          const contents = rendition.getContents();
+          if (contents && contents[0] && contents[0].document){
+            const txt = contents[0].document.body ? contents[0].document.body.innerText : '';
+            if (!speaking) { say(txt); listenBtn.textContent = '⏸ Pause'; }
+            else if (!paused) { speechSynthesis.pause(); paused = true; listenBtn.textContent = '▶ Resume'; }
+            else { speechSynthesis.resume(); paused = false; listenBtn.textContent = '⏸ Pause'; }
+          }
+          return;
+        }
+        // HTML fallback
+        const page = byId('page-'+pageIndex);
+        const txt  = page ? page.innerText : '';
+        if (!speaking) { say(txt); listenBtn.textContent = '⏸ Pause'; }
+        else if (!paused) { speechSynthesis.pause(); paused = true; listenBtn.textContent = '▶ Resume'; }
+        else { speechSynthesis.resume(); paused = false; listenBtn.textContent = '⏸ Pause'; }
+      }
+      listenBtn.onclick = toggleListen;
 
-    function textGoto(idx){
-      colIndex = Math.max(0, Math.min(maxCols-1, idx));
-      const pageWidth = textScroller.clientWidth;
-      textScroller.scrollTo({ left: colIndex * (pageWidth + 0), behavior:'instant' });
-      pageSlider.value = String(Math.floor((colIndex/(Math.max(1,maxCols-1)))*100));
-    }
+      // EPUB LOADER
+      async function tryLoadEpub(){
+        try{
+          const url = `/proxy/gutenberg-epub/${encodeURIComponent(GID)}`;
+          const res = await fetch(url, { cache:'no-store' });
+          if (!res.ok) throw new Error('no epub');
+          const blob = await res.blob();
+          const objURL = URL.createObjectURL(blob);
 
-    function textWireControls(){
-      prevBtn.onclick = ()=> textGoto(colIndex-1);
-      nextBtn.onclick = ()=> textGoto(colIndex+1);
-      pageSlider.oninput = (e)=>{
-        const pct = Number(e.target.value)/100;
-        textGoto(Math.round(pct * (maxCols-1)));
-      };
-      smallerBtn.onclick = ()=>{
-        const fs = parseFloat(getComputedStyle(textColumns).fontSize);
-        textColumns.style.fontSize = Math.max(14, fs-1) + 'px';
-        requestAnimationFrame(measureColumns);
-      };
-      biggerBtn.onclick = ()=>{
-        const fs = parseFloat(getComputedStyle(textColumns).fontSize);
-        textColumns.style.fontSize = Math.min(22, fs+1) + 'px';
-        requestAnimationFrame(measureColumns);
-      };
-      lightBtn.onclick = ()=>{ document.body.style.background='#ffffff'; textColumns.style.color='#111'; };
-      sepiaBtn.onclick = ()=>{ document.body.style.background='#f7f0e1'; textColumns.style.color='#352f28'; };
-      darkBtn.onclick  = ()=>{ document.body.style.background='#0f1428'; textColumns.style.color='#e5e7eb'; };
+          book = ePub(objURL);
+          rendition = book.renderTo(epubView, { width: '100%', height: '100%' });
+          rendition.display();
 
-      // TTS in text mode
-      let speaking=false, utter=null;
-      listenBtn.onclick = ()=>{
-        if (!window.speechSynthesis) { toast('Speech not supported'); return; }
-        if (speaking){ window.speechSynthesis.cancel(); speaking=false; listenBtn.textContent='▶ Listen'; return; }
-        const pageWidth = textScroller.clientWidth;
-        const range = document.createRange();
-        // Read visible column only
-        const x = (pageWidth * colIndex) + 10;
-        const y = 10;
-        const startNode = document.elementFromPoint( Math.min(textColumns.clientWidth-5, 5), 10 );
-        const txt = textColumns.innerText; // coarse; keeps it simple
-        if (!txt.trim()){ toast('Nothing to read'); return; }
-        utter = new SpeechSynthesisUtterance(txt);
-        utter.onend = ()=>{ speaking=false; listenBtn.textContent='▶ Listen'; };
-        utter.rate = 1.0;
-        window.speechSynthesis.speak(utter);
-        speaking=true; listenBtn.textContent='⏸ Pause';
-      };
-    }
+          // Theme + font inside ePub
+          const fontSize = getComputedStyle(document.documentElement).getPropertyValue('--font-size').trim();
+          const isDark   = document.body.classList.contains('theme-dark');
+          rendition.themes.register('booklantern', {
+            body: {
+              'background': getComputedStyle(document.documentElement).getPropertyValue('--paper').trim(),
+              'color': getComputedStyle(document.documentElement).getPropertyValue('--ink').trim(),
+              'line-height': '1.6',
+              'font-size': fontSize || '18px',
+            }
+          });
+          rendition.themes.select('booklantern');
 
-    function measureColumns(){
-      // Rough estimate using scrollWidth / viewport width
-      const pageW = textScroller.clientWidth;
-      maxCols = Math.max(1, Math.ceil(textColumns.scrollWidth / pageW));
-      textGoto(colIndex);
-    }
+          epubPrev.onclick = () => { stopTTS(); rendition.prev(); };
+          epubNext.onclick = () => { stopTTS(); rendition.next(); };
 
-    async function openTextFallback(){
-      toast('Loading text…');
-      const r = await fetch(`/read/gutenberg/${GID}/text`, { credentials:'same-origin' });
-      if (!r.ok){ throw new Error('text fetch failed'); }
-      const data = await r.json();
-      const type = (data && data.type) || 'text';
-      let content = (data && data.content) || '';
+          rendition.on('relocated', (loc) => {
+            if (book && book.locations && book.locations.length() > 0){
+              const p = Math.round(book.locations.percentageFromCfi(loc.start.cfi) * 1000);
+              progress.value = isNaN(p) ? 0 : p;
+              setLocText('Location ' + (progress.value/10).toFixed(1) + '%');
+            }
+          });
 
-      // sanitize: drop <script>/<style>/<link>
-      content = content.replace(/<\s*(script|style|link)[\s\S]*?<\s*\/\s*\1\s*>/gi, '');
+          // Build locations (may take a moment)
+          book.ready.then(() => book.locations.generate(1600)).catch(()=>{});
+          book.loaded.metadata.then(meta => setTitle(meta.title || 'Book'));
 
-      document.getElementById('bookTitle').textContent = (data && data.title) ? data.title : TITLE;
+          progress.oninput = (e) => {
+            if (!book) return;
+            const pct = (Number(progress.value) || 0) / 1000;
+            if (book.locations && book.locations.cfiFromPercentage){
+              const cfi = book.locations.cfiFromPercentage(pct);
+              stopTTS();
+              rendition.display(cfi);
+            }
+          };
 
-      if (type === 'html'){
-        textColumns.innerHTML = content;
-      } else {
-        textColumns.textContent = content;
+          // Keyboard
+          window.addEventListener('keydown',(ev)=>{
+            if (ev.key === 'ArrowLeft'){ epubPrev.click(); }
+            if (ev.key === 'ArrowRight'){ epubNext.click(); }
+          });
+
+          epubRoot.style.display = 'flex';
+          mode = 'epub';
+          return true;
+        }catch(e){
+          return false;
+        }
       }
 
-      // show text mode
-      epubView.style.display = 'none';
-      textMode.style.display = 'block';
-
-      textWireControls();
-      requestAnimationFrame(measureColumns);
-      toast('Loaded text mode');
-    }
-
-    /* ------------------------------ Boot ---------------------------------- */
-    (async function boot(){
-      try{
-        await openEPub();
-      }catch(e){
-        console.warn('ePub failed; switching to text mode', e);
-        await openTextFallback();
+      // ---- FALLBACK HTML/TXT ----
+      function sanitizeHTML(html){
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        // Remove styles/scripts/links
+        doc.querySelectorAll('script,style,link,meta,iframe,noscript').forEach(n=>n.remove());
+        // Flatten some Gutenberg wrappers
+        return doc.body.innerHTML;
       }
-      // handle resize for pagination
-      window.addEventListener('resize', ()=>{
-        if (textMode.style.display === 'block') requestAnimationFrame(measureColumns);
-      }, { passive:true });
+      function chunkHTMLToPages(html){
+        // Convert to nodes and then chunk by character count for simplicity.
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        const blocks = [];
+        tmp.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,blockquote,pre').forEach(el=>{
+          const t = el.outerHTML || '';
+          if (t.trim()) blocks.push(t);
+        });
+        const joined = blocks.join('\n');
+        const pages = [];
+        const SIZE = 1800; // ~1–2 minutes reading per page
+        for (let i=0; i<joined.length; i+=SIZE){
+          pages.push(joined.slice(i, i+SIZE));
+        }
+        return pages.length ? pages : ['<p>(No content)</p>'];
+      }
+      function chunkTextToPages(text){
+        const paras = String(text || '').split(/\n{2,}/).map(s=>`<p>${s.replace(/</g,'&lt;')}</p>`);
+        const joined = paras.join('\n');
+        const pages = [];
+        const SIZE = 1800;
+        for (let i=0; i<joined.length; i+=SIZE){
+          pages.push(joined.slice(i, i+SIZE));
+        }
+        return pages.length ? pages : ['<p>(No content)</p>'];
+      }
+      function renderFallbackPages(pages, title){
+        PAGES = pages;
+        pageIndex = 0;
+        setTitle(title || 'Book');
+        drawPage();
+        htmlRoot.style.display = 'flex';
+        mode = 'html';
+      }
+      function drawPage(){
+        htmlPage.innerHTML = `<div id="page-${pageIndex}">${PAGES[pageIndex]}</div>`;
+        const pct = Math.round((pageIndex / Math.max(1, PAGES.length-1)) * 1000);
+        progress.value = pct;
+        setLocText(`Page ${pageIndex+1} / ${PAGES.length}`);
+        listenBtn.textContent = '▶ Listen';
+      }
+      function nextPage(){
+        if (pageIndex < PAGES.length-1){ pageIndex++; stopTTS(); drawPage(); }
+      }
+      function prevPage(){
+        if (pageIndex > 0){ pageIndex--; stopTTS(); drawPage(); }
+      }
+
+      htmlNext.onclick = nextPage;
+      htmlPrev.onclick = prevPage;
+      progress.oninput = (e)=>{
+        if (mode!=='html') return;
+        const pct = Number(progress.value)/1000;
+        pageIndex = Math.max(0, Math.min(PAGES.length-1, Math.round(pct * (PAGES.length-1))));
+        stopTTS();
+        drawPage();
+      };
+      window.addEventListener('keydown',(ev)=>{
+        if (mode!=='html') return;
+        if (ev.key === 'ArrowLeft') prevPage();
+        if (ev.key === 'ArrowRight') nextPage();
+      });
+
+      async function loadFallback(){
+        try{
+          const r = await fetch(`/read/gutenberg/${encodeURIComponent(GID)}/text`, { cache:'no-store' });
+          const data = await r.json();
+          const title = data.title || 'Book';
+          if (data.type === 'html'){
+            const clean = sanitizeHTML(data.content || '');
+            const pages = chunkHTMLToPages(clean);
+            renderFallbackPages(pages, title);
+          }else{
+            const pages = chunkTextToPages(data.content || '');
+            renderFallbackPages(pages, title);
+          }
+        }catch(e){
+          htmlRoot.style.display = 'flex';
+          htmlPage.innerHTML = '<div class="meta-bar">Could not load this title right now.</div>';
+        }
+      }
+
+      // WIRE primary prev/next (toolbar)
+      prevBtn.onclick = () => (mode==='epub' ? epubPrev.click() : htmlPrev.click());
+      nextBtn.onclick = () => (mode==='epub' ? epubNext.click() : htmlNext.click());
+
+      // Start
+      (async function boot(){
+        if (forceText){
+          await loadFallback();
+          return;
+        }
+        const ok = await tryLoadEpub();
+        if (!ok) await loadFallback();
+      })();
     })();
-  })();
   </script>
 </body>
 </html>
