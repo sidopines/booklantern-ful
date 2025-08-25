@@ -1,23 +1,24 @@
 // connectors/standardebooks.js
-// Minimal, deploy-safe stub so Render stops failing with "module not found".
-// We’ll upgrade this to real OPDS search next, but for now it simply returns
-// an empty array and logs once so your app continues to work.
+// Deploy-safe connector so the app never crashes if Standard Ebooks is offline
+// or their OPDS changes. We'll upgrade this to real OPDS search next.
+// It returns [] for now, but has the SAME shape your routes expect.
 
 let warned = false;
 
 /**
- * search(q, opts) -> Promise<[]>
- * q: string  - user query
- * opts: { limit?: number }
+ * searchStandardEbooks(q, opts?)
+ * Returns Promise<Array> of cards, but currently [] until we wire OPDS.
  */
-async function search(q, opts = {}) {
+async function searchStandardEbooks(q, opts = {}) {
   if (!warned) {
-    console.warn('[standardebooks] connector stub loaded (returns 0 results for now).');
+    console.warn('[standardebooks] stub loaded (returns 0 results for now).');
     warned = true;
   }
-  // Return an empty list so the aggregator in bookRoutes can continue
-  // combining results from other connectors without throwing.
   return [];
 }
 
-module.exports = { search };
+// Export **as a function** (what your routes call)
+module.exports = searchStandardEbooks;
+
+// Also expose .search for code paths that import as an object
+module.exports.search = searchStandardEbooks;
