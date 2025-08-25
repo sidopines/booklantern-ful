@@ -2,160 +2,172 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'Read Books Online',
-    pageDescription: (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : "Browse and read books fetched from multiple free sources using BookLantern's modern reader experience."
+    pageTitle: 'Read Books Online',
+    pageDescription: "Browse and read books fetched from multiple sources using BookLantern's modern reader experience."
   }) %>
+  <link rel="stylesheet" href="/css/site.css">
+  <style>
+    /* Local tweaks for this page only */
+
+    .page-wrap { max-width: var(--container); margin: 0 auto; padding: 0 24px; }
+    .read-head { display:flex; align-items:flex-end; gap:12px; margin: 18px 0 12px; flex-wrap:wrap; }
+    .read-head h1 { margin:0; font-size: 24px; letter-spacing:-0.01em; }
+    .read-search { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .read-search input[type="text"] {
+      width: min(560px, 100%);
+      padding: .7rem .8rem; border:1px solid var(--line); border-radius: 999px; background:#fff; box-shadow: var(--shadow);
+      font-size: 16px;
+    }
+    .empty { color: var(--muted); padding: 20px 0; }
+
+    /* Results grid reusing .grid + .card */
+    .book-grid { margin: 10px 0 28px; }
+    .book-card .meta-row { margin-top: 6px; display:flex; align-items:center; gap:8px; }
+    .listen-chip {
+      display:inline-flex; align-items:center; gap:.35rem;
+      border:1px solid var(--line); background:#fff; border-radius:999px; padding:.25rem .5rem;
+      font-size: 12px; cursor:pointer; user-select:none;
+    }
+    .listen-chip[aria-pressed="true"]{ background:#111; color:#fff; border-color:#000; }
+
+    /* Mini preview player - fixed bottom right */
+    .mini-player{
+      position: fixed; right: 16px; bottom: 16px; z-index: 60;
+      display: none; /* shown when active */
+      background:#fff; border:1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-lg);
+      max-width: 420px; width: calc(100vw - 32px);
+    }
+    .mini-player .mp-head{
+      display:flex; align-items:center; gap:.5rem; padding:.6rem .8rem; border-bottom:1px solid var(--line);
+    }
+    .mini-player .mp-title{
+      flex:1 1 auto; min-width:0; font-weight:600; letter-spacing:-.01em;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .mini-player .mp-body{
+      display:flex; align-items:center; gap:.5rem; padding:.6rem .8rem;
+    }
+    .mini-player .mp-btn{
+      border:1px solid var(--line); border-radius: 10px; background:#fff; cursor:pointer; padding:.45rem .7rem; font-weight:600;
+    }
+    .mini-player .mp-btn.primary{ background:#111; color:#fff; border-color:#000; }
+    .mini-player .mp-range { flex:1 1 auto; display:flex; align-items:center; gap:.4rem; }
+    .mini-player .mp-range input[type="range"]{ width:100%; }
+    .mini-player .mp-sub { color:var(--muted); font-size:.9rem; padding: 0 .8rem .7rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    @media (max-width: 520px){
+      .mini-player .mp-range{ display:none; }
+    }
+  </style>
 </head>
 <body>
   <%- include('./partials/navbar.ejs') %>
 
-  <%
-    const q = (typeof query !== 'undefined' && query) ? String(query).trim() : '';
-    const hasQuery = q.length > 0;
-  %>
+  <div class="page-wrap">
+    <a href="javascript:history.back()" class="back-link" style="display:inline-block;margin-top:14px;color:#1256b3;text-decoration:none">← Back</a>
 
-  <!-- HERO / SEARCH -->
-  <section class="hero">
-    <div class="hero-inner">
-      <h1 class="headline">Find your next read</h1>
-      <p class="subhead">Search across millions of titles from globally trusted libraries.</p>
-
-      <form class="searchbar" action="/read" method="GET" role="search" aria-label="Search books">
-        <input type="text" name="query" placeholder="Try ‘Plato’, ‘Socrates’, ‘Physics’, ‘Poetry’…" value="<%= q %>" />
-        <button class="btn" type="submit">Search Books</button>
+    <div class="read-head">
+      <h1>📚 Explore Free Books</h1>
+      <form class="read-search" action="/read" method="GET">
+        <input
+          type="text"
+          name="query"
+          placeholder="Search books by title or author"
+          value="<%= typeof query !== 'undefined' ? query : '' %>">
+        <button class="btn" type="submit">Search</button>
       </form>
-
-      <div class="benefits">
-        <span>Inline readers for many titles</span> •
-        <span>Clean, book-like experience</span> •
-        <span>Bookmarks with your account</span>
-      </div>
     </div>
-  </section>
 
-  <!-- STAFF PICKS (only when no search query) -->
-  <% if (!hasQuery) { %>
-  <section class="section">
-    <div class="container">
-      <div class="shelf-header">
-        <h2>Staff picks</h2>
-        <div class="hint">Curated highlights to get you started</div>
+    <% const hasQuery = (typeof query !== 'undefined' && String(query).trim() !== ''); %>
+
+    <!-- STAFF PICKS (moved here from homepage). Only show when no search query -->
+    <% if (!hasQuery) { %>
+    <section class="section">
+      <div class="container" style="padding:0">
+        <div class="shelf-header">
+          <h2>Staff picks</h2>
+          <div class="hint">Curated picks from globally trusted libraries</div>
+        </div>
+        <div id="featured-grid" class="grid" aria-live="polite"></div>
       </div>
-      <div id="featured-grid" class="grid" aria-live="polite"></div>
-    </div>
-  </section>
-  <% } %>
+    </section>
+    <% } %>
 
-  <!-- RESULTS -->
-  <section class="section">
-    <div class="container">
-      <% if (typeof error !== 'undefined' && error) { %>
-        <div class="hint" role="status" style="margin-bottom:12px;"><%= error %></div>
-      <% } %>
-
-      <% if (!hasQuery) { %>
-        <div class="hint">Search above to see results, or pick from the staff selections.</div>
-      <% } else if (!books || books.length === 0) { %>
-        <div class="hint">No books found. Try another search term.</div>
-      <% } else { %>
+    <% if (!books || books.length === 0) { %>
+      <div class="empty">No books found. Try another search term.</div>
+    <% } else { %>
+      <div class="book-grid">
         <div class="grid">
-          <% books.forEach(function(book){ 
-               const src = (book.source || '').toLowerCase();
-               const id  = book.identifier || book._id || '';
-               const isArchive    = src === 'archive';
-               const isGutenberg  = src === 'gutenberg';
-               const isWikisource = src === 'wikisource';
+        <% books.forEach(function(book){ 
+             const src  = (book.source || '').toLowerCase();
+             const id   = book.identifier || book._id || '';
+             const isArchive   = (src === 'archive');
+             const isGutenberg = (src === 'gutenberg');
+             const isWikisrc   = (src === 'wikisource');
+             const gutenId     = isGutenberg ? String(id).replace(/^gutenberg:/,'') : '';
 
-               // Destination comes from server (readerUrl). For our inline readers it will be:
-               //  - /read/gutenberg/:gid/reader?title=...&author=...
-               //  - /read/wikisource/:lang/:title/reader
-               //  - /read/book/:identifier     (Internet Archive viewer)
-               let dest = book.readerUrl || '#';
+             let dest = isArchive
+               ? `/read/book/${encodeURIComponent(book.archiveId || String(id).replace(/^archive:/,''))}`
+               : (isGutenberg
+                   ? `/read/gutenberg/${encodeURIComponent(gutenId)}/reader${book.readerUrl ? ('?u=' + encodeURIComponent(book.readerUrl)) : ''}`
+                   : (isWikisrc
+                       ? (book.readerUrl || '#')
+                       : (book.readerUrl || '#')));
 
-               // Gate internal readers for guests
-               const isInternalReader = dest.startsWith('/read/');
-               if (!user && isInternalReader) {
-                 dest = '/login?next=' + encodeURIComponent(book.readerUrl || '/');
-               }
+             // Gate visitors to login/register before reading internal readers
+             const internalOpen = (isArchive || isGutenberg || isWikisrc);
+             const finalHref = (!user && internalOpen) ? ('/login?next=' + encodeURIComponent(dest)) : dest;
 
-               // External links (rare here) should open a new tab
-               const external = !dest.startsWith('/');
-          %>
-          <article class="card">
-            <a href="<%= dest %>" <%= external ? 'target="_blank" rel="noopener"' : '' %> style="text-decoration:none;color:inherit">
+             const brand = src === 'archive' ? 'Archive.org'
+                        : src === 'gutenberg' ? 'Project Gutenberg'
+                        : src === 'openlibrary' ? 'Open Library'
+                        : src === 'wikisource' ? 'Wikisource'
+                        : 'Book';
+
+             const cardCover = book.cover || '';
+        %>
+          <article class="card book-card" data-source="<%= src %>" data-gid="<%= gutenId %>">
+            <a href="<%= finalHref %>" <%= internalOpen ? '' : 'target="_blank" rel="noopener"' %> style="text-decoration:none;color:inherit">
               <div class="thumb">
-                <% if (book.cover) { %>
-                  <img src="<%= book.cover %>" alt="<%= book.title %>" loading="lazy" referrerpolicy="no-referrer">
+                <% if (cardCover) { %>
+                  <img src="<%= cardCover %>" alt="<%= book.title %>" loading="lazy" referrerpolicy="no-referrer">
                 <% } %>
               </div>
               <div class="meta">
-                <span class="badge">
-                  <%= src === 'gutenberg' ? 'Project Gutenberg' :
-                      (src === 'archive' ? 'Archive.org' :
-                      (src === 'openlibrary' ? 'Open Library' :
-                      (src === 'wikisource' ? 'Wikisource' : 'Book'))) %>
-                </span>
+                <span class="badge"><%= brand %></span>
                 <h3><%= book.title %></h3>
-                <p><%= book.creator || '' %></p>
+                <p><%= book.creator || book.author || '' %></p>
+                <div class="meta-row">
+                  <button
+                    type="button"
+                    class="listen-chip"
+                    data-source="<%= src %>"
+                    data-gid="<%= gutenId %>"
+                    data-title="<%- (book.title || '').replace(/"/g,'&quot;') %>"
+                    data-author="<%- (book.creator || book.author || '').replace(/"/g,'&quot;') %>"
+                    aria-pressed="false"
+                    title="Preview by listening">
+                    🔊 Listen
+                  </button>
+                </div>
               </div>
             </a>
           </article>
-          <% }) %>
+        <% }) %>
         </div>
-      <% } %>
-    </div>
-  </section>
+      </div>
+    <% } %>
 
-  <footer class="footer">
-    &copy; <%= new Date().getFullYear() %> BookLantern • <a href="/about">About</a>
-  </footer>
+    <footer class="footer">
+      &copy; <%= new Date().getFullYear() %> BookLantern • Built on open libraries • <a href="/about">About</a>
+    </footer>
+  </div>
 
   <% if (!hasQuery) { %>
-  <!-- Staff picks loader (no EJS inside template strings to avoid tag errors) -->
+  <!-- FETCH Staff picks -->
   <script>
     (function(){
       const IS_LOGGED_IN = <%= !!user %>;
       const grid = document.getElementById('featured-grid');
-
-      function brand(src){
-        const s = (src||'').toLowerCase();
-        if (s === 'gutenberg') return 'Project Gutenberg';
-        if (s === 'archive') return 'Archive.org';
-        if (s === 'openlibrary') return 'Open Library';
-        if (s === 'wikisource') return 'Wikisource';
-        return 'Book';
-      }
-
-      // Build in-site destinations for curated cards (so we never leak to external sites)
-      function buildDest(b){
-        const src = (b.source || '').toLowerCase();
-        const id  = b.identifier || '';
-
-        if (src === 'gutenberg') {
-          // accept identifiers like "gutenberg:1342" or plain id
-          const gid = String(id).replace(/^gutenberg:/,'').replace(/[^0-9]/g,'');
-          const title = encodeURIComponent(b.title || '');
-          const author = encodeURIComponent(b.creator || '');
-          return '/read/gutenberg/' + gid + '/reader?title=' + title + '&author=' + author;
-        }
-        if (src === 'archive') {
-          // accept identifiers like "archive:xyz" or just item id
-          const ia = b.archiveId || String(id).replace(/^archive:/,'');
-          return '/read/book/' + encodeURIComponent(ia);
-        }
-        if (src === 'wikisource' && b.href) {
-          // if curated ever includes wikisource cards, use provided href (should already be internal)
-          return b.href;
-        }
-        // Fallback: if server provided an internal readerUrl keep it; else keep original
-        return b.readerUrl || '#';
-      }
-
-      function gated(href){
-        if (!href || href === '#') return '#';
-        if (href.startsWith('/read/') && !IS_LOGGED_IN) return '/login?next=' + encodeURIComponent(href);
-        return href;
-      }
 
       function escapeHtml(s){
         return String(s || '')
@@ -163,40 +175,77 @@
           .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
       }
 
+      function hrefFromCard(b){
+        if (b && b.href) return b.href;
+        const src = (b.source || '').toLowerCase();
+        const id  = b.identifier || '';
+        const ia  = b.archiveId || (src === 'archive' ? id : '');
+        if (ia) return '/read/book/' + encodeURIComponent(ia);
+        if (src === 'gutenberg') {
+          const gid = String(id).replace(/^gutenberg:/,'');
+          const qs  = b.readerUrl ? ('?u=' + encodeURIComponent(b.readerUrl)) : '';
+          return '/read/gutenberg/' + encodeURIComponent(gid) + '/reader' + qs;
+        }
+        return b.readerUrl || '#';
+      }
+
+      function gated(dest){
+        return IS_LOGGED_IN ? dest : '/login?next=' + encodeURIComponent(dest || '/');
+      }
+
+      function brand(src){
+        const s = (src||'').toLowerCase();
+        return s==='archive' ? 'Archive.org' : (s==='gutenberg' ? 'Project Gutenberg' : (s==='openlibrary' ? 'Open Library' : (s==='wikisource' ? 'Wikisource' : 'Book')));
+      }
+
       function cardTemplate(b){
-        const dest = gated(buildDest(b));
-        const external = !dest.startsWith('/');
-        return (
-          '<article class="card fade-in">' +
-            '<a href="' + dest + '" ' + (external ? 'target="_blank" rel="noopener"' : '') + ' style="text-decoration:none;color:inherit">' +
-              '<div class="thumb">' + (b.cover ? '<img src="' + b.cover + '" alt="' + escapeHtml(b.title||'') + '" loading="lazy" referrerpolicy="no-referrer">' : '') + '</div>' +
-              '<div class="meta">' +
-                '<span class="badge">' + brand(b.source) + '</span>' +
-                '<h3>' + escapeHtml(b.title || '') + '</h3>' +
-                '<p>' + escapeHtml(b.creator || '') + '</p>' +
-              '</div>' +
-            '</a>' +
-          '</article>'
-        );
+        const dest = gated(hrefFromCard(b));
+        const internal = IS_LOGGED_IN && (b.archiveId || (b.source||'').toLowerCase()==='archive' || (b.source||'').toLowerCase()==='gutenberg' || (b.source||'').toLowerCase()==='wikisource');
+        const gid = (String(b.identifier||'').startsWith('gutenberg:') ? String(b.identifier).replace(/^gutenberg:/,'') : '');
+        return `
+          <article class="card book-card" data-source="${(b.source||'').toLowerCase()}" data-gid="${gid}">
+            <a href="${dest}" ${internal ? '' : 'rel="noopener"'} style="text-decoration:none;color:inherit">
+              <div class="thumb">${b.cover ? `<img src="${b.cover}" alt="${escapeHtml(b.title||'')}" loading="lazy" referrerpolicy="no-referrer">` : ''}</div>
+              <div class="meta">
+                <span class="badge">${brand(b.source)}</span>
+                <h3>${escapeHtml(b.title || '')}</h3>
+                <p>${escapeHtml(b.creator || '')}</p>
+                <div class="meta-row">
+                  <button
+                    type="button"
+                    class="listen-chip"
+                    data-source="${(b.source||'').toLowerCase()}"
+                    data-gid="${gid}"
+                    data-title="${escapeHtml(b.title || '')}"
+                    data-author="${escapeHtml(b.creator || '')}"
+                    aria-pressed="false"
+                    title="Preview by listening">
+                    🔊 Listen
+                  </button>
+                </div>
+              </div>
+            </a>
+          </article>
+        `;
       }
 
       async function loadFeatured(){
         try{
-          const r = await fetch('/api/featured-books', { credentials:'same-origin' });
-          if (!r.ok) throw new Error('Bad status');
+          const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
+          if (!r.ok) throw new Error('bad status');
           const data = await r.json();
-          const items = Array.isArray(data) ? data
-                        : Array.isArray(data.items) ? data.items
-                        : Array.isArray(data.results) ? data.results
-                        : [];
+          const items =
+            Array.isArray(data) ? data :
+            (Array.isArray(data.items) ? data.items :
+            (Array.isArray(data.results) ? data.results : []));
           if (!items.length) {
-            grid.innerHTML = '<div class="hint">No featured picks right now. Try a search above.</div>';
+            grid.innerHTML = '<div class="hint">No picks right now. Try a search above.</div>';
             return;
           }
           grid.innerHTML = items.map(cardTemplate).join('');
         } catch(e){
           console.error('featured error', e);
-          grid.innerHTML = '<div class="hint">Could not load featured books. Try refreshing.</div>';
+          grid.innerHTML = '<div class="hint">Could not load picks. Try refreshing.</div>';
         }
       }
 
@@ -204,5 +253,182 @@
     })();
   </script>
   <% } %>
+
+  <!-- Mini preview player + Listen wiring for results -->
+  <div class="mini-player" id="miniPlayer" role="region" aria-label="Audio preview">
+    <div class="mp-head">
+      <div class="mp-title" id="mpTitle">Preview</div>
+      <button class="mp-btn" id="mpClose" title="Close">✕</button>
+    </div>
+    <div class="mp-body">
+      <button class="mp-btn primary" id="mpPlayPause">▶︎ Play</button>
+      <button class="mp-btn" id="mpStop">■ Stop</button>
+      <div class="mp-range">
+        <label for="mpRate" style="font-size:.85rem;color:var(--muted)">Rate</label>
+        <input id="mpRate" type="range" min="0.7" max="1.6" step="0.05" value="1.0">
+        <label for="mpVol" style="font-size:.85rem;color:var(--muted)">Vol</label>
+        <input id="mpVol" type="range" min="0" max="1" step="0.05" value="1">
+      </div>
+    </div>
+    <div class="mp-sub" id="mpSnippet">—</div>
+  </div>
+
+  <script>
+    (function(){
+      const IS_LOGGED_IN = <%= !!user %>;
+
+      // Single TTS engine for all preview chips
+      const synth = window.speechSynthesis;
+      let currentUtter = null;
+      let paused = false;
+      let currentButton = null;
+      let cachedText = null;  // text fetched for current preview
+
+      // Mini player elements
+      const mp = document.getElementById('miniPlayer');
+      const mpTitle = document.getElementById('mpTitle');
+      const mpSnippet = document.getElementById('mpSnippet');
+      const mpPlayPause = document.getElementById('mpPlayPause');
+      const mpStop = document.getElementById('mpStop');
+      const mpClose = document.getElementById('mpClose');
+      const mpRate = document.getElementById('mpRate');
+      const mpVol = document.getElementById('mpVol');
+
+      function showPlayer(){ mp.style.display = 'block'; }
+      function hidePlayer(){ mp.style.display = 'none'; }
+
+      function stopSpeaking(){
+        if (synth.speaking || paused) synth.cancel();
+        currentUtter = null; paused = false;
+        if (currentButton) {
+          currentButton.setAttribute('aria-pressed','false');
+          currentButton.textContent = '🔊 Listen';
+          currentButton = null;
+        }
+        mpPlayPause.textContent = '▶︎ Play';
+      }
+
+      mpStop.addEventListener('click', stopSpeaking);
+      mpClose.addEventListener('click', () => { stopSpeaking(); hidePlayer(); });
+
+      mpPlayPause.addEventListener('click', () => {
+        if (paused && synth.speaking) {
+          synth.resume(); paused = false; mpPlayPause.textContent = '⏸ Pause'; return;
+        }
+        if (synth.speaking && !paused) {
+          synth.pause(); paused = true; mpPlayPause.textContent = '▶︎ Resume'; return;
+        }
+        // Start (or restart) with cachedText
+        if (!cachedText || !cachedText.trim()) return;
+        speak(cachedText);
+      });
+
+      mpRate.addEventListener('input', () => localStorage.setItem('preview.rate', mpRate.value));
+      mpVol.addEventListener('input', () => localStorage.setItem('preview.vol', mpVol.value));
+
+      // Restore sliders
+      (function(){
+        const r = localStorage.getItem('preview.rate'); if (r) mpRate.value = r;
+        const v = localStorage.getItem('preview.vol'); if (v) mpVol.value = v;
+      })();
+
+      function speak(text){
+        try{ synth.cancel(); }catch(_){}
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = Number(mpRate.value) || 1.0;
+        u.volume = Number(mpVol.value) || 1.0;
+        currentUtter = u;
+        paused = false;
+        mpPlayPause.textContent = '⏸ Pause';
+        u.onend = () => {
+          mpPlayPause.textContent = '▶︎ Play';
+          if (currentButton) {
+            currentButton.setAttribute('aria-pressed','false');
+            currentButton.textContent = '🔊 Listen';
+            currentButton = null;
+          }
+        };
+        u.onerror = () => {
+          mpPlayPause.textContent = '▶︎ Play';
+        };
+        synth.speak(u);
+      }
+
+      function stripHtml(html){
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        return (tmp.textContent || tmp.innerText || '').trim();
+      }
+
+      async function fetchGutenbergPreview(gid){
+        // Uses your server endpoint. Note: requires login for best results.
+        try {
+          const r = await fetch(`/read/gutenberg/${gid}/text`, { credentials: 'same-origin' });
+          if (!r.ok) throw new Error('bad status');
+          const data = await r.json();
+          const content = data.content || data.html || data.text || '';
+          const plain = data.type === 'html' ? stripHtml(content) : String(content || '');
+          // clip to first ~1400 chars to keep it short
+          return plain.slice(0, 1400);
+        } catch (e) {
+          // Fall back if unavailable (e.g., guest or fetch failed)
+          return '';
+        }
+      }
+
+      // Delegate click for all listen chips (works for server and JS-injected cards)
+      document.addEventListener('click', async (ev) => {
+        const btn = ev.target.closest('.listen-chip');
+        if (!btn) return;
+
+        ev.preventDefault();
+        const source = btn.getAttribute('data-source') || '';
+        const gid = btn.getAttribute('data-gid') || '';
+        const title = btn.getAttribute('data-title') || '';
+        const author = btn.getAttribute('data-author') || '';
+
+        // Toggle off if this button is active
+        if (currentButton === btn && (synth.speaking || paused)) {
+          stopSpeaking();
+          return;
+        }
+
+        // Prepare player UI
+        mpTitle.textContent = title || 'Preview';
+        showPlayer();
+
+        // Try to get inline text for Gutenberg; else fallback to title/author
+        let text = '';
+        if (source === 'gutenberg' && gid) {
+          if (!IS_LOGGED_IN) {
+            // still allow a minimal preview without login
+            text = (title + (author ? ' by ' + author : '')).trim();
+          } else {
+            text = await fetchGutenbergPreview(gid);
+            if (!text) {
+              text = (title + (author ? ' by ' + author : '')).trim();
+            }
+          }
+        } else {
+          // Other sources typically don’t expose raw text; do a title preview
+          text = (title + (author ? ' by ' + author : '')).trim();
+        }
+
+        cachedText = text;
+        mpSnippet.textContent = (text && text.length > 160) ? (text.slice(0, 160) + '…') : (text || '—');
+
+        // Update button states
+        if (currentButton && currentButton !== btn) {
+          currentButton.setAttribute('aria-pressed','false');
+          currentButton.textContent = '🔊 Listen';
+        }
+        currentButton = btn;
+        currentButton.setAttribute('aria-pressed','true');
+        currentButton.textContent = '⏸ Pause';
+
+        speak(text);
+      });
+    })();
+  </script>
 </body>
 </html>
