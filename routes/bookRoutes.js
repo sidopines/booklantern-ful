@@ -1,6 +1,7 @@
 // routes/bookRoutes.js
 const express = require('express');
 const router = express.Router();
+const { Readable } = require('stream');
 
 /* -----------------------------------------------------------
  * Session guard
@@ -99,7 +100,6 @@ async function searchGutenberg(q, limit = 48) {
  * ---------------------------------------------------------*/
 async function searchArchive(q, rows = 28) {
   try {
-    // Exclude known restricted collections; require texts; exclude access-restricted
     const query = `${q} AND mediatype:texts AND access-restricted-item:false AND -collection:printdisabled AND -collection:inlibrary AND -collection:opensource_textbooks`;
     const api = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}&fl[]=identifier&fl[]=title&fl[]=creator&rows=${rows}&page=1&output=json`;
     const r = await fetch(api);
@@ -129,8 +129,80 @@ async function searchArchive(q, rows = 28) {
 }
 
 /* -----------------------------------------------------------
- * Wikisource (inline HTML reader)
+ * Wikisource (HTML reader). We fetch the landing page + any
+ * "Title/Chapter ..." subpages and concatenate to a single HTML.
  * ---------------------------------------------------------*/
+async function fetchWikisourceSanitizedHtml(lang, title) {
+  const api = `https://${lang}.wikisource.org/w/api.php?action=parse&format=json&prop=text&disablelimitreport=1&formatversion=2&page=${encodeURIComponent(title)}`;
+  const r = await fetch(api, { headers: { 'User-Agent': 'BookLantern/1.0 (+https://booklantern.org)' } });
+  if (!r.ok) throw new Error(`Wikisource parse ${r.status}`);
+  const data = await r.json();
+  let html = data?.parse?.text || '';
+  if (!html) throw new Error('No parse.text');
+  html = sanitizeWikisourceHtml(html);
+  html = absolutizeWikisourceUrls(lang, html);
+  return html;
+}
+function sanitizeWikisourceHtml(html) {
+  if (!html || typeof html !== 'string') return '';
+  html = html.replace(/<script[\s\S]*?<\/script>/gi, '')
+             .replace(/<style[\s\S]*?<\/style>/gi, '')
+             .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+             .replace(/\son\w+="[^"]*"/gi, '')
+             .replace(/\son\w+='[^']*'/gi, '')
+             .replace(/\shref="javascript:[^"]*"/gi, ' href="#" ')
+             .replace(/\ssrc="javascript:[^"]*"/gi, '');
+  const allowed = /^(p|br|hr|h1|h2|h3|h4|h5|h6|ul|ol|li|strong|em|b|i|u|blockquote|pre|code|figure|figcaption|img|a|span|div|table|thead|tbody|tr|th|td|sup|sub)$/i;
+  html = html.replace(/<\s*([a-z0-9-]+)([^>]*)>/gi, (m, tag, attrs) => {
+    if (!allowed.test(tag)) return '';
+    let safe = '';
+    if (/^a$/i.test(tag)) {
+      const href = attrs.match(/\shref\s*=\s*("[^"]*"|'[^']*')/i);
+      if (href) safe += ' href=' + href[1];
+      const ttl = attrs.match(/\stitle\s*=\s*("[^"]*"|'[^']*')/i);
+      if (ttl) safe += ' title=' + ttl[1];
+      return `<a${safe}>`;
+    }
+    if (/^img$/i.test(tag)) {
+      const src = attrs.match(/\ssrc\s*=\s*("[^"]*"|'[^']*')/i);
+      if (src) safe += ' src=' + src[1];
+      const alt = attrs.match(/\salt\s*=\s*("[^"]*"|'[^']*')/i);
+      if (alt) safe += ' alt=' + alt[1];
+      const ttl = attrs.match(/\stitle\s*=\s*("[^"]*"|'[^']*')/i);
+      if (ttl) safe += ' title=' + ttl[1];
+      return `<img${safe}>`;
+    }
+    const ttl = attrs.match(/\stitle\s*=\s*("[^"]*"|'[^']*')/i);
+    if (ttl) safe += ' title=' + ttl[1];
+    return `<${tag}${safe}>`;
+  });
+  html = html.replace(/<\/\s*([a-z0-9-]+)\s*>/gi, (m, tag) => allowed.test(tag) ? m : '');
+  return html;
+}
+function absolutizeWikisourceUrls(lang, html) {
+  if (!html || typeof html !== 'string') return '';
+  const origin = `https://${lang}.wikisource.org`;
+  html = html.replace(/src="\/\/([^"]+)"/gi, 'src="https://$1"')
+             .replace(/href="\/\/([^"]+)"/gi, 'href="https://$1"')
+             .replace(/(src|href)="\/([^"]*)"/gi, (_m, attr, path) => `${attr}="${origin}/${path}"`);
+  return html;
+}
+async function listWikisourceChapters(lang, title, max = 30) {
+  // Get links from the landing page and pick those that start with "Title/"
+  const api = `https://${lang}.wikisource.org/w/api.php?action=query&format=json&prop=links&pllimit=max&titles=${encodeURIComponent(title)}`;
+  const r = await fetch(api, { headers: { 'User-Agent': 'BookLantern/1.0 (+https://booklantern.org)' } });
+  if (!r.ok) return [];
+  const data = await r.json();
+  const pages = data?.query?.pages || {};
+  const first = pages[Object.keys(pages)[0]];
+  const links = Array.isArray(first?.links) ? first.links : [];
+  const prefix = `${title}/`.toLowerCase();
+  const chapterTitles = links
+    .map(l => l.title)
+    .filter(t => typeof t === 'string' && t.toLowerCase().startsWith(prefix))
+    .slice(0, max);
+  return chapterTitles;
+}
 async function searchWikisource(q, lang = 'en', limit = 6) {
   try {
     const api = `https://${lang}.wikisource.org/w/api.php?action=query&list=search&format=json&srsearch=${encodeURIComponent(q)}&srlimit=${limit}`;
@@ -229,25 +301,31 @@ router.get('/read/book/:identifier', requireUser, async (req, res) => {
 });
 
 /* -----------------------------------------------------------
- * Gutenberg EPUB proxy + reader + text fallback
+ * Gutenberg EPUB proxy (fix: Web→Node stream) + reader + text fallback
  * ---------------------------------------------------------*/
 router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
   try {
     const gid = String(req.params.gid).replace(/[^0-9]/g, '');
     if (!gid) return res.status(400).send('Bad id');
+
     const tries = [
       `https://www.gutenberg.org/ebooks/${gid}.epub.images?download`,
       `https://www.gutenberg.org/ebooks/${gid}.epub.noimages?download`,
       `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}-images.epub`,
       `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.epub`,
     ];
+
     for (const u of tries) {
       const resp = await fetch(u, { redirect: 'follow' });
-      if (resp.ok) {
+      if (resp.ok && resp.body) {
         res.set('Content-Type', 'application/epub+zip');
+        res.set('Cache-Control', 'public, max-age=86400');
+        res.set('Content-Disposition', `inline; filename="gutenberg-${gid}.epub"`);
         const len = resp.headers.get('content-length');
         if (len) res.set('Content-Length', len);
-        return resp.body.pipe(res);
+        // Convert Web ReadableStream → Node stream before piping
+        const nodeStream = Readable.fromWeb(resp.body);
+        return nodeStream.pipe(res);
       }
     }
     return res.status(404).send('ePub not found');
@@ -320,64 +398,8 @@ router.get('/read/gutenberg/:gid/text', requireUser, async (req, res) => {
 });
 
 /* -----------------------------------------------------------
- * Wikisource reader + sanitized HTML endpoint
+ * Wikisource reader + FULL aggregated HTML endpoint
  * ---------------------------------------------------------*/
-function sanitizeWikisourceHtml(html) {
-  if (!html || typeof html !== 'string') return '';
-  html = html.replace(/<script[\s\S]*?<\/script>/gi, '')
-             .replace(/<style[\s\S]*?<\/style>/gi, '')
-             .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-             .replace(/\son\w+="[^"]*"/gi, '')
-             .replace(/\son\w+='[^']*'/gi, '')
-             .replace(/\shref="javascript:[^"]*"/gi, ' href="#" ')
-             .replace(/\ssrc="javascript:[^"]*"/gi, '');
-  const allowed = /^(p|br|hr|h1|h2|h3|h4|h5|h6|ul|ol|li|strong|em|b|i|u|blockquote|pre|code|figure|figcaption|img|a|span|div|table|thead|tbody|tr|th|td|sup|sub)$/i;
-  html = html.replace(/<\s*([a-z0-9-]+)([^>]*)>/gi, (m, tag, attrs) => {
-    if (!allowed.test(tag)) return '';
-    let safe = '';
-    if (/^a$/i.test(tag)) {
-      const href = attrs.match(/\shref\s*=\s*("[^"]*"|'[^']*')/i);
-      if (href) safe += ' href=' + href[1];
-      const ttl = attrs.match(/\stitle\s*=\s*("[^"]*"|'[^']*')/i);
-      if (ttl) safe += ' title=' + ttl[1];
-      return `<a${safe}>`;
-    }
-    if (/^img$/i.test(tag)) {
-      const src = attrs.match(/\ssrc\s*=\s*("[^"]*"|'[^']*')/i);
-      if (src) safe += ' src=' + src[1];
-      const alt = attrs.match(/\salt\s*=\s*("[^"]*"|'[^']*')/i);
-      if (alt) safe += ' alt=' + alt[1];
-      const ttl = attrs.match(/\stitle\s*=\s*("[^"]*"|'[^']*')/i);
-      if (ttl) safe += ' title=' + ttl[1];
-      return `<img${safe}>`;
-    }
-    const ttl = attrs.match(/\stitle\s*=\s*("[^"]*"|'[^']*')/i);
-    if (ttl) safe += ' title=' + ttl[1];
-    return `<${tag}${safe}>`;
-  });
-  html = html.replace(/<\/\s*([a-z0-9-]+)\s*>/gi, (m, tag) => allowed.test(tag) ? m : '');
-  return html;
-}
-function absolutizeWikisourceUrls(lang, html) {
-  if (!html || typeof html !== 'string') return '';
-  const origin = `https://${lang}.wikisource.org`;
-  html = html.replace(/src="\/\/([^"]+)"/gi, 'src="https://$1"')
-             .replace(/href="\/\/([^"]+)"/gi, 'href="https://$1"')
-             .replace(/(src|href)="\/([^"]*)"/gi, (_m, attr, path) => `${attr}="${origin}/${path}"`);
-  return html;
-}
-async function fetchWikisourceSanitizedHtml(lang, title) {
-  const api = `https://${lang}.wikisource.org/w/api.php?action=parse&format=json&prop=text&disablelimitreport=1&formatversion=2&page=${encodeURIComponent(title)}`;
-  const r = await fetch(api, { headers: { 'User-Agent': 'BookLantern/1.0 (+https://booklantern.org)' }});
-  if (!r.ok) throw new Error(`Wikisource API bad status: ${r.status}`);
-  const data = await r.json();
-  let html = data?.parse?.text || '';
-  if (!html) throw new Error('No parse.text');
-  html = sanitizeWikisourceHtml(html);
-  html = absolutizeWikisourceUrls(lang, html);
-  return html;
-}
-
 router.get('/read/wikisource/:lang/:title/reader', requireUser, (req, res) => {
   try {
     const lang  = String(req.params.lang || 'en').toLowerCase();
@@ -386,7 +408,8 @@ router.get('/read/wikisource/:lang/:title/reader', requireUser, (req, res) => {
     return res.render('unified-reader', {
       htmlTitle: title.replace(/_/g,' '),
       htmlAuthor: '',
-      htmlFetchUrl: `/read/wikisource/${encodeURIComponent(lang)}/${encodeURIComponent(title)}/text`,
+      // ask server for the full concatenated HTML
+      htmlFetchUrl: `/read/wikisource/${encodeURIComponent(lang)}/${encodeURIComponent(title)}/text?full=1`,
       pageTitle: `Read • ${title.replace(/_/g,' ')}`
     });
   } catch (e) {
@@ -403,7 +426,29 @@ router.get('/read/wikisource/:lang/:title/text', requireUser, async (req, res) =
     const lang  = String(req.params.lang || 'en').toLowerCase();
     const title = String(req.params.title || '').trim();
     if (!title) return res.status(400).send('Missing title');
-    const html = await fetchWikisourceSanitizedHtml(lang, title);
+
+    const wantFull = String(req.query.full || '0') === '1';
+
+    // Always fetch landing page
+    let html = await fetchWikisourceSanitizedHtml(lang, title);
+
+    if (wantFull) {
+      // Try to discover chapter subpages like "Title/Chapter 1"
+      const chapters = await listWikisourceChapters(lang, title, 40);
+      if (chapters.length) {
+        let combined = `<article><h1>${title.replace(/_/g,' ')}</h1>${html}</article>`;
+        for (const ch of chapters) {
+          try {
+            const chHtml = await fetchWikisourceSanitizedHtml(lang, ch);
+            combined += `<hr><article><h2>${ch.replace(/^.*?\//,'')}</h2>${chHtml}</article>`;
+          } catch (e) {
+            console.error('WS chapter fetch failed:', ch, e.message);
+          }
+        }
+        html = combined;
+      }
+    }
+
     res.set('Content-Type', 'text/html; charset=utf-8');
     res.set('Cache-Control', 'public, max-age=600');
     return res.send(html);
