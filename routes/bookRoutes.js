@@ -1,53 +1,66 @@
 // routes/bookRoutes.js
 const express = require('express');
-const router = express.Router();
 const { Readable } = require('stream');
+const router = express.Router();
 
-/* -----------------------------------------------------------
- * Session guard
- * ---------------------------------------------------------*/
-function requireUser(req, res, next) {
-  if (!req.session?.user) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
-  next();
-}
-
-/* -----------------------------------------------------------
- * Card helper
- * ---------------------------------------------------------*/
+/* Helpers */
 function card({ identifier, title, creator = '', cover = '', source, readerUrl = '', archiveId = '' }) {
   return { identifier, title, creator, cover, source, readerUrl, archiveId };
 }
 
-/* -----------------------------------------------------------
- * Open Library — only public scans w/ IA identifiers (internal reader)
- * ---------------------------------------------------------*/
-async function searchOpenLibrary(q, limit = 40) {
-  try {
-    const url = `https://openlibrary.org/search.json?mode=everything&limit=${limit}&q=${encodeURIComponent(q)}`;
-    const r = await fetch(url);
-    if (!r.ok) return [];
-    const data = await r.json();
-    const docs = Array.isArray(data.docs) ? data.docs : [];
+function dedupeByKey(items, keyFn) {
+  const seen = new Set();
+  const out = [];
+  for (const it of items) {
+    const k = keyFn(it);
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(it);
+    }
+  }
+  return out;
+}
 
-    const out = [];
-    for (const d of docs) {
-      const isPublic = d.public_scan_b === true || d.ebook_access === 'public';
-      const iaList = Array.isArray(d.ia) ? d.ia : [];
-      if (!isPublic || !iaList.length) continue;
+/* --------------------------- Open Library (OPEN copies only) --------------- */
+/**
+ * Strategy:
+ * - Query with extra fields, prefer docs that expose an Internet Archive item (ia[])
+ * - Only surface ones that look openly readable (availability.status === 'open' OR ia[] exists)
+ * - Link directly to our IA reader (/read/book/:iaId) so users stay on site
+ */
+async function searchOpenLibrary(q, limit = 50) {
+  const url =
+    `https://openlibrary.org/search.json?` +
+    `mode=everything&limit=${limit}&q=${encodeURIComponent(q)}` +
+    `&fields=key,title,author_name,cover_i,edition_key,ia,ebook_access,availability`;
 
-      const iaId = iaList[0];
-      const title = d.title || '(Untitled)';
-      const author = Array.isArray(d.author_name) ? d.author_name[0] : (d.author_name || '');
+  const r = await fetch(url);
+  const data = await r.json();
+  const docs = Array.isArray(data.docs) ? data.docs : [];
 
-      let cover = '';
-      if (d.cover_i) {
-        cover = `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`;
-      } else if (d.edition_key && d.edition_key[0]) {
-        cover = `https://covers.openlibrary.org/b/olid/${d.edition_key[0]}-M.jpg`;
-      } else if (iaId) {
-        cover = `https://archive.org/services/img/${iaId}`;
-      }
+  const out = [];
+  for (const d of docs) {
+    const title = d.title || '(Untitled)';
+    const author = Array.isArray(d.author_name) ? d.author_name[0] : d.author_name || '';
+    const cover =
+      d.cover_i
+        ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`
+        : (d.edition_key && d.edition_key[0]
+            ? `https://covers.openlibrary.org/b/olid/${d.edition_key[0]}-M.jpg`
+            : '');
 
+    // Prefer IA-backed open items
+    const iaList = Array.isArray(d.ia) ? d.ia : [];
+    const hasIA = iaList.length > 0;
+
+    const isOpen =
+      (d.availability && d.availability.status === 'open') || hasIA;
+
+    if (!isOpen) continue;
+
+    const iaId = hasIA ? iaList[0] : null;
+    // If we have an IA id, link straight to our IA reader
+    if (iaId) {
       out.push(card({
         identifier: `openlibrary:${d.key || iaId}`,
         title,
@@ -57,210 +70,139 @@ async function searchOpenLibrary(q, limit = 40) {
         readerUrl: `/read/book/${encodeURIComponent(iaId)}`,
         archiveId: iaId
       }));
+    } else {
+      // Fallback: keep it as a search jump (rare)
+      out.push(card({
+        identifier: `openlibrary:${d.key || '(unknown)'}`,
+        title,
+        creator: author,
+        cover,
+        source: 'openlibrary',
+        readerUrl: `/read?query=${encodeURIComponent(title + (author ? ' ' + author : ''))}`
+      }));
     }
-    return out;
-  } catch {
-    return [];
   }
+  return out;
 }
 
-/* -----------------------------------------------------------
- * Gutenberg — EPUB first (internal) + text/HTML fallback
- * ---------------------------------------------------------*/
-async function searchGutenberg(q, limit = 48) {
-  try {
-    const url = `https://gutendex.com/books?search=${encodeURIComponent(q)}`;
-    const r = await fetch(url);
-    if (!r.ok) return [];
-    const data = await r.json();
-    const results = Array.isArray(data.results) ? data.results.slice(0, limit) : [];
-
-    return results.map(b => {
-      const gid = b.id;
-      const title = b.title || '(Untitled)';
-      const author = Array.isArray(b.authors) && b.authors[0] ? b.authors[0].name : '';
-      const cover = `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.cover.medium.jpg`;
-      const readerUrl = `/read/gutenberg/${gid}/reader?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
-      return card({
-        identifier: `gutenberg:${gid}`,
-        title,
-        creator: author,
-        cover,
-        source: 'gutenberg',
-        readerUrl
-      });
-    });
-  } catch {
-    return [];
-  }
-}
-
-/* -----------------------------------------------------------
- * Internet Archive — exclude borrow/limited collections
- * ---------------------------------------------------------*/
-async function searchArchive(q, rows = 28) {
-  try {
-    const query = `${q} AND mediatype:texts AND access-restricted-item:false AND -collection:printdisabled AND -collection:inlibrary AND -collection:opensource_textbooks`;
-    const api = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}&fl[]=identifier&fl[]=title&fl[]=creator&rows=${rows}&page=1&output=json`;
-    const r = await fetch(api);
-    if (!r.ok) return [];
-    const data = await r.json();
-    const docs = data?.response?.docs || [];
-
-    return docs.map(d => {
-      const id = d.identifier;
-      const title = d.title || '(Untitled)';
-      const author = d.creator || '';
-      const cover = `https://archive.org/services/img/${id}`;
-      const readerUrl = `/read/book/${encodeURIComponent(id)}`;
-      return card({
-        identifier: `archive:${id}`,
-        title,
-        creator: author,
-        cover,
-        source: 'archive',
-        readerUrl,
-        archiveId: id
-      });
-    });
-  } catch {
-    return [];
-  }
-}
-
-/* -----------------------------------------------------------
- * Wikisource (HTML reader). We fetch the landing page + any
- * "Title/Chapter ..." subpages and concatenate to a single HTML.
- * ---------------------------------------------------------*/
-async function fetchWikisourceSanitizedHtml(lang, title) {
-  const api = `https://${lang}.wikisource.org/w/api.php?action=parse&format=json&prop=text&disablelimitreport=1&formatversion=2&page=${encodeURIComponent(title)}`;
-  const r = await fetch(api, { headers: { 'User-Agent': 'BookLantern/1.0 (+https://booklantern.org)' } });
-  if (!r.ok) throw new Error(`Wikisource parse ${r.status}`);
+/* ------------------------------ Gutenberg search --------------------------- */
+/**
+ * Always internal: link to our EPUB reader.
+ */
+async function searchGutenberg(q, limit = 64) {
+  const url = `https://gutendex.com/books?search=${encodeURIComponent(q)}`;
+  const r = await fetch(url);
   const data = await r.json();
-  let html = data?.parse?.text || '';
-  if (!html) throw new Error('No parse.text');
-  html = sanitizeWikisourceHtml(html);
-  html = absolutizeWikisourceUrls(lang, html);
-  return html;
-}
-function sanitizeWikisourceHtml(html) {
-  if (!html || typeof html !== 'string') return '';
-  html = html.replace(/<script[\s\S]*?<\/script>/gi, '')
-             .replace(/<style[\s\S]*?<\/style>/gi, '')
-             .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-             .replace(/\son\w+="[^"]*"/gi, '')
-             .replace(/\son\w+='[^']*'/gi, '')
-             .replace(/\shref="javascript:[^"]*"/gi, ' href="#" ')
-             .replace(/\ssrc="javascript:[^"]*"/gi, '');
-  const allowed = /^(p|br|hr|h1|h2|h3|h4|h5|h6|ul|ol|li|strong|em|b|i|u|blockquote|pre|code|figure|figcaption|img|a|span|div|table|thead|tbody|tr|th|td|sup|sub)$/i;
-  html = html.replace(/<\s*([a-z0-9-]+)([^>]*)>/gi, (m, tag, attrs) => {
-    if (!allowed.test(tag)) return '';
-    let safe = '';
-    if (/^a$/i.test(tag)) {
-      const href = attrs.match(/\shref\s*=\s*("[^"]*"|'[^']*')/i);
-      if (href) safe += ' href=' + href[1];
-      const ttl = attrs.match(/\stitle\s*=\s*("[^"]*"|'[^']*')/i);
-      if (ttl) safe += ' title=' + ttl[1];
-      return `<a${safe}>`;
-    }
-    if (/^img$/i.test(tag)) {
-      const src = attrs.match(/\ssrc\s*=\s*("[^"]*"|'[^']*')/i);
-      if (src) safe += ' src=' + src[1];
-      const alt = attrs.match(/\salt\s*=\s*("[^"]*"|'[^']*')/i);
-      if (alt) safe += ' alt=' + alt[1];
-      const ttl = attrs.match(/\stitle\s*=\s*("[^"]*"|'[^']*')/i);
-      if (ttl) safe += ' title=' + ttl[1];
-      return `<img${safe}>`;
-    }
-    const ttl = attrs.match(/\stitle\s*=\s*("[^"]*"|'[^']*')/i);
-    if (ttl) safe += ' title=' + ttl[1];
-    return `<${tag}${safe}>`;
+  const results = Array.isArray(data.results) ? data.results.slice(0, limit) : [];
+  return results.map(b => {
+    const gid = b.id;
+    const title = b.title || '(Untitled)';
+    const author = Array.isArray(b.authors) && b.authors[0] ? b.authors[0].name : '';
+    const cover = `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.cover.medium.jpg`;
+    // Reader route (internal)
+    const readerUrl = `/read/gutenberg/${gid}/reader?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
+    return card({
+      identifier: `gutenberg:${gid}`,
+      title,
+      creator: author,
+      cover,
+      source: 'gutenberg',
+      readerUrl
+    });
   });
-  html = html.replace(/<\/\s*([a-z0-9-]+)\s*>/gi, (m, tag) => allowed.test(tag) ? m : '');
-  return html;
-}
-function absolutizeWikisourceUrls(lang, html) {
-  if (!html || typeof html !== 'string') return '';
-  const origin = `https://${lang}.wikisource.org`;
-  html = html.replace(/src="\/\/([^"]+)"/gi, 'src="https://$1"')
-             .replace(/href="\/\/([^"]+)"/gi, 'href="https://$1"')
-             .replace(/(src|href)="\/([^"]*)"/gi, (_m, attr, path) => `${attr}="${origin}/${path}"`);
-  return html;
-}
-async function listWikisourceChapters(lang, title, max = 30) {
-  // Get links from the landing page and pick those that start with "Title/"
-  const api = `https://${lang}.wikisource.org/w/api.php?action=query&format=json&prop=links&pllimit=max&titles=${encodeURIComponent(title)}`;
-  const r = await fetch(api, { headers: { 'User-Agent': 'BookLantern/1.0 (+https://booklantern.org)' } });
-  if (!r.ok) return [];
-  const data = await r.json();
-  const pages = data?.query?.pages || {};
-  const first = pages[Object.keys(pages)[0]];
-  const links = Array.isArray(first?.links) ? first.links : [];
-  const prefix = `${title}/`.toLowerCase();
-  const chapterTitles = links
-    .map(l => l.title)
-    .filter(t => typeof t === 'string' && t.toLowerCase().startsWith(prefix))
-    .slice(0, max);
-  return chapterTitles;
-}
-async function searchWikisource(q, lang = 'en', limit = 6) {
-  try {
-    const api = `https://${lang}.wikisource.org/w/api.php?action=query&list=search&format=json&srsearch=${encodeURIComponent(q)}&srlimit=${limit}`;
-    const r = await fetch(api, { headers: { 'User-Agent': 'BookLantern/1.0 (+https://booklantern.org)' }});
-    if (!r.ok) return [];
-    const data = await r.json();
-    const hits = data?.query?.search || [];
-    return hits.map(h => {
-      const title = h?.title || '';
-      return card({
-        identifier: `wikisource:${lang}:${title}`,
-        title,
-        creator: '',
-        cover: '',
-        source: 'wikisource',
-        readerUrl: `/read/wikisource/${encodeURIComponent(lang)}/${encodeURIComponent(title)}/reader`
-      });
-    });
-  } catch {
-    return [];
-  }
 }
 
-/* -----------------------------------------------------------
- * READ: federated search
- * ---------------------------------------------------------*/
+/* ----------------------------- Internet Archive ---------------------------- */
+/**
+ * Tighten query to avoid borrow/limited-preview collections.
+ * We still do a best-effort filter client-side too.
+ */
+async function searchArchive(q, rows = 40) {
+  const query = [
+    `${q}`,
+    'mediatype:(texts)',
+    '-collection:(printdisabled)',
+    '-collection:(inlibrary)',
+    '-collection:(lendinglibrary)',
+    '-collection:(internetarchivebooks)', // often lending-only scans
+    'NOT access-restricted-item:true'
+  ].join(' AND ');
+
+  const api = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}&` +
+              `fl[]=identifier&fl[]=title&fl[]=creator&fl[]=collection&fl[]=access-restricted-item&` +
+              `rows=${rows}&page=1&output=json`;
+
+  const r = await fetch(api);
+  const data = await r.json();
+  const docs = data?.response?.docs || [];
+
+  const out = [];
+  for (const d of docs) {
+    const id = d.identifier;
+    if (!id) continue;
+
+    const collections = Array.isArray(d.collection) ? d.collection : [];
+    const restricted = d['access-restricted-item'] === true;
+
+    // Defensive filter against borrow-ish collections
+    const badColl = collections.some(c =>
+      ['printdisabled','inlibrary','lendinglibrary','internetarchivebooks'].includes(String(c).toLowerCase())
+    );
+    if (restricted || badColl) continue;
+
+    const title = d.title || '(Untitled)';
+    const author = d.creator || '';
+    const cover = `https://archive.org/services/img/${id}`;
+    const readerUrl = `/read/book/${encodeURIComponent(id)}`;
+
+    out.push(card({
+      identifier: `archive:${id}`,
+      title,
+      creator: author,
+      cover,
+      source: 'archive',
+      readerUrl,
+      archiveId: id
+    }));
+  }
+  return out;
+}
+
+/* --------------------------------- /read ----------------------------------- */
 router.get('/read', async (req, res) => {
   try {
     const query = (req.query.query || '').trim();
     if (!query) {
       return res.render('read', {
         pageTitle: 'Read Books Online',
-        pageDescription: 'Browse and read books from free sources using BookLantern’s modern reader.',
+        pageDescription: 'Browse and read books fetched from multiple free sources using BookLantern’s modern reader experience.',
         books: [],
         query
       });
     }
-    const [gb, ia, ol, ws] = await Promise.all([
+
+    const [gb, ia, ol] = await Promise.all([
       searchGutenberg(query).catch(() => []),
       searchArchive(query).catch(() => []),
-      searchOpenLibrary(query).catch(() => []),
-      searchWikisource(query).catch(() => []),
+      searchOpenLibrary(query).catch(() => [])
     ]);
 
-    const books = [...gb, ...ia, ...ol, ...ws];
-    console.log(`READ "${query}" — PG:${gb.length} IA:${ia.length} OL:${ol.length} WS:${ws.length}`);
+    // Merge + de-duplicate by destination (readerUrl) to avoid duplicates
+    const merged = dedupeByKey([...gb, ...ia, ...ol], it => it.readerUrl || it.identifier);
+
+    console.log(`READ SEARCH "${query}" — archive:${ia.length} gutenberg:${gb.length} openlibrary:${ol.length} merged:${merged.length}`);
 
     return res.render('read', {
       pageTitle: `Search • ${query}`,
       pageDescription: `Results for “${query}”`,
-      books,
+      books: merged,
       query
     });
   } catch (err) {
     console.error('Read search error:', err);
     return res.status(500).render('read', {
       pageTitle: 'Read Books Online',
-      pageDescription: 'Browse and read books from multiple free sources using BookLantern’s modern reader.',
+      pageDescription: 'Browse and read books fetched from multiple free sources using BookLantern’s modern reader experience.',
       books: [],
       query: req.query.query || '',
       error: 'Something went wrong. Please try again.'
@@ -268,67 +210,65 @@ router.get('/read', async (req, res) => {
   }
 });
 
-/* -----------------------------------------------------------
- * IA internal reader
- * ---------------------------------------------------------*/
-router.get('/read/book/:identifier', requireUser, async (req, res) => {
+/* ------------------------ Internet Archive internal view ------------------- */
+router.get('/read/book/:identifier', async (req, res) => {
+  const id = String(req.params.identifier || '').trim();
+  if (!id) return res.redirect('/read');
+  if (!req.session?.user) return res.redirect(`/login?next=${encodeURIComponent('/read/book/' + id)}`);
+
+  let title = id;
   try {
-    const id = String(req.params.identifier || '').trim();
-    if (!id) return res.redirect('/read');
-
-    let title = id;
-    try {
-      const metaR = await fetch(`https://archive.org/metadata/${encodeURIComponent(id)}`);
-      if (metaR.ok) {
-        const meta = await metaR.json();
-        if (meta?.metadata?.title) title = meta.metadata.title;
-      }
-    } catch {}
-
-    return res.render('book-viewer', {
-      iaId: id,
-      title,
-      pageTitle: `Read • ${title}`,
-      pageDescription: `Read ${title} on BookLantern`
-    });
-  } catch (e) {
-    console.error('IA reader error:', e);
-    return res.status(500).render('404', {
-      pageTitle: 'Not Found',
-      pageDescription: 'Could not open this book.'
-    });
-  }
+    const metaR = await fetch(`https://archive.org/metadata/${encodeURIComponent(id)}`);
+    if (metaR.ok) {
+      const meta = await metaR.json();
+      if (meta?.metadata?.title) title = meta.metadata.title;
+    }
+  } catch (_) {}
+  return res.render('book-viewer', {
+    iaId: id,
+    title,
+    pageTitle: `Read • ${title}`,
+    pageDescription: `Read ${title} on BookLantern`
+  });
 });
 
-/* -----------------------------------------------------------
- * Gutenberg EPUB proxy (fix: Web→Node stream) + reader + text fallback
- * ---------------------------------------------------------*/
+/* --------------------------- Gutenberg reader (internal) ------------------- */
+function requireUser(req, res, next){
+  if (!req.session?.user) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
+  next();
+}
+
+/**
+ * EPUB proxy — FIXED for Node 22: bridge web stream -> Node stream.
+ * Also sets proper headers so EPUB.js can load it reliably.
+ */
 router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
   try {
-    const gid = String(req.params.gid).replace(/[^0-9]/g, '');
+    const gid = String(req.params.gid || '').replace(/[^0-9]/g,'');
     if (!gid) return res.status(400).send('Bad id');
 
-    const tries = [
+    const candidates = [
       `https://www.gutenberg.org/ebooks/${gid}.epub.images?download`,
       `https://www.gutenberg.org/ebooks/${gid}.epub.noimages?download`,
       `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}-images.epub`,
-      `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.epub`,
+      `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.epub`
     ];
 
-    for (const u of tries) {
-      const resp = await fetch(u, { redirect: 'follow' });
-      if (resp.ok && resp.body) {
-        res.set('Content-Type', 'application/epub+zip');
-        res.set('Cache-Control', 'public, max-age=86400');
-        res.set('Content-Disposition', `inline; filename="gutenberg-${gid}.epub"`);
-        const len = resp.headers.get('content-length');
-        if (len) res.set('Content-Length', len);
-        // Convert Web ReadableStream → Node stream before piping
-        const nodeStream = Readable.fromWeb(resp.body);
-        return nodeStream.pipe(res);
-      }
+    let resp = null;
+    for (const u of candidates) {
+      const r = await fetch(u, { redirect: 'follow' });
+      if (r.ok) { resp = r; break; }
     }
-    return res.status(404).send('ePub not found');
+    if (!resp) return res.status(404).send('ePub not found');
+
+    res.set('Content-Type', 'application/epub+zip');
+    res.set('Cache-Control', 'public, max-age=1800');
+    res.set('Content-Disposition', `inline; filename="pg${gid}.epub"`);
+
+    // IMPORTANT: Node 22 bridge
+    const webStream = resp.body; // WHATWG stream
+    const nodeStream = Readable.fromWeb(webStream);
+    nodeStream.pipe(res);
   } catch (e) {
     console.error('proxy gutenberg epub err', e);
     res.status(500).send('Proxy error');
@@ -336,30 +276,21 @@ router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
 });
 
 router.get('/read/gutenberg/:gid/reader', requireUser, (req, res) => {
-  try {
-    const gid    = String(req.params.gid).replace(/[^0-9]/g, '');
-    const title  = typeof req.query.title === 'string' ? req.query.title : '';
-    const author = typeof req.query.author === 'string' ? req.query.author : '';
-    return res.render('unified-reader', {
-      gid, // triggers EPUB mode in the view
-      book: { title, creator: author },
-      pageTitle: title ? `Read • ${title}` : `Read • #${gid}`,
-      pageDescription: 'Distraction-free reading'
-    });
-  } catch (e) {
-    console.error('Gutenberg reader render error:', e);
-    return res.status(500).render('404', {
-      pageTitle: 'Not Found',
-      pageDescription: 'Could not open this book.'
-    });
-  }
+  const gid = String(req.params.gid || '').replace(/[^0-9]/g,'');
+  const title = req.query.title || `Project Gutenberg #${gid}`;
+  const author = req.query.author || '';
+  return res.render('unified-reader', {
+    gid,
+    book: { title, creator: author },
+    pageTitle: `Read • ${title}`,
+    pageDescription: `Read ${title} on BookLantern`
+  });
 });
 
+/* ---------------- Gutenberg server-side text (for Listen previews) --------- */
 router.get('/read/gutenberg/:gid/text', requireUser, async (req, res) => {
-  try {
-    const gid = String(req.params.gid).replace(/[^0-9]/g, '');
-    if (!gid) return res.status(400).json({ error: 'Bad id' });
-
+  try{
+    const gid = String(req.params.gid || '').trim();
     const metaR = await fetch(`https://gutendex.com/books/${gid}`);
     if (!metaR.ok) throw new Error('meta not ok');
     const meta = await metaR.json();
@@ -374,87 +305,27 @@ router.get('/read/gutenberg/:gid/text', requireUser, async (req, res) => {
       return null;
     };
 
+    // Prefer TEXT first, then HTML
     const url =
       pick('text/plain; charset=utf-8','text/plain; charset=us-ascii','text/plain') ||
       pick('text/html; charset=utf-8','text/html','application/xhtml+xml');
 
-    if (!url) return res.status(404).json({ error: 'No readable format found' });
+    if (!url) return res.status(404).json({ error:'No readable format found' });
 
-    const bookR = await fetch(url, { redirect: 'follow' });
+    const bookR = await fetch(url, { redirect:'follow' });
     const ctype = (bookR.headers.get('content-type') || '').toLowerCase();
     const raw = await bookR.text();
 
-    res.set('Cache-Control', 'public, max-age=600');
-
     if (ctype.includes('html') || /<\/?[a-z][\s\S]*>/i.test(raw)) {
-      return res.json({ type: 'html', content: raw, title });
+      res.setHeader('Cache-Control','public, max-age=600');
+      return res.json({ type:'html', content: raw, title });
     } else {
-      return res.json({ type: 'text', content: raw, title });
+      res.setHeader('Cache-Control','public, max-age=600');
+      return res.json({ type:'text', content: raw, title });
     }
-  } catch (err) {
+  }catch(err){
     console.error('gutenberg text error:', err);
-    return res.status(502).json({ error: 'Fetch failed' });
-  }
-});
-
-/* -----------------------------------------------------------
- * Wikisource reader + FULL aggregated HTML endpoint
- * ---------------------------------------------------------*/
-router.get('/read/wikisource/:lang/:title/reader', requireUser, (req, res) => {
-  try {
-    const lang  = String(req.params.lang || 'en').toLowerCase();
-    const title = String(req.params.title || '').trim();
-    if (!title) return res.redirect('/read');
-    return res.render('unified-reader', {
-      htmlTitle: title.replace(/_/g,' '),
-      htmlAuthor: '',
-      // ask server for the full concatenated HTML
-      htmlFetchUrl: `/read/wikisource/${encodeURIComponent(lang)}/${encodeURIComponent(title)}/text?full=1`,
-      pageTitle: `Read • ${title.replace(/_/g,' ')}`
-    });
-  } catch (e) {
-    console.error('WS reader render error:', e);
-    return res.status(500).render('404', {
-      pageTitle: 'Not Found',
-      pageDescription: 'Could not open this text.'
-    });
-  }
-});
-
-router.get('/read/wikisource/:lang/:title/text', requireUser, async (req, res) => {
-  try {
-    const lang  = String(req.params.lang || 'en').toLowerCase();
-    const title = String(req.params.title || '').trim();
-    if (!title) return res.status(400).send('Missing title');
-
-    const wantFull = String(req.query.full || '0') === '1';
-
-    // Always fetch landing page
-    let html = await fetchWikisourceSanitizedHtml(lang, title);
-
-    if (wantFull) {
-      // Try to discover chapter subpages like "Title/Chapter 1"
-      const chapters = await listWikisourceChapters(lang, title, 40);
-      if (chapters.length) {
-        let combined = `<article><h1>${title.replace(/_/g,' ')}</h1>${html}</article>`;
-        for (const ch of chapters) {
-          try {
-            const chHtml = await fetchWikisourceSanitizedHtml(lang, ch);
-            combined += `<hr><article><h2>${ch.replace(/^.*?\//,'')}</h2>${chHtml}</article>`;
-          } catch (e) {
-            console.error('WS chapter fetch failed:', ch, e.message);
-          }
-        }
-        html = combined;
-      }
-    }
-
-    res.set('Content-Type', 'text/html; charset=utf-8');
-    res.set('Cache-Control', 'public, max-age=600');
-    return res.send(html);
-  } catch (err) {
-    console.error('Wikisource text error:', err);
-    return res.status(502).send('<div class="hint">Could not load this text.</div>');
+    return res.status(502).json({ error:'Fetch failed' });
   }
 });
 
