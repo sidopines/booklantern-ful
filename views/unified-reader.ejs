@@ -23,7 +23,6 @@
     .tb-author{ font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .tb-actions{ display:flex; gap:8px; align-items:center; }
 
-    /* Reader areas */
     #epub-viewer, #html-viewer { height: calc(100vh - 56px); }
     #epub-viewer{ overflow:hidden; }
     #html-viewer{
@@ -60,7 +59,6 @@
   <div id="status" aria-live="polite"></div>
 
   <script>
-    // Pass server data safely
     window.__BOOK__ = <%- JSON.stringify({
       gid: (typeof gid !== 'undefined' ? gid : ''),
       book: (typeof book !== 'undefined' ? book : { title:'', creator:'' }),
@@ -70,8 +68,7 @@
     }) %>;
   </script>
 
-  <!-- ePub.js (only used if gid is present) -->
-  <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+  <!-- Load ePub.js only if/when needed -->
   <script>
     (function(){
       const S = window.__BOOK__ || {};
@@ -84,94 +81,92 @@
       const htmlEl = document.getElementById('html-viewer');
 
       function setStatus(msg){ statusEl.textContent = msg || ''; }
-      function escapeHTML(s){ return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+      backBtn.addEventListener('click', () => { if (history.length > 1) history.back(); else window.location.href = '/read'; });
 
-      backBtn.addEventListener('click', () => {
-        if (history.length > 1) history.back(); else window.location.href = '/read';
-      });
-
-      // Render header
       const hdrTitle = S.book?.title || S.htmlTitle || '';
       const hdrAuthor = S.book?.creator || S.htmlAuthor || '';
       titleEl.textContent = hdrTitle || 'Reader';
       authorEl.textContent = hdrAuthor || '';
 
-      /* =========================
-       * EPUB MODE (Gutenberg)
-       * =======================*/
+      // EPUB MODE
       if (S.gid) {
-        const epubUrl = `/proxy/gutenberg-epub/${encodeURIComponent(S.gid)}`;
         epubEl.hidden = false;
         setStatus('Loading ePub…');
 
-        try {
-          const book = ePub(epubUrl);
-          const rendition = book.renderTo('epub-viewer', { width: '100%', height: '100%' });
-          rendition.display();
+        // Load epub.js first, then render
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js';
+        script.onload = () => startEpub();
+        script.onerror = () => fallbackToGutenbergText(S.gid);
+        document.head.appendChild(script);
 
-          // Keyboard left/right
-          document.addEventListener('keydown', (e)=>{
-            if (e.key === 'ArrowRight') rendition.next();
-            else if (e.key === 'ArrowLeft') rendition.prev();
-          });
+        function startEpub(){
+          try {
+            const epubUrl = `/proxy/gutenberg-epub/${encodeURIComponent(S.gid)}`;
+            const book = window.ePub(epubUrl);
+            const rendition = book.renderTo('epub-viewer', { width: '100%', height: '100%' });
+            let rendered = false;
 
-          book.loaded.metadata.then(meta => {
-            if (!hdrTitle && meta?.title) titleEl.textContent = meta.title;
-            if (!hdrAuthor && meta?.creator) authorEl.textContent = meta.creator;
-          });
+            const watchdog = setTimeout(() => {
+              if (!rendered) {
+                console.warn('EPUB render timeout — falling back to text');
+                fallbackToGutenbergText(S.gid);
+              }
+            }, 4000);
 
-          rendition.on('rendered', () => setStatus(''));
-        } catch (err) {
-          console.error('EPUB load failed, falling back to text:', err);
-          fallbackToGutenbergText(S.gid);
+            rendition.display().then(() => {
+              rendered = true;
+              clearTimeout(watchdog);
+              setStatus('');
+            }).catch(() => {
+              clearTimeout(watchdog);
+              fallbackToGutenbergText(S.gid);
+            });
+
+            // Keyboard left/right
+            document.addEventListener('keydown', (e)=>{
+              if (e.key === 'ArrowRight') rendition.next();
+              else if (e.key === 'ArrowLeft') rendition.prev();
+            });
+
+            book.loaded.metadata.then(meta => {
+              if (!hdrTitle && meta?.title) titleEl.textContent = meta.title;
+              if (!hdrAuthor && meta?.creator) authorEl.textContent = meta.creator;
+            });
+
+            listenBtn.addEventListener('click', async () => {
+              try {
+                const ifr = epubEl.querySelector('iframe');
+                const doc = ifr && ifr.contentDocument;
+                const txt = doc ? doc.body.innerText : '';
+                if (txt) speak(txt);
+              } catch {}
+            });
+          } catch (err) {
+            console.error('EPUB init failed', err);
+            fallbackToGutenbergText(S.gid);
+          }
         }
 
-        // Listen (TTS) for EPUB: read current selection or page text
-        listenBtn.addEventListener('click', async () => {
-          try {
-            const sel = window.getSelection()?.toString();
-            if (sel) return speak(sel);
-            // Pull visible text from iframe
-            const ifr = epubEl.querySelector('iframe');
-            const doc = ifr && ifr.contentDocument;
-            const txt = doc ? doc.body.innerText : '';
-            if (txt) speak(txt);
-          } catch {}
-        });
-
-        return; // done
+        return;
       }
 
-      /* =========================
-       * HTML MODE (Wikisource / other HTML)
-       * =======================*/
+      // HTML MODE (Wikisource etc.)
       if (S.htmlFetchUrl) {
         htmlEl.hidden = false;
         setStatus('Loading text…');
         fetch(S.htmlFetchUrl, { credentials: 'same-origin' })
           .then(r => r.text())
-          .then(html => {
-            htmlEl.innerHTML = html;
-            setStatus('');
-          })
-          .catch(err => {
-            console.error('HTML fetch failed:', err);
-            htmlEl.innerHTML = '<p class="hint">Could not load this text.</p>';
-            setStatus('');
-          });
+          .then(html => { htmlEl.innerHTML = html; setStatus(''); })
+          .catch(err => { console.error('HTML fetch failed:', err); htmlEl.innerHTML = '<p class="hint">Could not load this text.</p>'; setStatus(''); });
 
-        listenBtn.addEventListener('click', () => {
-          speak(htmlEl.innerText || '');
-        });
+        listenBtn.addEventListener('click', () => speak(htmlEl.innerText || ''));
         return;
       }
 
-      // If neither mode matched, show a friendly message
+      // Nothing matched
       setStatus('This item is not available.');
 
-      /* =========================
-       * Helpers
-       * =======================*/
       function fallbackToGutenbergText(gid){
         epubEl.hidden = true;
         htmlEl.hidden = false;
@@ -182,31 +177,20 @@
             const type = (data && data.type) || '';
             const content = (data && data.content) || '';
             if (!content) throw new Error('no content');
-            if (type === 'html') {
-              htmlEl.innerHTML = content;
-            } else {
-              htmlEl.textContent = content;
-            }
+            if (type === 'html') htmlEl.innerHTML = content; else htmlEl.textContent = content;
             setStatus('');
           })
-          .catch(err => {
-            console.error('Gutenberg text fallback failed:', err);
-            htmlEl.innerHTML = '<p class="hint">Could not load this book.</p>';
-            setStatus('');
-          });
+          .catch(err => { console.error('Gutenberg text fallback failed:', err); htmlEl.innerHTML = '<p class="hint">Could not load this book.</p>'; setStatus(''); });
 
-        listenBtn.addEventListener('click', () => {
-          speak(htmlEl.innerText || '');
-        });
+        listenBtn.addEventListener('click', () => speak(htmlEl.innerText || ''));
       }
 
       function speak(text){
         if (!text) return;
         try {
           window.speechSynthesis.cancel();
-          const u = new SpeechSynthesisUtterance(text.slice(0, 5000)); // cap chunk
-          u.rate = 1.0;
-          u.pitch = 1.0;
+          const u = new SpeechSynthesisUtterance(text.slice(0, 5000));
+          u.rate = 1.0; u.pitch = 1.0;
           window.speechSynthesis.speak(u);
         } catch (e) { console.error('TTS failed', e); }
       }
