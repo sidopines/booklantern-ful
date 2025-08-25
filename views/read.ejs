@@ -2,230 +2,216 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: 'Read Books Online',
-    pageDescription: "Browse and read books fetched from multiple sources using BookLantern's modern reader experience."
+    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : 'Read Books Online',
+    pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : "Browse and read books fetched from multiple free sources using BookLantern's modern reader experience."
   }) %>
-  <link rel="stylesheet" href="/css/site.css">
-  <style>
-    /* Local tweaks for this page only */
-
-    .page-wrap { max-width: var(--container); margin: 0 auto; padding: 0 24px; }
-    .read-head { display:flex; align-items:flex-end; gap:12px; margin: 18px 0 12px; flex-wrap:wrap; }
-    .read-head h1 { margin:0; font-size: 24px; letter-spacing:-0.01em; }
-    .read-search { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-    .read-search input[type="text"] {
-      width: min(560px, 100%);
-      padding: .7rem .8rem; border:1px solid var(--line); border-radius: 999px; background:#fff; box-shadow: var(--shadow);
-      font-size: 16px;
-    }
-    .empty { color: var(--muted); padding: 20px 0; }
-
-    /* Results grid reusing .grid + .card */
-    .book-grid { margin: 10px 0 28px; }
-    .book-card .meta-row { margin-top: 6px; display:flex; align-items:center; gap:8px; }
-    .listen-chip {
-      display:inline-flex; align-items:center; gap:.35rem;
-      border:1px solid var(--line); background:#fff; border-radius:999px; padding:.25rem .5rem;
-      font-size: 12px; cursor:pointer; user-select:none;
-    }
-    .listen-chip[aria-pressed="true"]{ background:#111; color:#fff; border-color:#000; }
-
-    /* Mini preview player - fixed bottom right */
-    .mini-player{
-      position: fixed; right: 16px; bottom: 16px; z-index: 60;
-      display: none; /* shown when active */
-      background:#fff; border:1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-lg);
-      max-width: 420px; width: calc(100vw - 32px);
-    }
-    .mini-player .mp-head{
-      display:flex; align-items:center; gap:.5rem; padding:.6rem .8rem; border-bottom:1px solid var(--line);
-    }
-    .mini-player .mp-title{
-      flex:1 1 auto; min-width:0; font-weight:600; letter-spacing:-.01em;
-      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-    }
-    .mini-player .mp-body{
-      display:flex; align-items:center; gap:.5rem; padding:.6rem .8rem;
-    }
-    .mini-player .mp-btn{
-      border:1px solid var(--line); border-radius: 10px; background:#fff; cursor:pointer; padding:.45rem .7rem; font-weight:600;
-    }
-    .mini-player .mp-btn.primary{ background:#111; color:#fff; border-color:#000; }
-    .mini-player .mp-range { flex:1 1 auto; display:flex; align-items:center; gap:.4rem; }
-    .mini-player .mp-range input[type="range"]{ width:100%; }
-    .mini-player .mp-sub { color:var(--muted); font-size:.9rem; padding: 0 .8rem .7rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    @media (max-width: 520px){
-      .mini-player .mp-range{ display:none; }
-    }
-  </style>
 </head>
 <body>
   <%- include('./partials/navbar.ejs') %>
 
-  <div class="page-wrap">
-    <a href="javascript:history.back()" class="back-link" style="display:inline-block;margin-top:14px;color:#1256b3;text-decoration:none">← Back</a>
+  <style>
+    .wrap { max-width: 1100px; margin: 24px auto 40px; padding: 0 16px; }
+    .back-link { display:inline-block; margin: 8px 0 6px; color:#1256b3; text-decoration:none; }
+    .back-link:hover { text-decoration:underline; }
+    h1 { margin: 8px 0 14px; }
+    form.search { display:flex; gap:8px; flex-wrap:wrap; margin: 12px 0 18px; }
+    form.search input[type="text"]{
+      flex:1 1 320px; min-width:240px;
+      padding:.7rem .8rem; border:1px solid #e5e7eb; border-radius:10px; background:#fff;
+    }
+    form.search button{
+      padding:.7rem 1rem; border-radius:10px; border:1px solid #e5e7eb; background:#111; color:#fff; font-weight:600; cursor:pointer;
+    }
+    .empty{ color:#667085; margin: 8px 0 16px; }
 
-    <div class="read-head">
-      <h1>📚 Explore Free Books</h1>
-      <form class="read-search" action="/read" method="GET">
-        <input
-          type="text"
-          name="query"
-          placeholder="Search books by title or author"
-          value="<%= typeof query !== 'undefined' ? query : '' %>">
-        <button class="btn" type="submit">Search</button>
-      </form>
-    </div>
+    .book-grid{
+      display:grid; gap:18px;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    }
+    .book-card{
+      background:#fff; border:1px solid #eaeef3; border-radius:16px; overflow:hidden;
+      box-shadow: 0 10px 30px rgba(2,6,23,.06), 0 2px 10px rgba(2,6,23,.05);
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+    .book-card:hover{ transform: translateY(-3px); box-shadow: 0 30px 60px rgba(2,6,23,.10), 0 12px 24px rgba(2,6,23,.06); }
+    .thumb{ position:relative; width:100%; aspect-ratio:3/4; background:#eef2f7; }
+    .thumb img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+    .thumb .no-cover{ position:absolute; inset:0; display:grid; place-items:center; color:#667085; font-size:.9rem; }
+    .card-body{ padding:12px 14px 14px; }
+    .card-body h3{ margin:8px 0 4px; font-size:16px; line-height:1.25; }
+    .card-body p{ margin:0; font-size:13px; color:#667085; }
+    .meta-row{ display:flex; align-items:center; gap:6px; margin-top:6px; }
+    .badge{ display:inline-block; padding:4px 8px; font-size:11px; border:1px solid #eaeef3; border-radius:999px; background:#fff; color:#1f2937; }
+
+    .actions{ display:flex; gap:8px; margin-top:.6rem; }
+    .btn-link{
+      display:inline-flex; align-items:center; gap:6px; padding:.45rem .65rem; border-radius:10px;
+      background:#111; color:#fff; text-decoration:none; font-size:.9rem; font-weight:600;
+      border:1px solid #e5e7eb;
+    }
+    .btn-link.alt{ background:#fff; color:#111; }
+    .chip{
+      display:inline-flex; align-items:center; gap:6px; padding:.35rem .6rem; border-radius:999px;
+      border:1px solid #e5e7eb; background:#fff; font-size:.85rem; cursor:pointer; user-select:none;
+    }
+    .chip[aria-pressed="true"]{ background:#111; color:#fff; border-color:#111; }
+
+    /* shelf block reused on this page */
+    .section{ padding: 24px 0; }
+    .shelf-header{
+      display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin:6px 0 12px;
+    }
+    .shelf-header h2{ margin:0; font-size:22px; letter-spacing:-.01em; }
+    .hint{ color:#667085; font-size:14px; text-decoration:none; }
+  </style>
+
+  <div class="wrap">
+    <a href="javascript:history.back()" class="back-link">← Back</a>
+    <h1>📚 Explore Free Books</h1>
+
+    <form class="search" action="/read" method="GET">
+      <input
+        type="text"
+        name="query"
+        placeholder="Search books by title or author"
+        value="<%= typeof query !== 'undefined' ? query : '' %>">
+      <button type="submit">Search</button>
+    </form>
 
     <% const hasQuery = (typeof query !== 'undefined' && String(query).trim() !== ''); %>
 
-    <!-- STAFF PICKS (moved here from homepage). Only show when no search query -->
+    <!-- STAFF PICKS (only if no query) -->
     <% if (!hasQuery) { %>
-    <section class="section">
-      <div class="container" style="padding:0">
+      <section class="section">
         <div class="shelf-header">
           <h2>Staff picks</h2>
           <div class="hint">Curated picks from globally trusted libraries</div>
         </div>
-        <div id="featured-grid" class="grid" aria-live="polite"></div>
-      </div>
-    </section>
+        <div id="featured-grid" class="book-grid" aria-live="polite"></div>
+      </section>
     <% } %>
+
+    <% 
+      // Safe helpers (avoid .replace on non-strings)
+      function toStr(v){
+        if (v === null || typeof v === 'undefined') return '';
+        if (Array.isArray(v)) return v.filter(Boolean).join(', ');
+        return String(v);
+      }
+      function brandFrom(src){
+        const s = String(src||'').toLowerCase();
+        if (s === 'archive') return 'Archive.org';
+        if (s === 'gutenberg') return 'Project Gutenberg';
+        if (s === 'openlibrary') return 'Open Library';
+        if (s === 'wikisource') return 'Wikisource';
+        return 'Book';
+      }
+    %>
 
     <% if (!books || books.length === 0) { %>
       <div class="empty">No books found. Try another search term.</div>
     <% } else { %>
       <div class="book-grid">
-        <div class="grid">
         <% books.forEach(function(book){ 
-             const src  = (book.source || '').toLowerCase();
-             const id   = book.identifier || book._id || '';
-             const isArchive   = (src === 'archive');
-             const isGutenberg = (src === 'gutenberg');
-             const isWikisrc   = (src === 'wikisource');
+             const srcRaw  = book.source || '';
+             const src     = String(srcRaw).toLowerCase();
+             const id      = book.identifier || book._id || '';
+             const isArchive   = (src === 'archive') || (/^archive:/i.test(String(id)));
+             const isGutenberg = (src === 'gutenberg') || (/^gutenberg:/i.test(String(id)));
              const gutenId     = isGutenberg ? String(id).replace(/^gutenberg:/,'') : '';
+             
+             // Safe strings for title/author and attributes
+             const titleStr  = toStr(book.title);
+             const authorStr = toStr(book.creator || book.author);
+             const coverStr  = toStr(book.cover);
 
-             let dest = isArchive
-               ? `/read/book/${encodeURIComponent(book.archiveId || String(id).replace(/^archive:/,''))}`
-               : (isGutenberg
-                   ? `/read/gutenberg/${encodeURIComponent(gutenId)}/reader${book.readerUrl ? ('?u=' + encodeURIComponent(book.readerUrl)) : ''}`
-                   : (isWikisrc
-                       ? (book.readerUrl || '#')
-                       : (book.readerUrl || '#')));
+             // Destination is precomputed by routes as an internal URL.
+             let dest = toStr(book.readerUrl || '#');
 
-             // Gate visitors to login/register before reading internal readers
-             const internalOpen = (isArchive || isGutenberg || isWikisrc);
-             const finalHref = (!user && internalOpen) ? ('/login?next=' + encodeURIComponent(dest)) : dest;
-
-             const brand = src === 'archive' ? 'Archive.org'
-                        : src === 'gutenberg' ? 'Project Gutenberg'
-                        : src === 'openlibrary' ? 'Open Library'
-                        : src === 'wikisource' ? 'Wikisource'
-                        : 'Book';
-
-             const cardCover = book.cover || '';
+             // Gate guests
+             if (!user && dest && dest !== '#') {
+               dest = '/login?next=' + encodeURIComponent(dest);
+             }
         %>
-          <article class="card book-card" data-source="<%= src %>" data-gid="<%= gutenId %>">
-            <a href="<%= finalHref %>" <%= internalOpen ? '' : 'target="_blank" rel="noopener"' %> style="text-decoration:none;color:inherit">
+          <div class="book-card" data-source="<%= src %>">
+            <a href="<%= dest %>" style="text-decoration:none;color:inherit">
               <div class="thumb">
-                <% if (cardCover) { %>
-                  <img src="<%= cardCover %>" alt="<%= book.title %>" loading="lazy" referrerpolicy="no-referrer">
+                <% if (coverStr) { %>
+                  <img src="<%= coverStr %>" alt="<%- titleStr.replace(/"/g,'&quot;') %>" loading="lazy" referrerpolicy="no-referrer">
+                <% } else { %>
+                  <div class="no-cover">No Cover</div>
                 <% } %>
               </div>
-              <div class="meta">
-                <span class="badge"><%= brand %></span>
-                <h3><%= book.title %></h3>
-                <p><%= book.creator || book.author || '' %></p>
+              <div class="card-body">
+                <h3><%= titleStr %></h3>
+                <p><%= authorStr %></p>
                 <div class="meta-row">
-                  <button
-                    type="button"
-                    class="listen-chip"
-                    data-source="<%= src %>"
-                    data-gid="<%= gutenId %>"
-                    data-title="<%- (book.title || '').replace(/"/g,'&quot;') %>"
-                    data-author="<%- (book.creator || book.author || '').replace(/"/g,'&quot;') %>"
-                    aria-pressed="false"
-                    title="Preview by listening">
-                    🔊 Listen
-                  </button>
+                  <span class="badge"><%= brandFrom(srcRaw) %></span>
+                </div>
+                <div class="actions">
+                  <span class="btn-link">📖 Read now</span>
+                  <% if (user && isGutenberg && gutenId) { %>
+                    <button 
+                      type="button" 
+                      class="chip listen-chip"
+                      data-gid="<%= gutenId %>"
+                      data-title="<%- titleStr.replace(/"/g,'&quot;') %>"
+                      data-author="<%- authorStr.replace(/"/g,'&quot;') %>"
+                      aria-pressed="false"
+                      title="Preview by listening">
+                      🔊 Listen
+                    </button>
+                  <% } %>
                 </div>
               </div>
             </a>
-          </article>
+          </div>
         <% }) %>
-        </div>
       </div>
     <% } %>
-
-    <footer class="footer">
-      &copy; <%= new Date().getFullYear() %> BookLantern • Built on open libraries • <a href="/about">About</a>
-    </footer>
   </div>
 
+  <footer class="footer">
+    &copy; <%= new Date().getFullYear() %> BookLantern • Built for readers • <a href="/about">About</a>
+  </footer>
+
   <% if (!hasQuery) { %>
-  <!-- FETCH Staff picks -->
+  <!-- STAFF PICKS fetch -->
   <script>
     (function(){
-      const IS_LOGGED_IN = <%= !!user %>;
       const grid = document.getElementById('featured-grid');
+      if (!grid) return;
 
       function escapeHtml(s){
         return String(s || '')
           .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
           .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
       }
-
-      function hrefFromCard(b){
-        if (b && b.href) return b.href;
-        const src = (b.source || '').toLowerCase();
-        const id  = b.identifier || '';
-        const ia  = b.archiveId || (src === 'archive' ? id : '');
-        if (ia) return '/read/book/' + encodeURIComponent(ia);
-        if (src === 'gutenberg') {
-          const gid = String(id).replace(/^gutenberg:/,'');
-          const qs  = b.readerUrl ? ('?u=' + encodeURIComponent(b.readerUrl)) : '';
-          return '/read/gutenberg/' + encodeURIComponent(gid) + '/reader' + qs;
-        }
-        return b.readerUrl || '#';
-      }
-
-      function gated(dest){
-        return IS_LOGGED_IN ? dest : '/login?next=' + encodeURIComponent(dest || '/');
-      }
-
       function brand(src){
-        const s = (src||'').toLowerCase();
+        const s = String(src||'').toLowerCase();
         return s==='archive' ? 'Archive.org' : (s==='gutenberg' ? 'Project Gutenberg' : (s==='openlibrary' ? 'Open Library' : (s==='wikisource' ? 'Wikisource' : 'Book')));
       }
-
+      function hrefFromCard(b){
+        if (b && b.readerUrl) return b.readerUrl; // routes send internal URLs now
+        return '#';
+      }
       function cardTemplate(b){
-        const dest = gated(hrefFromCard(b));
-        const internal = IS_LOGGED_IN && (b.archiveId || (b.source||'').toLowerCase()==='archive' || (b.source||'').toLowerCase()==='gutenberg' || (b.source||'').toLowerCase()==='wikisource');
-        const gid = (String(b.identifier||'').startsWith('gutenberg:') ? String(b.identifier).replace(/^gutenberg:/,'') : '');
+        const title  = escapeHtml(b.title || '');
+        const author = escapeHtml(b.creator || b.author || '');
+        const cover  = b.cover ? `<img src="${b.cover}" alt="${title}" loading="lazy" referrerpolicy="no-referrer">` : '<div class="no-cover">No Cover</div>';
+        const dest   = hrefFromCard(b);
         return `
-          <article class="card book-card" data-source="${(b.source||'').toLowerCase()}" data-gid="${gid}">
-            <a href="${dest}" ${internal ? '' : 'rel="noopener"'} style="text-decoration:none;color:inherit">
-              <div class="thumb">${b.cover ? `<img src="${b.cover}" alt="${escapeHtml(b.title||'')}" loading="lazy" referrerpolicy="no-referrer">` : ''}</div>
-              <div class="meta">
-                <span class="badge">${brand(b.source)}</span>
-                <h3>${escapeHtml(b.title || '')}</h3>
-                <p>${escapeHtml(b.creator || '')}</p>
-                <div class="meta-row">
-                  <button
-                    type="button"
-                    class="listen-chip"
-                    data-source="${(b.source||'').toLowerCase()}"
-                    data-gid="${gid}"
-                    data-title="${escapeHtml(b.title || '')}"
-                    data-author="${escapeHtml(b.creator || '')}"
-                    aria-pressed="false"
-                    title="Preview by listening">
-                    🔊 Listen
-                  </button>
-                </div>
+          <div class="book-card">
+            <a href="${dest}" style="text-decoration:none;color:inherit">
+              <div class="thumb">${cover}</div>
+              <div class="card-body">
+                <h3>${title}</h3>
+                <p>${author}</p>
+                <div class="meta-row"><span class="badge">${brand(b.source)}</span></div>
+                <div class="actions"><span class="btn-link">📖 Read now</span></div>
               </div>
             </a>
-          </article>
+          </div>
         `;
       }
 
@@ -239,194 +225,90 @@
             (Array.isArray(data.items) ? data.items :
             (Array.isArray(data.results) ? data.results : []));
           if (!items.length) {
-            grid.innerHTML = '<div class="hint">No picks right now. Try a search above.</div>';
+            grid.innerHTML = '<div class="empty">No picks right now. Try a search above.</div>';
             return;
           }
           grid.innerHTML = items.map(cardTemplate).join('');
         } catch(e){
           console.error('featured error', e);
-          grid.innerHTML = '<div class="hint">Could not load picks. Try refreshing.</div>';
+          grid.innerHTML = '<div class="empty">Could not load picks. Try refreshing.</div>';
         }
       }
-
       loadFeatured();
     })();
   </script>
   <% } %>
 
-  <!-- Mini preview player + Listen wiring for results -->
-  <div class="mini-player" id="miniPlayer" role="region" aria-label="Audio preview">
-    <div class="mp-head">
-      <div class="mp-title" id="mpTitle">Preview</div>
-      <button class="mp-btn" id="mpClose" title="Close">✕</button>
-    </div>
-    <div class="mp-body">
-      <button class="mp-btn primary" id="mpPlayPause">▶︎ Play</button>
-      <button class="mp-btn" id="mpStop">■ Stop</button>
-      <div class="mp-range">
-        <label for="mpRate" style="font-size:.85rem;color:var(--muted)">Rate</label>
-        <input id="mpRate" type="range" min="0.7" max="1.6" step="0.05" value="1.0">
-        <label for="mpVol" style="font-size:.85rem;color:var(--muted)">Vol</label>
-        <input id="mpVol" type="range" min="0" max="1" step="0.05" value="1">
-      </div>
-    </div>
-    <div class="mp-sub" id="mpSnippet">—</div>
-  </div>
-
+  <!-- Listen preview (client-side TTS) -->
   <script>
     (function(){
-      const IS_LOGGED_IN = <%= !!user %>;
+      const chips = Array.from(document.querySelectorAll('.listen-chip'));
+      if (!chips.length) return;
 
-      // Single TTS engine for all preview chips
-      const synth = window.speechSynthesis;
-      let currentUtter = null;
-      let paused = false;
-      let currentButton = null;
-      let cachedText = null;  // text fetched for current preview
-
-      // Mini player elements
-      const mp = document.getElementById('miniPlayer');
-      const mpTitle = document.getElementById('mpTitle');
-      const mpSnippet = document.getElementById('mpSnippet');
-      const mpPlayPause = document.getElementById('mpPlayPause');
-      const mpStop = document.getElementById('mpStop');
-      const mpClose = document.getElementById('mpClose');
-      const mpRate = document.getElementById('mpRate');
-      const mpVol = document.getElementById('mpVol');
-
-      function showPlayer(){ mp.style.display = 'block'; }
-      function hidePlayer(){ mp.style.display = 'none'; }
-
-      function stopSpeaking(){
-        if (synth.speaking || paused) synth.cancel();
-        currentUtter = null; paused = false;
-        if (currentButton) {
-          currentButton.setAttribute('aria-pressed','false');
-          currentButton.textContent = '🔊 Listen';
-          currentButton = null;
-        }
-        mpPlayPause.textContent = '▶︎ Play';
+      // small helper
+      function htmlToText(html){
+        const d = document.createElement('div');
+        d.innerHTML = html;
+        // remove scripts/styles
+        d.querySelectorAll('script,style,noscript').forEach(n => n.remove());
+        return (d.textContent || d.innerText || '').replace(/\s+/g,' ').trim();
       }
 
-      mpStop.addEventListener('click', stopSpeaking);
-      mpClose.addEventListener('click', () => { stopSpeaking(); hidePlayer(); });
-
-      mpPlayPause.addEventListener('click', () => {
-        if (paused && synth.speaking) {
-          synth.resume(); paused = false; mpPlayPause.textContent = '⏸ Pause'; return;
-        }
-        if (synth.speaking && !paused) {
-          synth.pause(); paused = true; mpPlayPause.textContent = '▶︎ Resume'; return;
-        }
-        // Start (or restart) with cachedText
-        if (!cachedText || !cachedText.trim()) return;
-        speak(cachedText);
-      });
-
-      mpRate.addEventListener('input', () => localStorage.setItem('preview.rate', mpRate.value));
-      mpVol.addEventListener('input', () => localStorage.setItem('preview.vol', mpVol.value));
-
-      // Restore sliders
-      (function(){
-        const r = localStorage.getItem('preview.rate'); if (r) mpRate.value = r;
-        const v = localStorage.getItem('preview.vol'); if (v) mpVol.value = v;
-      })();
+      async function fetchSnippet(gid){
+        // Uses our server endpoint; requires session (user is logged in to see chip)
+        const r = await fetch(`/read/gutenberg/${gid}/text`, { credentials:'same-origin' });
+        if (!r.ok) throw new Error('text fetch failed');
+        const data = await r.json();
+        if (data.type === 'html') return htmlToText(data.content).slice(0, 1200);
+        return String(data.content || '').slice(0, 1200);
+      }
 
       function speak(text){
-        try{ synth.cancel(); }catch(_){}
+        // Stop any current speech
+        try { window.speechSynthesis.cancel(); } catch(e){}
         const u = new SpeechSynthesisUtterance(text);
-        u.rate = Number(mpRate.value) || 1.0;
-        u.volume = Number(mpVol.value) || 1.0;
-        currentUtter = u;
-        paused = false;
-        mpPlayPause.textContent = '⏸ Pause';
-        u.onend = () => {
-          mpPlayPause.textContent = '▶︎ Play';
-          if (currentButton) {
-            currentButton.setAttribute('aria-pressed','false');
-            currentButton.textContent = '🔊 Listen';
-            currentButton = null;
+        u.rate = 1.0; u.pitch = 1.0;
+        // pick a default voice; browsers differ
+        const voices = window.speechSynthesis.getVoices();
+        if (voices && voices.length) u.voice = voices.find(v => /en/i.test(v.lang)) || voices[0];
+        window.speechSynthesis.speak(u);
+        return u;
+      }
+
+      chips.forEach(chip => {
+        let speaking = false;
+        let currentUtterance = null;
+        chip.addEventListener('click', async (e) => {
+          e.preventDefault();
+          if (speaking) {
+            // toggle off
+            try { window.speechSynthesis.cancel(); } catch(_){}
+            chip.setAttribute('aria-pressed', 'false');
+            chip.textContent = '🔊 Listen';
+            speaking = false;
+            return;
           }
-        };
-        u.onerror = () => {
-          mpPlayPause.textContent = '▶︎ Play';
-        };
-        synth.speak(u);
-      }
-
-      function stripHtml(html){
-        const tmp = document.createElement('div');
-        tmp.innerHTML = html;
-        return (tmp.textContent || tmp.innerText || '').trim();
-      }
-
-      async function fetchGutenbergPreview(gid){
-        // Uses your server endpoint. Note: requires login for best results.
-        try {
-          const r = await fetch(`/read/gutenberg/${gid}/text`, { credentials: 'same-origin' });
-          if (!r.ok) throw new Error('bad status');
-          const data = await r.json();
-          const content = data.content || data.html || data.text || '';
-          const plain = data.type === 'html' ? stripHtml(content) : String(content || '');
-          // clip to first ~1400 chars to keep it short
-          return plain.slice(0, 1400);
-        } catch (e) {
-          // Fall back if unavailable (e.g., guest or fetch failed)
-          return '';
-        }
-      }
-
-      // Delegate click for all listen chips (works for server and JS-injected cards)
-      document.addEventListener('click', async (ev) => {
-        const btn = ev.target.closest('.listen-chip');
-        if (!btn) return;
-
-        ev.preventDefault();
-        const source = btn.getAttribute('data-source') || '';
-        const gid = btn.getAttribute('data-gid') || '';
-        const title = btn.getAttribute('data-title') || '';
-        const author = btn.getAttribute('data-author') || '';
-
-        // Toggle off if this button is active
-        if (currentButton === btn && (synth.speaking || paused)) {
-          stopSpeaking();
-          return;
-        }
-
-        // Prepare player UI
-        mpTitle.textContent = title || 'Preview';
-        showPlayer();
-
-        // Try to get inline text for Gutenberg; else fallback to title/author
-        let text = '';
-        if (source === 'gutenberg' && gid) {
-          if (!IS_LOGGED_IN) {
-            // still allow a minimal preview without login
-            text = (title + (author ? ' by ' + author : '')).trim();
-          } else {
-            text = await fetchGutenbergPreview(gid);
-            if (!text) {
-              text = (title + (author ? ' by ' + author : '')).trim();
-            }
+          const gid = chip.getAttribute('data-gid');
+          if (!gid) return;
+          chip.setAttribute('aria-pressed', 'true');
+          chip.textContent = '⏸ Stop';
+          try{
+            const text = await fetchSnippet(gid);
+            currentUtterance = speak(text);
+            currentUtterance.onend = () => {
+              chip.setAttribute('aria-pressed', 'false');
+              chip.textContent = '🔊 Listen';
+              speaking = false;
+            };
+            speaking = true;
+          }catch(err){
+            console.error('listen preview error', err);
+            chip.setAttribute('aria-pressed', 'false');
+            chip.textContent = '🔊 Listen';
+            speaking = false;
+            alert('Audio preview unavailable right now.');
           }
-        } else {
-          // Other sources typically don’t expose raw text; do a title preview
-          text = (title + (author ? ' by ' + author : '')).trim();
-        }
-
-        cachedText = text;
-        mpSnippet.textContent = (text && text.length > 160) ? (text.slice(0, 160) + '…') : (text || '—');
-
-        // Update button states
-        if (currentButton && currentButton !== btn) {
-          currentButton.setAttribute('aria-pressed','false');
-          currentButton.textContent = '🔊 Listen';
-        }
-        currentButton = btn;
-        currentButton.setAttribute('aria-pressed','true');
-        currentButton.textContent = '⏸ Pause';
-
-        speak(text);
+        });
       });
     })();
   </script>
