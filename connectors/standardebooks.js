@@ -1,15 +1,14 @@
 // connectors/standardebooks.js
-// Deploy-safe connector so the app never crashes if Standard Ebooks is offline
-// or their OPDS changes. We'll upgrade this to real OPDS search next.
-// It returns [] for now, but has the SAME shape your routes expect.
+// Safe stub connector so your server never crashes if this source is missing
+// or temporarily disabled. We’ll upgrade this to real OPDS search later.
 
 let warned = false;
 
 /**
- * searchStandardEbooks(q, opts?)
- * Returns Promise<Array> of cards, but currently [] until we wire OPDS.
+ * searchStandardEbooks(query, opts?)
+ * Returns [] for now (no-op), but matches the function signature your routes call.
  */
-async function searchStandardEbooks(q, opts = {}) {
+async function searchStandardEbooks(_q, _opts = {}) {
   if (!warned) {
     console.warn('[standardebooks] stub loaded (returns 0 results for now).');
     warned = true;
@@ -17,8 +16,7 @@ async function searchStandardEbooks(q, opts = {}) {
   return [];
 }
 
-// Export **as a function** (what your routes call)
+// Export as a callable function (what routes expect)
 module.exports = searchStandardEbooks;
-
-// Also expose .search for code paths that import as an object
+// Also expose `.search` for object-style imports
 module.exports.search = searchStandardEbooks;
