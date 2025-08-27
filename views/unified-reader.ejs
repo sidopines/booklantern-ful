@@ -2,238 +2,356 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : 'Reader',
-    pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Read in a clean, unified reader.'
+    pageTitle: (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'Reader',
+    pageDescription: (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Read in a distraction-free viewer.'
   }) %>
   <style>
-    :root {
-      --bg: #ffffff; --ink:#0f172a; --muted:#475569; --panel:#f8fafc; --border:#e2e8f0;
-      --accent:#4f46e5;
+    :root{
+      --bg:#ffffff; --fg:#0f172a; --muted:#64748b; --panel:#f1f5f9; --accent:#4f46e5;
+      --btn:#111827; --btnfg:#fff; --chip:#e5e7eb;
     }
-    @media (prefers-color-scheme: dark) {
-      :root { --bg:#0b0f17; --ink:#e5e7eb; --muted:#94a3b8; --panel:#0f1420; --border:#1f2937; }
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-    header {
-      position:sticky; top:0; z-index:5;
-      display:flex; align-items:center; gap:.5rem;
-      padding:.5rem 1rem; border-bottom:1px solid var(--border); background:linear-gradient(var(--panel), var(--panel));
-      backdrop-filter:saturate(1.2) blur(6px);
-    }
-    header .title { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    header .grow { flex:1 1 auto }
-    header .btn { border:1px solid var(--border); background:#fff0; color:var(--ink); padding:.35rem .6rem; border-radius:.6rem; cursor:pointer }
-    header .btn.primary { background:var(--accent); color:#fff; border-color:transparent }
-    header .btn:disabled{opacity:.5; cursor:not-allowed}
-    header .seg { display:flex; gap:.35rem; align-items:center }
-    header input[type=range]{ vertical-align:middle }
+    [data-theme="sepia"]{ --bg:#f6efe5; --fg:#3b2f2f; --panel:#efe7dc; --muted:#6b5e55; }
+    [data-theme="dark"]{ --bg:#0b1220; --fg:#e5e7eb; --panel:#0f172a; --muted:#94a3b8; --chip:#111827; }
 
-    main { max-width: 880px; margin: 0 auto; padding: 1.25rem; }
-    .page { min-height: calc(100dvh - 70px); }
-    .page h1,.page h2,.page h3 { line-height:1.25 }
-    .page img { max-width:100%; height:auto }
-    .page a { color:#2563eb; text-decoration:none }
-    .page a:hover { text-decoration:underline }
-    .loading { color: var(--muted); padding:2rem 0; text-align:center }
-    .error { color: #b91c1c; padding:1rem; border:1px solid #fecaca; background:#fef2f2; border-radius:.6rem }
-    .hint  { color: var(--muted); font-size:.9rem }
-    .sr-only{ position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden }
+    html,body{height:100%}
+    body{
+      margin:0;background:var(--bg);color:var(--fg);font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    .topbar{
+      position:sticky;top:0;z-index:40;background:rgba(255,255,255,.75);
+      backdrop-filter:saturate(180%) blur(8px);
+      border-bottom:1px solid rgba(0,0,0,.08);
+      display:flex;gap:.5rem;align-items:center; padding:.5rem .75rem;
+    }
+    [data-theme="dark"] .topbar{ background:rgba(15,23,42,.75); border-bottom-color:rgba(255,255,255,.08); }
+    .topbar .title{font-weight:600;margin-left:.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .topbar .author{color:var(--muted);font-weight:500;margin-left:.5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .spacer{flex:1}
+    .btn{border:1px solid rgba(0,0,0,.12); background:var(--panel); color:var(--fg); padding:.4rem .6rem; border-radius:.55rem; font-weight:600; cursor:pointer}
+    .btn.primary{background:var(--accent); color:#fff; border-color:transparent}
+    .btn.icon{padding:.35rem .5rem}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .seg{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .4rem;border-radius:.5rem;background:var(--panel);border:1px solid rgba(0,0,0,.06)}
+    input[type="range"]{vertical-align:middle}
+    select{background:var(--panel); color:var(--fg); border:1px solid rgba(0,0,0,.12); border-radius:.4rem; padding:.25rem .45rem}
+
+    .wrap{display:grid;grid-template-columns: 1fr min(55rem, 100%) 1fr; column-gap:1rem; min-height:calc(100% - 54px)}
+    .col{grid-column:2; padding:1rem}
+    .page{
+      position:relative; margin:0 auto; min-height:calc(100vh - 8rem); background:var(--bg);
+      box-shadow:0 1px 1px rgba(0,0,0,.04), 0 12px 28px rgba(0,0,0,.06);
+      border-radius:1rem; overflow:hidden;
+    }
+    #epubView, #htmlView{ height: calc(100vh - 8rem); }
+    #htmlContent{ padding: min(6vw, 3rem); line-height:1.7; font-size: clamp(1rem, 1.2vw + .75rem, 1.2rem); }
+    #htmlContent h1, #htmlContent h2, #htmlContent h3{ line-height:1.25 }
+    .pager{
+      position:absolute; inset:0; display:flex; justify-content:space-between; align-items:center; pointer-events:none;
+    }
+    .pager button{
+      pointer-events:auto; border:none; background:rgba(0,0,0,.07); color:#fff;
+      width:40px;height:40px;border-radius:999px;display:grid;place-items:center; margin: 0 .5rem;
+    }
+    [data-theme="dark"] .pager button{ background:rgba(255,255,255,.12) }
+    .hint{color:var(--muted); font-size:.9rem; padding:.5rem .75rem}
+    .status{font-variant-numeric:tabular-nums;color:var(--muted); font-size:.9rem;margin-left:.5rem}
+    .toast{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:.6rem .8rem;border-radius:.5rem;box-shadow:0 6px 16px rgba(0,0,0,.25);display:none}
+    .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;background:var(--chip);padding:.1rem .4rem;border-radius:.35rem;border:1px solid rgba(0,0,0,.08);font-size:.85em}
   </style>
+
+  <!-- ePub.js for EPUB mode -->
+  <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3/dist/epub.min.js" defer></script>
+  <!-- DOMPurify for HTML mode sanitization -->
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js" defer></script>
 </head>
-<body
-  data-mode="<%= typeof mode !== 'undefined' ? mode : 'gutenberg' %>"
-  data-src ="<%= typeof src  !== 'undefined' ? src  : '' %>"
->
+<body data-theme="light">
   <%- include('./partials/navbar.ejs') %>
 
-  <header>
-    <button class="btn" id="backBtn" title="Back">← Back</button>
-    <div class="title" id="bookTitle"><%= typeof pageTitle !== 'undefined' ? pageTitle : 'Book' %></div>
-    <div class="grow"></div>
+  <div class="topbar" role="toolbar" aria-label="Reader toolbar">
+    <a class="btn icon" href="javascript:history.back()" aria-label="Back">← Back</a>
+    <div class="title"><%= (typeof title !== 'undefined' && title) ? title : 'Book' %></div>
+    <% if (typeof author !== 'undefined' && author) { %>
+      <div class="author">by <%= author %></div>
+    <% } %>
+    <span class="status" id="status">idle</span>
+    <div class="spacer"></div>
 
+    <button class="btn icon" id="prevBtn" title="Previous (←)">←</button>
     <div class="seg">
-      <button class="btn" id="prevBtn" title="Previous section">⟵</button>
-      <input id="progress" type="range" min="0" max="100" value="0" aria-label="Progress">
-      <button class="btn" id="nextBtn" title="Next section">⟶</button>
+      <button class="btn icon" id="fontDec" title="A-">A–</button>
+      <button class="btn icon" id="fontInc" title="A+">A+</button>
     </div>
+    <div class="seg" aria-label="Theme">
+      <button class="btn icon" id="themeLight" title="Light">Light</button>
+      <button class="btn icon" id="themeSepia" title="Sepia">Sepia</button>
+      <button class="btn icon" id="themeDark" title="Dark">Dark</button>
+    </div>
+    <button class="btn icon" id="nextBtn" title="Next (→)">→</button>
 
+    <div class="seg" aria-label="TTS">
+      <button class="btn primary" id="ttsPlay">▶︎ Listen</button>
+      <button class="btn" id="ttsStop">■ Stop</button>
+      <button class="btn" id="ttsReadSel" title="Read selection (S)">Read Selection</button>
+    </div>
     <div class="seg">
-      <button class="btn" id="ttsToggle">▶ Listen</button>
-      <button class="btn" id="ttsStop"  disabled>■ Stop</button>
-      <label class="sr-only" for="rate">Rate</label>
-      <input id="rate" type="range" min="0.5" max="2" step="0.1" value="1">
-      <label class="sr-only" for="vol">Volume</label>
-      <input id="vol"  type="range" min="0" max="1" step="0.05" value="1">
+      <label class="hint" for="voiceSel">Voice</label>
+      <select id="voiceSel" aria-label="Voice"></select>
+      <label class="hint" for="rateRange" style="margin-left:.25rem">Rate</label>
+      <input type="range" id="rateRange" min="0.5" max="2" step="0.1" value="1">
+      <label class="hint" for="volRange" style="margin-left:.25rem">Vol</label>
+      <input type="range" id="volRange" min="0" max="1" step="0.05" value="1">
     </div>
-  </header>
+  </div>
 
-  <main>
-    <div id="status" class="loading">Loading book…</div>
-    <article id="page" class="page" aria-live="polite"></article>
-    <p class="hint" id="hint">Tip: Select any passage and press <kbd>S</kbd> to listen only to that selection.</p>
-  </main>
+  <div class="wrap">
+    <div class="col">
+      <div class="page" id="page">
+        <!-- EPUB canvas -->
+        <div id="epubView" hidden></div>
+
+        <!-- HTML canvas -->
+        <div id="htmlView" hidden>
+          <article id="htmlContent" aria-live="polite"></article>
+        </div>
+
+        <div class="pager" aria-hidden="true">
+          <button id="leftOverlay">‹</button>
+          <button id="rightOverlay">›</button>
+        </div>
+      </div>
+      <div class="hint">
+        Keyboard: <span class="kbd">Space</span> Play/Pause • <span class="kbd">Esc</span> Stop •
+        <span class="kbd">←/→</span> Prev/Next page • <span class="kbd">S</span> Read Selection
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script>
-  (() => {
-    const mode = document.body.dataset.mode;     // 'gutenberg' (JSON) or 'html' (proxied HTML)
-    const src  = document.body.dataset.src || ''; // endpoint to fetch
+  (function(){
+    // ────────────────────── Boot params from EJS ───────────────────────────
+    const MODE   = '<%= (typeof mode !== "undefined" && mode) ? mode : (typeof epubUrl !== "undefined" && epubUrl ? "epub" : "html") %>';
+    const GID    = '<%= (typeof gid !== "undefined" && gid) ? gid : "" %>';
+    const EPUB   = '<%= (typeof epubUrl !== "undefined" && epubUrl) ? epubUrl : "" %>';
+    const WS_LANG  = '<%= (typeof wsLang !== "undefined" && wsLang) ? wsLang : "" %>';
+    const WS_TITLE = '<%= (typeof wsTitle !== "undefined" && wsTitle) ? wsTitle : "" %>';
 
-    const elStatus = document.getElementById('status');
-    const elPage   = document.getElementById('page');
-    const elTitle  = document.getElementById('bookTitle');
-    const elProg   = document.getElementById('progress');
+    // Prefer explicit epubUrl; fallback to proxy for Gutenberg gid
+    const EPUB_URL = EPUB || (GID ? ('/proxy/gutenberg-epub/' + encodeURIComponent(GID)) : '');
 
-    const btnBack  = document.getElementById('backBtn');
-    const btnPrev  = document.getElementById('prevBtn');
-    const btnNext  = document.getElementById('nextBtn');
+    const $ = sel => document.querySelector(sel);
+    const statusEl = $('#status');
+    const toastEl = $('#toast');
+    const epubView = $('#epubView');
+    const htmlView = $('#htmlView');
+    const htmlContent = $('#htmlContent');
 
-    const btnTTS   = document.getElementById('ttsToggle');
-    const btnStop  = document.getElementById('ttsStop');
-    const rngRate  = document.getElementById('rate');
-    const rngVol   = document.getElementById('vol');
-
-    btnBack.addEventListener('click', () => history.length > 1 ? history.back() : location.href = '/read');
-
-    let sections = [];
-    let idx = 0;
-
-    function sanitizeHtml(html){
-      // strip script/style and most inline event handlers
-      html = String(html || '');
-      html = html.replace(/<script[\s\S]*?<\/script>/gi,'')
-                 .replace(/<style[\s\S]*?<\/style>/gi,'')
-                 .replace(/\son\w+="[^"]*"/gi,'');
-      return html;
-    }
-    function fromPlainText(txt){
-      const safe = sanitizeHtml(txt)
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      return safe.split(/\n{2,}/).map(p => `<p>${p.trim()}</p>`).join('');
-    }
-    function display(i){
-      idx = Math.max(0, Math.min(i, sections.length - 1));
-      elPage.innerHTML = sections[idx].html;
-      elProg.value = Math.round(100 * (idx+1)/sections.length);
-      window.scrollTo({top:0, behavior:'instant'});
+    function toast(msg){
+      toastEl.textContent = msg;
+      toastEl.style.display = 'block';
+      clearTimeout(toastEl._t);
+      toastEl._t = setTimeout(()=>toastEl.style.display='none', 1600);
     }
 
-    async function load(){
-      try{
-        if (!src) throw new Error('No source provided');
-        let title='';
-
-        if (mode === 'gutenberg'){
-          const r = await fetch(src, { credentials:'same-origin' });
-          if (!r.ok) throw new Error('Fetch failed');
-          const data = await r.json();
-          title = data.title || '';
-          let html;
-          if (data.type === 'html') html = sanitizeHtml(data.content);
-          else html = fromPlainText(data.content || '');
-          sections = splitSections(html);
-        } else if (mode === 'html'){
-          const r = await fetch(src, { credentials:'same-origin' });
-          if (!r.ok) throw new Error('Fetch failed');
-          const data = await r.json(); // { title, html }
-          title = data.title || '';
-          sections = splitSections(sanitizeHtml(data.html || ''));
-        } else {
-          throw new Error('Unknown mode');
-        }
-
-        if (!sections.length) throw new Error('No readable content');
-        elStatus.remove();
-        if (title) elTitle.textContent = title;
-        display(0);
-      } catch(e){
-        elStatus.className = 'error';
-        elStatus.textContent = 'Could not load this book. ' + (e?.message || '');
+    // Theme + font size
+    const themeMap = {
+      light: { bg:'#ffffff', fg:'#0f172a' },
+      sepia: { bg:'#f6efe5', fg:'#3b2f2f' },
+      dark:  { bg:'#0b1220', fg:'#e5e7eb' }
+    };
+    function setTheme(name){
+      document.body.setAttribute('data-theme', name);
+      localStorage.setItem('reader:theme', name);
+      // Apply to ePub.js rendition if any
+      if (window.rendition){
+        const t = name;
+        if (t==='light') window.rendition.themes.default({ body: { background: '#ffffff', color: '#111827' }});
+        if (t==='sepia') window.rendition.themes.register('sepia',{ body:{ background:'#f6efe5', color:'#3b2f2f' }});
+        if (t==='dark')  window.rendition.themes.register('dark', { body:{ background:'#0b1220', color:'#e5e7eb' }});
+        window.rendition.themes.select(t==='light' ? 'default' : t);
       }
     }
-
-    function splitSections(html){
-      // Try to segment by big headings; fallback to chunk by ~5k chars
-      const tmp = document.createElement('div');
-      tmp.innerHTML = html;
-
-      const nodes = [...tmp.querySelectorAll('h1,h2,h3')];
-      if (nodes.length >= 2){
-        const out = [];
-        for (let i=0;i<nodes.length;i++){
-          const start = nodes[i];
-          const end = nodes[i+1];
-          const frag = document.createElement('div');
-          let n = start;
-          while (n && n !== end){
-            const clone = n.cloneNode(true);
-            frag.appendChild(clone);
-            n = n.nextSibling;
-          }
-          out.push({ html: frag.innerHTML });
-        }
-        if (out.length) return out;
-      }
-      // fallback: chunking
-      const clean = tmp.textContent ? fromPlainText(tmp.textContent) : html;
-      const size = 5000;
-      const chunks = [];
-      for (let i=0;i<clean.length;i+=size){
-        chunks.push({ html: clean.slice(i,i+size) });
-      }
-      return chunks;
-    }
-
-    // Navigation
-    btnPrev.addEventListener('click', () => display(idx-1));
-    btnNext.addEventListener('click', () => display(idx+1));
-    elProg.addEventListener('input', e => {
-      const target = Math.round((sections.length-1) * (e.target.value/100));
-      display(target);
-    });
-
-    // ── TTS (Web Speech) ─────────────────────────────────────────
-    let utter = null;
-    function speak(text){
-      stopTTS();
-      utter = new SpeechSynthesisUtterance(text);
-      utter.rate = parseFloat(rngRate.value) || 1;
-      utter.volume = parseFloat(rngVol.value) || 1;
-      speechSynthesis.speak(utter);
-      btnTTS.textContent = '⏸ Pause';
-      btnStop.disabled = false;
-    }
-    function stopTTS(){
-      if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
-      btnTTS.textContent = '▶ Listen';
-      btnStop.disabled = true;
-    }
-    btnTTS.addEventListener('click', () => {
-      if (speechSynthesis.speaking && !speechSynthesis.paused) {
-        speechSynthesis.pause();
-        btnTTS.textContent = '▶ Resume';
-      } else if (speechSynthesis.paused){
-        speechSynthesis.resume();
-        btnTTS.textContent = '⏸ Pause';
+    function adjustFont(delta){
+      const key = 'reader:fontScale';
+      const cur = parseFloat(localStorage.getItem(key) || '1');
+      const next = Math.min(1.6, Math.max(0.8, cur + delta));
+      localStorage.setItem(key, String(next));
+      if (window.rendition) {
+        window.rendition.themes.fontSize(Math.round(next*100)+'%');
       } else {
-        // read visible section
-        speak(elPage.innerText || elPage.textContent || '');
+        htmlContent.style.fontSize = 'calc('+next+' * 1em)';
       }
+    }
+
+    // TTS (Web Speech)
+    let speechUtter = null;
+    let voices = [];
+    const voiceSel  = $('#voiceSel');
+    const rateRange = $('#rateRange');
+    const volRange  = $('#volRange');
+    const tts = {
+      get text(){
+        // If selection exists, prefer it
+        const sel = window.getSelection && String(window.getSelection()).trim();
+        if (sel) return sel;
+        // Otherwise take visible text on page
+        if (MODE==='epub') {
+          const frame = epubView.querySelector('iframe');
+          if (frame && frame.contentDocument) {
+            return frame.contentDocument.body.innerText || '';
+          }
+        }
+        return htmlContent.innerText || '';
+      },
+      speak(text){
+        if (!('speechSynthesis' in window)) { toast('TTS not supported in this browser'); return; }
+        window.speechSynthesis.cancel();
+        speechUtter = new SpeechSynthesisUtterance(text);
+        const vId = voiceSel.value || '';
+        const v = voices.find(x => (x.name + '|' + x.lang) === vId);
+        if (v) speechUtter.voice = v;
+        speechUtter.rate = parseFloat(rateRange.value || '1');
+        speechUtter.volume = parseFloat(volRange.value || '1');
+        statusEl.textContent = 'reading…';
+        window.speechSynthesis.speak(speechUtter);
+        speechUtter.onend = () => { statusEl.textContent = 'idle'; };
+        speechUtter.onerror = () => { statusEl.textContent = 'error'; };
+      },
+      stop(){
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        statusEl.textContent = 'idle';
+      }
+    };
+
+    function populateVoices(){
+      voices = window.speechSynthesis.getVoices().filter(v => /^en|^ar|^hi|^ur|^es|^fr|^de|^it|^pt|^tr|^ru|^zh|^ja|^ko/i.test(v.lang) || true);
+      voiceSel.innerHTML = '';
+      for (const v of voices) {
+        const opt = document.createElement('option');
+        opt.value = v.name + '|' + v.lang;
+        opt.textContent = `${v.name} • ${v.lang}`;
+        voiceSel.appendChild(opt);
+      }
+      const last = localStorage.getItem('reader:voice');
+      if (last) voiceSel.value = last;
+    }
+    if ('speechSynthesis' in window){
+      populateVoices();
+      window.speechSynthesis.onvoiceschanged = populateVoices;
+    }
+
+    voiceSel.addEventListener('change', () => {
+      localStorage.setItem('reader:voice', voiceSel.value || '');
     });
-    btnStop.addEventListener('click', stopTTS);
+    rateRange.addEventListener('input',  () => localStorage.setItem('reader:rate', rateRange.value));
+    volRange.addEventListener('input',   () => localStorage.setItem('reader:vol',  volRange.value));
+
+    // restore TTS sliders
+    (function(){
+      const r = localStorage.getItem('reader:rate'); if (r) rateRange.value = r;
+      const v = localStorage.getItem('reader:vol');  if (v) volRange.value = v;
+    })();
+
+    // Buttons
+    $('#ttsPlay').addEventListener('click', () => {
+      const txt = tts.text.trim();
+      if (!txt) { toast('Nothing to read on this page'); return; }
+      tts.speak(txt);
+    });
+    $('#ttsReadSel').addEventListener('click', () => {
+      const sel = String(window.getSelection ? window.getSelection() : '').trim();
+      if (!sel) { toast('Select some text first'); return; }
+      tts.speak(sel);
+    });
+    $('#ttsStop').addEventListener('click', () => tts.stop());
+
+    $('#prevBtn').addEventListener('click', prevPage);
+    $('#nextBtn').addEventListener('click', nextPage);
+    $('#leftOverlay').addEventListener('click', prevPage);
+    $('#rightOverlay').addEventListener('click', nextPage);
+
+    $('#themeLight').addEventListener('click', () => setTheme('light'));
+    $('#themeSepia').addEventListener('click', () => setTheme('sepia'));
+    $('#themeDark').addEventListener('click',  () => setTheme('dark'));
+
+    $('#fontInc').addEventListener('click', () => adjustFont(+0.05));
+    $('#fontDec').addEventListener('click', () => adjustFont(-0.05));
+
     window.addEventListener('keydown', e => {
-      if (e.key === ' ') { e.preventDefault(); btnTTS.click(); }
-      if (e.key === 'Escape') { stopTTS(); }
-      if (e.key === 'ArrowLeft') { btnPrev.click(); }
-      if (e.key === 'ArrowRight') { btnNext.click(); }
-      if (e.key.toLowerCase() === 's') {
-        const sel = String(window.getSelection());
-        if (sel.trim()) speak(sel.trim());
-      }
+      if (e.key === ' ') { e.preventDefault(); const speaking = speechSynthesis.speaking && !speechSynthesis.paused; if (speaking) speechSynthesis.pause(); else speechSynthesis.resume(); }
+      if (e.key === 'Escape') tts.stop();
+      if (e.key === 'ArrowLeft') prevPage();
+      if (e.key === 'ArrowRight') nextPage();
+      if (e.key.toLowerCase() === 's') document.getElementById('ttsReadSel').click();
     });
 
-    load();
+    // ─────────────────────────── Rendering logic ─────────────────────────────
+    const savedTheme = localStorage.getItem('reader:theme') || 'light';
+    setTheme(savedTheme);
+
+    function showEpub(){
+      epubView.hidden = false; htmlView.hidden = true;
+    }
+    function showHtml(){
+      htmlView.hidden = false; epubView.hidden = true;
+    }
+
+    async function bootEPUB(){
+      if (!EPUB_URL) {
+        showHtml();
+        htmlContent.innerHTML = '<p class="hint">No EPUB provided.</p>';
+        return;
+      }
+      showEpub();
+      statusEl.textContent = 'loading…';
+      try{
+        const book = ePub(EPUB_URL);
+        window.rendition = book.renderTo('epubView', { width:'100%', height:'100%', spread:'auto' });
+        window.rendition.display();
+        // Apply theme + font
+        const scale = parseFloat(localStorage.getItem('reader:fontScale') || '1');
+        if (scale) window.rendition.themes.fontSize(Math.round(scale*100)+'%');
+        setTheme(savedTheme);
+
+        window.rendition.on('rendered', () => { statusEl.textContent = 'ready'; });
+      }catch(err){
+        console.error('epub error', err);
+        showHtml();
+        htmlContent.innerHTML = '<p class="hint">Could not open EPUB. Please try another copy.</p>';
+      }
+    }
+
+    async function bootHTML(){
+      showHtml();
+      statusEl.textContent = 'loading…';
+      try{
+        const r = await fetch(`/read/wikisource/${encodeURIComponent(WS_LANG)}/${encodeURIComponent(WS_TITLE)}/text`, { credentials:'same-origin' });
+        if (!r.ok) throw new Error('bad status');
+        const data = await r.json();
+        const clean = window.DOMPurify ? DOMPurify.sanitize(data.html || '') : (data.html || '');
+        htmlContent.innerHTML = clean || '<p class="hint">No content.</p>';
+        statusEl.textContent = 'ready';
+      }catch(err){
+        console.error('html fetch err', err);
+        htmlContent.innerHTML = '<p class="hint">Unable to load this page.</p>';
+        statusEl.textContent = 'error';
+      }
+    }
+
+    function prevPage(){
+      if (!epubView.hidden && window.rendition) window.rendition.prev();
+      else window.scrollBy({ top: -window.innerHeight*0.85, behavior:'smooth' });
+    }
+    function nextPage(){
+      if (!epubView.hidden && window.rendition) window.rendition.next();
+      else window.scrollBy({ top: window.innerHeight*0.85, behavior:'smooth' });
+    }
+
+    // Boot by mode
+    if (MODE === 'epub') bootEPUB();
+    else bootHTML();
   })();
   </script>
 </body>
