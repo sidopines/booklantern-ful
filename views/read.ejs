@@ -2,159 +2,160 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: 'Read Books Online',
-    pageDescription: "Browse and read books fetched from multiple free sources using BookLantern's modern reader experience."
+    pageTitle: (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'Explore Free Books',
+    pageDescription: (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Search and read books in a clean, unified reader.'
   }) %>
   <style>
-    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#fff; --border:#e5e7eb; --brand:#111; --brandHover:#333; --link:#1256b3; }
-    body { margin:0; background:var(--bg); color:var(--text); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-    .wrap { min-height:100vh; display:flex; flex-direction:column; }
-    main { width:100%; max-width:1100px; margin:0 auto; padding:18px 16px 60px; }
-    .back-link { display:inline-block; margin:6px 0 10px; color:var(--link); text-decoration:none; }
-    h1 { margin:0 0 12px; font-size:1.8rem; }
-    form.search { display:flex; gap:8px; margin:10px 0 16px; }
-    form.search input { flex:1; padding:.7rem .8rem; border:1px solid var(--border); border-radius:10px; background:#fff; font-size:1rem; }
-    form.search button { padding:.7rem 1rem; border:1px solid var(--border); border-radius:10px; background:#fff; cursor:pointer; }
-    .hint { color:var(--muted); font-size:.95rem; }
-    .book-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px,1fr)); gap:14px; margin-top:10px; }
-    .book-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:10px; display:flex; flex-direction:column; gap:8px; }
-    .thumb{ width:100%; aspect-ratio:3/4; background:#f3f4f6; border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; align-items:center; justify-content:center; }
-    .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
-    h3 { font-size:1rem; margin:.2rem 0 .1rem; line-height:1.25; }
-    p.meta { margin:0; color:var(--muted); font-size:.92rem; }
-    .badge{ display:inline-block; font-size:.78rem; padding:.25rem .5rem; border:1px solid var(--border); border-radius:999px; background:#fff; color:#222; }
-    .row { display:flex; align-items:center; gap:8px; justify-content:space-between; }
-    .action a.btn, .btn { padding:.55rem .75rem; border:1px solid var(--border); border-radius:10px; background:#fff; text-decoration:none; color:#111; font-weight:600; font-size:.95rem; display:inline-block; }
-    .listen-chip { font-size:.85rem; padding:.35rem .6rem; border-radius:10px; border:1px solid var(--border); background:#fff; cursor:pointer; }
-    .empty { margin:18px 0; padding:12px; border:1px dashed var(--border); border-radius:12px; color:var(--muted); }
-    footer { text-align:center; color:var(--muted); padding:28px 8px; }
+    .wrap{max-width:1100px;margin:0 auto;padding:1.25rem}
+    .back-link{display:inline-block;margin:.5rem 0 .75rem;color:#334155;text-decoration:none}
+    h1{font-size:1.75rem;margin:.25rem 0 1rem}
+    form.search{display:flex;gap:.5rem;margin-bottom:1.25rem}
+    form.search input[type="text"]{flex:1;border:1px solid #e5e7eb;border-radius:.6rem;padding:.65rem .8rem;font-size:1rem}
+    form.search button{border:1px solid #e5e7eb;background:#111827;color:#fff;border-radius:.6rem;padding:.65rem .95rem;font-weight:600}
+
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:.9rem;overflow:hidden;display:flex;flex-direction:column}
+    .thumb{background:#f8fafc;aspect-ratio:3/4;display:grid;place-items:center}
+    .thumb img{width:100%;height:100%;object-fit:cover}
+    .meta{padding:.75rem}
+    .badge{display:inline-block;font-size:.75rem;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:.5rem;padding:.15rem .45rem;margin-bottom:.45rem}
+    .title{font-weight:700;margin:.25rem 0 .15rem}
+    .author{color:#64748b;font-size:.9rem;margin-bottom:.35rem}
+    .actions{display:flex;gap:.4rem;margin-top:.35rem}
+    .btn{border:1px solid #e2e8f0;background:#fff;border-radius:.55rem;padding:.45rem .6rem;font-weight:600;color:#111827;text-decoration:none;display:inline-flex;align-items:center;gap:.35rem}
+    .btn.primary{background:#4f46e5;color:#fff;border-color:#4f46e5}
+    .btn.small{padding:.35rem .5rem;font-size:.9rem}
+    .hint{color:#64748b;margin:.75rem 0}
+    .empty{border:1px dashed #e2e8f0;border-radius:.75rem;padding:1rem;color:#64748b}
+    @media (max-width:640px){ h1{font-size:1.4rem} }
   </style>
 </head>
 <body>
   <%- include('./partials/navbar.ejs') %>
+
   <div class="wrap">
-    <main>
-      <a href="javascript:history.back()" class="back-link">← Back</a>
-      <h1>📚 Explore Free Books</h1>
+    <a class="back-link" href="javascript:history.back()">← Back</a>
+    <h1>📚 Explore Free Books</h1>
 
-      <form class="search" action="/read" method="GET" novalidate>
-        <input
-          type="text"
-          name="query"
-          placeholder="Search books by title or author"
-          value="<%= typeof query !== 'undefined' ? String(query) : '' %>">
-        <button type="submit">Search</button>
-      </form>
+    <form class="search" action="/read" method="GET" role="search">
+      <input type="text" name="query" placeholder="Search books by title or author" value="<%= (typeof query !== 'undefined' && query) ? query : '' %>" aria-label="Search books">
+      <button type="submit">Search</button>
+    </form>
 
-      <% const hasQuery = (typeof query !== 'undefined' && String(query).trim() !== ''); %>
+    <% const hasQuery = (typeof query !== 'undefined' && String(query).trim() !== ''); %>
 
-      <% if (!books || !Array.isArray(books) || books.length === 0) { %>
-        <% if (hasQuery) { %>
-          <div class="empty">No books found. Try another search term.</div>
-        <% } else { %>
-          <div class="hint">Type a title, author, or topic above to begin.</div>
-        <% } %>
-      <% } else { %>
-        <div class="book-grid">
-          <% books.forEach(function(book){ 
-               const src  = String(book.source || '').toLowerCase();
-               const id   = String(book.identifier || book._id || '');
-               const title = String(book.title || '(Untitled)');
-               const author = String(book.creator || book.author || '');
-               const cover = String(book.cover || '');
-               
-               // detect Gutenberg id
-               const gutenId = id.startsWith('gutenberg:') ? id.split(':')[1] : (src==='gutenberg' ? id : '');
+    <% function textOf(x){ if (!x) return ''; if (Array.isArray(x)) return x.join(', '); if (typeof x === 'object') return (x.name||x.title||x.text||''); return String(x); } %>
 
-               // compute destination
-               let dest = '#';
-               if (String(book.readerUrl || '').trim()) {
-                 dest = String(book.readerUrl);
-               } else if (src === 'gutenberg' && gutenId) {
-                 dest = `/read/gutenberg/${encodeURIComponent(gutenId)}/reader?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
-               } else if (src === 'archive' && (book.archiveId || id.startsWith('archive:'))) {
-                 const aid = book.archiveId || id.split(':')[1] || id;
-                 dest = `/read/book/${encodeURIComponent(aid)}`;
-               }
+    <% if (!books || books.length === 0) { %>
+      <div class="empty">No books found. Try another search term.</div>
+    <% } else { %>
+      <div class="grid">
+        <% books.forEach(function(book){ 
+             const src   = String(book.source || '').toLowerCase();
+             const id    = book.identifier || book._id || '';
+             const title = textOf(book.title) || 'Untitled';
+             const creator = textOf(book.creator || book.author || '');
+             const cover = book.cover || '';
+             const gid   = book.gid || (String(id).startsWith('gutenberg:') ? String(id).split(':')[1] : null);
+             const wsLang  = book.wsLang || '';
+             const wsTitle = book.wsTitle || '';
 
-               // gate guests to auth before reading
-               let finalHref = dest;
-               %>
-            <div class="book-card" data-source="<%= src %>">
-              <a href="<%= finalHref %>" style="text-decoration:none;color:inherit">
-                <div class="thumb">
-                  <% if (cover) { %>
-                    <img src="<%= cover %>" alt="<%= title %>" loading="lazy" referrerpolicy="no-referrer">
-                  <% } else { %>
-                    <span class="hint">No Cover</span>
+             // Decide destination
+             let dest = '#';
+             if (book.readerUrl) {
+               dest = book.readerUrl;
+             } else if (src === 'gutenberg' && gid) {
+               // Force EPUB mode so the reader opens ePub.js
+               const qs = '?mode=epub'
+                 + (title ? ('&title=' + encodeURIComponent(title)) : '')
+                 + (creator ? ('&author=' + encodeURIComponent(creator)) : '');
+               dest = `/read/gutenberg/${encodeURIComponent(gid)}/reader${qs}`;
+             } else if (src === 'wikisource' && wsLang && wsTitle) {
+               dest = `/read/wikisource/${encodeURIComponent(wsLang)}/${encodeURIComponent(wsTitle)}/reader`;
+             } else if (book.pdfUrl) {
+               // Our PDF viewer page (see pdf-viewer.ejs)
+               const qs = '?src=' + encodeURIComponent(book.pdfUrl) 
+                 + (title ? ('&title=' + encodeURIComponent(title)) : '');
+               dest = '/read/pdf' + qs;
+             }
+
+             // Gate visitors to login before reading
+             let finalHref = dest || '#';
+             %>
+          <div class="card" data-source="<%= src %>">
+            <a href="<%= (user ? finalHref : ('/login?next=' + encodeURIComponent(finalHref))) %>" style="text-decoration:none;color:inherit">
+              <div class="thumb">
+                <% if (cover) { %>
+                  <img src="<%= cover %>" alt="" loading="lazy" referrerpolicy="no-referrer">
+                <% } else { %>
+                  <div class="hint">No cover</div>
+                <% } %>
+              </div>
+              <div class="meta">
+                <% if (src) { %>
+                  <div class="badge"><%= (src==='gutenberg'?'Project Gutenberg':(src==='openlibrary'?'Open Library':(src==='archive'?'Archive.org':(src==='wikisource'?'Wikisource':src)))) %></div>
+                <% } %>
+                <div class="title"><%= title %></div>
+                <% if (creator) { %><div class="author"><%= creator %></div><% } %>
+                <div class="actions">
+                  <span class="btn primary small">📖 Read</span>
+                  <% if (src === 'gutenberg' && gid) { %>
+                    <button type="button" class="btn small preview-tts" data-gid="<%= gid %>" data-title="<%- title %>" aria-pressed="false" title="Preview first page by listening">🔊 Listen</button>
                   <% } %>
                 </div>
-                <h3><%= title %></h3>
-                <p class="meta"><%= author %></p>
-                <div class="row">
-                  <span class="badge">
-                    <%= src === 'gutenberg' ? 'Project Gutenberg'
-                      : src === 'archive' ? 'Archive.org'
-                      : src === 'standardebooks' ? 'Standard Ebooks'
-                      : src === 'feedbooks' ? 'Feedbooks PD'
-                      : (src ? src[0].toUpperCase()+src.slice(1) : 'Book') %>
-                  </span>
-                  <% if (src === 'gutenberg') { %>
-                    <button class="listen-chip"
-                            type="button"
-                            data-gid="<%= gutenId %>"
-                            data-title="<%- String(title).replace(/"/g,'&quot;') %>"
-                            data-author="<%- String(author).replace(/"/g,'&quot;') %>"
-                            aria-pressed="false"
-                            title="Preview by listening">
-                      🔊 Listen
-                    </button>
-                  <% } %>
-                </div>
-                <div class="action" style="margin-top:.5rem;">
-                  <span class="btn">📖 Read Now</span>
-                </div>
-              </a>
-            </div>
-          <% }) %>
-        </div>
-      <% } %>
-    </main>
+              </div>
+            </a>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
 
-    <footer>
-      &copy; <%= new Date().getFullYear() %> BookLantern • Built on open libraries • <a href="/about">About</a>
-    </footer>
+    <div class="hint" style="margin-top:1rem">
+      Tip: “Listen” previews read the first page of a Project Gutenberg book without leaving this page.
+    </div>
   </div>
 
   <script>
-    // Optional: preview "Listen" using the first page of Gutenberg text
-    document.addEventListener('click', async (e) => {
-      const btn = e.target.closest('.listen-chip');
-      if (!btn) return;
-      const gid = btn.getAttribute('data-gid');
-      if (!gid) return;
-      btn.disabled = true;
-      try{
-        const r = await fetch(`/read/gutenberg/${encodeURIComponent(gid)}/text`, { credentials:'same-origin' });
-        const data = await r.json();
-        if (data && (data.content || '').length) {
-          const excerpt = String(data.content).slice(0, 3500).replace(/\s+/g,' ').trim();
-          window.speechSynthesis.cancel();
-          const u = new SpeechSynthesisUtterance(excerpt);
-          u.rate = 1; u.pitch = 1;
-          const voices = window.speechSynthesis.getVoices();
-          if (voices && voices.length) u.voice = voices.find(v => /en/i.test(v.lang)) || voices[0];
-          window.speechSynthesis.speak(u);
-        } else {
-          alert('Could not load a preview for this title.');
-        }
-      }catch(err){
-        console.error('listen preview error', err);
-        alert('Preview failed. Try opening the book then tap Listen.');
-      }finally{
-        btn.disabled = false;
+    // Tiny “Listen preview” for Gutenberg cards
+    (function(){
+      const buttons = document.querySelectorAll('.preview-tts');
+      if (!('speechSynthesis' in window)) return;
+
+      function speak(text){
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 1.0; u.volume = 1.0;
+        window.speechSynthesis.speak(u);
       }
-    });
+      async function firstChunk(gid){
+        try{
+          const r = await fetch('/read/gutenberg/' + encodeURIComponent(gid) + '/text', { credentials:'same-origin' });
+          if (!r.ok) return '';
+          const data = await r.json();
+          let raw = (data && data.content) ? data.content : '';
+          if (data && data.type === 'html') {
+            const div = document.createElement('div');
+            div.innerHTML = raw;
+            raw = div.textContent || div.innerText || '';
+          }
+          // take a sensible bite
+          return String(raw).trim().slice(0, 1200);
+        }catch(e){
+          return '';
+        }
+      }
+      buttons.forEach(btn => {
+        btn.addEventListener('click', async (ev)=>{
+          ev.preventDefault(); ev.stopPropagation();
+          const gid = btn.getAttribute('data-gid');
+          btn.disabled = true; btn.textContent = '⏳';
+          const chunk = await firstChunk(gid);
+          btn.disabled = false; btn.textContent = '🔊 Listen';
+          if (!chunk) { alert('Could not fetch a preview.'); return; }
+          speak(chunk);
+        });
+      });
+    })();
   </script>
 </body>
 </html>
