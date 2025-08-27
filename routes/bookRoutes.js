@@ -10,21 +10,41 @@ function str(v) {
 function card({ identifier, title, creator = '', cover = '', source, readerUrl = '', archiveId = '' }) {
   return { identifier, title: str(title), creator: str(creator), cover, source, readerUrl, archiveId };
 }
-const safe = (fn) => async (...args) => {
-  try { return await fn(...args); } catch (e) { console.error('[connector failed]', fn.name || 'fn', e.message); return []; }
+
+// Load a connector function robustly (supports CommonJS named, default, or module-as-fn)
+function loadFn(modulePath, exportName) {
+  try {
+    const mod = require(modulePath);
+    const fn = (exportName ? mod?.[exportName] : undefined) || mod?.default || mod;
+    if (typeof fn !== 'function') {
+      console.warn(`[connector] ${modulePath}${exportName ? '.' + exportName : ''} missing/not a function — disabling`);
+      return async () => [];
+    }
+    return fn;
+  } catch (e) {
+    console.warn(`[connector] ${modulePath} failed to load — disabling`, e.message);
+    return async () => [];
+  }
+}
+
+// Safety wrapper so a failing connector never breaks the page
+const safe = (fn, label = 'connector') => async (...args) => {
+  if (typeof fn !== 'function') return [];
+  try { return await fn(...args); }
+  catch (e) { console.error(`[${label}] error:`, e.message); return []; }
 };
 
-/* ───────────────────── Connectors (named exports) ───────────────────── */
-const { searchGutenberg }       = require('../connectors/gutenberg');
-const { searchWikisource }      = require('../connectors/wikisource');
-const { searchStandardEbooks }  = require('../connectors/standardebooks');
-const { searchOpenLibrary }     = require('../connectors/openlibrary');
-const { searchHathiTrust }      = require('../connectors/hathitrust');
-const { searchLOC }             = require('../connectors/loc');
-const { searchFeedbooks }       = require('../connectors/feedbooks');
+/* ───────────────────── Connectors (loaded safely) ───────────────────── */
+const searchGutenberg       = loadFn('../connectors/gutenberg',       'searchGutenberg');
+const searchWikisource      = loadFn('../connectors/wikisource',      'searchWikisource');
+const searchStandardEbooks  = loadFn('../connectors/standardebooks',  'searchStandardEbooks');
+const searchOpenLibrary     = loadFn('../connectors/openlibrary',     'searchOpenLibrary');
+const searchHathiTrust      = loadFn('../connectors/hathitrust',      'searchHathiTrust');
+const searchLOC             = loadFn('../connectors/loc',             'searchLOC');
+const searchFeedbooks       = loadFn('../connectors/feedbooks',       'searchFeedbooks');
 
-/* ───────────────── Internet Archive (inline connector) ─────────────────
-   Return only “free to read” collections; avoid borrow-only where possible. */
+/* ─────────────── Internet Archive (inline connector) ───────────────
+   Prefer “free to read” collections and avoid borrow-only where possible. */
 async function searchArchive(q, rows = 36) {
   const clause = `${q} AND mediatype:(texts) AND -collection:(inlibrary printdisabled)`;
   const api = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(clause)}&fl[]=identifier&fl[]=title&fl[]=creator&fl[]=collection&rows=${rows}&page=1&output=json`;
@@ -49,6 +69,12 @@ async function searchArchive(q, rows = 36) {
   });
 }
 
+/* ───────────────────────── Auth gate ───────────────────────── */
+function requireUser(req, res, next){
+  if (!req.session?.user) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
+  next();
+}
+
 /* ───────────────────────────── /read search ───────────────────────────── */
 router.get('/read', async (req, res) => {
   try {
@@ -63,46 +89,45 @@ router.get('/read', async (req, res) => {
       });
     }
 
-    // Run connectors in parallel (guarded with safe())
     const [
       gb, se, ws, ia, ol, ht, lc, fb
     ] = await Promise.all([
-      safe(searchGutenberg)(query, 40),
-      safe(searchStandardEbooks)(query, 24),
-      safe(searchWikisource)(query, 24),
-      safe(searchArchive)(query, 36),
-      safe(searchOpenLibrary)(query, 48),
-      safe(searchHathiTrust)(query, 24),
-      safe(searchLOC)(query, 24),
-      safe(searchFeedbooks)(query, 24),
+      safe(searchGutenberg,      'gutenberg')(query, 40),
+      safe(searchStandardEbooks, 'standardebooks')(query, 24),
+      safe(searchWikisource,     'wikisource')(query, 24),
+      safe(searchArchive,        'archive')(query, 36),
+      safe(searchOpenLibrary,    'openlibrary')(query, 48),
+      safe(searchHathiTrust,     'hathitrust')(query, 24),
+      safe(searchLOC,            'loc')(query, 24),
+      safe(searchFeedbooks,      'feedbooks')(query, 24),
     ]);
 
-    // Normalize to our card shape + point readers to our on-site views
+    // Normalize results into cards + ensure on-site readers
     const mapGutenberg = gb.map(b => {
       const gid = String(b.id || b.gid || (b.identifier || '').replace(/^gutenberg:/,'')).replace(/[^0-9]/g,'');
       const cover = b.cover || (gid ? `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.cover.medium.jpg` : '');
+      const author = b.creator || (Array.isArray(b.authors) ? b.authors[0]?.name : b.authors?.name) || '';
       return card({
         identifier: `gutenberg:${gid}`,
-        title: b.title,
-        creator: b.creator || (b.authors && b.authors[0]?.name) || '',
+        title: b.title || '',
+        creator: author,
         cover,
         source: 'gutenberg',
-        readerUrl: `/read/gutenberg/${gid}/reader`
+        readerUrl: gid ? `/read/gutenberg/${gid}/reader` : ''
       });
-    });
+    }).filter(x => x.readerUrl);
 
     const mapSE = se.map(b => {
-      // Standard Ebooks returns a direct EPUB URL; open in our reader via src
-      const epubUrl = b.epub || b.href || b.url || '';
+      const epubUrl = str(b.epub || b.href || b.url || '');
       return card({
         identifier: `standardebooks:${b.id || b.slug || epubUrl}`,
-        title: b.title,
+        title: b.title || '',
         creator: b.creator || b.author || '',
         cover: b.cover || '',
         source: 'standardebooks',
-        readerUrl: `/read/epub?src=${encodeURIComponent(epubUrl)}&title=${encodeURIComponent(str(b.title))}&author=${encodeURIComponent(str(b.creator || b.author || ''))}`
+        readerUrl: epubUrl ? `/read/epub?src=${encodeURIComponent(epubUrl)}&title=${encodeURIComponent(str(b.title))}&author=${encodeURIComponent(str(b.creator || b.author || ''))}` : ''
       });
-    });
+    }).filter(x => x.readerUrl);
 
     const mapWS = ws.map(b => {
       const lang = b.lang || 'en';
@@ -113,59 +138,58 @@ router.get('/read', async (req, res) => {
         creator: b.creator || b.author || '',
         cover: b.cover || '',
         source: 'wikisource',
-        readerUrl: `/read/wikisource/${encodeURIComponent(lang)}/${encodeURIComponent(title)}/reader`
+        readerUrl: (lang && title) ? `/read/wikisource/${encodeURIComponent(lang)}/${encodeURIComponent(title)}/reader` : ''
       });
-    });
+    }).filter(x => x.readerUrl);
 
-    const mapIA = ia.map(x => x); // already card()-shaped in searchArchive
+    const mapIA = ia.map(x => x); // already normalized
 
     const mapOL = ol.map(b => {
-      // Only include items that are marked readable by the connector
       return card({
         identifier: b.identifier || b.id || '',
-        title: b.title,
+        title: b.title || '',
         creator: b.creator || b.author || '',
         cover: b.cover || '',
         source: 'openlibrary',
-        readerUrl: b.readerUrl || '' // connector should set this
+        readerUrl: b.readerUrl || ''
       });
     }).filter(x => x.readerUrl);
 
     const mapHathi = ht.map(b => {
-      // Hathi full-view → our PDF viewer
+      const pdf = str(b.pdf || b.url || '');
       return card({
-        identifier: `hathi:${b.id || b.url}`,
-        title: b.title,
+        identifier: `hathi:${b.id || pdf}`,
+        title: b.title || '',
         creator: b.creator || b.author || '',
         cover: b.cover || '',
         source: 'hathitrust',
-        readerUrl: `/read/pdf?src=${encodeURIComponent(b.pdf || b.url)}&title=${encodeURIComponent(str(b.title))}`
+        readerUrl: pdf ? `/read/pdf?src=${encodeURIComponent(pdf)}&title=${encodeURIComponent(str(b.title || 'HathiTrust'))}` : ''
       });
-    });
+    }).filter(x => x.readerUrl);
 
     const mapLOC = lc.map(b => {
+      const pdf = str(b.pdf || b.url || '');
       return card({
-        identifier: `loc:${b.id || b.url}`,
-        title: b.title,
+        identifier: `loc:${b.id || pdf}`,
+        title: b.title || '',
         creator: b.creator || b.author || '',
         cover: b.cover || '',
         source: 'loc',
-        readerUrl: `/read/pdf?src=${encodeURIComponent(b.pdf || b.url)}&title=${encodeURIComponent(str(b.title))}`
+        readerUrl: pdf ? `/read/pdf?src=${encodeURIComponent(pdf)}&title=${encodeURIComponent(str(b.title || 'Library of Congress'))}` : ''
       });
-    });
+    }).filter(x => x.readerUrl);
 
     const mapFB = fb.map(b => {
-      // Many Feedbooks items are public-domain EPUBs
-      const epub = b.epub || b.url || '';
+      const epub = str(b.epub || b.url || '');
       return card({
         identifier: `feedbooks:${b.id || epub}`,
-        title: b.title,
+        title: b.title || '',
         creator: b.creator || b.author || '',
         cover: b.cover || '',
         source: 'feedbooks',
-        readerUrl: `/read/epub?src=${encodeURIComponent(epub)}&title=${encodeURIComponent(str(b.title))}&author=${encodeURIComponent(str(b.creator || b.author || ''))}`
+        readerUrl: epub ? `/read/epub?src=${encodeURIComponent(epub)}&title=${encodeURIComponent(str(b.title))}&author=${encodeURIComponent(str(b.creator || b.author || ''))}` : ''
       });
-    });
+    }).filter(x => x.readerUrl);
 
     const books = [
       ...mapSE,
@@ -178,7 +202,9 @@ router.get('/read', async (req, res) => {
       ...mapOL,
     ];
 
-    console.log(`READ SEARCH "${query}" — gb:${mapGutenberg.length} se:${mapSE.length} ws:${mapWS.length} ia:${mapIA.length} ol:${mapOL.length} ht:${mapHathi.length} loc:${mapLOC.length} fb:${mapFB.length} merged:${books.length}`);
+    console.log(
+      `READ SEARCH "${query}" — gb:${mapGutenberg.length} se:${mapSE.length} ws:${mapWS.length} ia:${mapIA.length} ol:${mapOL.length} ht:${mapHathi.length} loc:${mapLOC.length} fb:${mapFB.length} merged:${books.length}`
+    );
 
     return res.render('read', {
       pageTitle: `Search • ${query}`,
@@ -200,11 +226,6 @@ router.get('/read', async (req, res) => {
 });
 
 /* ─────────────── Internet Archive internal viewer (on-site) ─────────────── */
-function requireUser(req, res, next){
-  if (!req.session?.user) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
-  next();
-}
-
 router.get('/read/book/:identifier', requireUser, async (req, res) => {
   const id = String(req.params.identifier || '').trim();
   if (!id) return res.redirect('/read');
@@ -261,7 +282,7 @@ router.get('/read/gutenberg/:gid/reader', requireUser, (req, res) => {
   });
 });
 
-/* ─────────────── Generic EPUB reader (for Standard Ebooks, etc.) ─────────────── */
+/* ─────────────── Generic EPUB reader (Standard Ebooks, Feedbooks, etc.) ─────────────── */
 router.get('/read/epub', requireUser, (req, res) => {
   const src = String(req.query.src || '');
   if (!src) return res.redirect('/read');
@@ -288,7 +309,6 @@ router.get('/read/wikisource/:lang/:title/reader', requireUser, (req, res) => {
 router.get('/read/wikisource/:lang/:title/text', requireUser, async (req, res) => {
   try {
     const { lang, title } = req.params;
-    // Pull rendered HTML from REST API
     const url = `https://${lang}.wikisource.org/api/rest_v1/page/html/${encodeURIComponent(title)}`;
     const r = await fetch(url, { headers: { 'Accept': 'text/html' } });
     if (!r.ok) return res.status(404).json({ error: 'not found' });
