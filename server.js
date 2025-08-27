@@ -12,6 +12,7 @@ const bookRoutes  = require('./routes/bookRoutes');
 const indexRoutes = require('./routes/index');
 const homeRoutes  = require('./routes/homeRoutes'); // /api/featured-books, /api/shelves
 const adminRoutes = require('./routes/admin');      // Admin console
+const pdfRoutes   = require('./routes/pdf');        // <-- NEW: /read/pdf
 
 // Models used on server routes
 const Video = require('./models/Video');
@@ -83,7 +84,8 @@ app.use('/', homeRoutes);        // /api/featured-books, /api/shelves
 app.use('/', indexRoutes);       // home / about / contact
 app.use('/', authRoutes);        // login / register / dashboard / settings
 app.use('/admin', adminRoutes);  // Admin console (protected by middleware)
-app.use('/', bookRoutes);        // /read, /read/book/:identifier, bookmarks, favorites
+app.use('/', pdfRoutes);         // <-- NEW: /read/pdf inline viewer
+app.use('/', bookRoutes);        // /read, /read/book/:identifier, Gutenberg reader, etc.
 
 // Public watch + player
 app.get('/watch', async (req, res) => {
