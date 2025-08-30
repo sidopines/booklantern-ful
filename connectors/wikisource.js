@@ -1,9 +1,6 @@
 // connectors/wikisource.js
-// Finds Wikisource pages that are likely complete works and opens in HTML mode.
-
 const UA = 'BookLanternBot/1.0 (+https://booklantern.org)';
 
-// Very small heuristic: prefer the title match on the language you pass in; default en
 function cardFromTitle(lang, title, subtitle = '', thumb = '') {
   return {
     identifier: `wikisource:${lang}:${title}`,
@@ -26,7 +23,6 @@ async function searchWikisource(q, limit = 20, lang = 'en') {
     for (const k of Object.keys(pages)) {
       const p = pages[k];
       if (!p || !p.title) continue;
-      // Skip obvious index/author/category pages
       if (/^(Index|Author|Category):/i.test(p.title)) continue;
       out.push(cardFromTitle(lang, p.title, p.description || '', p.thumbnail?.source || ''));
     }
