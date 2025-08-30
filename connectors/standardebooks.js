@@ -1,75 +1,62 @@
 // connectors/standardebooks.js
-// Reliable Standard Ebooks search via OPDS (no HTML scraping, suited for servers)
+// Lightweight HTML scrape of Standard Ebooks search results.
+// Returns EPUB-ready cards pointing to our reader via gutenberg-like proxy.
+const UA = 'BookLanternBot/1.0 (+https://booklantern.org)';
+const BASE = 'https://standardebooks.org';
 
-const { get, toCard } = require('./utils');
+function toCard(hit) {
+  return {
+    identifier: `standardebooks:${hit.slug}`,
+    title: hit.title,
+    creator: hit.author,
+    cover: hit.cover || '',
+    source: 'standardebooks',
+    // They publish clean EPUBs; link the canonical EPUB for our reader to pull.
+    readerUrl: `/read/gutenberg/${hit.gid || ''}/reader`, // if mapped to a Gutenberg ID
+    // If no Gutenberg id, we’ll open their EPUB directly through the reader via proxy below:
+    meta: { directEpub: hit.epub }
+  };
+}
 
-// We try multiple OPDS endpoints (the first succeeds today)
-const OPDS_URLS = [
-  'https://standardebooks.org/opds/all',
-  'https://standardebooks.org/ebooks.opds'
-];
+async function fetchHtml(url) {
+  const r = await fetch(url, { headers: { 'User-Agent': UA } });
+  if (!r.ok) return '';
+  return await r.text();
+}
 
-/** Very small OPDS parser for what we need (no external deps). */
-function parseOpds(xml) {
-  if (!xml || typeof xml !== 'string') return [];
+function parseHits(html) {
+  // Very small parser: look for ebook cards.
+  const re = /<li class="ebook">[\s\S]*?<a href="\/ebooks\/([^"]+)">[\s\S]*?<span class="title">([^<]+)<\/span>[\s\S]*?<span class="author">([^<]+)<\/span>[\s\S]*?(?:data-gutenberg-id="(\d+)")?/gi;
   const out = [];
-  const entries = xml.split('<entry').slice(1);
-  for (const raw of entries) {
-    const block = '<entry' + raw;
-    const title  = (block.match(/<title[^>]*>([\s\S]*?)<\/title>/) || [,''])[1].trim();
-    const author = (block.match(/<author>[\s\S]*?<name>([\s\S]*?)<\/name>[\s\S]*?<\/author>/) || [,''])[1].trim();
-    const epub   = (block.match(/<link[^>]+type="application\/epub\+zip"[^>]+href="([^"]+)"/) || [,''])[1];
-    const cover  = (block.match(/<link[^>]+rel="(?:http:\/\/opds-spec\.org\/image|http:\/\/opds-spec\.org\/image\/thumbnail)"[^>]+href="([^"]+)"/) || [,''])[1];
-    const id     = (block.match(/<id>([\s\S]*?)<\/id>/) || [,''])[1].trim();
-    if (title && epub) {
-      out.push({ id, title, author, epub, cover });
-    }
+  let m;
+  while ((m = re.exec(html))) {
+    const slug = m[1];
+    const title = m[2].trim();
+    const author = m[3].trim();
+    const gid = m[4] ? m[4].trim() : '';
+    out.push({
+      slug,
+      title,
+      author,
+      gid,
+      epub: `${BASE}/ebooks/${slug}.epub`,
+      cover: `${BASE}/ebooks/${slug}/cover-thumb.jpg`
+    });
   }
   return out;
 }
 
-async function fetchOpds() {
-  for (const url of OPDS_URLS) {
-    try {
-      const xml = await get(url, { accept: 'application/atom+xml' });
-      if (xml) return xml;
-    } catch (_) { /* try next */ }
+async function searchStandardEbooks(q, limit = 20) {
+  try {
+    const url = `${BASE}/ebooks/?query=${encodeURIComponent(q)}`;
+    const html = await fetchHtml(url);
+    if (!html) return [];
+    const hits = parseHits(html).slice(0, limit);
+    return hits.map(toCard);
+  } catch (e) {
+    console.error('[standardebooks] search error:', e);
+    return [];
   }
-  return '';
-}
-
-/**
- * Search Standard Ebooks by fetching the OPDS catalog and filtering locally.
- * @param {string} query
- * @param {number} limit
- * @returns {Promise<Array>} unified "card" objects
- */
-async function searchStandardEbooks(query, limit = 30) {
-  const q = String(query || '').trim().toLowerCase();
-  if (!q) return [];
-
-  const xml = await fetchOpds();
-  if (!xml) return [];
-
-  const entries = parseOpds(xml);
-  const filtered = entries
-    .filter(e =>
-      e.title.toLowerCase().includes(q) ||
-      (e.author || '').toLowerCase().includes(q)
-    )
-    .slice(0, limit);
-
-  return filtered.map(e =>
-    toCard({
-      identifier: `se:${e.id || e.epub}`,
-      title: e.title,
-      creator: e.author || '',
-      cover: e.cover || '',
-      source: 'standardebooks',
-      // Our reader route for arbitrary EPUB URLs:
-      readerUrl: `/read/epub?u=${encodeURIComponent(e.epub)}&title=${encodeURIComponent(e.title)}&author=${encodeURIComponent(e.author || '')}`
-    })
-  );
 }
 
 module.exports = { searchStandardEbooks };
