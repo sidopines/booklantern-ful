@@ -59,9 +59,12 @@
              const gid   = book.gid || (String(id).startsWith('gutenberg:') ? String(id).split(':')[1] : null);
              const wsLang  = book.wsLang || '';
              const wsTitle = book.wsTitle || '';
+             const accessBadge = book.accessBadge || '';
 
              // Decide destination
              let dest = '#';
+             let isDisabled = false;
+             
              if (book.readerUrl) {
                dest = book.readerUrl;
              } else if (src === 'gutenberg' && gid) {
@@ -77,34 +80,63 @@
                const qs = '?src=' + encodeURIComponent(book.pdfUrl) 
                  + (title ? ('&title=' + encodeURIComponent(title)) : '');
                dest = '/read/pdf' + qs;
+             } else if (accessBadge) {
+               // Open Library book that requires borrowing/login
+               isDisabled = true;
+               dest = '#';
              }
 
-             // Gate visitors to login before reading
-             let finalHref = dest || '#';
+             // Gate visitors to login before reading (unless disabled)
+             let finalHref = isDisabled ? '#' : (dest || '#');
              %>
           <div class="card" data-source="<%= src %>">
-            <a href="<%= (user ? finalHref : ('/login?next=' + encodeURIComponent(finalHref))) %>" style="text-decoration:none;color:inherit">
-              <div class="thumb">
-                <% if (cover) { %>
-                  <img src="<%= cover %>" alt="" loading="lazy" referrerpolicy="no-referrer">
-                <% } else { %>
-                  <div class="hint">No cover</div>
-                <% } %>
-              </div>
-              <div class="meta">
-                <% if (src) { %>
-                  <div class="badge"><%= (src==='gutenberg'?'Project Gutenberg':(src==='openlibrary'?'Open Library':(src==='archive'?'Archive.org':(src==='wikisource'?'Wikisource':src)))) %></div>
-                <% } %>
-                <div class="title"><%= title %></div>
-                <% if (creator) { %><div class="author"><%= creator %></div><% } %>
-                <div class="actions">
-                  <span class="btn primary small">📖 Read</span>
-                  <% if (src === 'gutenberg' && gid) { %>
-                    <button type="button" class="btn small preview-tts" data-gid="<%= gid %>" data-title="<%- title %>" aria-pressed="false" title="Preview first page by listening">🔊 Listen</button>
+            <% if (isDisabled) { %>
+              <div style="text-decoration:none;color:inherit">
+                <div class="thumb">
+                  <% if (cover) { %>
+                    <img src="<%= cover %>" alt="" loading="lazy" referrerpolicy="no-referrer">
+                  <% } else { %>
+                    <div class="hint">No cover</div>
                   <% } %>
                 </div>
+                <div class="meta">
+                  <% if (src) { %>
+                    <div class="badge"><%= (src==='gutenberg'?'Project Gutenberg':(src==='openlibrary'?'Open Library':(src==='archive'?'Archive.org':(src==='wikisource'?'Wikisource':src)))) %></div>
+                  <% } %>
+                  <% if (accessBadge) { %>
+                    <div class="badge" style="background:#fef2f2;color:#dc2626;border-color:#fecaca;"><%= accessBadge %></div>
+                  <% } %>
+                  <div class="title"><%= title %></div>
+                  <% if (creator) { %><div class="author"><%= creator %></div><% } %>
+                  <div class="actions">
+                    <span class="btn small" style="background:#f3f4f6;color:#6b7280;border-color:#d1d5db;cursor:not-allowed;">📖 Read</span>
+                  </div>
+                </div>
               </div>
-            </a>
+            <% } else { %>
+              <a href="<%= (user ? finalHref : ('/login?next=' + encodeURIComponent(finalHref))) %>" style="text-decoration:none;color:inherit">
+                <div class="thumb">
+                  <% if (cover) { %>
+                    <img src="<%= cover %>" alt="" loading="lazy" referrerpolicy="no-referrer">
+                  <% } else { %>
+                    <div class="hint">No cover</div>
+                  <% } %>
+                </div>
+                <div class="meta">
+                  <% if (src) { %>
+                    <div class="badge"><%= (src==='gutenberg'?'Project Gutenberg':(src==='openlibrary'?'Open Library':(src==='archive'?'Archive.org':(src==='wikisource'?'Wikisource':src)))) %></div>
+                  <% } %>
+                  <div class="title"><%= title %></div>
+                  <% if (creator) { %><div class="author"><%= creator %></div><% } %>
+                  <div class="actions">
+                    <span class="btn primary small">📖 Read</span>
+                    <% if (src === 'gutenberg' && gid) { %>
+                      <button type="button" class="btn small preview-tts" data-gid="<%= gid %>" data-title="<%- title %>" aria-pressed="false" title="Preview first page by listening">🔊 Listen</button>
+                    <% } %>
+                  </div>
+                </div>
+              </a>
+            <% } %>
           </div>
         <% }) %>
       </div>

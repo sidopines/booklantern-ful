@@ -83,13 +83,16 @@ function volumesToCards(json, fallbackTitle, fallbackCreator) {
         if (!itemURL) continue;
 
         const cover = it?.thumbnail || it?.image || ''; // some items include image/thumbnail
+        // Get PDF URL if available
+        const pdfUrl = it?.pdfUrl || it?.downloadUrl || '';
+        
         cards.push({
           identifier: `hathi:${it?.htid || itemURL}`,
           title: safeText(rec?.title) || fallbackTitle || '(Untitled)',
           creator: safeText(rec?.mainAuthor) || fallbackCreator || '',
           cover,
           source: 'hathitrust',
-          readerUrl: itemURL, // external (frontend opens target=_blank for non-internal)
+          readerUrl: pdfUrl ? `/read/pdf?src=${encodeURIComponent(pdfUrl)}&title=${encodeURIComponent(safeText(rec?.title) || fallbackTitle || '')}` : itemURL,
         });
       }
     }
