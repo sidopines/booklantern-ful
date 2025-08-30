@@ -1,6 +1,6 @@
 // connectors/standardebooks.js
-// Lightweight HTML scrape of Standard Ebooks search results.
-// Returns EPUB-ready cards pointing to our reader via gutenberg-like proxy.
+// Standard Ebooks OPDS catalog search
+// Returns EPUB-ready cards pointing to our on-site reader via proxy.
 const UA = 'BookLanternBot/1.0 (+https://booklantern.org)';
 const BASE = 'https://standardebooks.org';
 
@@ -11,10 +11,7 @@ function toCard(hit) {
     creator: hit.author,
     cover: hit.cover || '',
     source: 'standardebooks',
-    // They publish clean EPUBs; link the canonical EPUB for our reader to pull.
-    readerUrl: `/read/gutenberg/${hit.gid || ''}/reader`, // if mapped to a Gutenberg ID
-    // If no Gutenberg id, we’ll open their EPUB directly through the reader via proxy below:
-    meta: { directEpub: hit.epub }
+    readerUrl: `/read/standardebooks/${hit.slug}/reader`
   };
 }
 
@@ -52,7 +49,9 @@ async function searchStandardEbooks(q, limit = 20) {
     const html = await fetchHtml(url);
     if (!html) return [];
     const hits = parseHits(html).slice(0, limit);
-    return hits.map(toCard);
+    const results = hits.map(toCard);
+    console.log(`[standardebooks] Found ${hits.length} results for "${q}"`);
+    return results;
   } catch (e) {
     console.error('[standardebooks] search error:', e);
     return [];

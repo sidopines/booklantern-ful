@@ -46,7 +46,7 @@ function cardFromEntry(entry) {
     creator: author || '',
     cover,
     source: 'feedbooks',
-    readerUrl: `/read/epub?u=${encodeURIComponent(epub)}&title=${encodeURIComponent(title||'')}&author=${encodeURIComponent(author||'')}`
+    readerUrl: `/read/feedbooks/${encodeURIComponent(title)}/reader?epub=${encodeURIComponent(epub)}`
   };
 }
 

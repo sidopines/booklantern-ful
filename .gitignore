@@ -6,3 +6,10 @@ node_modules/
 
 # OS junk
 .DS_Store
+
+# Env files
+.env
+.env.*
+*.env
+*.env.local
+.env.save

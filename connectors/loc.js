@@ -35,7 +35,7 @@ async function searchLOC(q, limit = 24) {
         cover,
         source: 'loc',
         // Open inside our on-site PDF reader (with proxy)
-        readerUrl: `/read/pdf?u=${encodeURIComponent(pdfUrl)}`,
+        readerUrl: `/read/pdf?src=${encodeURIComponent(pdfUrl)}&title=${encodeURIComponent(item?.title || '')}`,
       });
     }
 
