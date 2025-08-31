@@ -25,11 +25,14 @@ function isBookLike(page) {
   }
   
   // Check for book-related categories (if available)
-  if (page.categories) {
+  if (page.categories && Array.isArray(page.categories)) {
     const bookCategories = ['books', 'novels', 'poetry', 'literature', 'fiction', 'non-fiction'];
-    const hasBookCategory = page.categories.some(cat => 
-      bookCategories.some(bookCat => cat.toLowerCase().includes(bookCat))
-    );
+    const hasBookCategory = page.categories.some(cat => {
+      if (typeof cat === 'string') {
+        return bookCategories.some(bookCat => cat.toLowerCase().includes(bookCat));
+      }
+      return false;
+    });
     if (hasBookCategory) {
       return true;
     }
@@ -59,8 +62,8 @@ function isBookLike(page) {
     return false;
   }
   
-  // If we can't confidently determine, default to false (exclude)
-  return false;
+  // If we can't confidently determine, default to true (include) for now
+  return true;
 }
 
 async function searchWikisource(q, limit = 20, lang = 'en') {
