@@ -600,47 +600,180 @@ router.get('/read/epub', requireUser, async (req, res) => {
 
 router.get('/proxy/epub', async (req, res) => {
   const src = req.query.src;
-  if (!src) return res.status(400).send('No URL provided');
+  const debug = req.query.debug === '1';
+  
+  if (!src) {
+    if (debug) return res.status(400).json({ ok: false, error: 'No URL provided' });
+    return res.status(400).send('No URL provided');
+  }
 
   try {
-    const r = await fetch(src, {
-      redirect: 'follow',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 BookLantern/1.0',
-        'Accept': 'application/epub+zip,application/octet-stream;q=0.9,*/*;q=0.5'
+    // Decode the src param once only
+    const upstreamUrl = decodeURIComponent(src);
+    const UA = 'Mozilla/5.0 BookLantern/1.0';
+    const tried = [];
+    let finalUrl = upstreamUrl;
+    let finalStatus = 0;
+    let finalContentType = '';
+    let foundEpub = false;
+
+    // Helper function to check if response is EPUB
+    function isEpubResponse(res) {
+      const contentType = (res.headers.get('content-type') || '').toLowerCase();
+      return contentType.includes('application/epub+zip') || 
+             contentType.includes('application/octet-stream') ||
+             finalUrl.toLowerCase().endsWith('.epub');
+    }
+
+    // Helper function to fetch with proper headers
+    async function fetchWithHeaders(url) {
+      tried.push(url);
+      return await fetch(url, {
+        redirect: 'follow',
+        headers: {
+          'User-Agent': UA,
+          'Referer': 'https://standardebooks.org/',
+          'Accept': 'application/epub+zip,*/*'
+        }
+      });
+    }
+
+    // Helper function to stream response
+    async function streamResponse(response) {
+      // Mirror useful headers
+      const contentType = response.headers.get('content-type');
+      const contentLength = response.headers.get('content-length');
+      const acceptRanges = response.headers.get('accept-ranges');
+      
+      if (contentType) res.setHeader('Content-Type', contentType);
+      if (contentLength) res.setHeader('Content-Length', contentLength);
+      if (acceptRanges) res.setHeader('Accept-Ranges', acceptRanges);
+
+      // Stream using Node 18+ helpers
+      const { Readable } = require('stream');
+      const { pipeline } = require('stream/promises');
+      
+      try {
+        if (response.body && typeof response.body.on === 'function') {
+          // Node.js response
+          await pipeline(response.body, res);
+        } else {
+          // Browser fetch response - convert to readable stream
+          const buffer = await response.arrayBuffer();
+          const readable = Readable.from(Buffer.from(buffer));
+          await pipeline(readable, res);
+        }
+        console.log('[EPUB PROXY] ok', { url: finalUrl });
+        foundEpub = true;
+      } catch (streamError) {
+        console.error('[EPUB PROXY] stream error', { error: streamError.message, url: finalUrl });
+        try { res.destroy(streamError); } catch {}
       }
-    });
-    
-    if (!r.ok) {
-      console.error(`[epub-proxy] HTTP ${r.status} for ${src}`);
-      return res.status(502).send('Bad gateway (upstream not ok)');
     }
-    
-    const contentType = r.headers.get('content-type') || '';
-    if (!contentType.toLowerCase().includes('application/epub+zip') && !contentType.toLowerCase().includes('application/octet-stream')) {
-      console.error(`[epub-proxy] Wrong content-type ${contentType} for ${src}`);
-      return res.status(502).send('Bad gateway (wrong content-type)');
+
+    // First attempt - try the original URL
+    let response = await fetchWithHeaders(upstreamUrl);
+    finalStatus = response.status;
+    finalContentType = response.headers.get('content-type') || '';
+
+    // If it's an EPUB response, stream it
+    if (response.ok && isEpubResponse(response)) {
+      if (debug) {
+        return res.json({
+          ok: true,
+          tried: tried,
+          final: finalUrl,
+          status: finalStatus,
+          contentType: finalContentType
+        });
+      }
+      await streamResponse(response);
+      return;
     }
-    
-    // Copy relevant headers
-    if (contentType) res.setHeader('Content-Type', contentType);
-    
-    const contentLength = r.headers.get('content-length');
-    if (contentLength) res.setHeader('Content-Length', contentLength);
-    
-    const contentDisposition = r.headers.get('content-disposition');
-    if (contentDisposition) res.setHeader('Content-Disposition', contentDisposition);
-    
-    // Pipe the stream
-    r.body.on('error', (e) => {
-      console.error('[epub-proxy] stream error', { src, err: e?.message });
-      try { res.destroy(e); } catch {}
-    });
-    r.body.pipe(res);
+
+    // If not EPUB, try to parse HTML for download links
+    if (response.ok && finalContentType.includes('html')) {
+      console.log('[EPUB PROXY] HTML detected, starting parsing');
+      try {
+        const html = await response.text();
+        console.log('[EPUB PROXY] parsing HTML for epub links, length:', html.length);
+        
+        // Look for EPUB download links
+        let epubUrl = null;
+        
+        // First try: look for meta refresh redirect with epub in the URL
+        const refreshMatch = html.match(/<meta[^>]*http-equiv="refresh"[^>]*content="[^"]*url=([^"]*epub[^"]*)"[^>]*>/i);
+        if (refreshMatch) {
+          const relativeUrl = refreshMatch[1];
+          // Resolve relative URL to absolute
+          const baseUrl = new URL(finalUrl);
+          epubUrl = new URL(relativeUrl, baseUrl.origin).toString();
+          console.log('[EPUB PROXY] found epub URL via meta refresh:', epubUrl);
+        }
+        
+        // Second try: look for .epub links under .downloads
+        if (!epubUrl) {
+          const downloadsMatch = html.match(/<div[^>]*class="[^"]*downloads[^"]*"[^>]*>[\s\S]*?<a[^>]*href="([^"]*\.epub[^"]*)"[^>]*>/i);
+          if (downloadsMatch) {
+            epubUrl = downloadsMatch[1];
+          }
+        }
+        
+        // Third try: look for any .epub link
+        if (!epubUrl) {
+          const epubMatch = html.match(/<a[^>]*href="([^"]*\.epub[^"]*)"[^>]*>/i);
+          if (epubMatch) {
+            epubUrl = epubMatch[1];
+          }
+        }
+
+        if (epubUrl) {
+          // Resolve relative to absolute URL
+          const absoluteUrl = new URL(epubUrl, finalUrl).toString();
+          finalUrl = absoluteUrl;
+          
+          // Try the EPUB URL
+          response = await fetchWithHeaders(absoluteUrl);
+          finalStatus = response.status;
+          finalContentType = response.headers.get('content-type') || '';
+
+          if (response.ok && isEpubResponse(response)) {
+            if (debug) {
+              return res.json({
+                ok: true,
+                tried: tried,
+                final: finalUrl,
+                status: finalStatus,
+                contentType: finalContentType
+              });
+            }
+            await streamResponse(response);
+            return;
+          }
+        }
+      } catch (parseError) {
+        console.error('[EPUB PROXY] HTML parse error', { error: parseError.message, url: finalUrl });
+      }
+    }
+
+    // If we get here, we couldn't find a valid EPUB
+    console.error('[EPUB PROXY] error', { status: finalStatus, contentType: finalContentType, url: finalUrl });
+    if (debug) {
+      return res.status(502).json({
+        ok: false,
+        tried: tried,
+        final: finalUrl,
+        status: finalStatus,
+        contentType: finalContentType,
+        error: 'No valid EPUB found'
+      });
+    }
+    return res.status(502).send('Bad gateway (no valid EPUB found)');
     
   } catch (e) {
-    console.error(`[epub-proxy] Fetch error for ${src}:`, e.message);
-    res.status(502).send('Bad gateway (exception)');
+    console.error('[EPUB PROXY] error', { error: e.message, url: src });
+    if (debug) return res.status(502).json({ ok: false, error: e.message });
+    return res.status(502).send('Bad gateway (exception)');
   }
 });
 
