@@ -59,13 +59,17 @@
              const gid   = book.gid || (String(id).startsWith('gutenberg:') ? String(id).split(':')[1] : null);
              const wsLang  = book.wsLang || '';
              const wsTitle = book.wsTitle || '';
-             const accessBadge = book.accessBadge || '';
+             // accessBadge is no longer used since we filter out non-readable items
 
-             // Decide destination
+             // Decide destination based on new card structure
              let dest = '#';
              let isDisabled = false;
              
-             if (book.readerUrl) {
+             if (book.href && book.openInline === true) {
+               // New structure: use href for on-site reading
+               dest = book.href;
+             } else if (book.readerUrl) {
+               // Legacy structure: use readerUrl
                dest = book.readerUrl;
              } else if (src === 'gutenberg' && gid) {
                // Force EPUB mode so the reader opens ePub.js
@@ -80,11 +84,8 @@
                const qs = '?src=' + encodeURIComponent(book.pdfUrl) 
                  + (title ? ('&title=' + encodeURIComponent(title)) : '');
                dest = '/read/pdf' + qs;
-             } else if (accessBadge) {
-               // Open Library book that requires borrowing/login
-               isDisabled = true;
-               dest = '#';
              }
+             // No longer need to check accessBadge since we filter out non-readable items
 
              // Gate visitors to login before reading (unless disabled)
              let finalHref = isDisabled ? '#' : (dest || '#');
@@ -101,11 +102,9 @@
                 </div>
                 <div class="meta">
                   <% if (src) { %>
-                    <div class="badge"><%= (src==='gutenberg'?'Project Gutenberg':(src==='openlibrary'?'Open Library':(src==='archive'?'Archive.org':(src==='wikisource'?'Wikisource':src)))) %></div>
+                    <div class="badge"><%= (src==='gutenberg'?'Gutenberg':(src==='openlibrary'?'Open Library':(src==='archive'?'Archive.org':(src==='wikisource'?'Wikisource':(src==='standardebooks'?'Standard Ebooks':(src==='loc'?'LOC':src)))))) %></div>
                   <% } %>
-                  <% if (accessBadge) { %>
-                    <div class="badge" style="background:#fef2f2;color:#dc2626;border-color:#fecaca;"><%= accessBadge %></div>
-                  <% } %>
+                  <!-- accessBadge removed since we filter out non-readable items -->
                   <div class="title"><%= title %></div>
                   <% if (creator) { %><div class="author"><%= creator %></div><% } %>
                   <div class="actions">
@@ -124,7 +123,7 @@
                 </div>
                 <div class="meta">
                   <% if (src) { %>
-                    <div class="badge"><%= (src==='gutenberg'?'Project Gutenberg':(src==='openlibrary'?'Open Library':(src==='archive'?'Archive.org':(src==='wikisource'?'Wikisource':src)))) %></div>
+                    <div class="badge"><%= (src==='gutenberg'?'Gutenberg':(src==='openlibrary'?'Open Library':(src==='archive'?'Archive.org':(src==='wikisource'?'Wikisource':(src==='standardebooks'?'Standard Ebooks':(src==='loc'?'LOC':src)))))) %></div>
                   <% } %>
                   <div class="title"><%= title %></div>
                   <% if (creator) { %><div class="author"><%= creator %></div><% } %>

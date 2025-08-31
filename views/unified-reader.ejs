@@ -91,6 +91,11 @@
     <% if (typeof user !== 'undefined' && user && user.isAdmin && mode === 'epub') { %>
       <button class="btn small" onclick="testEpubUrl()" title="Test EPUB URL (Admin only)">🔧 Test</button>
     <% } %>
+    
+    <!-- Debug Gutenberg link -->
+    <% if (typeof user !== 'undefined' && user && user.isAdmin && typeof gid === 'string' && gid) { %>
+      <a href="/proxy/gutenberg-epub/<%= gid %>?debug=1" target="_blank" class="btn small" title="Debug Gutenberg (Admin only)">🐛 Debug</a>
+    <% } %>
 
     <!-- TTS controls -->
     <div class="tts-controls">
@@ -123,7 +128,9 @@
     const MODE = <%- JSON.stringify(mode||'') %>;
     const EPUB_URL = <%- JSON.stringify(typeof epubUrl==='string'?epubUrl:'') %>;
     const HTML_URL = <%- JSON.stringify(typeof htmlUrl==='string'?htmlUrl:'') %>;
+    const PDF_URL = <%- JSON.stringify(typeof pdfUrl==='string'?pdfUrl:'') %>;
     const GID = <%- JSON.stringify(typeof gid==='string'?gid:'') %>;
+    const IA_ID = <%- JSON.stringify(typeof iaId==='string'?iaId:'') %>;
 
     const statusEl = document.getElementById('status');
     const bookBox = document.getElementById('bookBox');
@@ -241,6 +248,60 @@
       }
     }
 
+    async function loadIA(iaId) {
+      try {
+        setStatus('loading…');
+        bookBox.innerHTML = '<div class="muted" style="display:flex;align-items:center;justify-content:center;height:100%">Loading Internet Archive book…</div>';
+        
+        // Create iframe for Internet Archive bookreader embed
+        const iframe = document.createElement('iframe');
+        iframe.src = `https://archive.org/embed/${iaId}?ui=embed#mode/1up`;
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        iframe.style.borderRadius = '12px';
+        iframe.title = 'Internet Archive Book Reader';
+        
+        // Clear loading message and add iframe
+        bookBox.innerHTML = '';
+        bookBox.appendChild(iframe);
+        
+        setStatus('ready');
+        
+      } catch (e) {
+        console.error('IA load error:', e);
+        bookBox.innerHTML = '<div class="error-message">Could not load Internet Archive book.<br><button class="btn" onclick="location.reload()">Retry</button></div>';
+        setStatus('error');
+      }
+    }
+
+    async function loadPDF(pdfUrl) {
+      try {
+        setStatus('loading…');
+        bookBox.innerHTML = '<div class="muted" style="display:flex;align-items:center;justify-content:center;height:100%">Loading PDF…</div>';
+        
+        // Create iframe for PDF viewer
+        const iframe = document.createElement('iframe');
+        iframe.src = pdfUrl;
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        iframe.style.borderRadius = '12px';
+        iframe.title = 'PDF Viewer';
+        
+        // Clear loading message and add iframe
+        bookBox.innerHTML = '';
+        bookBox.appendChild(iframe);
+        
+        setStatus('ready');
+        
+      } catch (e) {
+        console.error('PDF load error:', e);
+        bookBox.innerHTML = '<div class="error-message">Could not load PDF.<br><button class="btn" onclick="location.reload()">Retry</button></div>';
+        setStatus('error');
+      }
+    }
+
     function showEPUBError(message) {
       const debugLink = <% if (typeof user !== 'undefined' && user && user.isAdmin) { %>true<% } else { %>false<% } %>;
       const errorHtml = `
@@ -262,7 +323,20 @@
     }
 
     function tryNoImages() {
-      location.href = `${epubUrl}?alt=noimages`;
+      if (MODE === 'epub' && GID) {
+        // For Gutenberg EPUBs, reload with no-images parameter
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('alt', 'noimages');
+        window.location.href = currentUrl.toString();
+      } else if (EPUB_URL) {
+        // For other EPUBs, try adding the parameter to the proxy URL
+        const newUrl = EPUB_URL.includes('?') ? `${EPUB_URL}&alt=noimages` : `${EPUB_URL}?alt=noimages`;
+        if (typeof iframe !== 'undefined' && iframe.src) {
+          iframe.src = newUrl;
+        } else {
+          location.reload();
+        }
+      }
     }
 
     function downloadEPUB() {
@@ -315,6 +389,8 @@
 
     if (MODE === 'html' && HTML_URL) loadHTML(HTML_URL);
     else if (MODE === 'epub' && EPUB_URL) loadEPUB();
+    else if (MODE === 'ia' && IA_ID) loadIA(IA_ID);
+    else if (MODE === 'pdf' && PDF_URL) loadPDF(PDF_URL);
     else { bookBox.innerHTML = '<div class="muted">No content.</div>'; setStatus('error'); }
 
     /* ---------- Enhanced TTS with Preferences ---------- */

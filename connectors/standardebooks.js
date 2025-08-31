@@ -11,7 +11,12 @@ function toCard(hit) {
     creator: hit.author,
     cover: hit.cover || '',
     source: 'standardebooks',
-    readerUrl: `/read/standardebooks/${hit.slug}/reader`
+    openInline: true,
+    kind: 'epub',
+    gid: null,
+    epubUrl: hit.epub,
+    href: `/read/epub?src=${encodeURIComponent(hit.epub)}&title=${encodeURIComponent(hit.title)}&author=${encodeURIComponent(hit.author)}`,
+    readerUrl: `/read/standardebooks/${hit.slug}/reader` // for backward compatibility
   };
 }
 
@@ -22,20 +27,19 @@ async function fetchHtml(url) {
 }
 
 function parseHits(html) {
-  // Very small parser: look for ebook cards.
-  const re = /<li class="ebook">[\s\S]*?<a href="\/ebooks\/([^"]+)">[\s\S]*?<span class="title">([^<]+)<\/span>[\s\S]*?<span class="author">([^<]+)<\/span>[\s\S]*?(?:data-gutenberg-id="(\d+)")?/gi;
+  // Updated parser for the new HTML structure
+  const re = /<li typeof="schema:Book" about="\/ebooks\/([^"]+)">[\s\S]*?<a href="\/ebooks\/[^"]+"[^>]*>[\s\S]*?<span[^>]*>([^<]+)<\/span>[\s\S]*?<span[^>]*>([^<]+)<\/span>/gi;
   const out = [];
   let m;
   while ((m = re.exec(html))) {
     const slug = m[1];
     const title = m[2].trim();
     const author = m[3].trim();
-    const gid = m[4] ? m[4].trim() : '';
     out.push({
       slug,
       title,
       author,
-      gid,
+      gid: '',
       epub: `${BASE}/ebooks/${slug}.epub`,
       cover: `${BASE}/ebooks/${slug}/cover-thumb.jpg`
     });
@@ -45,12 +49,12 @@ function parseHits(html) {
 
 async function searchStandardEbooks(q, limit = 20) {
   try {
-    const url = `${BASE}/ebooks/?query=${encodeURIComponent(q)}`;
+    const url = `${BASE}/ebooks?query=${encodeURIComponent(q)}`;
     const html = await fetchHtml(url);
     if (!html) return [];
     const hits = parseHits(html).slice(0, limit);
     const results = hits.map(toCard);
-    console.log(`[standardebooks] Found ${hits.length} results for "${q}"`);
+    console.log(`[SE] results ${results.length}`);
     return results;
   } catch (e) {
     console.error('[standardebooks] search error:', e);

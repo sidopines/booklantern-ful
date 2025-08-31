@@ -8,51 +8,41 @@ function cardFromDoc(d) {
   if (d.cover_i) cover = `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`;
   else if (d.edition_key && d.edition_key[0]) cover = `https://covers.openlibrary.org/b/olid/${d.edition_key[0]}-M.jpg`;
 
-  // Build readerUrl based on availability
-  let readerUrl = '';
-  let accessBadge = '';
-  
-  if (d.ocaid) {
-    // Internet Archive ID exists - use our on-site IA viewer
-    readerUrl = `/read/book/${d.ocaid}`;
-  } else if (d.ebook_access === 'public' && d.key) {
-    // Public ebook - link to Open Library's reader
-    readerUrl = `https://openlibrary.org${d.key}/read`;
-  } else {
-    // Not publicly readable
-    accessBadge = 'Borrow/Login required';
+  // Only return cards for items that are readable on-site (no account, no borrow)
+  if (d.ebook_access === 'public' && Array.isArray(d.ia) && d.ia.length > 0) {
+    const iaId = d.ia[0];
+    return {
+      identifier: `openlibrary:${id}`,
+      title: d.title || '(Untitled)',
+      creator: author || '',
+      cover,
+      source: 'openlibrary',
+      openInline: true,
+      kind: 'ia',
+      iaId,
+      href: `/read/ia/${iaId}`,
+      readerUrl: `/read/ia/${iaId}` // for backward compatibility
+    };
   }
-
-  return {
-    identifier: `openlibrary:${id}`,
-    title: d.title || '(Untitled)',
-    creator: author || '',
-    cover,
-    source: 'openlibrary',
-    readerUrl,
-    accessBadge,
-    ocaid: d.ocaid || null,
-    ebookAccess: d.ebook_access || null,
-    availability: d.availability || null,
-    ia: d.ia || null
-  };
+  
+  // Return null for items that don't meet the criteria
+  return null;
 }
 
 async function searchOpenLibrary(q, limit = 40) {
   try {
-    const fields = [
-      'key','title','author_name','cover_i','edition_key',
-      'has_fulltext','public_scan_b','ebook_access',
-      'ocaid','availability','ia'
-    ].join(',');
-    const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&mode=everything&limit=${limit}&fields=${fields}`;
+    const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&mode=ebooks&has_fulltext=true&fields=key,title,author_name,first_publish_year,edition_key,ebook_access,ia&limit=${limit}`;
     const r = await fetch(url, { headers: { 'User-Agent': UA } });
     if (!r.ok) return [];
     const data = await r.json();
     const docs = Array.isArray(data.docs) ? data.docs : [];
     
-    // Include all docs but mark them with appropriate access info
-    return docs.map(cardFromDoc);
+    // Filter strictly: only keep docs where ebook_access === 'public' AND Array.isArray(ia) AND ia.length > 0
+    const filtered = docs.filter(d => d.ebook_access === 'public' && Array.isArray(d.ia) && d.ia.length > 0);
+    const cards = filtered.map(cardFromDoc).filter(Boolean); // Remove null values
+    
+    console.log(`[OL] kept ${cards.length} / dropped ${docs.length - filtered.length} (borrow/restricted)`);
+    return cards;
   } catch (e) {
     console.error('[openlibrary] search error:', e);
     return [];
