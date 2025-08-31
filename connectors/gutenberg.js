@@ -1,4 +1,5 @@
 // connectors/gutenberg.js
+const fetch = require('node-fetch');
 const UA = 'BookLanternBot/1.0 (+https://booklantern.org)';
 
 function makeCard({ id, title, authors = [], formats = {} }) {
@@ -10,31 +11,47 @@ function makeCard({ id, title, authors = [], formats = {} }) {
     formats['image/jpeg'] ||
     `https://www.gutenberg.org/cache/epub/${id}/pg${id}.cover.medium.jpg`;
 
+  // Check if EPUB is available
+  const hasEpub = formats['application/epub+zip'] || 
+                  Object.keys(formats).some(key => key.includes('.epub'));
+
   return {
-    identifier: `gutenberg:${id}`,
-    title: title || '(Untitled)',
-    creator: author,
-    cover,
     source: 'gutenberg',
+    title: title || '(Untitled)',
+    author: author,
+    cover: cover,
+    gutenId: id,
+    href: `/read/gutenberg/${id}/reader`,
+    readable: Boolean(hasEpub),
+    openInline: Boolean(hasEpub),
+    identifier: `gutenberg:${id}`,
+    creator: author,
     readerUrl: `/read/gutenberg/${id}/reader`,
     meta: {
       gid: id,
-      epubUrl:
-        formats['application/epub+zip'] ||
-        formats['application/x-epub+zip'] ||
-        ''
+      epubUrl: formats['application/epub+zip'] || ''
     }
   };
 }
 
 async function searchGutenberg(q, limit = 40) {
   try {
-    const url = `https://gutendex.com/books?search=${encodeURIComponent(q)}`;
+    const url = `https://gutendex.com/books/?search=${encodeURIComponent(q)}`;
     const r = await fetch(url, { headers: { 'User-Agent': UA } });
     if (!r.ok) return [];
     const data = await r.json();
     const items = Array.isArray(data.results) ? data.results : [];
-    return items.slice(0, limit).map(makeCard);
+    
+    // Filter for items with EPUB availability
+    const epubItems = items.filter(item => {
+      const formats = item.formats || {};
+      return formats['application/epub+zip'] || 
+             Object.keys(formats).some(key => key.includes('.epub'));
+    });
+    
+    const cards = epubItems.slice(0, limit).map(makeCard);
+    console.log(`[GUTENBERG] results ${cards.length} (epub only)`);
+    return cards;
   } catch (e) {
     console.error('[gutenberg] search error:', e);
     return [];

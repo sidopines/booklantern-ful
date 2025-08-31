@@ -35,12 +35,21 @@ function parseHits(html) {
     const slug = m[1];
     const title = m[2].trim();
     const author = m[3].trim();
+    
+    // Extract the book name from the slug (author/book format)
+    const parts = slug.split('/');
+    const bookName = parts[parts.length - 1];
+    
+    // Use the correct URL format: author_book.epub
+    const authorSlug = parts[0];
+    const epubFileName = `${authorSlug}_${bookName}.epub`;
+    
     out.push({
       slug,
       title,
       author,
       gid: '',
-      epub: `${BASE}/ebooks/${slug}.epub`,
+      epub: `${BASE}/ebooks/${slug}/downloads/${epubFileName}`,
       cover: `${BASE}/ebooks/${slug}/cover-thumb.jpg`
     });
   }
