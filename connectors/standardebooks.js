@@ -12,6 +12,7 @@ function toCard(hit) {
     cover: hit.cover || '',
     source: 'standardebooks',
     openInline: true,
+    readable: true,
     kind: 'epub',
     gid: null,
     epubUrl: hit.epub,
@@ -26,7 +27,7 @@ async function fetchHtml(url) {
   return await r.text();
 }
 
-function parseHits(html) {
+async function parseHits(html) {
   // Updated parser for the new HTML structure
   const re = /<li typeof="schema:Book" about="\/ebooks\/([^"]+)">[\s\S]*?<a href="\/ebooks\/[^"]+"[^>]*>[\s\S]*?<span[^>]*>([^<]+)<\/span>[\s\S]*?<span[^>]*>([^<]+)<\/span>/gi;
   const out = [];
@@ -44,13 +45,32 @@ function parseHits(html) {
     const authorSlug = parts[0];
     const epubFileName = `${authorSlug}_${bookName}.epub`;
     
+    // Try to find a working cover image
+    let cover = null;
+    const coverFormats = ['jpg', 'png', 'svg'];
+    for (const format of coverFormats) {
+      try {
+        const coverUrl = `${BASE}/ebooks/${slug}/cover.${format}`;
+        const response = await fetch(coverUrl, { 
+          method: 'HEAD',
+          headers: { 'User-Agent': UA }
+        });
+        if (response.ok) {
+          cover = coverUrl;
+          break;
+        }
+      } catch (e) {
+        // Continue to next format
+      }
+    }
+    
     out.push({
       slug,
       title,
       author,
       gid: '',
       epub: `${BASE}/ebooks/${slug}/downloads/${epubFileName}`,
-      cover: `${BASE}/ebooks/${slug}/cover-thumb.jpg`
+      cover: cover || `${BASE}/ebooks/${slug}/cover.jpg` // fallback
     });
   }
   return out;
@@ -61,8 +81,8 @@ async function searchStandardEbooks(q, limit = 20) {
     const url = `${BASE}/ebooks?query=${encodeURIComponent(q)}`;
     const html = await fetchHtml(url);
     if (!html) return [];
-    const hits = parseHits(html).slice(0, limit);
-    const results = hits.map(toCard);
+    const hits = await parseHits(html);
+    const results = hits.slice(0, limit).map(toCard);
     console.log(`[SE] results ${results.length}`);
     return results;
   } catch (e) {

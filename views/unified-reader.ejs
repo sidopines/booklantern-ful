@@ -227,11 +227,14 @@
           height: "100%" 
         });
         
-        // Step 4: Display with watchdog timer
+        // Step 4: Display with extended watchdog timer and loading indicator
         const displayPromise = rendition.display();
         const watchdogPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Display timeout')), 12000);
+          setTimeout(() => reject(new Error('Display timeout')), 60000); // Increased to 60s
         });
+        
+        // Show loading indicator
+        bookBox.innerHTML = '<div class="muted" style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:1rem"><div>Loading EPUB...</div><div style="font-size:0.9rem;color:#999">This may take a moment for large files</div></div>';
         
         await Promise.race([displayPromise, watchdogPromise]);
         
