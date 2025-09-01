@@ -234,7 +234,7 @@
         });
         
         // Show loading indicator
-        bookBox.innerHTML = '<div class="muted" style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:1rem"><div>Loading book...</div><div style="font-size:0.9rem;color:#999">Large EPUBs can take up to a minute</div></div>';
+        bookBox.innerHTML = '<div class="muted" style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:1rem"><div>Loading book...</div><div style="font-size:0.9rem;color:#999">this can take up to a minute</div></div>';
         
         await Promise.race([displayPromise, watchdogPromise]);
         
