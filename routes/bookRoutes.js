@@ -1,6 +1,7 @@
 // routes/bookRoutes.js
 const express = require('express');
 const router = express.Router();
+const config = require('../config');
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 BookLantern/1.0';
 
@@ -152,16 +153,21 @@ router.get('/read', async (req, res) => {
       console.error('Open Library search failed:', e.message);
     }
     
-    try {
-      fb = await searchFeedbooksPD(query, 20);
-    } catch (e) {
-      console.error('Feedbooks search failed:', e.message);
+    // Feature-flagged connectors
+    if (config.CONNECTOR_FEEDBOOKS) {
+      try {
+        fb = await searchFeedbooksPD(query, 20);
+      } catch (e) {
+        console.error('Feedbooks search failed:', e.message);
+      }
     }
     
-    try {
-      ht = await searchHathiFullView(query, 20);
-    } catch (e) {
-      console.error('HathiTrust search failed:', e.message);
+    if (config.CONNECTOR_HATHI) {
+      try {
+        ht = await searchHathiFullView(query, 20);
+      } catch (e) {
+        console.error('HathiTrust search failed:', e.message);
+      }
     }
     
     try {
@@ -170,14 +176,19 @@ router.get('/read', async (req, res) => {
       console.error('Library of Congress search failed:', e.message);
     }
     
-    try {
-      fw = await searchFreeWeb(query, 20);
-    } catch (e) {
-      console.error('FreeWeb search failed:', e.message);
+    if (config.CONNECTOR_FREEWEB) {
+      try {
+        fw = await searchFreeWeb(query, 20);
+      } catch (e) {
+        console.error('FreeWeb search failed:', e.message);
+      }
     }
 
     // Only include Wikisource results if they exist (filtered for book-like content)
-    const sources = [gb, ol, ia, fb, ht, loc, fw]; // Gutenberg, Open Library, Archive, Feedbooks, HathiTrust, LOC, FreeWeb
+    const sources = [gb, ol, ia, loc]; // Always enabled: Gutenberg, Open Library, Archive, LOC
+    if (config.CONNECTOR_FEEDBOOKS && fb.length > 0) sources.push(fb);
+    if (config.CONNECTOR_HATHI && ht.length > 0) sources.push(ht);
+    if (config.CONNECTOR_FREEWEB && fw.length > 0) sources.push(fw);
     if (ws.length > 0) {
       sources.push(ws);
     }
@@ -188,8 +199,11 @@ router.get('/read', async (req, res) => {
     const filtered = merged.filter(item => item.openInline === true);
     
     // Log search results with the requested format
+    const feedbooksCount = config.CONNECTOR_FEEDBOOKS ? fb.length : 0;
+    const hathiCount = config.CONNECTOR_HATHI ? ht.length : 0;
+    const freewebCount = config.CONNECTOR_FREEWEB ? fw.length : 0;
     console.log('SEARCH "%s" — counts: gutenberg=%d, archive=%d, openlibrary=%d, feedbooks=%d, hathitrust=%d, loc=%d, freeweb=%d, merged=%d, filtered=%d',
-      query, gb.length, ia.length, ol.length, fb.length, ht.length, loc.length, fw.length, merged.length, filtered.length);
+      query, gb.length, ia.length, ol.length, feedbooksCount, hathiCount, loc.length, freewebCount, merged.length, filtered.length);
 
     res.render('read', {
       pageTitle: `Search • ${query}`,
@@ -344,6 +358,8 @@ router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
     const preferImages = alt !== 'noimages';
     const tried = [];
     let responded = false;
+    let retryCount = 0;
+    const maxRetries = 1;
 
     // Helper function to check if response is EPUB
     function isEpub(headers, url) {
@@ -438,7 +454,14 @@ router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
           const readable = Readable.from(Buffer.from(buffer));
           await pipeline(readable, res);
         }
-        console.log('[GUTENBERG] ok', { gid, url, status: response.status });
+        
+        // Production logging
+        if (config.IS_PRODUCTION) {
+          const range = req.headers.range || '-';
+          console.log(`[GUTENBERG] 200 gid=${gid} url=${url} range=${range}`);
+        } else {
+          console.log('[GUTENBERG] ok', { gid, url, status: response.status });
+        }
       } catch (streamError) {
         console.error('[GUTENBERG] stream error', { gid, url, error: streamError.message });
         try { res.destroy(streamError); } catch {}
@@ -446,107 +469,135 @@ router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
     }
 
     // Build candidate URLs in the specified order
-    const candidates = [];
-    if (preferImages) {
-      candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.images?download=1`);
-      candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub-images.epub`);
-      candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}-images.epub`);
-      candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/${gid}-0.epub`);
-      candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.noimages?download=1`);
-      candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub.noimages.epub`);
-      candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}.epub`);
-    } else {
-      candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.noimages?download=1`);
-      candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub.noimages.epub`);
-      candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.epub`);
-      candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.images?download=1`);
-      candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub-images.epub`);
-      candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}-images.epub`);
-      candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/${gid}-0.epub`);
-      candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}.epub`);
+    function buildCandidates(preferImages) {
+      const candidates = [];
+      if (preferImages) {
+        candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.images?download=1`);
+        candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub-images.epub`);
+        candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}-images.epub`);
+        candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/${gid}-0.epub`);
+        candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.noimages?download=1`);
+        candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub.noimages.epub`);
+        candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}.epub`);
+      } else {
+        candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.noimages?download=1`);
+        candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub.noimages.epub`);
+        candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.epub`);
+        candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.images?download=1`);
+        candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub-images.epub`);
+        candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}-images.epub`);
+        candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/${gid}-0.epub`);
+        candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}.epub`);
+      }
+      return candidates;
     }
 
-    // Try each candidate
-    for (const url of candidates) {
-      try {
-        // For Range requests, do GET directly; otherwise do HEAD first
-        let result;
-        if (req.headers.range) {
-          // For Range requests, do GET directly to get proper Range response
-          const headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 BookLantern/1.0',
-            'Accept': 'application/epub+zip,application/octet-stream,*/*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Referer': 'https://www.gutenberg.org/',
-            'Range': req.headers.range
-          };
-          
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 30000);
-          
-          try {
-            const response = await fetch(url, {
-              method: 'GET',
-              redirect: 'follow',
-              headers,
-              signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-            result = { ok: response.ok, status: response.status, headers: response.headers, url: response.url, response };
-          } catch (error) {
-            clearTimeout(timeoutId);
-            throw error;
-          }
-        } else {
-          // For non-Range requests, do HEAD first then GET if needed
-          result = await headOrGet(url);
-        }
-        
-        if (result.ok && isEpub(result.headers, result.url)) {
-          if (debug) {
-            if (responded) return;
-            responded = true;
-            return res.json({
-              ok: true,
-              tried: tried,
-              chosen: result.url,
-              status: result.status,
-              headers: {
-                'content-type': result.headers.get('content-type')
-              }
-            });
-          }
-          
-          if (result.response) {
-            // We already have the response for Range requests
-            await streamResponse(result.response, result.url);
-            return;
-          } else {
-            // Fetch the actual content for streaming (non-Range requests)
+    // Try candidates with retry logic
+    async function tryCandidates(candidates, currentPreferImages) {
+      for (const url of candidates) {
+        try {
+          // For Range requests, do GET directly; otherwise do HEAD first
+          let result;
+          if (req.headers.range) {
+            // For Range requests, do GET directly to get proper Range response
             const headers = {
               'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 BookLantern/1.0',
               'Accept': 'application/epub+zip,application/octet-stream,*/*',
               'Accept-Language': 'en-US,en;q=0.9',
-              'Referer': 'https://www.gutenberg.org/'
+              'Referer': 'https://www.gutenberg.org/',
+              'Range': req.headers.range
             };
             
-            const contentResponse = await fetch(result.url, {
-              redirect: 'follow',
-              headers
-            });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
             
-            if (contentResponse.ok) {
-              await streamResponse(contentResponse, result.url);
-              return;
+            try {
+              const response = await fetch(url, {
+                method: 'GET',
+                redirect: 'follow',
+                headers,
+                signal: controller.signal
+              });
+              clearTimeout(timeoutId);
+              result = { ok: response.ok, status: response.status, headers: response.headers, url: response.url, response };
+            } catch (error) {
+              clearTimeout(timeoutId);
+              throw error;
+            }
+          } else {
+            // For non-Range requests, do HEAD first then GET if needed
+            result = await headOrGet(url);
+          }
+          
+          if (result.ok && isEpub(result.headers, result.url)) {
+            if (debug) {
+              if (responded) return true;
+              responded = true;
+              return res.json({
+                ok: true,
+                tried: tried,
+                chosen: result.url,
+                status: result.status,
+                headers: {
+                  'content-type': result.headers.get('content-type')
+                }
+              });
+            }
+            
+            if (result.response) {
+              // We already have the response for Range requests
+              await streamResponse(result.response, result.url);
+              return true;
+            } else {
+              // Fetch the actual content for streaming (non-Range requests)
+              const headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 BookLantern/1.0',
+                'Accept': 'application/epub+zip,application/octet-stream,*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Referer': 'https://www.gutenberg.org/'
+              };
+              
+              const contentResponse = await fetch(result.url, {
+                redirect: 'follow',
+                headers
+              });
+              
+              if (contentResponse.ok) {
+                await streamResponse(contentResponse, result.url);
+                return true;
+              }
             }
           }
+          
+          // Check for timeout or 5xx errors to trigger retry
+          if (result.status >= 500 || result.status === 0) {
+            throw new Error(`HTTP ${result.status}`);
+          }
+          
+        } catch (e) {
+          // Check if it's a timeout or 5xx error
+          if (e.name === 'AbortError' || e.message.includes('HTTP 5') || e.message.includes('HTTP 0')) {
+            if (retryCount < maxRetries) {
+              retryCount++;
+              if (config.IS_PRODUCTION) {
+                console.log(`[GUTENBERG] RETRY gid=${gid} reason=timeout`);
+              }
+              // Flip preference and retry
+              const newPreferImages = !currentPreferImages;
+              const newCandidates = buildCandidates(newPreferImages);
+              return await tryCandidates(newCandidates, newPreferImages);
+            }
+          }
+          console.log('[GUTENBERG] candidate error', { gid, url, error: e.message });
         }
-        
-        console.log('[GUTENBERG] candidate failed', { gid, url, status: result.status });
-      } catch (e) {
-        console.log('[GUTENBERG] candidate error', { gid, url, error: e.message });
       }
+      return false;
     }
+
+    // Try initial candidates
+    const initialCandidates = buildCandidates(preferImages);
+    const success = await tryCandidates(initialCandidates, preferImages);
+    if (success) return;
 
     // Fallback: try Gutendex
     try {
@@ -606,7 +657,12 @@ router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
     }
 
     // No working EPUB found
-    console.error('[GUTENBERG] No working EPUB', { gid, tried });
+    if (config.IS_PRODUCTION) {
+      console.log(`[GUTENBERG] FAIL gid=${gid} tried=${tried.length}`);
+    } else {
+      console.error('[GUTENBERG] No working EPUB', { gid, tried });
+    }
+    
     if (debug) {
       if (responded) return;
       responded = true;
