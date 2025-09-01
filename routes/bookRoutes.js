@@ -436,7 +436,7 @@ async function resolveGutenbergEpubUrl(gid, { preferImages = true, noImagesHint 
         method: 'HEAD',
         redirect: 'follow',
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 BookLantern/1.0',
+          'User-Agent': UA,
           'Accept': 'application/epub+zip,application/octet-stream;q=0.9,*/*;q=0.5',
           'Referer': 'https://www.gutenberg.org/'
         }
@@ -460,7 +460,7 @@ async function resolveGutenbergEpubUrl(gid, { preferImages = true, noImagesHint 
   try {
     const r = await fetch(`https://gutendex.com/books/${id}`, { 
       headers: { 
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 BookLantern/1.0' 
+        'User-Agent': UA
       } 
     });
     if (r.ok) {
@@ -530,110 +530,13 @@ router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
 
     // If not cached, resolve URL and download
     if (!isCached) {
-      // Build candidate URLs
-      const candidates = preferImages ? [
-        `https://www.gutenberg.org/ebooks/${gid}.epub.images?download=1`,
-        `https://www.gutenberg.org/files/${gid}/${gid}-epub-images.epub`,
-        `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}-images.epub`,
-        `https://www.gutenberg.org/cache/epub/${gid}/${gid}-0.epub`
-      ] : [
-        `https://www.gutenberg.org/ebooks/${gid}.epub.noimages?download=1`,
-        `https://www.gutenberg.org/files/${gid}/${gid}-epub.noimages.epub`,
-        `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.epub`
-      ];
-
       // Try to resolve URL
-      for (const url of candidates) {
-        tried.push(url);
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s for HEAD
-
-          const response = await fetch(url, {
-            method: 'HEAD',
-            headers: {
-              'User-Agent': UA,
-              'Accept': 'application/epub+zip,application/octet-stream,*/*',
-              'Accept-Language': 'en-US,en;q=0.9',
-              'Referer': 'https://www.gutenberg.org/'
-            },
-            signal: controller.signal
-          });
-
-          clearTimeout(timeoutId);
-
-          if (response.ok) {
-            const contentType = response.headers.get('content-type') || '';
-            if (contentType.includes('application/epub+zip') || contentType.includes('application/octet-stream')) {
-              resolvedUrl = response.url || url;
-              break;
-            }
-          }
-        } catch (e) {
-          // Continue to next candidate
-        }
-      }
-
-      // If images variant failed, try no-images
+      resolvedUrl = await resolveGutenbergEpubUrl(gid, { preferImages, noImagesHint: false });
+      
+      // Auto fallback: if images variant fails, try no-images
       if (!resolvedUrl && preferImages) {
-        const noImagesCandidates = [
-          `https://www.gutenberg.org/ebooks/${gid}.epub.noimages?download=1`,
-          `https://www.gutenberg.org/files/${gid}/${gid}-epub.noimages.epub`,
-          `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.epub`
-        ];
-
-        for (const url of noImagesCandidates) {
-          tried.push(url);
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-            const response = await fetch(url, {
-              method: 'HEAD',
-              headers: {
-                'User-Agent': UA,
-                'Accept': 'application/epub+zip,application/octet-stream,*/*',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Referer': 'https://www.gutenberg.org/'
-              },
-              signal: controller.signal
-            });
-
-            clearTimeout(timeoutId);
-
-            if (response.ok) {
-              const contentType = response.headers.get('content-type') || '';
-              if (contentType.includes('application/epub+zip') || contentType.includes('application/octet-stream')) {
-                resolvedUrl = response.url || url;
-                break;
-              }
-            }
-          } catch (e) {
-            // Continue to next candidate
-          }
-        }
-      }
-
-      // Fallback: try Gutendex
-      if (!resolvedUrl) {
-        try {
-          const gutendexResponse = await fetch(`https://gutendex.com/books/${gid}`, {
-            headers: { 'User-Agent': UA }
-          });
-          
-          if (gutendexResponse.ok) {
-            const data = await gutendexResponse.json();
-            const formats = data?.formats || {};
-            const epubUrl = formats['application/epub+zip'];
-            
-            if (epubUrl) {
-              resolvedUrl = epubUrl;
-              tried.push(epubUrl);
-            }
-          }
-        } catch (e) {
-          console.error('[GUTENBERG] gutendex fallback error', { gid, error: e.message });
-        }
+        console.log('[GUTENBERG] images variant failed, trying no-images fallback');
+        resolvedUrl = await resolveGutenbergEpubUrl(gid, { preferImages: false, noImagesHint: true });
       }
 
       // Download and cache if URL resolved
