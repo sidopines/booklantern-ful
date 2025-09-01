@@ -234,7 +234,7 @@
         });
         
         // Show loading indicator
-        bookBox.innerHTML = '<div class="muted" style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:1rem"><div>Loading book...</div><div style="font-size:0.9rem;color:#999">This may take a moment for large files</div></div>';
+        bookBox.innerHTML = '<div class="muted" style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:1rem"><div>Loading book...</div><div style="font-size:0.9rem;color:#999">Large EPUBs can take up to a minute</div></div>';
         
         await Promise.race([displayPromise, watchdogPromise]);
         
@@ -329,11 +329,11 @@
       if (MODE === 'epub' && GID) {
         // For Gutenberg EPUBs, reload with no-images parameter
         const currentUrl = new URL(window.location.href);
-        currentUrl.searchParams.set('alt', 'noimages');
+        currentUrl.searchParams.set('alt', 'noimages=1');
         window.location.href = currentUrl.toString();
       } else if (EPUB_URL) {
         // For other EPUBs, try adding the parameter to the proxy URL
-        const newUrl = EPUB_URL.includes('?') ? `${EPUB_URL}&alt=noimages` : `${EPUB_URL}?alt=noimages`;
+        const newUrl = EPUB_URL.includes('?') ? `${EPUB_URL}&alt=noimages=1` : `${EPUB_URL}?alt=noimages=1`;
         if (typeof iframe !== 'undefined' && iframe.src) {
           iframe.src = newUrl;
         } else {
