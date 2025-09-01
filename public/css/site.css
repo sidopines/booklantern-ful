@@ -185,20 +185,26 @@ body{
 /* Search bar */
 .searchbar{
   display: flex;
-  gap: 10px;
+  gap: 12px;
   justify-content: center;
   align-items: center;
-  margin: 20px auto 10px;
+  margin: 24px auto 16px;
   flex-wrap: wrap;
 }
 .searchbar input{
-  width: min(560px, 100%);
-  padding: 14px 16px;
-  border: 1px solid var(--line);
+  width: min(600px, 100%);
+  padding: 16px 20px;
+  border: 2px solid var(--line);
   border-radius: 999px;
   background: var(--paper);
   box-shadow: var(--shadow);
   font-size: 16px;
+  transition: all 0.2s ease;
+  outline: none;
+}
+.searchbar input:focus{
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgb(108 140 255 / 0.1);
 }
 
 .btn{
