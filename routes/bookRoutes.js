@@ -152,6 +152,9 @@ const { searchHathiFullView } = require('../connectors/hathitrust');
 const { searchLOC } = require('../connectors/loc');
 const { searchFreeWeb } = require('../connectors/freeweb');
 
+/* Relevance utilities */
+const { tokenize, sortResults } = require('../utils/relevance');
+
 /* ---------------- utils ---------------- */
 function requireUser(req, res, next) {
   if (!req.session?.user) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
@@ -331,22 +334,23 @@ router.get('/read', async (req, res) => {
       sources.push(ws);
     }
     
-    const merged = deDupe(sources.flat()); // show curated Standard Ebooks first
+    const merged = deDupe(sources.flat());
     
-    // Final gate: keep only items with openInline === true (i.e., they have href to our routes)
-    const filtered = merged.filter(item => item.openInline === true);
+    // Apply relevance filtering and sorting
+    const tokens = tokenize(query);
+    const sortedResults = sortResults(merged, tokens);
     
     // Log search results with the requested format
     const feedbooksCount = config.CONNECTOR_FEEDBOOKS ? fb.length : 0;
     const hathiCount = config.CONNECTOR_HATHI ? ht.length : 0;
     const freewebCount = config.CONNECTOR_FREEWEB ? fw.length : 0;
-    console.log('SEARCH "%s" — counts: gutenberg=%d, archive=%d, openlibrary=%d, feedbooks=%d, hathitrust=%d, loc=%d, freeweb=%d, merged=%d, filtered=%d',
-      query, gb.length, ia.length, ol.length, feedbooksCount, hathiCount, loc.length, freewebCount, merged.length, filtered.length);
+    console.log('SEARCH "%s" — counts: gutenberg=%d, archive=%d, openlibrary=%d, feedbooks=%d, hathitrust=%d, loc=%d, freeweb=%d, merged=%d, relevant=%d',
+      query, gb.length, ia.length, ol.length, feedbooksCount, hathiCount, loc.length, freewebCount, merged.length, sortedResults.length);
 
     res.render('read', {
       pageTitle: `Search • ${query}`,
       pageDescription: `Results for “${query}”`,
-      books: filtered,
+      books: sortedResults,
       query
     });
   } catch (err) {
@@ -407,83 +411,8 @@ router.get('/read/ia/:iaId', requireUser, async (req, res) => {
 
 /* ---------------- Gutenberg: Rock-solid EPUB proxy ---------------- */
 
-// Helper function to resolve working EPUB URL
-async function resolveGutenbergEpubUrl(gid, { preferImages = true, noImagesHint = false } = {}) {
-  const id = String(gid).replace(/[^0-9]/g, '');
-  const base = `https://www.gutenberg.org`;
-  const cache = `${base}/cache/epub/${id}`;
-  const dl = `${base}/ebooks/${id}`;
-  
-  // Build candidate list in exact order specified
-  const candidates = [];
-  if (!noImagesHint && preferImages) {
-    candidates.push(`${dl}.epub.images?download=1`);
-    candidates.push(`${cache}/pg${id}-images.epub`);
-    candidates.push(`${cache}/${id}-0.epub`);
-    candidates.push(`${dl}.epub.noimages?download=1`);
-    candidates.push(`${cache}/pg${id}.epub`);
-  } else {
-    candidates.push(`${dl}.epub.noimages?download=1`);
-    candidates.push(`${cache}/pg${id}.epub`);
-    candidates.push(`${dl}.epub.images?download=1`);
-    candidates.push(`${cache}/pg${id}-images.epub`);
-    candidates.push(`${cache}/${id}-0.epub`);
-  }
-
-  for (const url of candidates) {
-    try {
-      const resp = await fetch(url, {
-        method: 'HEAD',
-        redirect: 'follow',
-        headers: {
-          'User-Agent': UA,
-          'Accept': 'application/epub+zip,application/octet-stream;q=0.9,*/*;q=0.5',
-          'Referer': 'https://www.gutenberg.org/'
-        }
-      });
-
-      if (resp.ok) {
-        const contentType = (resp.headers.get('content-type') || '').toLowerCase();
-        if (contentType.startsWith('application/epub+zip') || contentType.startsWith('application/octet-stream')) {
-          console.log('[GUTENBERG] resolved', id, resp.url || url);
-          return resp.url || url;
-        }
-      }
-      
-      console.error('[GUTENBERG] upstream not ok', { gid: id, status: resp.status, url });
-    } catch (e) {
-      console.error('[GUTENBERG] upstream not ok', { gid: id, status: 'error', url, error: e.message });
-    }
-  }
-
-  // Fallback: use Gutendex formats to find an application/epub+zip link
-  try {
-    const r = await fetch(`https://gutendex.com/books/${id}`, { 
-      headers: { 
-        'User-Agent': UA
-      } 
-    });
-    if (r.ok) {
-      const j = await r.json();
-      const fmt = j?.formats || {};
-      // Prefer explicit epub links
-      const keys = Object.keys(fmt);
-      const epubKey = keys.find(k => k.startsWith('application/epub+zip'));
-      if (epubKey && fmt[epubKey]) {
-        // quick header check
-        const p2 = await fetch(fmt[epubKey], { method: 'HEAD', redirect: 'follow' });
-        if (p2?.ok) {
-          console.log('[GUTENBERG] resolved via gutendex', id, fmt[epubKey]);
-          return fmt[epubKey];
-        }
-      }
-    }
-  } catch (e) {
-    console.error('[GUTENDEX] fallback error', e);
-  }
-  
-  return null;
-}
+// Import resolver from connector
+const { resolveGutenbergEpubUrl } = require('../connectors/gutenberg');
 
 router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
   const gid = String(req.params.gid || '').replace(/[^0-9]/g,'');
