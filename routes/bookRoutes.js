@@ -345,16 +345,25 @@ router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
     const tried = [];
     let responded = false;
 
-    // Helper function to fetch with timeout and Range support
-    async function fetchWithTimeout(url, options = {}) {
+    // Helper function to check if response is EPUB
+    function isEpub(headers, url) {
+      const contentType = (headers.get('content-type') || '').toLowerCase();
+      return contentType.includes('application/epub+zip') || 
+             contentType.includes('application/octet-stream') ||
+             url.toLowerCase().endsWith('.epub');
+    }
+
+    // Helper function to perform HEAD then GET if needed
+    async function headOrGet(url, options = {}) {
       tried.push(url);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
       
       const headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 BookLantern/1.0',
-        'Accept': 'application/epub+zip,application/octet-stream;q=0.9,*/*;q=0.5',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 BookLantern/1.0',
+        'Accept': 'application/epub+zip,application/octet-stream,*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
         'Referer': 'https://www.gutenberg.org/'
       };
       
@@ -364,15 +373,28 @@ router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
       }
       
       try {
-        const response = await fetch(url, {
+        // Try HEAD first
+        let response = await fetch(url, {
           method: 'HEAD',
           redirect: 'follow',
           headers,
           signal: controller.signal,
           ...options
         });
+        
+        // If HEAD not allowed, try GET
+        if (response.status === 405 || response.status === 501) {
+          response = await fetch(url, {
+            method: 'GET',
+            redirect: 'follow',
+            headers,
+            signal: controller.signal,
+            ...options
+          });
+        }
+        
         clearTimeout(timeoutId);
-        return response;
+        return { ok: response.ok, status: response.status, headers: response.headers, url: response.url };
       } catch (error) {
         clearTimeout(timeoutId);
         throw error;
@@ -428,62 +450,62 @@ router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
     // Build candidate URLs in the specified order
     const candidates = [];
     if (preferImages) {
-      candidates.push(`https://www.gutenberg.org/ebooks/${gid}/${gid}-epub-no-images?download=1`);
-      candidates.push(`https://www.gutenberg.org/ebooks/${gid}/${gid}-epub-images?download=1`);
-      candidates.push(`https://www.gutenberg.org/ebooks/${gid}/${gid}-epub?download=1`);
+      candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.images?download=1`);
+      candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub-images.epub`);
       candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}-images.epub`);
-      candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.epub`);
+      candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/${gid}-0.epub`);
+      candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.noimages?download=1`);
+      candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub.noimages.epub`);
+      candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}.epub`);
     } else {
-      candidates.push(`https://www.gutenberg.org/ebooks/${gid}/${gid}-epub-no-images?download=1`);
-      candidates.push(`https://www.gutenberg.org/ebooks/${gid}/${gid}-epub-images?download=1`);
-      candidates.push(`https://www.gutenberg.org/ebooks/${gid}/${gid}-epub?download=1`);
-      candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}-images.epub`);
+      candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.noimages?download=1`);
+      candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub.noimages.epub`);
       candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.epub`);
+      candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.images?download=1`);
+      candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub-images.epub`);
+      candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}-images.epub`);
+      candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/${gid}-0.epub`);
+      candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}.epub`);
     }
 
     // Try each candidate
     for (const url of candidates) {
       try {
-        const response = await fetchWithTimeout(url);
+        const result = await headOrGet(url);
         
-        if (response.ok) {
-          const contentType = (response.headers.get('content-type') || '').toLowerCase();
-          if (contentType.includes('application/epub+zip') || 
-              contentType.includes('application/octet-stream') ||
-              url.toLowerCase().endsWith('.epub')) {
-            
-            if (debug) {
-              if (responded) return;
-              responded = true;
-              return res.json({
-                ok: true,
-                tried: tried,
-                chosen: url,
-                status: response.status,
-                headers: {
-                  'content-type': response.headers.get('content-type')
-                }
-              });
+        if (result.ok && isEpub(result.headers, result.url)) {
+          if (debug) {
+            if (responded) return;
+            responded = true;
+            return res.json({
+              ok: true,
+              tried: tried,
+              chosen: result.url,
+              status: result.status,
+              headers: {
+                'content-type': result.headers.get('content-type')
+              }
+            });
+          }
+          
+          // Fetch the actual content for streaming
+          const contentResponse = await fetch(result.url, {
+            redirect: 'follow',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 BookLantern/1.0',
+              'Accept': 'application/epub+zip,application/octet-stream,*/*',
+              'Accept-Language': 'en-US,en;q=0.9',
+              'Referer': 'https://www.gutenberg.org/'
             }
-            
-                         // Fetch the actual content for streaming
-             const contentResponse = await fetch(url, {
-               redirect: 'follow',
-               headers: {
-                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 BookLantern/1.0',
-                 'Accept': 'application/epub+zip,application/octet-stream;q=0.9,*/*;q=0.5',
-                 'Referer': 'https://www.gutenberg.org/'
-               }
-             });
-             
-             if (contentResponse.ok) {
-               await streamResponse(contentResponse, url);
-               return;
-             }
+          });
+          
+          if (contentResponse.ok) {
+            await streamResponse(contentResponse, result.url);
+            return;
           }
         }
         
-        console.log('[GUTENBERG] candidate failed', { gid, url, status: response.status });
+        console.log('[GUTENBERG] candidate failed', { gid, url, status: result.status });
       } catch (e) {
         console.log('[GUTENBERG] candidate error', { gid, url, error: e.message });
       }
@@ -493,7 +515,7 @@ router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
     try {
       const gutendexResponse = await fetch(`https://gutendex.com/books/${gid}`, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 BookLantern/1.0'
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 BookLantern/1.0'
         }
       });
       
@@ -519,19 +541,20 @@ router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
             });
           }
           
-                     const contentResponse = await fetch(epubUrl, {
-             redirect: 'follow',
-             headers: {
-               'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 BookLantern/1.0',
-               'Accept': 'application/epub+zip,application/octet-stream;q=0.9,*/*;q=0.5',
-               'Referer': 'https://www.gutenberg.org/'
-             }
-           });
-           
-           if (contentResponse.ok) {
-             await streamResponse(contentResponse, epubUrl);
-             return;
-           }
+          const contentResponse = await fetch(epubUrl, {
+            redirect: 'follow',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 BookLantern/1.0',
+              'Accept': 'application/epub+zip,application/octet-stream,*/*',
+              'Accept-Language': 'en-US,en;q=0.9',
+              'Referer': 'https://www.gutenberg.org/'
+            }
+          });
+          
+          if (contentResponse.ok) {
+            await streamResponse(contentResponse, epubUrl);
+            return;
+          }
         }
       }
     } catch (e) {
@@ -677,44 +700,220 @@ router.get('/read/standardebooks/:slug/reader', requireUser, async (req, res) =>
 /* ---------------- Standard Ebooks EPUB proxy ---------------- */
 router.get('/proxy/standardebooks-epub/:slug', async (req, res) => {
   const slug = String(req.params.slug || '').trim();
+  const debug = req.query.debug === '1';
   if (!slug) return res.status(400).send('Bad slug');
 
-  const UA = 'BookLanternBot/1.0 (+https://booklantern.org)';
-  const epubUrl = `https://standardebooks.org/ebooks/${slug}.epub`;
-
   try {
-    const r = await fetch(epubUrl, {
-      redirect: 'follow',
-      headers: {
-        'User-Agent': UA,
-        'Accept': 'application/epub+zip,application/octet-stream;q=0.9,*/*;q=0.1'
+    const tried = [];
+    let responded = false;
+    let finalUrl = `https://standardebooks.org/ebooks/${slug}/downloads/${slug}.epub`;
+
+    // Helper function to check if response is EPUB
+    function isEpub(headers, url) {
+      const contentType = (headers.get('content-type') || '').toLowerCase();
+      return contentType.includes('application/epub+zip') || 
+             contentType.includes('application/octet-stream') ||
+             url.toLowerCase().endsWith('.epub');
+    }
+
+    // Helper function to fetch with timeout and proper headers
+    async function fetchWithTimeout(url, options = {}) {
+      tried.push(url);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+      
+      const headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 BookLantern/1.0',
+        'Accept': 'application/epub+zip,application/octet-stream,*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://standardebooks.org/'
+      };
+      
+      // Forward Range header if present
+      if (req.headers.range) {
+        headers['Range'] = req.headers.range;
       }
-    });
-    
-    if (!r.ok) {
-      console.error(`[standardebooks-epub] HTTP ${r.status} for ${epubUrl} (slug: ${slug})`);
-      return res.status(404).send('EPUB not found');
+      
+      try {
+        const response = await fetch(url, {
+          redirect: 'follow',
+          headers,
+          signal: controller.signal,
+          ...options
+        });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+      }
     }
-    
-    const buf = Buffer.from(await r.arrayBuffer());
-    if (buf.length < 4) {
-      console.error(`[standardebooks-epub] Empty response for ${epubUrl} (slug: ${slug})`);
-      return res.status(404).send('EPUB not found');
+
+    // Helper function to stream response with proper headers
+    async function streamResponse(response) {
+      if (responded) return;
+      responded = true;
+      
+      // Mirror useful headers
+      const contentType = response.headers.get('content-type');
+      const contentLength = response.headers.get('content-length');
+      const acceptRanges = response.headers.get('accept-ranges');
+      const contentRange = response.headers.get('content-range');
+      
+      // Set proper headers
+      if (contentType) res.setHeader('Content-Type', contentType);
+      if (contentLength) res.setHeader('Content-Length', contentLength);
+      if (acceptRanges) res.setHeader('Accept-Ranges', acceptRanges);
+      if (contentRange) res.setHeader('Content-Range', contentRange);
+      
+      // Set cache headers
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      
+      // Forward status code (especially 206 for Range requests)
+      if (response.status === 206) {
+        res.status(206);
+      }
+
+      // Stream using Node 18+ helpers
+      const { Readable } = require('stream');
+      const { pipeline } = require('stream/promises');
+      
+      try {
+        if (response.body && typeof response.body.on === 'function') {
+          // Node.js response
+          await pipeline(response.body, res);
+        } else {
+          // Browser fetch response - convert to readable stream
+          const buffer = await response.arrayBuffer();
+          const readable = Readable.from(Buffer.from(buffer));
+          await pipeline(readable, res);
+        }
+        console.log('[EPUB PROXY] ok', { url: finalUrl });
+      } catch (streamError) {
+        console.error('[EPUB PROXY] stream error', { error: streamError.message, url: finalUrl });
+        try { res.destroy(streamError); } catch {}
+      }
     }
-    
-    if (buf[0] !== 0x50 || buf[1] !== 0x4B) {
-      console.error(`[standardebooks-epub] Not a ZIP file for ${epubUrl} (slug: ${slug})`);
-      return res.status(404).send('EPUB not found');
+
+    // First attempt - try the direct EPUB URL
+    try {
+      let response = await fetchWithTimeout(finalUrl);
+      
+      if (response.ok && isEpub(response.headers, finalUrl)) {
+        if (debug) {
+          if (responded) return;
+          responded = true;
+          return res.json({
+            ok: true,
+            tried: tried,
+            chosen: finalUrl,
+            status: response.status,
+            headers: {
+              'content-type': response.headers.get('content-type')
+            }
+          });
+        }
+        
+        await streamResponse(response);
+        return;
+      }
+    } catch (e) {
+      console.log('[EPUB PROXY] direct fetch failed', { error: e.message, url: finalUrl });
     }
-    
-    console.log(`[standardebooks-epub] Success for ${epubUrl} (slug: ${slug}, size: ${buf.length})`);
-    res.setHeader('Content-Type', 'application/epub+zip');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.setHeader('Content-Length', String(buf.length));
-    return res.end(buf);
+
+    // Second attempt - try the downloads page to parse for EPUB links
+    try {
+      const downloadsPageUrl = `https://standardebooks.org/ebooks/${slug}/downloads`;
+      const pageResponse = await fetchWithTimeout(downloadsPageUrl);
+      
+      if (pageResponse.ok) {
+        const html = await pageResponse.text();
+        
+        // Look for EPUB download links
+        let epubUrl = null;
+        
+        // First try: meta refresh redirect
+        const refreshMatch = html.match(/<meta[^>]*http-equiv="refresh"[^>]*content="[^"]*url=([^"]*)"[^>]*>/i);
+        if (refreshMatch) {
+          const relativeUrl = refreshMatch[1];
+          const baseUrl = new URL(downloadsPageUrl);
+          epubUrl = new URL(relativeUrl, baseUrl.origin).toString();
+          console.log('[EPUB PROXY] found URL via meta refresh:', epubUrl);
+        }
+        
+        // Second try: look for download-epub link
+        if (!epubUrl) {
+          const downloadMatch = html.match(/<a[^>]*id="download-epub"[^>]*href="([^"]*)"[^>]*>/i);
+          if (downloadMatch) {
+            const relativeUrl = downloadMatch[1];
+            const baseUrl = new URL(downloadsPageUrl);
+            epubUrl = new URL(relativeUrl, baseUrl.origin).toString();
+            console.log('[EPUB PROXY] found URL via download-epub link:', epubUrl);
+          }
+        }
+        
+        // Third try: look for any .epub link in downloads section
+        if (!epubUrl) {
+          const epubMatch = html.match(/<a[^>]*href="([^"]*\.epub)"[^>]*>/i);
+          if (epubMatch) {
+            const relativeUrl = epubMatch[1];
+            const baseUrl = new URL(downloadsPageUrl);
+            epubUrl = new URL(relativeUrl, baseUrl.origin).toString();
+            console.log('[EPUB PROXY] found URL via .epub link:', epubUrl);
+          }
+        }
+        
+        if (epubUrl) {
+          finalUrl = epubUrl;
+          
+          // Try the resolved EPUB URL
+          const epubResponse = await fetchWithTimeout(epubUrl);
+          
+          if (epubResponse.ok && isEpub(epubResponse.headers, epubUrl)) {
+            if (debug) {
+              if (responded) return;
+              responded = true;
+              return res.json({
+                ok: true,
+                tried: tried,
+                chosen: epubUrl,
+                status: epubResponse.status,
+                headers: {
+                  'content-type': epubResponse.headers.get('content-type')
+                }
+              });
+            }
+            
+            await streamResponse(epubResponse);
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.log('[EPUB PROXY] downloads page parse failed', { error: e.message });
+    }
+
+    // No working EPUB found
+    console.error('[EPUB PROXY] No working EPUB', { slug, tried });
+    if (debug) {
+      if (responded) return;
+      responded = true;
+      return res.status(502).json({
+        ok: false,
+        tried: tried,
+        chosen: finalUrl,
+        error: 'No working EPUB found'
+      });
+    }
+    return res.status(502).send('Bad gateway (no working EPUB)');
+
   } catch (e) {
-    console.error(`[standardebooks-epub] Fetch error for ${epubUrl} (slug: ${slug}):`, e.message);
-    res.status(502).send('Fetch error');
+    console.error('[EPUB PROXY] proxy error', { slug, error: e.message });
+    if (responded) return;
+    responded = true;
+    if (debug) return res.status(502).json({ ok: false, error: e.message });
+    return res.status(502).send('Bad gateway (exception)');
   }
 });
 
@@ -769,27 +968,34 @@ router.get('/proxy/epub', async (req, res) => {
       return res.status(400).send('Only HTTPS URLs allowed');
     }
 
-    const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
     const tried = [];
     let finalUrl = upstreamUrl;
     let finalStatus = 0;
     let finalContentType = '';
     let responded = false;
+    let redirectCount = 0;
+    const maxRedirects = 3;
 
     // Helper function to check if response is EPUB
-    const isEpubResponse = (res, url) =>
-      (res.headers.get('content-type')||'').toLowerCase().includes('application/epub+zip')
-      || (res.headers.get('content-type')||'').toLowerCase().includes('application/octet-stream')
-      || url.toLowerCase().endsWith('.epub');
+    function isEpub(headers, url) {
+      const contentType = (headers.get('content-type') || '').toLowerCase();
+      return contentType.includes('application/epub+zip') || 
+             contentType.includes('application/octet-stream') ||
+             url.toLowerCase().endsWith('.epub');
+    }
 
-    // Helper function to fetch with proper headers and Range support
-    async function fetchWithHeaders(url, options = {}) {
+    // Helper function to fetch with timeout and proper headers
+    async function fetchWithTimeout(url, options = {}) {
       tried.push(url);
       
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+      
       const headers = {
-        'User-Agent': UA,
-        'Referer': 'https://standardebooks.org/',
-        'Accept': 'application/epub+zip,*/*'
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 BookLantern/1.0',
+        'Accept': 'application/epub+zip,application/octet-stream,*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://standardebooks.org/'
       };
       
       // Forward Range header if present
@@ -797,11 +1003,19 @@ router.get('/proxy/epub', async (req, res) => {
         headers['Range'] = req.headers.range;
       }
       
-      return await fetch(url, {
-        redirect: 'follow',
-        headers,
-        ...options
-      });
+      try {
+        const response = await fetch(url, {
+          redirect: 'follow',
+          headers,
+          signal: controller.signal,
+          ...options
+        });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+      }
     }
 
     // Helper function to stream response with proper headers
@@ -842,7 +1056,11 @@ router.get('/proxy/epub', async (req, res) => {
           const buffer = await response.arrayBuffer();
           
           // Size sanity check: if < 60KB or looks like HTML/XML, treat as failure
-          if (buffer.byteLength < 60000 || 
+          // But be more lenient for Standard Ebooks which might have smaller initial responses
+          const isStandardEbooks = finalUrl.includes('standardebooks.org');
+          const minSize = isStandardEbooks ? 1000 : 60000; // 1KB for SE, 60KB for others
+          
+          if (buffer.byteLength < minSize || 
               (contentType && (contentType.includes('html') || contentType.includes('xml')))) {
             throw new Error('Response too small or wrong content type');
           }
@@ -862,105 +1080,125 @@ router.get('/proxy/epub', async (req, res) => {
       if (responded) return;
       responded = true;
       
-      if (debug) {
-        return res.json({
-          ok: false,
-          tried: tried,
-          chosen: finalUrl,
-          status: finalStatus,
-          headers: {
-            'content-type': finalContentType
-          },
-          error: 'No valid EPUB found'
-        });
-      }
       return res.status(502).send('Bad gateway (no valid EPUB found)');
     }
 
     // First attempt - try the original URL
-    let response = await fetchWithHeaders(upstreamUrl);
+    let response = await fetchWithTimeout(upstreamUrl);
     finalStatus = response.status;
     finalContentType = response.headers.get('content-type') || '';
 
     // If it's an EPUB response, stream it
-    if (response.ok && isEpubResponse(response, finalUrl)) {
-      if (debug) {
-        if (responded) return;
-        responded = true;
-        return res.json({
-          ok: true,
-          tried: tried,
-          chosen: finalUrl,
-          status: finalStatus,
-          headers: {
-            'content-type': finalContentType
-          }
-        });
-      }
+    if (response.ok && isEpub(response.headers, finalUrl)) {
       await streamResponse(response);
       return;
     }
 
-    // If response is HTML (even if URL ends with .epub), parse it and extract download links
+    // If response is HTML, parse it and extract download links
     if (response.ok && (finalContentType.includes('html') || finalContentType.includes('text/html'))) {
       console.log('[EPUB PROXY] HTML detected, parsing for download links');
+      
+      // Check redirect limit
+      if (redirectCount >= maxRedirects) {
+        console.log('[EPUB PROXY] max redirects reached, stopping');
+        if (debug) {
+          if (responded) return;
+          responded = true;
+          return res.json({
+            ok: false,
+            tried: tried,
+            chosen: finalUrl,
+            status: finalStatus,
+            headers: {
+              'content-type': finalContentType
+            },
+            error: 'Max redirects reached'
+          });
+        }
+        return res.status(502).send('Bad gateway (max redirects reached)');
+      }
+      
       try {
         const html = await response.text();
+        console.log('[EPUB PROXY] HTML length:', html.length);
         
         // Look for EPUB download links
         let epubUrl = null;
         
+        // For Standard Ebooks, try direct EPUB access first to avoid redirect loops
+        if (finalUrl.includes('standardebooks.org')) {
+          console.log('[EPUB PROXY] Standard Ebooks detected, trying direct EPUB access');
+          const urlParts = finalUrl.split('/');
+          if (urlParts.length >= 6 && urlParts[4] === 'downloads') {
+            const author = urlParts[3];
+            const title = urlParts[2];
+            const directEpubUrl = `https://standardebooks.org/ebooks/${title}/${author}/downloads/${author}_${title}.epub?source=download`;
+            console.log('[EPUB PROXY] trying constructed SE URL:', directEpubUrl);
+            
+            try {
+              const directResponse = await fetchWithTimeout(directEpubUrl);
+              if (directResponse.ok && isEpub(directResponse.headers, directEpubUrl)) {
+                await streamResponse(directResponse);
+                return;
+              }
+            } catch (e) {
+              console.log('[EPUB PROXY] direct SE URL failed:', e.message);
+            }
+          }
+        }
+        
         // First try: meta refresh redirect
-        const refreshMatch = html.match(/<meta[^>]*http-equiv="refresh"[^>]*content="[^"]*url=([^"]*epub[^"]*)"[^>]*>/i);
+        const refreshMatch = html.match(/<meta[^>]*http-equiv="refresh"[^>]*content="[^"]*url=([^"]*)"[^>]*>/i);
         if (refreshMatch) {
           const relativeUrl = refreshMatch[1];
           const baseUrl = new URL(finalUrl);
           epubUrl = new URL(relativeUrl, baseUrl.origin).toString();
-          console.log('[EPUB PROXY] found epub URL via meta refresh:', epubUrl);
-        }
-        
-        // Second try: .epub links under .downloads section
-        if (!epubUrl) {
-          const downloadsMatch = html.match(/<div[^>]*class="[^"]*downloads[^"]*"[^>]*>[\s\S]*?<a[^>]*href="([^"]*\.epub[^"]*)"[^>]*>/i);
-          if (downloadsMatch) {
-            epubUrl = downloadsMatch[1];
-            console.log('[EPUB PROXY] found epub URL in downloads section:', epubUrl);
+          console.log('[EPUB PROXY] found URL via meta refresh:', epubUrl);
+          
+          // Prevent infinite loops by checking if this is the same URL we're already processing
+          // For Standard Ebooks, the redirect might add query parameters, so check the base path
+          const currentPath = new URL(finalUrl).pathname;
+          const redirectPath = new URL(epubUrl).pathname;
+          if (redirectPath === currentPath) {
+            console.log('[EPUB PROXY] meta refresh points to same path, skipping to prevent loop');
+            epubUrl = null;
           }
         }
         
-        // Third try: any .epub link
+        // Second try: look for download-epub link
         if (!epubUrl) {
-          const epubMatch = html.match(/<a[^>]*href="([^"]*\.epub[^"]*)"[^>]*>/i);
+          const downloadMatch = html.match(/<a[^>]*id="download-epub"[^>]*href="([^"]*)"[^>]*>/i);
+          if (downloadMatch) {
+            const relativeUrl = downloadMatch[1];
+            const baseUrl = new URL(finalUrl);
+            epubUrl = new URL(relativeUrl, baseUrl.origin).toString();
+            console.log('[EPUB PROXY] found URL via download-epub link:', epubUrl);
+          }
+        }
+        
+        // Third try: look for any .epub link in downloads section
+        if (!epubUrl) {
+          const epubMatch = html.match(/<a[^>]*href="([^"]*\.epub)"[^>]*>/i);
           if (epubMatch) {
-            epubUrl = epubMatch[1];
-            console.log('[EPUB PROXY] found epub URL in any link:', epubUrl);
+            const relativeUrl = epubMatch[1];
+            const baseUrl = new URL(finalUrl);
+            epubUrl = new URL(relativeUrl, baseUrl.origin).toString();
+            console.log('[EPUB PROXY] found URL via .epub link:', epubUrl);
           }
         }
-
+        
         if (epubUrl) {
           // Resolve relative to absolute URL
           const absoluteUrl = new URL(epubUrl, finalUrl).toString();
           finalUrl = absoluteUrl;
+          redirectCount++;
           
           // Try the EPUB URL
-          response = await fetchWithHeaders(absoluteUrl);
+          response = await fetchWithTimeout(absoluteUrl);
           finalStatus = response.status;
           finalContentType = response.headers.get('content-type') || '';
 
-          if (response.ok && isEpubResponse(response, finalUrl)) {
-            if (debug) {
-              if (responded) return;
-              responded = true;
-              return res.json({
-                ok: true,
-                tried: tried,
-                chosen: finalUrl,
-                status: finalStatus,
-                headers: {
-                  'content-type': finalContentType
-                }
-              });
-            }
+          if (response.ok && isEpub(response.headers, finalUrl)) {
             await streamResponse(response);
             return;
           }
@@ -972,6 +1210,22 @@ router.get('/proxy/epub', async (req, res) => {
 
     // If we get here, we couldn't find a valid EPUB
     console.error('[EPUB PROXY] error', { status: finalStatus, contentType: finalContentType, url: finalUrl });
+    
+    if (debug) {
+      if (responded) return;
+      responded = true;
+      return res.json({
+        ok: false,
+        tried: tried,
+        chosen: finalUrl,
+        status: finalStatus,
+        headers: {
+          'content-type': finalContentType
+        },
+        error: 'No valid EPUB found'
+      });
+    }
+    
     sendDebugResponse();
     
   } catch (e) {
@@ -1071,8 +1325,7 @@ router.get('/read/wikisource/:lang/:title/text', requireUser, async (req, res) =
     let inner = data?.parse?.text || '';
     if (!inner) return res.status(404).type('text/plain').send('Not found');
     inner = String(inner)
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '')
       .replace(/\sonclick="[^"]*"/gi, '');
     res.setHeader('Cache-Control', 'public, max-age=900');
     res.type('text/html').send(inner);
