@@ -206,6 +206,14 @@
         setStatus('loading…');
         bookBox.innerHTML = '<div class="muted" style="display:flex;align-items:center;justify-content:center;height:100%">Loading EPUB…</div>';
         
+        // For Gutenberg items, poll health endpoint until cached
+        if (EPUB_URL.includes('/proxy/gutenberg-epub/')) {
+          const gid = EPUB_URL.match(/\/proxy\/gutenberg-epub\/(\d+)/)?.[1];
+          if (gid) {
+            await pollGutenbergHealth(gid);
+          }
+        }
+        
         // Step 1: Fetch EPUB as blob
         const r = await fetch(EPUB_URL, { cache: 'no-store' });
         if (!r.ok) {
@@ -227,16 +235,13 @@
           height: "100%" 
         });
         
-        // Step 4: Display with extended watchdog timer and loading indicator
+        // Step 4: Display with loading indicator (no timeout)
         const displayPromise = rendition.display();
-        const watchdogPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Display timeout')), 60000); // 60s timeout
-        });
         
         // Show loading indicator
-        bookBox.innerHTML = '<div class="muted" style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:1rem"><div>Loading book...</div><div style="font-size:0.9rem;color:#999">this can take up to a minute</div></div>';
+        bookBox.innerHTML = '<div class="muted" style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:1rem"><div>Loading book...</div><div style="font-size:0.9rem;color:#999">large books may take ~1–2 minutes on first open</div></div>';
         
-        await Promise.race([displayPromise, watchdogPromise]);
+        await displayPromise;
         
         // Success - hide spinner and show nav buttons
         setStatus('ready');
@@ -340,6 +345,31 @@
           location.reload();
         }
       }
+    }
+
+    async function pollGutenbergHealth(gid) {
+      const maxAttempts = 60; // 2 minutes max
+      let attempts = 0;
+      
+      while (attempts < maxAttempts) {
+        try {
+          const response = await fetch(`/health/gutenberg/${gid}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.cached && data.size > 0) {
+              console.log(`[GUTENBERG] Health check: cached=true, size=${data.size}`);
+              return; // Success - file is cached
+            }
+          }
+        } catch (e) {
+          console.log('[GUTENBERG] Health check failed:', e.message);
+        }
+        
+        attempts++;
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+      }
+      
+      console.log('[GUTENBERG] Health polling timed out after 2 minutes');
     }
 
     function downloadEPUB() {

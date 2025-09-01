@@ -2,8 +2,146 @@
 const express = require('express');
 const router = express.Router();
 const config = require('../config');
+const fs = require('fs').promises;
+const path = require('path');
+const { createReadStream } = require('fs');
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 BookLantern/1.0';
+
+/* ---------------- Gutenberg Cache Management ---------------- */
+const CACHE_DIR = './.cache/epub';
+const MAX_CACHE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
+const MAX_CACHE_FILES = 200;
+const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+// In-memory cache index
+const cacheIndex = new Map();
+
+// Ensure cache directory exists
+async function ensureCacheDir() {
+  try {
+    await fs.access(CACHE_DIR);
+  } catch {
+    await fs.mkdir(CACHE_DIR, { recursive: true });
+  }
+}
+
+// Get cache file path
+function getCachePath(gid, variant) {
+  const filename = `gutenberg-${gid}-${variant}.epub`;
+  return path.join(CACHE_DIR, filename);
+}
+
+// Get file stats
+async function getFileStats(filePath) {
+  try {
+    const stats = await fs.stat(filePath);
+    return stats;
+  } catch {
+    return null;
+  }
+}
+
+// Check if file is expired
+function isExpired(stats) {
+  return Date.now() - stats.mtime.getTime() > CACHE_TTL;
+}
+
+// Generate ETag
+function generateETag(stats) {
+  return `${stats.size}-${stats.mtime.getTime()}`;
+}
+
+// Clean up expired files
+async function cleanupExpired() {
+  try {
+    const files = await fs.readdir(CACHE_DIR);
+    let totalSize = 0;
+    const fileStats = [];
+
+    for (const file of files) {
+      if (!file.endsWith('.epub')) continue;
+      const filePath = path.join(CACHE_DIR, file);
+      const stats = await getFileStats(filePath);
+      if (!stats) continue;
+
+      if (isExpired(stats)) {
+        await fs.unlink(filePath);
+        cacheIndex.delete(file);
+      } else {
+        totalSize += stats.size;
+        fileStats.push({ file, stats, path: filePath });
+      }
+    }
+
+    // LRU cleanup if needed
+    if (fileStats.length > MAX_CACHE_FILES || totalSize > MAX_CACHE_SIZE) {
+      fileStats.sort((a, b) => a.stats.mtime.getTime() - b.stats.mtime.getTime());
+      const toDelete = fileStats.slice(0, Math.ceil(fileStats.length * 0.2)); // Delete 20% oldest
+      
+      for (const { path: filePath, file } of toDelete) {
+        await fs.unlink(filePath);
+        cacheIndex.delete(file);
+      }
+    }
+  } catch (error) {
+    console.error('[GUTENBERG] Cache cleanup error:', error.message);
+  }
+}
+
+// Download and cache file
+async function downloadAndCache(gid, variant, upstreamUrl) {
+  const cachePath = getCachePath(gid, variant);
+  const tempPath = `${cachePath}.tmp`;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    const response = await fetch(upstreamUrl, {
+      headers: {
+        'User-Agent': UA,
+        'Accept': 'application/epub+zip,application/octet-stream,*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://www.gutenberg.org/'
+      },
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/epub+zip') && !contentType.includes('application/octet-stream')) {
+      throw new Error('Invalid content type');
+    }
+
+    // Stream to temp file
+    const { Readable } = require('stream');
+    const { pipeline } = require('stream/promises');
+    const writeStream = require('fs').createWriteStream(tempPath);
+    
+    await pipeline(response.body, writeStream);
+    
+    // Atomic rename
+    await fs.rename(tempPath, cachePath);
+    
+    // Update cache index
+    const stats = await fs.stat(cachePath);
+    cacheIndex.set(path.basename(cachePath), { size: stats.size, mtime: stats.mtime });
+    
+    return stats;
+  } catch (error) {
+    // Clean up temp file if it exists
+    try {
+      await fs.unlink(tempPath);
+    } catch {}
+    throw error;
+  }
+}
 
 /* Connectors (all return [] on failure) */
 const { searchGutenberg, fetchGutenbergMeta } = require('../connectors/gutenberg');
@@ -355,335 +493,220 @@ router.get('/proxy/gutenberg-epub/:gid', async (req, res) => {
   if (!gid) return res.status(400).send('bad id');
 
   try {
+    await ensureCacheDir();
+    await cleanupExpired();
+
     const preferImages = alt !== 'noimages';
+    const variant = preferImages ? 'images' : 'noimages';
+    const cachePath = getCachePath(gid, variant);
     const tried = [];
-    let responded = false;
-    let retryCount = 0;
-    const maxRetries = 1;
+    let resolvedUrl = null;
 
-    // Helper function to check if response is EPUB
-    function isEpub(headers, url) {
-      const contentType = (headers.get('content-type') || '').toLowerCase();
-      return contentType.includes('application/epub+zip') || 
-             contentType.includes('application/octet-stream') ||
-             url.toLowerCase().endsWith('.epub');
+    // Check if file exists in cache
+    const stats = await getFileStats(cachePath);
+    const isCached = stats && stats.size > 0 && !isExpired(stats);
+
+    if (debug) {
+      return res.json({
+        ok: true,
+        gid,
+        variant,
+        cached: isCached,
+        size: stats?.size || 0,
+        path: cachePath,
+        resolvedUrl: resolvedUrl || 'not resolved yet'
+      });
     }
 
-    // Helper function to perform HEAD then GET if needed
-    async function headOrGet(url, options = {}) {
-      tried.push(url);
+    // Handle ETag
+    if (isCached) {
+      const etag = generateETag(stats);
+      res.setHeader('ETag', etag);
       
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
-      
-      const headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 BookLantern/1.0',
-        'Accept': 'application/epub+zip,application/octet-stream,*/*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': 'https://www.gutenberg.org/'
-      };
-      
-      // Forward Range header if present
-      if (req.headers.range) {
-        headers['Range'] = req.headers.range;
-      }
-      
-      try {
-        // Try HEAD first
-        let response = await fetch(url, {
-          method: 'HEAD',
-          redirect: 'follow',
-          headers,
-          signal: controller.signal,
-          ...options
-        });
-        
-        // If HEAD not allowed, try GET
-        if (response.status === 405 || response.status === 501) {
-          response = await fetch(url, {
-            method: 'GET',
-            redirect: 'follow',
-            headers,
-            signal: controller.signal,
-            ...options
-          });
-        }
-        
-        clearTimeout(timeoutId);
-        return { ok: response.ok, status: response.status, headers: response.headers, url: response.url };
-      } catch (error) {
-        clearTimeout(timeoutId);
-        throw error;
+      if (req.headers['if-none-match'] === etag) {
+        return res.status(304).end();
       }
     }
 
-    // Helper function to stream response with proper headers
-    async function streamResponse(response, url) {
-      if (responded) return;
-      responded = true;
-      
-      // Mirror useful headers
-      const contentType = response.headers.get('content-type');
-      const contentLength = response.headers.get('content-length');
-      const acceptRanges = response.headers.get('accept-ranges');
-      const contentRange = response.headers.get('content-range');
-      
-      // Set proper headers
-      if (contentType) res.setHeader('Content-Type', contentType);
-      if (contentLength) res.setHeader('Content-Length', contentLength);
-      if (acceptRanges) res.setHeader('Accept-Ranges', acceptRanges);
-      if (contentRange) res.setHeader('Content-Range', contentRange);
-      
-      // Set cache headers
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      
-      // Forward status code (especially 206 for Range requests)
-      res.status(response.status);
+    // If not cached, resolve URL and download
+    if (!isCached) {
+      // Build candidate URLs
+      const candidates = preferImages ? [
+        `https://www.gutenberg.org/ebooks/${gid}.epub.images?download=1`,
+        `https://www.gutenberg.org/files/${gid}/${gid}-epub-images.epub`,
+        `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}-images.epub`,
+        `https://www.gutenberg.org/cache/epub/${gid}/${gid}-0.epub`
+      ] : [
+        `https://www.gutenberg.org/ebooks/${gid}.epub.noimages?download=1`,
+        `https://www.gutenberg.org/files/${gid}/${gid}-epub.noimages.epub`,
+        `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.epub`
+      ];
 
-      // Stream using Node 18+ helpers
-      const { Readable } = require('stream');
-      const { pipeline } = require('stream/promises');
-      
-      try {
-        if (response.body && typeof response.body.on === 'function') {
-          // Node.js response
-          await pipeline(response.body, res);
-        } else {
-          // Browser fetch response - convert to readable stream
-          const buffer = await response.arrayBuffer();
-          const readable = Readable.from(Buffer.from(buffer));
-          await pipeline(readable, res);
-        }
-        
-        // Production logging
-        if (config.IS_PRODUCTION) {
-          const range = req.headers.range || '-';
-          console.log(`[GUTENBERG] 200 gid=${gid} url=${url} range=${range}`);
-        } else {
-          console.log('[GUTENBERG] ok', { gid, url, status: response.status });
-        }
-      } catch (streamError) {
-        console.error('[GUTENBERG] stream error', { gid, url, error: streamError.message });
-        try { res.destroy(streamError); } catch {}
-      }
-    }
-
-    // Build candidate URLs in the specified order
-    function buildCandidates(preferImages) {
-      const candidates = [];
-      if (preferImages) {
-        candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.images?download=1`);
-        candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub-images.epub`);
-        candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}-images.epub`);
-        candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/${gid}-0.epub`);
-        candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.noimages?download=1`);
-        candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub.noimages.epub`);
-        candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}.epub`);
-      } else {
-        candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.noimages?download=1`);
-        candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub.noimages.epub`);
-        candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.epub`);
-        candidates.push(`https://www.gutenberg.org/ebooks/${gid}.epub.images?download=1`);
-        candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}-epub-images.epub`);
-        candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}-images.epub`);
-        candidates.push(`https://www.gutenberg.org/cache/epub/${gid}/${gid}-0.epub`);
-        candidates.push(`https://www.gutenberg.org/files/${gid}/${gid}.epub`);
-      }
-      return candidates;
-    }
-
-    // Try candidates with retry logic
-    async function tryCandidates(candidates, currentPreferImages) {
+      // Try to resolve URL
       for (const url of candidates) {
+        tried.push(url);
         try {
-          // For Range requests, do GET directly; otherwise do HEAD first
-          let result;
-          if (req.headers.range) {
-            // For Range requests, do GET directly to get proper Range response
-            const headers = {
-              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 BookLantern/1.0',
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s for HEAD
+
+          const response = await fetch(url, {
+            method: 'HEAD',
+            headers: {
+              'User-Agent': UA,
               'Accept': 'application/epub+zip,application/octet-stream,*/*',
               'Accept-Language': 'en-US,en;q=0.9',
-              'Referer': 'https://www.gutenberg.org/',
-              'Range': req.headers.range
-            };
-            
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000);
-            
-            try {
-              const response = await fetch(url, {
-                method: 'GET',
-                redirect: 'follow',
-                headers,
-                signal: controller.signal
-              });
-              clearTimeout(timeoutId);
-              result = { ok: response.ok, status: response.status, headers: response.headers, url: response.url, response };
-            } catch (error) {
-              clearTimeout(timeoutId);
-              throw error;
+              'Referer': 'https://www.gutenberg.org/'
+            },
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/epub+zip') || contentType.includes('application/octet-stream')) {
+              resolvedUrl = response.url || url;
+              break;
             }
-          } else {
-            // For non-Range requests, do HEAD first then GET if needed
-            result = await headOrGet(url);
           }
-          
-          if (result.ok && isEpub(result.headers, result.url)) {
-            if (debug) {
-              if (responded) return true;
-              responded = true;
-              return res.json({
-                ok: true,
-                tried: tried,
-                chosen: result.url,
-                status: result.status,
-                headers: {
-                  'content-type': result.headers.get('content-type')
-                }
-              });
-            }
-            
-            if (result.response) {
-              // We already have the response for Range requests
-              await streamResponse(result.response, result.url);
-              return true;
-            } else {
-              // Fetch the actual content for streaming (non-Range requests)
-              const headers = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 BookLantern/1.0',
+        } catch (e) {
+          // Continue to next candidate
+        }
+      }
+
+      // If images variant failed, try no-images
+      if (!resolvedUrl && preferImages) {
+        const noImagesCandidates = [
+          `https://www.gutenberg.org/ebooks/${gid}.epub.noimages?download=1`,
+          `https://www.gutenberg.org/files/${gid}/${gid}-epub.noimages.epub`,
+          `https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.epub`
+        ];
+
+        for (const url of noImagesCandidates) {
+          tried.push(url);
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+            const response = await fetch(url, {
+              method: 'HEAD',
+              headers: {
+                'User-Agent': UA,
                 'Accept': 'application/epub+zip,application/octet-stream,*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Referer': 'https://www.gutenberg.org/'
-              };
-              
-              const contentResponse = await fetch(result.url, {
-                redirect: 'follow',
-                headers
-              });
-              
-              if (contentResponse.ok) {
-                await streamResponse(contentResponse, result.url);
-                return true;
+              },
+              signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (response.ok) {
+              const contentType = response.headers.get('content-type') || '';
+              if (contentType.includes('application/epub+zip') || contentType.includes('application/octet-stream')) {
+                resolvedUrl = response.url || url;
+                break;
               }
             }
+          } catch (e) {
+            // Continue to next candidate
           }
-          
-          // Check for timeout or 5xx errors to trigger retry
-          if (result.status >= 500 || result.status === 0) {
-            throw new Error(`HTTP ${result.status}`);
-          }
-          
-        } catch (e) {
-          // Check if it's a timeout or 5xx error
-          if (e.name === 'AbortError' || e.message.includes('HTTP 5') || e.message.includes('HTTP 0')) {
-            if (retryCount < maxRetries) {
-              retryCount++;
-              if (config.IS_PRODUCTION) {
-                console.log(`[GUTENBERG] RETRY gid=${gid} reason=timeout`);
-              }
-              // Flip preference and retry
-              const newPreferImages = !currentPreferImages;
-              const newCandidates = buildCandidates(newPreferImages);
-              return await tryCandidates(newCandidates, newPreferImages);
-            }
-          }
-          console.log('[GUTENBERG] candidate error', { gid, url, error: e.message });
         }
       }
-      return false;
-    }
 
-    // Try initial candidates
-    const initialCandidates = buildCandidates(preferImages);
-    const success = await tryCandidates(initialCandidates, preferImages);
-    if (success) return;
-
-    // Fallback: try Gutendex
-    try {
-      const gutendexResponse = await fetch(`https://gutendex.com/books/${gid}`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 BookLantern/1.0'
-        }
-      });
-      
-      if (gutendexResponse.ok) {
-        const data = await gutendexResponse.json();
-        const formats = data?.formats || {};
-        const epubUrl = formats['application/epub+zip'];
-        
-        if (epubUrl) {
-          tried.push(epubUrl);
-          
-          if (debug) {
-            if (responded) return;
-            responded = true;
-            return res.json({
-              ok: true,
-              tried: tried,
-              chosen: epubUrl,
-              status: 200,
-              headers: {
-                'content-type': 'application/epub+zip'
-              }
-            });
-          }
-          
-          const headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 BookLantern/1.0',
-            'Accept': 'application/epub+zip,application/octet-stream,*/*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Referer': 'https://www.gutenberg.org/'
-          };
-          
-          // Forward Range header if present
-          if (req.headers.range) {
-            headers['Range'] = req.headers.range;
-          }
-          
-          const contentResponse = await fetch(epubUrl, {
-            redirect: 'follow',
-            headers
+      // Fallback: try Gutendex
+      if (!resolvedUrl) {
+        try {
+          const gutendexResponse = await fetch(`https://gutendex.com/books/${gid}`, {
+            headers: { 'User-Agent': UA }
           });
           
-          if (contentResponse.ok) {
-            await streamResponse(contentResponse, epubUrl);
-            return;
+          if (gutendexResponse.ok) {
+            const data = await gutendexResponse.json();
+            const formats = data?.formats || {};
+            const epubUrl = formats['application/epub+zip'];
+            
+            if (epubUrl) {
+              resolvedUrl = epubUrl;
+              tried.push(epubUrl);
+            }
           }
+        } catch (e) {
+          console.error('[GUTENBERG] gutendex fallback error', { gid, error: e.message });
         }
       }
-    } catch (e) {
-      console.error('[GUTENBERG] gutendex fallback error', { gid, error: e.message });
+
+      // Download and cache if URL resolved
+      if (resolvedUrl) {
+        try {
+          const downloadStats = await downloadAndCache(gid, variant, resolvedUrl);
+          
+          if (config.IS_PRODUCTION) {
+            console.log(`[GUTENBERG] 200 gid=${gid} cache=miss size=${downloadStats.size}`);
+          }
+          
+          // Update stats for serving
+          Object.assign(stats, downloadStats);
+        } catch (error) {
+          console.error('[GUTENBERG] Download failed:', error.message);
+          return res.status(502).send('Download failed');
+        }
+      } else {
+        if (config.IS_PRODUCTION) {
+          console.log(`[GUTENBERG] FAIL gid=${gid} reason=no_valid_url`);
+        }
+        return res.status(502).send('No valid EPUB URL found');
+      }
+    } else {
+      if (config.IS_PRODUCTION) {
+        console.log(`[GUTENBERG] 200 gid=${gid} cache=hit size=${stats.size}`);
+      }
     }
 
-    // No working EPUB found
-    if (config.IS_PRODUCTION) {
-      console.log(`[GUTENBERG] FAIL gid=${gid} tried=${tried.length}`);
-    } else {
-      console.error('[GUTENBERG] No working EPUB', { gid, tried });
+    // Serve from cache
+    res.setHeader('Content-Type', 'application/epub+zip');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Content-Length', stats.size);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+
+    // Handle Range requests
+    const range = req.headers.range;
+    if (range) {
+      const match = range.match(/bytes=(\d+)-(\d*)/);
+      if (match) {
+        const start = parseInt(match[1]);
+        const end = match[2] ? parseInt(match[2]) : stats.size - 1;
+        
+        if (start >= stats.size) {
+          return res.status(416).end();
+        }
+        
+        const contentLength = end - start + 1;
+        res.status(206);
+        res.setHeader('Content-Range', `bytes ${start}-${end}/${stats.size}`);
+        res.setHeader('Content-Length', contentLength);
+        
+        if (config.IS_PRODUCTION) {
+          console.log(`[GUTENBERG] 206 gid=${gid} range=${start}-${end}/${stats.size} cache=hit`);
+        }
+        
+        const stream = createReadStream(cachePath, { start, end });
+        stream.pipe(res);
+        return;
+      }
     }
-    
-    if (debug) {
-      if (responded) return;
-      responded = true;
-      return res.status(502).json({
-        ok: false,
-        tried: tried,
-        error: 'No working EPUB found'
-      });
-    }
-    return res.status(502).send('Bad gateway (no working EPUB)');
+
+    // Full file request
+    const stream = createReadStream(cachePath);
+    stream.pipe(res);
 
   } catch (e) {
     console.error('[GUTENBERG] proxy error', { gid, error: e.message });
-    if (responded) return;
-    responded = true;
-    if (debug) return res.status(502).json({ ok: false, error: e.message });
-    return res.status(502).send('Bad gateway (exception)');
+    return res.status(502).send('Internal error');
   }
 });
 
-// Health endpoint for testing Gutenberg resolution
+// Health endpoint for testing Gutenberg cache status
 router.get('/health/gutenberg/:gid', async (req, res) => {
   const gid = String(req.params.gid || '').replace(/[^0-9]/g,'');
   const alt = req.query.alt;
@@ -691,14 +714,24 @@ router.get('/health/gutenberg/:gid', async (req, res) => {
   if (!gid) return res.status(400).json({ error: 'bad id' });
 
   try {
-    const preferImages = alt !== 'noimages';
-    const resolved = await resolveGutenbergEpubUrl(gid, { preferImages, noImagesHint: alt === 'noimages' });
+    await ensureCacheDir();
     
-    if (resolved) {
-      return res.json({ ok: true, resolvedUrl: resolved });
-    } else {
-      return res.json({ ok: false, error: 'No working EPUB found' });
-    }
+    const preferImages = alt !== 'noimages';
+    const variant = preferImages ? 'images' : 'noimages';
+    const cachePath = getCachePath(gid, variant);
+    const stats = await getFileStats(cachePath);
+    
+    const result = {
+      ok: true,
+      gid,
+      cached: !!(stats && stats.size > 0 && !isExpired(stats)),
+      size: stats?.size || 0,
+      mtime: stats?.mtime?.toISOString() || null,
+      variant,
+      path: cachePath
+    };
+    
+    return res.json(result);
   } catch (e) {
     console.error('[GUTENBERG] health check error', { gid, err: e?.message });
     return res.status(500).json({ ok: false, error: e?.message });
@@ -1211,3 +1244,4 @@ router.get('/read/wikisource/:lang/:title/text', requireUser, async (req, res) =
 });
 
 module.exports = router;
+
