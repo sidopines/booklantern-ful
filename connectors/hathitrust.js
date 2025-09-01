@@ -92,6 +92,9 @@ function volumesToCards(json, fallbackTitle, fallbackCreator) {
           creator: safeText(rec?.mainAuthor) || fallbackCreator || '',
           cover,
           source: 'hathitrust',
+          openInline: true,
+          readable: true,
+          href: pdfUrl ? `/read/pdf?src=${encodeURIComponent(pdfUrl)}&title=${encodeURIComponent(safeText(rec?.title) || fallbackTitle || '')}` : itemURL,
           readerUrl: pdfUrl ? `/read/pdf?src=${encodeURIComponent(pdfUrl)}&title=${encodeURIComponent(safeText(rec?.title) || fallbackTitle || '')}` : itemURL,
         });
       }
