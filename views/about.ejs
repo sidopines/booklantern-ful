@@ -131,6 +131,6 @@
   <%- include('./partials/footer.ejs') %>
 
   <!-- About Page Scripts -->
-  <script defer src="/js/about.js?v=<%= app.locals.buildId %>"></script>
+  <script defer src="/js/about.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
 </body>
 </html>

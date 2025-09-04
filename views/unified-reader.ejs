@@ -121,7 +121,7 @@
   <% } %>
   
   <!-- Reader Scripts -->
-  <script defer src="/js/reader.js?v=<%= app.locals.buildId %>"></script>
+  <script defer src="/js/reader.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
 </head>
 <body data-page="reader">
   <!-- Tiny Assistant Animation -->

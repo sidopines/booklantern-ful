@@ -165,6 +165,6 @@
   </div>
 
   <!-- Dashboard Scripts -->
-  <script defer src="/js/dashboard.js?v=<%= app.locals.buildId %>"></script>
+  <script defer src="/js/dashboard.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
 </body>
 </html>

@@ -111,6 +111,6 @@
   <%- include('./partials/footer.ejs') %>
 
   <!-- Contact Page Scripts -->
-  <script defer src="/js/contact.js?v=<%= app.locals.buildId %>"></script>
+  <script defer src="/js/contact.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
 </body>
 </html>
