@@ -11,34 +11,19 @@
 <body class="home" data-page="landing">
   <%- include('./partials/nav.ejs') %>
   
-  <!-- Gate (Door) Scene -->
-  <section id="gate" class="gate">
+  <!-- Gate Stage -->
+  <section id="gate" class="gate stage locked">
     <canvas id="gate3d" aria-hidden="true"></canvas>
     <div id="gate-lottie" hidden></div>
     <img id="gate-fallback" src="/img/door-gate.svg?v=<%= buildId %>" alt="" hidden />
   </section>
   
-  <!-- Library Hall Scene -->
-  <section id="hall" class="hall" style="display: none;">
+  <!-- Hall Stage -->
+  <section id="hall" class="hall stage hidden">
     <canvas id="hall3d" aria-hidden="true"></canvas>
     <div id="hall-lottie" hidden></div>
     <img id="hall-fallback" src="/img/library-hall.svg?v=<%= buildId %>" alt="" hidden />
   </section>
-
-  <!-- Shelf Modal -->
-  <div id="shelf-modal" class="shelf-modal" role="dialog" aria-labelledby="shelf-modal-title" aria-hidden="true">
-    <div class="shelf-modal-content">
-      <div class="shelf-modal-header">
-        <h2 id="shelf-modal-title" class="shelf-modal-title"></h2>
-        <button class="shelf-modal-close" aria-label="Close modal">&times;</button>
-      </div>
-      <div class="shelf-modal-body">
-        <div class="shelf-books-grid" id="shelf-books-grid">
-          <!-- Books will be populated here -->
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- Homepage Scripts -->
   <script defer src="/js/scene-core.js<%= buildId ? `?v=${buildId}` : '' %>"></script>

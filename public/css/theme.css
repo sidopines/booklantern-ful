@@ -1231,29 +1231,35 @@ body {
 }
 
 /* =========================
-   GATE & HALL SCENES
+   STAGE LAYER
    ========================= */
-.gate, .hall {
+.stage {
   position: fixed;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100vw;
   height: 100vh;
   z-index: 1000;
   overflow: hidden;
 }
 
+/* Scroll lock */
+body.scrolling-locked {
+  overflow: hidden;
+}
+
+.hidden {
+  display: none;
+}
+
+/* =========================
+   GATE & HALL SCENES
+   ========================= */
 .gate {
   background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.9) 0%, #0a0a0a 100%);
 }
 
 .hall {
   background: radial-gradient(1200px 600px at 50% 20%, rgba(108, 124, 255, 0.35), transparent), #0b1020;
-}
-
-/* Scroll lock */
-.no-scroll {
-  overflow: hidden;
 }
 
 /* Scene canvases */

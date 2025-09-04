@@ -1,0 +1,43 @@
+<svg width="800" height="600" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#1a1a1a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0a0a0a;stop-opacity:1" />
+    </radialGradient>
+    <linearGradient id="door" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B4513;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#654321;stop-opacity:1" />
+    </linearGradient>
+    <radialGradient id="medallion" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#FFD700;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#B8860B;stop-opacity:1" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="600" fill="url(#bg)"/>
+  
+  <!-- Door Frame -->
+  <rect x="300" y="100" width="200" height="400" fill="#654321" stroke="#8B4513" stroke-width="2"/>
+  
+  <!-- Left Door Panel -->
+  <rect x="310" y="110" width="90" height="380" fill="url(#door)" stroke="#654321" stroke-width="1"/>
+  
+  <!-- Right Door Panel -->
+  <rect x="400" y="110" width="90" height="380" fill="url(#door)" stroke="#654321" stroke-width="1"/>
+  
+  <!-- Center Medallion -->
+  <circle cx="400" cy="300" r="40" fill="url(#medallion)" stroke="#B8860B" stroke-width="2"/>
+  
+  <!-- Medallion Ring -->
+  <circle cx="400" cy="300" r="35" fill="none" stroke="#000000" stroke-width="1" opacity="0.3"/>
+  
+  <!-- Enter Text -->
+  <text x="400" y="305" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">ENTER</text>
+  
+  <!-- Door Handle -->
+  <circle cx="450" cy="300" r="8" fill="#C0C0C0" stroke="#808080" stroke-width="1"/>
+  
+  <!-- Subtle Glow Effect -->
+  <circle cx="400" cy="300" r="60" fill="none" stroke="#FFD700" stroke-width="1" opacity="0.2"/>
+</svg>

@@ -1,32 +1,39 @@
 /**
- * Door Gate Scene - 3D Library Door with Light Burst
- * Three.js door group with center medallion button
+ * Real 3D Door Gate with Three.js
+ * PBR-ready door model with post-processing effects
  */
+
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { PMREMGenerator } from 'three/examples/jsm/utils/PMREMGenerator.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 
 class DoorGate {
   constructor() {
     this.scene = null;
     this.camera = null;
     this.renderer = null;
-    this.doorGroup = null;
+    this.composer = null;
+    this.doorModel = null;
     this.medallion = null;
-    this.lightBurst = null;
     this.animationId = null;
     this.isEntering = false;
   }
 
   /**
-   * Initialize WebGL scene
+   * Mount the 3D door gate
    */
-  async initWebGL() {
-    const container = document.getElementById('gate3d');
-    if (!container) throw new Error('Gate container not found');
+  async mount(container) {
+    if (!container) throw new Error('Container not found');
 
     // Scene setup
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.renderer = new THREE.WebGLRenderer({ 
-      canvas: container,
+      canvas: container.querySelector('#gate3d'),
       antialias: true,
       alpha: true
     });
@@ -34,23 +41,29 @@ class DoorGate {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0x0a0a0a, 1);
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
 
-    // Lighting
+    // PMREM for environment lighting
+    const pmremGenerator = new PMREMGenerator(this.renderer);
+    
+    // Lighting setup
     const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
     this.scene.add(ambientLight);
 
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(5, 5, 5);
+    directionalLight.castShadow = true;
     this.scene.add(directionalLight);
 
-    // Create door
-    this.createDoor();
-    
+    // Load door model
+    await this.loadDoorModel();
+
     // Create medallion
     this.createMedallion();
-    
-    // Create light burst effect
-    this.createLightBurst();
+
+    // Setup post-processing
+    this.setupPostProcessing();
 
     // Position camera
     this.camera.position.set(0, 0, 5);
@@ -59,55 +72,79 @@ class DoorGate {
     // Start render loop
     this.animate();
 
+    // Handle interactions
+    this.setupInteractions(container);
+
     // Handle resize
     window.addEventListener('resize', this.onResize.bind(this));
 
-    // Handle click
-    container.addEventListener('click', this.onClick.bind(this));
-
     return {
-      pause: () => this.pause(),
-      resume: () => this.resume(),
-      destroy: () => this.destroy()
+      dispose: () => this.dispose(),
+      playEnter: () => this.playEnter()
     };
   }
 
   /**
-   * Create door geometry
+   * Load door GLB model
    */
-  createDoor() {
-    this.doorGroup = new THREE.Group();
+  async loadDoorModel() {
+    try {
+      const loader = new GLTFLoader();
+      // TODO: Replace with real door.glb model
+      const gltf = await loader.loadAsync('/assets/3d/door.glb');
+      
+      this.doorModel = gltf.scene;
+      this.doorModel.position.set(0, 0, 0);
+      this.scene.add(this.doorModel);
+    } catch (error) {
+      console.warn('Failed to load door model, using fallback:', error);
+      this.createFallbackDoor();
+    }
+  }
+
+  /**
+   * Create fallback door geometry
+   */
+  createFallbackDoor() {
+    const doorGroup = new THREE.Group();
 
     // Left door panel
     const leftGeometry = new THREE.BoxGeometry(2, 4, 0.2);
-    const leftMaterial = new THREE.MeshLambertMaterial({ 
+    const leftMaterial = new THREE.MeshStandardMaterial({ 
       color: 0x8B4513,
-      transparent: true,
-      opacity: 0.9
+      metalness: 0.1,
+      roughness: 0.8
     });
     const leftDoor = new THREE.Mesh(leftGeometry, leftMaterial);
     leftDoor.position.set(-1, 0, 0);
-    this.doorGroup.add(leftDoor);
+    leftDoor.userData = { isLeft: true };
+    doorGroup.add(leftDoor);
 
     // Right door panel
     const rightGeometry = new THREE.BoxGeometry(2, 4, 0.2);
-    const rightMaterial = new THREE.MeshLambertMaterial({ 
+    const rightMaterial = new THREE.MeshStandardMaterial({ 
       color: 0x8B4513,
-      transparent: true,
-      opacity: 0.9
+      metalness: 0.1,
+      roughness: 0.8
     });
     const rightDoor = new THREE.Mesh(rightGeometry, rightMaterial);
     rightDoor.position.set(1, 0, 0);
-    this.doorGroup.add(rightDoor);
+    rightDoor.userData = { isRight: true };
+    doorGroup.add(rightDoor);
 
     // Door frame
     const frameGeometry = new THREE.BoxGeometry(4.5, 4.5, 0.3);
-    const frameMaterial = new THREE.MeshLambertMaterial({ color: 0x654321 });
+    const frameMaterial = new THREE.MeshStandardMaterial({ 
+      color: 0x654321,
+      metalness: 0.2,
+      roughness: 0.7
+    });
     const frame = new THREE.Mesh(frameGeometry, frameMaterial);
     frame.position.set(0, 0, -0.1);
-    this.doorGroup.add(frame);
+    doorGroup.add(frame);
 
-    this.scene.add(this.doorGroup);
+    this.doorModel = doorGroup;
+    this.scene.add(this.doorModel);
   }
 
   /**
@@ -115,55 +152,105 @@ class DoorGate {
    */
   createMedallion() {
     const medallionGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16);
-    const medallionMaterial = new THREE.MeshLambertMaterial({ 
+    const medallionMaterial = new THREE.MeshStandardMaterial({ 
       color: 0xFFD700,
+      metalness: 0.8,
+      roughness: 0.2,
       emissive: 0x333300
     });
     this.medallion = new THREE.Mesh(medallionGeometry, medallionMaterial);
     this.medallion.position.set(0, 0, 0.2);
-    this.doorGroup.add(this.medallion);
-
-    // Add "Enter" text (simplified as geometry)
-    const textGeometry = new THREE.RingGeometry(0.25, 0.3, 16);
-    const textMaterial = new THREE.MeshBasicMaterial({ 
-      color: 0x000000,
-      transparent: true,
-      opacity: 0.8
-    });
-    const textRing = new THREE.Mesh(textGeometry, textMaterial);
-    textRing.position.set(0, 0, 0.11);
-    this.medallion.add(textRing);
+    this.scene.add(this.medallion);
   }
 
   /**
-   * Create light burst effect
+   * Setup post-processing effects
    */
-  createLightBurst() {
-    const burstGeometry = new THREE.SphereGeometry(0.1, 16, 16);
-    const burstMaterial = new THREE.MeshBasicMaterial({ 
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0
-    });
-    this.lightBurst = new THREE.Mesh(burstGeometry, burstMaterial);
-    this.lightBurst.position.set(0, 0, 0.3);
-    this.scene.add(this.lightBurst);
+  setupPostProcessing() {
+    this.composer = new EffectComposer(this.renderer);
+    
+    // Render pass
+    const renderPass = new RenderPass(this.scene, this.camera);
+    this.composer.addPass(renderPass);
+
+    // Bloom pass
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      1.5, // strength
+      0.4, // radius
+      0.85 // threshold
+    );
+    this.composer.addPass(bloomPass);
+
+    // God rays shader (simplified)
+    const godRaysShader = {
+      uniforms: {
+        tDiffuse: { value: null },
+        lightPosition: { value: new THREE.Vector2(0.5, 0.5) },
+        exposure: { value: 0.18 },
+        decay: { value: 0.95 },
+        density: { value: 0.96 },
+        weight: { value: 0.4 },
+        samples: { value: 50 }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform vec2 lightPosition;
+        uniform float exposure;
+        uniform float decay;
+        uniform float density;
+        uniform float weight;
+        uniform int samples;
+        varying vec2 vUv;
+        
+        void main() {
+          vec2 texCoord = vUv;
+          vec2 deltaTextCoord = texCoord - lightPosition;
+          deltaTextCoord *= 1.0 / float(samples) * density;
+          float illuminationDecay = 1.0;
+          vec4 color = texture2D(tDiffuse, texCoord);
+          
+          for(int i = 0; i < 50; i++) {
+            if(i >= samples) break;
+            texCoord -= deltaTextCoord;
+            vec4 sample = texture2D(tDiffuse, texCoord);
+            sample *= illuminationDecay * weight;
+            color += sample;
+            illuminationDecay *= decay;
+          }
+          
+          gl_FragColor = color * exposure;
+        }
+      `
+    };
+
+    const godRaysPass = new ShaderPass(godRaysShader);
+    this.composer.addPass(godRaysPass);
   }
 
   /**
-   * Handle click on door
+   * Setup interactions
    */
-  onClick(event) {
-    if (this.isEntering) return;
-    
-    const rect = event.target.getBoundingClientRect();
-    const x = (event.clientX - rect.left) / rect.width * 2 - 1;
-    const y = -(event.clientY - rect.top) / rect.height * 2 + 1;
-    
-    // Check if click is near medallion
-    if (Math.abs(x) < 0.3 && Math.abs(y) < 0.3) {
-      this.playEnter();
-    }
+  setupInteractions(container) {
+    container.addEventListener('click', (event) => {
+      if (this.isEntering) return;
+      
+      const rect = container.getBoundingClientRect();
+      const x = (event.clientX - rect.left) / rect.width * 2 - 1;
+      const y = -(event.clientY - rect.top) / rect.height * 2 + 1;
+      
+      // Check if click is near medallion
+      if (Math.abs(x) < 0.3 && Math.abs(y) < 0.3) {
+        this.playEnter();
+      }
+    });
   }
 
   /**
@@ -174,31 +261,55 @@ class DoorGate {
     this.isEntering = true;
 
     return new Promise((resolve) => {
-      // Light burst effect
-      const burstTimeline = gsap.timeline();
-      burstTimeline
-        .to(this.lightBurst.material, { opacity: 1, duration: 0.1 })
-        .to(this.lightBurst.scale, { x: 50, y: 50, z: 50, duration: 0.5, ease: "power2.out" })
-        .to(this.lightBurst.material, { opacity: 0, duration: 0.3 }, "-=0.2");
+      // Import GSAP dynamically
+      import('gsap').then(({ gsap }) => {
+        // Door opening animation
+        const leftDoor = this.doorModel?.children.find(child => child.userData?.isLeft);
+        const rightDoor = this.doorModel?.children.find(child => child.userData?.isRight);
+        
+        if (leftDoor && rightDoor) {
+          gsap.to(leftDoor.rotation, { 
+            y: -Math.PI/3, 
+            duration: 1.5, 
+            ease: "power2.out" 
+          });
+          gsap.to(rightDoor.rotation, { 
+            y: Math.PI/3, 
+            duration: 1.5, 
+            ease: "power2.out" 
+          });
+        }
 
-      // Camera dolly through door
-      const cameraTimeline = gsap.timeline({ delay: 0.3 });
-      cameraTimeline
-        .to(this.camera.position, { 
+        // Camera dolly through doorway
+        gsap.to(this.camera.position, { 
           z: -2, 
-          duration: 1.5, 
+          duration: 2, 
           ease: "power2.inOut",
           onComplete: () => {
             this.isEntering = false;
+            // Dispatch enter event
+            const event = new CustomEvent('Gate:enter');
+            document.getElementById('gate').dispatchEvent(event);
             resolve();
           }
         });
 
-      // Door opening
-      const doorTimeline = gsap.timeline({ delay: 0.5 });
-      doorTimeline
-        .to(this.doorGroup.children[0].rotation, { y: -Math.PI/3, duration: 1, ease: "power2.out" }, 0)
-        .to(this.doorGroup.children[1].rotation, { y: Math.PI/3, duration: 1, ease: "power2.out" }, 0);
+        // Medallion glow effect
+        if (this.medallion) {
+          gsap.to(this.medallion.material, {
+            emissiveIntensity: 2,
+            duration: 0.5,
+            yoyo: true,
+            repeat: 1
+          });
+        }
+      }).catch(() => {
+        // Fallback without GSAP
+        this.isEntering = false;
+        const event = new CustomEvent('Gate:enter');
+        document.getElementById('gate').dispatchEvent(event);
+        resolve();
+      });
     });
   }
 
@@ -208,13 +319,18 @@ class DoorGate {
   animate() {
     this.animationId = requestAnimationFrame(() => this.animate());
     
-    // Subtle medallion glow
+    // Subtle medallion rotation
     if (this.medallion) {
       this.medallion.rotation.y += 0.01;
       this.medallion.material.emissive.setHex(0x333300 + Math.sin(Date.now() * 0.001) * 0x111100);
     }
 
-    this.renderer.render(this.scene, this.camera);
+    // Render with post-processing
+    if (this.composer) {
+      this.composer.render();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 
   /**
@@ -224,36 +340,29 @@ class DoorGate {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    if (this.composer) {
+      this.composer.setSize(window.innerWidth, window.innerHeight);
+    }
   }
 
   /**
-   * Pause animation
+   * Dispose of resources
    */
-  pause() {
+  dispose() {
     if (this.animationId) {
       cancelAnimationFrame(this.animationId);
       this.animationId = null;
     }
-  }
-
-  /**
-   * Resume animation
-   */
-  resume() {
-    if (!this.animationId) {
-      this.animate();
-    }
-  }
-
-  /**
-   * Destroy scene
-   */
-  destroy() {
-    this.pause();
+    
     window.removeEventListener('resize', this.onResize.bind(this));
     
     if (this.renderer) {
       this.renderer.dispose();
+    }
+    
+    if (this.composer) {
+      this.composer.dispose();
     }
     
     if (this.scene) {
@@ -263,48 +372,99 @@ class DoorGate {
 }
 
 /**
- * Initialize Lottie fallback
+ * Mount function for SceneManager
  */
-async function initLottie() {
-  const container = document.getElementById('gate-lottie');
-  if (!container || !window.lottie) return null;
+export async function mount(container) {
+  const doorGate = new DoorGate();
+  return await doorGate.mount(container);
+}
 
-  const animation = lottie.loadAnimation({
-    container: container,
-    renderer: 'svg',
-    loop: true,
-    autoplay: true,
-    path: '/animations/door-gate.json'
+/**
+ * Fallback for reduced motion
+ */
+export async function mountVideoFallback(container) {
+  const video = document.createElement('video');
+  video.src = '/assets/video/door-loop.webm';
+  video.loop = true;
+  video.autoplay = true;
+  video.muted = true;
+  video.style.width = '100%';
+  video.style.height = '100%';
+  video.style.objectFit = 'cover';
+  
+  container.appendChild(video);
+  
+  // Add click handler
+  container.addEventListener('click', () => {
+    const event = new CustomEvent('Gate:enter');
+    container.dispatchEvent(event);
   });
-
+  
   return {
-    pause: () => animation.pause(),
-    resume: () => animation.play(),
-    destroy: () => animation.destroy()
+    dispose: () => {
+      video.remove();
+    },
+    playEnter: () => {
+      const event = new CustomEvent('Gate:enter');
+      container.dispatchEvent(event);
+    }
   };
 }
 
 /**
- * Initialize SVG fallback
+ * Lottie fallback
  */
-async function initSVG() {
-  const container = document.getElementById('gate-fallback');
-  if (!container) return null;
-
-  container.hidden = false;
+export async function mountLottieFallback(container) {
+  if (!window.lottie) {
+    throw new Error('Lottie not available');
+  }
+  
+  const lottieContainer = container.querySelector('#gate-lottie');
+  if (!lottieContainer) return null;
+  
+  const animation = lottie.loadAnimation({
+    container: lottieContainer,
+    renderer: 'svg',
+    loop: true,
+    autoplay: true,
+    path: '/assets/lottie/door.json'
+  });
+  
+  // Add click handler
+  container.addEventListener('click', () => {
+    const event = new CustomEvent('Gate:enter');
+    container.dispatchEvent(event);
+  });
   
   return {
-    pause: () => {},
-    resume: () => {},
-    destroy: () => {}
+    dispose: () => animation.destroy(),
+    playEnter: () => {
+      const event = new CustomEvent('Gate:enter');
+      container.dispatchEvent(event);
+    }
   };
 }
 
-// Export for SceneManager
-export { DoorGate, initWebGL, initLottie, initSVG };
-
-// WebGL initialization
-async function initWebGL() {
-  const doorGate = new DoorGate();
-  return await doorGate.initWebGL();
+/**
+ * SVG fallback
+ */
+export async function mountSVGFallback(container) {
+  const fallbackImg = container.querySelector('#gate-fallback');
+  if (!fallbackImg) return null;
+  
+  fallbackImg.hidden = false;
+  
+  // Add click handler
+  container.addEventListener('click', () => {
+    const event = new CustomEvent('Gate:enter');
+    container.dispatchEvent(event);
+  });
+  
+  return {
+    dispose: () => {},
+    playEnter: () => {
+      const event = new CustomEvent('Gate:enter');
+      container.dispatchEvent(event);
+    }
+  };
 }
