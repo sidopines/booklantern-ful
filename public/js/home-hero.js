@@ -294,6 +294,19 @@ window.initHomeHero = function({ containerId = 'hero3d' }) {
 
   // Return controller with cleanup
   return {
+    pause() {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+      }
+    },
+    
+    resume() {
+      if (!animationId) {
+        animate();
+      }
+    },
+    
     destroy() {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('resize', onResize);

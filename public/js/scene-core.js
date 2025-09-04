@@ -21,7 +21,13 @@ BL.anim = {
     try {
       const canvas = document.createElement('canvas');
       const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-      return !!gl;
+      if (gl) {
+        // Test basic WebGL functionality
+        const testTexture = gl.createTexture();
+        gl.deleteTexture(testTexture);
+        return true;
+      }
+      return false;
     } catch (e) {
       return false;
     }
@@ -147,6 +153,16 @@ BL.anim = {
     const mode = this.getHeroMode();
     console.log('[BL] boot page=home build=' + (window.BL_BUILD_ID || 'unknown') + ' mode=' + mode);
     
+    // Self-check: verify hero containers exist
+    const hero3d = document.getElementById('hero3d');
+    const heroLottie = document.getElementById('hero-lottie');
+    const heroFallback = document.getElementById('hero-fallback');
+    
+    if (!hero3d && !heroLottie && !heroFallback) {
+      console.warn('[BL] hero containers missing');
+      return;
+    }
+    
     switch (mode) {
       case 'webgl':
         await this.initWebGLHero();
@@ -243,6 +259,10 @@ BL.anim = {
     if (window.lottie) {
       lottie.getRegisteredAnimations().forEach(anim => anim.pause());
     }
+    // Pause WebGL render loop if exists
+    if (window.heroController && window.heroController.pause) {
+      window.heroController.pause();
+    }
   },
   
   resumeAll() {
@@ -252,6 +272,10 @@ BL.anim = {
     }
     if (window.lottie) {
       lottie.getRegisteredAnimations().forEach(anim => anim.play());
+    }
+    // Resume WebGL render loop if exists
+    if (window.heroController && window.heroController.resume) {
+      window.heroController.resume();
     }
   },
   
