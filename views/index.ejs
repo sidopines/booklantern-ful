@@ -734,7 +734,7 @@
   </style>
 
   <!-- HOMEPAGE SCRIPTS -->
-  <script defer src="/js/home.js?v=<%= app.locals.buildId %>"></script>
+  <script defer src="/js/home.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
   <script>
     // Initialize cinematic homepage animations
     document.addEventListener('DOMContentLoaded', function() {

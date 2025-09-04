@@ -41,8 +41,8 @@
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 
 <!-- Core Styles -->
-<link rel="stylesheet" href="/css/theme.css?v=<%= app.locals.buildId %>">
-<link rel="stylesheet" href="/css/site.css?v=<%= app.locals.buildId %>">
+<link rel="stylesheet" href="/css/theme.css<%= buildId ? `?v=${buildId}` : '' %>">
+<link rel="stylesheet" href="/css/site.css<%= buildId ? `?v=${buildId}` : '' %>">
 
 <!-- Page-specific scripts (loaded via blocks) -->
 <% if (typeof scripts !== 'undefined' && scripts) { %>
@@ -67,7 +67,7 @@
         <% } %>
 
 <!-- Core UI Script -->
-<script defer src="/js/ui.js?v=<%= app.locals.buildId %>"></script>
+<script defer src="/js/ui.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
 
 <!-- Animation Boot System -->
-<script defer src="/js/scene-core.js?v=<%= app.locals.buildId %>"></script>
+<script defer src="/js/scene-core.js<%= buildId ? `?v=${buildId}` : '' %>"></script>

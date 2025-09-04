@@ -643,7 +643,7 @@
   </style>
 
   <!-- Read Page Scripts -->
-  <script defer src="/js/read-page.js?v=<%= app.locals.buildId %>"></script>
+  <script defer src="/js/read-page.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
   
   <script>
     // Tiny "Listen preview" for Gutenberg cards

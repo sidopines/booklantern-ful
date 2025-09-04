@@ -22,6 +22,11 @@ const Genre = require('./models/Genre');
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
 
+// Build ID for cache-busting (Render exposes commit SHA via env)
+app.locals.buildId =
+  process.env.BUILD_ID ||
+  (process.env.RENDER_GIT_COMMIT || Date.now().toString(36)).slice(0, 8);
+
 // (Optional) keep startup quiet/fast in production
 if (isProd) {
   mongoose.set('autoIndex', false);
@@ -72,14 +77,12 @@ app.use(session({
   }
 }));
 
-// ─── 4) BUILD ID FOR CACHE BUSTING ────────────────────────────────────────────
-app.locals.buildId = process.env.BUILD_ID || Date.now().toString(36);
-
-// ─── 5) GLOBAL VIEW LOCALS ────────────────────────────────────────────────────
+// ─── 4) GLOBAL VIEW LOCALS ────────────────────────────────────────────────────
 app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.pageTitle = 'BookLantern';
   res.locals.pageDescription = 'Free books & educational videos.';
+  res.locals.buildId = app.locals.buildId;
   next();
 });
 

@@ -73,6 +73,6 @@
   </div>
 
   <!-- Watch Page Scripts -->
-  <script defer src="/js/watch.js?v=<%= app.locals.buildId %>"></script>
+  <script defer src="/js/watch.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
 </body>
 </html>
