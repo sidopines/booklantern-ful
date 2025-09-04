@@ -45,8 +45,9 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', 1);
 
 // Static files
-app.use(express.static(path.join(__dirname, 'public'), {
+app.use('/public', express.static(path.join(__dirname, 'public'), {
   maxAge: isProd ? '7d' : 0,
+  etag: true,
   setHeaders: (res) => {
     // Allow fonts/images/CSS to be cached by the browser
     if (isProd) res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
@@ -71,7 +72,10 @@ app.use(session({
   }
 }));
 
-// ─── 4) GLOBAL VIEW LOCALS ────────────────────────────────────────────────────
+// ─── 4) BUILD ID FOR CACHE BUSTING ────────────────────────────────────────────
+app.locals.buildId = process.env.BUILD_ID || Date.now().toString(36);
+
+// ─── 5) GLOBAL VIEW LOCALS ────────────────────────────────────────────────────
 app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.pageTitle = 'BookLantern';
@@ -79,7 +83,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// ─── 5) ROUTES ────────────────────────────────────────────────────────────────
+// ─── 6) ROUTES ────────────────────────────────────────────────────────────────
 // Order matters: mount admin after sessions/locals are set
 app.use('/', homeRoutes);        // /api/featured-books, /api/shelves
 app.use('/', indexRoutes);       // home / about / contact
@@ -132,7 +136,7 @@ app.get('/player/:id', async (req, res) => {
 // Simple healthcheck (useful for Render)
 app.get('/healthz', (req, res) => res.type('text/plain').send('ok'));
 
-// ─── 6) STATIC / 404 / ERROR ─────────────────────────────────────────────────
+// ─── 7) STATIC / 404 / ERROR ─────────────────────────────────────────────────
 
 app.use((req, res) => {
   res.status(404).render('404', {
@@ -146,6 +150,6 @@ app.use((err, req, res, next) => {
   res.status(500).send('Internal Server Error');
 });
 
-// ─── 7) START ────────────────────────────────────────────────────────────────
+// ─── 8) START ────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

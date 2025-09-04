@@ -8,7 +8,7 @@
     loadLottie: true
   }) %>
 </head>
-<body class="read-page">
+<body class="read-page" data-page="read">
   <%- include('./partials/nav.ejs') %>
 
   <!-- Cinematic Page Header -->
@@ -642,6 +642,9 @@
     }
   </style>
 
+  <!-- Read Page Scripts -->
+  <script defer src="/js/read-page.js?v=<%= app.locals.buildId %>"></script>
+  
   <script>
     // Tiny "Listen preview" for Gutenberg cards
     (function(){
@@ -683,53 +686,6 @@
         });
       });
     })();
-
-    // Initialize cinematic read page animations
-    if (window.SceneManager) {
-      const sceneManager = window.SceneManager;
-      
-      // Initialize Lottie animations
-      if (window.lottie) {
-        // Magnifier animation for empty state
-        sceneManager.tryLottie('magnifier-animation', '/animations/magnifier.json', {
-          loop: true,
-          autoplay: true
-        });
-
-        // Books animation for empty state
-        sceneManager.tryLottie('books-animation', '/animations/books.json', {
-          loop: true,
-          autoplay: true
-        });
-
-        // Book flip animations for read buttons
-        document.querySelectorAll('.book-flip-animation').forEach((element, index) => {
-          const id = element.id || `book-flip-${index}`;
-          sceneManager.tryLottie(id, '/animations/page-flip.json', {
-            loop: false,
-            autoplay: false
-          });
-        });
-      }
-
-      // Add parallax to book cards
-      sceneManager.addParallaxLayer('.book-card', { speed: 0.1 });
-    }
-
-    // Initialize book flip animations on hover
-    document.querySelectorAll('.book-flip-btn').forEach(btn => {
-      btn.addEventListener('mouseenter', () => {
-        const animation = btn.querySelector('.book-flip-animation');
-        if (animation && window.lottie) {
-          const lottieInstance = lottie.getRegisteredAnimations().find(anim => 
-            anim.wrapper === animation
-          );
-          if (lottieInstance) {
-            lottieInstance.play();
-          }
-        }
-      });
-    });
   </script>
 </body>
 </html>

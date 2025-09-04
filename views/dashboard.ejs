@@ -119,7 +119,7 @@
     }
   </style>
 </head>
-<body>
+<body data-page="dashboard">
   <%- include('./partials/navbar.ejs') %>
 
   <!-- Reading Streak Meter -->
@@ -164,23 +164,7 @@
     </div>
   </div>
 
-  <script defer src="/js/scene-core.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      // Initialize scene manager
-      if (window.SceneManager) {
-        const sceneManager = window.SceneManager;
-        
-        // Initialize Lottie animations
-        if (window.lottie) {
-          // Reading streak flame
-          sceneManager.tryLottie('streak-flame', '/animations/flame.json', {
-            loop: true,
-            autoplay: true
-          });
-        }
-      }
-    });
-  </script>
+  <!-- Dashboard Scripts -->
+  <script defer src="/js/dashboard.js?v=<%= app.locals.buildId %>"></script>
 </body>
 </html>
