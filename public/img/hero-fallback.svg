@@ -1,0 +1,80 @@
+<svg width="400" height="400" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#6c7cff;stop-opacity:0.3" />
+      <stop offset="70%" style="stop-color:#6c7cff;stop-opacity:0.1" />
+      <stop offset="100%" style="stop-color:#6c7cff;stop-opacity:0" />
+    </radialGradient>
+    <linearGradient id="bookGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1f2e;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#0f1420;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0a0e1a;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="spineGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2a2a3a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a1a2a;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glowFilter" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background glow -->
+  <circle cx="200" cy="200" r="120" fill="url(#glow)" opacity="0.6"/>
+  
+  <!-- Dust particles -->
+  <circle cx="120" cy="150" r="2" fill="#6c7cff" opacity="0.4"/>
+  <circle cx="280" cy="180" r="1.5" fill="#9fb0ff" opacity="0.5"/>
+  <circle cx="150" cy="250" r="1" fill="#6c7cff" opacity="0.3"/>
+  <circle cx="320" cy="220" r="2.5" fill="#9fb0ff" opacity="0.4"/>
+  <circle cx="100" cy="200" r="1.5" fill="#6c7cff" opacity="0.5"/>
+  <circle cx="300" cy="160" r="1" fill="#9fb0ff" opacity="0.3"/>
+  <circle cx="180" cy="120" r="2" fill="#6c7cff" opacity="0.4"/>
+  <circle cx="250" cy="280" r="1.5" fill="#9fb0ff" opacity="0.5"/>
+  
+  <!-- Book spine -->
+  <rect x="160" y="140" width="8" height="120" rx="2" fill="url(#spineGradient)"/>
+  
+  <!-- Book cover -->
+  <rect x="168" y="140" width="80" height="120" rx="8" fill="url(#bookGradient)" stroke="#6c7cff" stroke-width="1" stroke-opacity="0.3"/>
+  
+  <!-- Book pages -->
+  <rect x="170" y="145" width="76" height="110" rx="6" fill="#f8fafc" opacity="0.1"/>
+  
+  <!-- Page lines -->
+  <line x1="180" y1="160" x2="240" y2="160" stroke="#6c7cff" stroke-width="0.5" opacity="0.2"/>
+  <line x1="180" y1="170" x2="235" y2="170" stroke="#6c7cff" stroke-width="0.5" opacity="0.2"/>
+  <line x1="180" y1="180" x2="245" y2="180" stroke="#6c7cff" stroke-width="0.5" opacity="0.2"/>
+  <line x1="180" y1="190" x2="230" y2="190" stroke="#6c7cff" stroke-width="0.5" opacity="0.2"/>
+  <line x1="180" y1="200" x2="240" y2="200" stroke="#6c7cff" stroke-width="0.5" opacity="0.2"/>
+  <line x1="180" y1="210" x2="225" y2="210" stroke="#6c7cff" stroke-width="0.5" opacity="0.2"/>
+  <line x1="180" y1="220" x2="245" y2="220" stroke="#6c7cff" stroke-width="0.5" opacity="0.2"/>
+  <line x1="180" y1="230" x2="235" y2="230" stroke="#6c7cff" stroke-width="0.5" opacity="0.2"/>
+  <line x1="180" y1="240" x2="240" y2="240" stroke="#6c7cff" stroke-width="0.5" opacity="0.2"/>
+  
+  <!-- Rim glow effect -->
+  <rect x="168" y="140" width="80" height="120" rx="8" fill="none" stroke="#6c7cff" stroke-width="2" stroke-opacity="0.4" filter="url(#glowFilter)"/>
+  
+  <!-- Shimmer effect -->
+  <rect x="168" y="140" width="80" height="120" rx="8" fill="none" stroke="#9fb0ff" stroke-width="1" stroke-opacity="0.2" stroke-dasharray="4,4">
+    <animateTransform attributeName="transform" type="translate" values="0,0; 80,0; 0,0" dur="6s" repeatCount="indefinite"/>
+  </rect>
+  
+  <!-- Floating particles -->
+  <circle cx="100" cy="100" r="1" fill="#6c7cff" opacity="0.6">
+    <animateTransform attributeName="transform" type="translate" values="0,0; 20,30; 0,0" dur="8s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="350" cy="120" r="1.5" fill="#9fb0ff" opacity="0.5">
+    <animateTransform attributeName="transform" type="translate" values="0,0; -25,20; 0,0" dur="10s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="80" cy="300" r="1" fill="#6c7cff" opacity="0.4">
+    <animateTransform attributeName="transform" type="translate" values="0,0; 30,-25; 0,0" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="320" cy="320" r="2" fill="#9fb0ff" opacity="0.5">
+    <animateTransform attributeName="transform" type="translate" values="0,0; -20,-30; 0,0" dur="9s" repeatCount="indefinite"/>
+  </circle>
+</svg>

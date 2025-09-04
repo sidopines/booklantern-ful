@@ -1,363 +1,323 @@
 /**
- * public/js/home-hero.js - WebGL Hero Scene with Glowing Book
- * Lusion-inspired Three.js scene with custom shaders
+ * public/js/home-hero.js - Cinematic WebGL Hero Scene
+ * Lusion-style glowing book with particles and GSAP timelines
  */
 
-window.BLHomeHero = {
-  scene: null,
-  renderer: null,
-  camera: null,
-  book: null,
-  particles: null,
-  mouse: { x: 0, y: 0 },
+window.initHomeHero = function({ containerId = 'hero3d' }) {
+  const container = document.getElementById(containerId);
+  if (!container) {
+    console.warn('[BL] hero container not found:', containerId);
+    return null;
+  }
+
+  // Scene setup
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ 
+    alpha: true, 
+    antialias: true,
+    premultipliedAlpha: true 
+  });
   
-  init(anim) {
-    if (!anim.webglSupported || !anim.wantsMotion()) {
-      this.createFallback();
-      return;
-    }
-    
-    this.setupScene();
-    this.createBook();
-    this.createParticles();
-    this.setupLighting();
-    this.setupEventListeners();
-    this.animate();
-    
-    console.log('[BL] WebGL hero scene initialized');
-  },
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  container.appendChild(renderer.domElement);
+
+  // Camera group for mouse parallax
+  const cameraGroup = new THREE.Group();
+  cameraGroup.add(camera);
+  scene.add(cameraGroup);
+  camera.position.z = 5;
+
+  // Lighting setup
+  const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+  scene.add(ambientLight);
   
-  setupScene() {
-    const container = document.getElementById('hero-canvas');
-    if (!container) return;
-    
-    // Scene
-    this.scene = new THREE.Scene();
-    
-    // Camera
-    this.camera = new THREE.PerspectiveCamera(
-      75, 
-      container.clientWidth / container.clientHeight, 
-      0.1, 
-      1000
-    );
-    this.camera.position.z = 5;
-    
-    // Renderer
-    this.renderer = new THREE.WebGLRenderer({ 
-      alpha: true, 
-      antialias: true,
-      powerPreference: "high-performance"
-    });
-    this.renderer.setSize(container.clientWidth, container.clientHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setClearColor(0x000000, 0);
-    
-    container.appendChild(this.renderer.domElement);
-    
-    // Handle resize
-    window.addEventListener('resize', () => this.onResize());
-  },
+  const directionalLight = new THREE.DirectionalLight(0x6c7cff, 0.8);
+  directionalLight.position.set(5, 5, 5);
+  scene.add(directionalLight);
+
+  // Book geometry - two planes for front and back
+  const bookGroup = new THREE.Group();
+  scene.add(bookGroup);
+
+  // Book pages geometry
+  const bookGeometry = new THREE.PlaneGeometry(2, 2.8);
   
-  createBook() {
-    // Custom shader for the glowing book
-    const vertexShader = `
-      uniform float uTime;
-      uniform vec2 uMouse;
+  // Custom shader material for glowing book
+  const bookMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      time: { value: 0 },
+      glowColor: { value: new THREE.Color(0x6c7cff) },
+      rimColor: { value: new THREE.Color(0x9fb0ff) }
+    },
+    vertexShader: `
       varying vec2 vUv;
+      varying vec3 vNormal;
       varying vec3 vPosition;
       
       void main() {
         vUv = uv;
+        vNormal = normalize(normalMatrix * normal);
         vPosition = position;
         
+        // Subtle page warp
         vec3 pos = position;
-        
-        // Subtle vertex noise
-        pos.z += sin(pos.x * 10.0 + uTime) * 0.01;
-        pos.z += sin(pos.y * 10.0 + uTime * 0.5) * 0.01;
-        
-        // Mouse influence
-        float mouseInfluence = 1.0 - distance(uv, uMouse) * 0.5;
-        pos.z += mouseInfluence * 0.1;
+        pos.y += sin(pos.x * 2.0 + time * 0.5) * 0.05;
+        pos.x += cos(pos.y * 1.5 + time * 0.3) * 0.03;
         
         gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
       }
-    `;
-    
-    const fragmentShader = `
-      uniform float uTime;
-      uniform vec2 uMouse;
-      uniform vec3 uColor;
+    `,
+    fragmentShader: `
+      uniform float time;
+      uniform vec3 glowColor;
+      uniform vec3 rimColor;
       varying vec2 vUv;
+      varying vec3 vNormal;
       varying vec3 vPosition;
       
       void main() {
-        vec2 uv = vUv;
+        // Base book color
+        vec3 baseColor = vec3(0.1, 0.15, 0.25);
         
-        // Base gradient
-        vec3 color = mix(uColor, uColor * 0.5, uv.y);
-        
-        // Noise distortion
-        float noise = sin(uv.x * 20.0 + uTime) * 0.1;
-        noise += sin(uv.y * 15.0 + uTime * 0.7) * 0.1;
-        color += noise * 0.3;
+        // Rim glow effect
+        float rim = 1.0 - max(0.0, dot(vNormal, vec3(0.0, 0.0, 1.0)));
+        rim = pow(rim, 2.0);
         
         // Chromatic aberration
-        float aberration = distance(uv, uMouse) * 0.1;
-        color.r += aberration * 0.2;
-        color.b -= aberration * 0.2;
+        float aberration = sin(time * 0.5) * 0.1;
+        vec2 offset = vUv - 0.5;
+        float dist = length(offset);
         
-        // Glow effect
-        float glow = 1.0 - distance(uv, vec2(0.5)) * 2.0;
-        glow = pow(glow, 2.0);
-        color += glow * 0.5;
+        vec3 color = baseColor;
+        color += rim * rimColor * 0.8;
+        color += glowColor * rim * 0.3;
         
-        // Mouse ripple
-        float ripple = 1.0 - distance(uv, uMouse) * 3.0;
-        ripple = max(0.0, ripple);
-        color += ripple * 0.3;
+        // Subtle shimmer
+        float shimmer = sin(vUv.x * 20.0 + time * 2.0) * 0.1;
+        color += shimmer * glowColor * 0.2;
         
-        gl_FragColor = vec4(color, 0.8);
+        gl_FragColor = vec4(color, 0.9);
       }
-    `;
+    `,
+    transparent: true,
+    side: THREE.DoubleSide
+  });
+
+  // Create book pages
+  const frontPage = new THREE.Mesh(bookGeometry, bookMaterial);
+  frontPage.position.z = 0.1;
+  bookGroup.add(frontPage);
+
+  const backPage = new THREE.Mesh(bookGeometry, bookMaterial);
+  backPage.position.z = -0.1;
+  backPage.rotation.y = Math.PI;
+  bookGroup.add(backPage);
+
+  // Book spine
+  const spineGeometry = new THREE.BoxGeometry(0.1, 2.8, 0.2);
+  const spineMaterial = new THREE.MeshBasicMaterial({ 
+    color: 0x2a2a3a,
+    transparent: true,
+    opacity: 0.8
+  });
+  const spine = new THREE.Mesh(spineGeometry, spineMaterial);
+  spine.position.x = -1.05;
+  bookGroup.add(spine);
+
+  // Particle system
+  const particleCount = 150;
+  const particles = new THREE.BufferGeometry();
+  const positions = new Float32Array(particleCount * 3);
+  const colors = new Float32Array(particleCount * 3);
+  const sizes = new Float32Array(particleCount);
+
+  for (let i = 0; i < particleCount; i++) {
+    const i3 = i * 3;
     
-    // Book geometry (layered planes)
-    const bookGeometry = new THREE.PlaneGeometry(2, 2.5);
+    // Random positions in a sphere around the book
+    positions[i3] = (Math.random() - 0.5) * 20;
+    positions[i3 + 1] = (Math.random() - 0.5) * 20;
+    positions[i3 + 2] = (Math.random() - 0.5) * 20;
     
-    // Book material
-    const bookMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-        uMouse: { value: new THREE.Vector2(0.5, 0.5) },
-        uColor: { value: new THREE.Color(0x6c7cff) }
-      },
-      vertexShader,
-      fragmentShader,
-      transparent: true,
-      side: THREE.DoubleSide
-    });
+    // Dust particle colors
+    const color = new THREE.Color();
+    color.setHSL(0.6, 0.3, Math.random() * 0.5 + 0.3);
+    colors[i3] = color.r;
+    colors[i3 + 1] = color.g;
+    colors[i3 + 2] = color.b;
     
-    // Create book mesh
-    this.book = new THREE.Mesh(bookGeometry, bookMaterial);
-    this.scene.add(this.book);
-    
-    // Add book spine
-    const spineGeometry = new THREE.BoxGeometry(0.1, 2.5, 0.05);
-    const spineMaterial = new THREE.MeshBasicMaterial({ 
-      color: 0x4a5cff,
-      transparent: true,
-      opacity: 0.8
-    });
-    const spine = new THREE.Mesh(spineGeometry, spineMaterial);
-    spine.position.x = -0.95;
-    this.scene.add(spine);
-  },
-  
-  createParticles() {
-    const particleCount = 200;
-    const particles = new THREE.BufferGeometry();
-    const positions = new Float32Array(particleCount * 3);
-    const colors = new Float32Array(particleCount * 3);
-    const sizes = new Float32Array(particleCount);
-    
-    for (let i = 0; i < particleCount; i++) {
-      const i3 = i * 3;
+    sizes[i] = Math.random() * 2 + 1;
+  }
+
+  particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  particles.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  particles.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+  const particleMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      time: { value: 0 },
+      pointTexture: { value: new THREE.TextureLoader().load('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==') }
+    },
+    vertexShader: `
+      attribute float size;
+      varying vec3 vColor;
+      uniform float time;
       
-      // Random positions in a larger area
-      positions[i3] = (Math.random() - 0.5) * 15;
-      positions[i3 + 1] = (Math.random() - 0.5) * 15;
-      positions[i3 + 2] = (Math.random() - 0.5) * 15;
-      
-      // Library-themed colors (dust, gold, white)
-      const color = new THREE.Color();
-      const colorType = Math.random();
-      if (colorType < 0.4) {
-        color.setHSL(0.1, 0.3, 0.8); // Dust particles
-      } else if (colorType < 0.7) {
-        color.setHSL(0.12, 0.8, 0.6); // Gold particles
-      } else {
-        color.setHSL(0, 0, 0.9); // White particles
+      void main() {
+        vColor = color;
+        
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        
+        // Gentle floating motion
+        mvPosition.y += sin(time * 0.5 + position.x * 0.1) * 0.1;
+        mvPosition.x += cos(time * 0.3 + position.z * 0.1) * 0.05;
+        
+        gl_PointSize = size * (300.0 / -mvPosition.z);
+        gl_Position = projectionMatrix * mvPosition;
       }
-      colors[i3] = color.r;
-      colors[i3 + 1] = color.g;
-      colors[i3 + 2] = color.b;
+    `,
+    fragmentShader: `
+      varying vec3 vColor;
       
-      // Random sizes
-      sizes[i] = Math.random() * 0.03 + 0.01;
-    }
-    
-    particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    particles.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    particles.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-    
-    const particleMaterial = new THREE.PointsMaterial({
-      size: 0.02,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.6,
-      blending: THREE.AdditiveBlending
-    });
-    
-    this.particles = new THREE.Points(particles, particleMaterial);
-    this.scene.add(this.particles);
-  },
-  
-  setupLighting() {
-    // Ambient light
-    const ambientLight = new THREE.AmbientLight(0x6366f1, 0.3);
-    this.scene.add(ambientLight);
-    
-    // Point light for book glow
-    const pointLight = new THREE.PointLight(0x6366f1, 1, 10);
-    pointLight.position.set(0, 0, 2);
-    this.scene.add(pointLight);
-    
-    // Reading lamp spotlight
-    this.createReadingSpotlight();
-  },
-  
-  createReadingSpotlight() {
-    const spotlightGroup = new THREE.Group();
-    
-    // Spotlight cone
-    const coneGeometry = new THREE.ConeGeometry(2, 4, 8);
-    const coneMaterial = new THREE.MeshBasicMaterial({
-      color: 0xf59e0b,
-      transparent: true,
-      opacity: 0.1,
-      side: THREE.DoubleSide
-    });
-    const cone = new THREE.Mesh(coneGeometry, coneMaterial);
-    cone.position.y = 2;
-    cone.rotation.x = Math.PI;
-    spotlightGroup.add(cone);
-    
-    // Light beam
-    const beamGeometry = new THREE.CylinderGeometry(0.1, 2, 4, 8);
-    const beamMaterial = new THREE.MeshBasicMaterial({
-      color: 0xf59e0b,
-      transparent: true,
-      opacity: 0.05,
-      side: THREE.DoubleSide
-    });
-    const beam = new THREE.Mesh(beamGeometry, beamMaterial);
-    beam.position.y = 0;
-    spotlightGroup.add(beam);
-    
-    // Position spotlight
-    spotlightGroup.position.set(0, 3, 0);
-    this.scene.add(spotlightGroup);
-    this.spotlight = spotlightGroup;
-  },
-  
-  setupEventListeners() {
-    // Mouse movement
-    document.addEventListener('mousemove', (event) => {
-      this.mouse.x = event.clientX / window.innerWidth;
-      this.mouse.y = 1 - (event.clientY / window.innerHeight);
-      
-      if (this.book && this.book.material.uniforms) {
-        this.book.material.uniforms.uMouse.value.set(this.mouse.x, this.mouse.y);
+      void main() {
+        float distanceToCenter = distance(gl_PointCoord, vec2(0.5));
+        float alpha = 1.0 - smoothstep(0.0, 0.5, distanceToCenter);
+        
+        gl_FragColor = vec4(vColor, alpha * 0.6);
       }
-    });
-    
-    // Touch support
-    document.addEventListener('touchmove', (event) => {
-      event.preventDefault();
-      const touch = event.touches[0];
-      this.mouse.x = touch.clientX / window.innerWidth;
-      this.mouse.y = 1 - (touch.clientY / window.innerHeight);
-      
-      if (this.book && this.book.material.uniforms) {
-        this.book.material.uniforms.uMouse.value.set(this.mouse.x, this.mouse.y);
-      }
-    });
-  },
+    `,
+    transparent: true,
+    vertexColors: true,
+    blending: THREE.AdditiveBlending
+  });
+
+  const particleSystem = new THREE.Points(particles, particleMaterial);
+  scene.add(particleSystem);
+
+  // Mouse interaction
+  const mouse = new THREE.Vector2();
+  const mouseTarget = new THREE.Vector2();
   
-  animate() {
-    requestAnimationFrame(() => this.animate());
-    
-    const time = Date.now() * 0.001;
-    
-    // Update book shader
-    if (this.book && this.book.material.uniforms) {
-      this.book.material.uniforms.uTime.value = time;
-      
-      // Gentle floating and rotation
-      this.book.rotation.y = Math.sin(time * 0.5) * 0.1;
-      this.book.rotation.x = Math.sin(time * 0.3) * 0.05;
-      this.book.position.y = Math.sin(time * 0.4) * 0.1;
-    }
-    
-    // Update particles
-    if (this.particles) {
-      this.particles.rotation.y = time * 0.1;
-      this.particles.rotation.x = time * 0.05;
-    }
-    
-    // Update spotlight animation
-    if (this.spotlight) {
-      this.spotlight.rotation.z = Math.sin(time * 0.2) * 0.1;
-    }
-    
-    // Render
-    this.renderer.render(this.scene, this.camera);
-  },
+  function onMouseMove(event) {
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  }
   
-  onResize() {
-    if (!this.camera || !this.renderer) return;
-    
-    const container = document.getElementById('hero-canvas');
-    if (!container) return;
-    
-    this.camera.aspect = container.clientWidth / container.clientHeight;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(container.clientWidth, container.clientHeight);
-  },
+  window.addEventListener('mousemove', onMouseMove);
+
+  // Animation loop
+  let animationId;
+  let time = 0;
   
-  createFallback() {
-    const container = document.getElementById('hero-canvas');
-    if (!container) return;
+  function animate() {
+    animationId = requestAnimationFrame(animate);
+    time += 0.01;
     
-    container.innerHTML = `
-      <div class="hero-fallback" style="
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 100%;
-        height: 100%;
-        background: radial-gradient(circle, rgba(108, 124, 255, 0.1) 0%, transparent 70%);
-        border-radius: 20px;
-      ">
-        <div style="
-          font-size: 4rem;
-          color: var(--primary);
-          text-align: center;
-          animation: pulse 2s ease-in-out infinite;
-        ">
-          📖
-        </div>
-      </div>
-    `;
+    // Update uniforms
+    bookMaterial.uniforms.time.value = time;
+    particleMaterial.uniforms.time.value = time;
     
-    // Add pulse animation
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes pulse {
-        0%, 100% { transform: scale(1); opacity: 0.8; }
-        50% { transform: scale(1.1); opacity: 1; }
-      }
-    `;
-    document.head.appendChild(style);
-  },
+    // Mouse parallax
+    mouseTarget.lerp(mouse, 0.05);
+    cameraGroup.rotation.y = mouseTarget.x * 0.1;
+    cameraGroup.rotation.x = mouseTarget.y * 0.1;
+    
+    // Gentle book floating
+    bookGroup.position.y = Math.sin(time * 0.5) * 0.1;
+    bookGroup.rotation.y = Math.sin(time * 0.3) * 0.05;
+    
+    // Rotate particles
+    particleSystem.rotation.y = time * 0.1;
+    
+    renderer.render(scene, camera);
+  }
+
+  // GSAP entrance timeline
+  const tl = gsap.timeline({ delay: 0.5 });
   
-  destroy() {
-    if (this.renderer) {
-      this.renderer.dispose();
-    }
-    if (this.scene) {
-      this.scene.clear();
+  // Initial state
+  gsap.set(bookGroup, { 
+    scale: 0,
+    rotationY: -Math.PI / 4,
+    opacity: 0
+  });
+  gsap.set(particleSystem, { opacity: 0 });
+  gsap.set(cameraGroup, { rotationY: -0.2, rotationX: 0.1 });
+  
+  // Entrance animation
+  tl.to(bookGroup, {
+    scale: 1,
+    rotationY: 0,
+    opacity: 1,
+    duration: 1.5,
+    ease: "back.out(1.7)"
+  })
+  .to(particleSystem, {
+    opacity: 1,
+    duration: 2,
+    ease: "power2.out"
+  }, "-=1")
+  .to(cameraGroup, {
+    rotationY: 0,
+    rotationX: 0,
+    duration: 2,
+    ease: "power2.out"
+  }, "-=1.5");
+
+  // Start animation loop
+  animate();
+
+  // Resize handler
+  function onResize() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height);
+  }
+  
+  window.addEventListener('resize', onResize);
+
+  // Handle visibility change
+  function onVisibilityChange() {
+    if (document.hidden) {
+      cancelAnimationFrame(animationId);
+    } else {
+      animate();
     }
   }
+  
+  document.addEventListener('visibilitychange', onVisibilityChange);
+
+  // Return controller with cleanup
+  return {
+    destroy() {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('resize', onResize);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      
+      cancelAnimationFrame(animationId);
+      
+      // Dispose geometries and materials
+      bookGeometry.dispose();
+      bookMaterial.dispose();
+      spineGeometry.dispose();
+      spineMaterial.dispose();
+      particles.dispose();
+      particleMaterial.dispose();
+      
+      // Remove renderer
+      if (container.contains(renderer.domElement)) {
+        container.removeChild(renderer.domElement);
+      }
+      renderer.dispose();
+      
+      console.log('[BL] hero scene destroyed');
+    }
+  };
 };
+
+console.log('[BL] home-hero.js loaded');
