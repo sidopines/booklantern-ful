@@ -155,35 +155,48 @@ window.BLHomeHero = {
   },
   
   createParticles() {
-    const particleCount = 50;
+    const particleCount = 200;
     const particles = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
+    const sizes = new Float32Array(particleCount);
     
     for (let i = 0; i < particleCount; i++) {
       const i3 = i * 3;
       
-      // Random positions
-      positions[i3] = (Math.random() - 0.5) * 10;
-      positions[i3 + 1] = (Math.random() - 0.5) * 10;
-      positions[i3 + 2] = (Math.random() - 0.5) * 10;
+      // Random positions in a larger area
+      positions[i3] = (Math.random() - 0.5) * 15;
+      positions[i3 + 1] = (Math.random() - 0.5) * 15;
+      positions[i3 + 2] = (Math.random() - 0.5) * 15;
       
-      // Random colors
+      // Library-themed colors (dust, gold, white)
       const color = new THREE.Color();
-      color.setHSL(0.6 + Math.random() * 0.2, 0.8, 0.6);
+      const colorType = Math.random();
+      if (colorType < 0.4) {
+        color.setHSL(0.1, 0.3, 0.8); // Dust particles
+      } else if (colorType < 0.7) {
+        color.setHSL(0.12, 0.8, 0.6); // Gold particles
+      } else {
+        color.setHSL(0, 0, 0.9); // White particles
+      }
       colors[i3] = color.r;
       colors[i3 + 1] = color.g;
       colors[i3 + 2] = color.b;
+      
+      // Random sizes
+      sizes[i] = Math.random() * 0.03 + 0.01;
     }
     
     particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     particles.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    particles.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
     
     const particleMaterial = new THREE.PointsMaterial({
       size: 0.02,
       vertexColors: true,
       transparent: true,
-      opacity: 0.6
+      opacity: 0.6,
+      blending: THREE.AdditiveBlending
     });
     
     this.particles = new THREE.Points(particles, particleMaterial);
@@ -192,13 +205,50 @@ window.BLHomeHero = {
   
   setupLighting() {
     // Ambient light
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+    const ambientLight = new THREE.AmbientLight(0x6366f1, 0.3);
     this.scene.add(ambientLight);
     
     // Point light for book glow
-    const pointLight = new THREE.PointLight(0x6c7cff, 1, 10);
+    const pointLight = new THREE.PointLight(0x6366f1, 1, 10);
     pointLight.position.set(0, 0, 2);
     this.scene.add(pointLight);
+    
+    // Reading lamp spotlight
+    this.createReadingSpotlight();
+  },
+  
+  createReadingSpotlight() {
+    const spotlightGroup = new THREE.Group();
+    
+    // Spotlight cone
+    const coneGeometry = new THREE.ConeGeometry(2, 4, 8);
+    const coneMaterial = new THREE.MeshBasicMaterial({
+      color: 0xf59e0b,
+      transparent: true,
+      opacity: 0.1,
+      side: THREE.DoubleSide
+    });
+    const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+    cone.position.y = 2;
+    cone.rotation.x = Math.PI;
+    spotlightGroup.add(cone);
+    
+    // Light beam
+    const beamGeometry = new THREE.CylinderGeometry(0.1, 2, 4, 8);
+    const beamMaterial = new THREE.MeshBasicMaterial({
+      color: 0xf59e0b,
+      transparent: true,
+      opacity: 0.05,
+      side: THREE.DoubleSide
+    });
+    const beam = new THREE.Mesh(beamGeometry, beamMaterial);
+    beam.position.y = 0;
+    spotlightGroup.add(beam);
+    
+    // Position spotlight
+    spotlightGroup.position.set(0, 3, 0);
+    this.scene.add(spotlightGroup);
+    this.spotlight = spotlightGroup;
   },
   
   setupEventListeners() {
@@ -234,14 +284,21 @@ window.BLHomeHero = {
     if (this.book && this.book.material.uniforms) {
       this.book.material.uniforms.uTime.value = time;
       
-      // Subtle rotation
+      // Gentle floating and rotation
       this.book.rotation.y = Math.sin(time * 0.5) * 0.1;
+      this.book.rotation.x = Math.sin(time * 0.3) * 0.05;
+      this.book.position.y = Math.sin(time * 0.4) * 0.1;
     }
     
     // Update particles
     if (this.particles) {
       this.particles.rotation.y = time * 0.1;
       this.particles.rotation.x = time * 0.05;
+    }
+    
+    // Update spotlight animation
+    if (this.spotlight) {
+      this.spotlight.rotation.z = Math.sin(time * 0.2) * 0.1;
     }
     
     // Render

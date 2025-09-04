@@ -6,15 +6,20 @@
    DESIGN TOKENS & COLOR PALETTE
    ========================= */
 :root {
-  /* Lusion-inspired Color Palette */
-  --bg: #0b0f1a;
-  --surface: #12172a;
-  --card: #1a1f3a;
-  --primary: #6c7cff;
-  --accent: #ff6ea8;
-  --glow: 0 0 32px rgba(108,124,255,.45);
-  --text: #eaf0ff;
-  --muted: #aab1d6;
+  /* Cinematic Library Color Palette */
+  --bg: #0a0e1a;
+  --surface: #0f1420;
+  --card: #1a1f2e;
+  --primary: #6366f1;
+  --accent: #ec4899;
+  --gold: #f59e0b;
+  --emerald: #10b981;
+  --purple: #8b5cf6;
+  --glow: 0 0 40px rgba(99,102,241,.4);
+  --glow-accent: 0 0 30px rgba(236,72,153,.3);
+  --glow-gold: 0 0 25px rgba(245,158,11,.3);
+  --text: #f8fafc;
+  --muted: #94a3b8;
   
   /* Light theme overrides */
   --bg-light: #ffffff;
@@ -29,11 +34,13 @@
   --error: #ef4444;
   --info: #3b82f6;
   
-  /* Gradients */
+  /* Library-themed Gradients */
   --gradient-primary: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-  --gradient-accent: linear-gradient(135deg, var(--accent) 0%, #ff9a9e 100%);
+  --gradient-accent: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%);
   --gradient-bg: linear-gradient(135deg, var(--bg) 0%, var(--surface) 100%);
-  --gradient-card: linear-gradient(135deg, var(--card) 0%, rgba(26, 31, 58, 0.8) 100%);
+  --gradient-card: linear-gradient(135deg, var(--card) 0%, rgba(26, 31, 46, 0.9) 100%);
+  --gradient-gold: linear-gradient(135deg, var(--gold) 0%, #fbbf24 100%);
+  --gradient-emerald: linear-gradient(135deg, var(--emerald) 0%, #34d399 100%);
   
   /* Glassmorphism */
   --glass-bg: rgba(25, 31, 75, 0.3);
@@ -468,6 +475,344 @@ body {
 /* =========================
    CINEMATIC LAYERS & EFFECTS
    ========================= */
+
+/* Library-themed glow effects */
+.library-glow {
+  box-shadow: var(--glow);
+}
+
+.library-glow-accent {
+  box-shadow: var(--glow-accent);
+}
+
+.library-glow-gold {
+  box-shadow: var(--glow-gold);
+}
+
+/* Reading lamp spotlight */
+.reading-spotlight {
+  position: relative;
+  background: radial-gradient(ellipse at center top, 
+    rgba(245, 158, 11, 0.1) 0%, 
+    rgba(245, 158, 11, 0.05) 30%, 
+    transparent 70%);
+}
+
+.reading-spotlight::before {
+  content: '';
+  position: absolute;
+  top: -50px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 100px;
+  background: conic-gradient(from 0deg at center, 
+    transparent 0deg, 
+    rgba(245, 158, 11, 0.1) 30deg, 
+    transparent 60deg);
+  border-radius: 50%;
+  filter: blur(20px);
+  z-index: -1;
+}
+
+/* Book spine effect */
+.book-spine {
+  position: relative;
+  background: var(--gradient-primary);
+  border-radius: 4px;
+  box-shadow: 
+    inset -2px 0 4px rgba(0, 0, 0, 0.2),
+    0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.book-spine::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(255, 255, 255, 0.1) 50%, 
+    transparent 100%);
+  border-radius: inherit;
+}
+
+/* Floating book cards */
+.floating-book {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.3s ease;
+}
+
+.floating-book:hover {
+  transform: translateY(-10px) rotateY(5deg);
+}
+
+.floating-book::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--gradient-primary);
+  border-radius: inherit;
+  opacity: 0.1;
+  transform: translateZ(-1px);
+  filter: blur(10px);
+  z-index: -1;
+}
+
+/* Constellation lines */
+.constellation-line {
+  position: relative;
+  height: 2px;
+  background: var(--gradient-primary);
+  border-radius: 1px;
+  transform-origin: left center;
+}
+
+.constellation-line::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  background: var(--primary);
+  border-radius: 50%;
+  transform: translateY(-50%);
+  box-shadow: var(--glow);
+}
+
+/* Constellation nodes */
+.constellation-node {
+  position: relative;
+  width: 12px;
+  height: 12px;
+  background: var(--gradient-primary);
+  border-radius: 50%;
+  box-shadow: var(--glow);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.constellation-node:hover {
+  transform: scale(1.5);
+  box-shadow: var(--glow-accent);
+}
+
+.constellation-node::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  background: white;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Page flip effect */
+.page-flip {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.6s ease;
+}
+
+.page-flip.flipping {
+  transform: rotateY(-180deg);
+}
+
+.page-flip::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--gradient-bg);
+  border-radius: inherit;
+  backface-visibility: hidden;
+  transform: rotateY(180deg);
+}
+
+/* Dust particles */
+.dust-particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  animation: dust-drift 15s infinite linear;
+}
+
+@keyframes dust-drift {
+  0% {
+    transform: translateY(100vh) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-10vh) translateX(100px) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* Glowing search pill */
+.search-pill-glow {
+  position: relative;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  transition: all 0.3s ease;
+}
+
+.search-pill-glow:focus {
+  border-color: var(--primary);
+  box-shadow: var(--glow);
+}
+
+.search-pill-glow::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: var(--gradient-primary);
+  border-radius: inherit;
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 0.3s ease;
+}
+
+.search-pill-glow:focus::before {
+  opacity: 0.2;
+}
+
+/* Theater curtain effect */
+.theater-curtain {
+  position: relative;
+  background: var(--gradient-accent);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.theater-curtain::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 10px,
+      rgba(0, 0, 0, 0.1) 10px,
+      rgba(0, 0, 0, 0.1) 20px
+    );
+  animation: curtain-wave 3s ease-in-out infinite;
+}
+
+@keyframes curtain-wave {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(20px); }
+}
+
+/* Candle flicker */
+.candle-flicker {
+  position: relative;
+  background: var(--gradient-gold);
+  border-radius: 50%;
+  animation: candle-flicker 2s ease-in-out infinite;
+}
+
+.candle-flicker::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 20px;
+  background: var(--gradient-gold);
+  border-radius: 2px;
+  box-shadow: var(--glow-gold);
+}
+
+@keyframes candle-flicker {
+  0%, 100% { 
+    transform: scale(1) rotate(0deg);
+    box-shadow: var(--glow-gold);
+  }
+  25% { 
+    transform: scale(1.1) rotate(1deg);
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.4);
+  }
+  75% { 
+    transform: scale(0.9) rotate(-1deg);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
+  }
+}
+
+/* Pen writing line */
+.pen-line {
+  position: relative;
+  height: 2px;
+  background: var(--gradient-primary);
+  border-radius: 1px;
+  transform-origin: left center;
+  animation: pen-write 2s ease-in-out;
+}
+
+@keyframes pen-write {
+  0% { transform: scaleX(0); }
+  100% { transform: scaleX(1); }
+}
+
+/* Reading streak flame */
+.streak-flame {
+  position: relative;
+  background: var(--gradient-accent);
+  border-radius: 50%;
+  animation: flame-flicker 1.5s ease-in-out infinite;
+}
+
+.streak-flame::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 15px;
+  background: var(--gradient-accent);
+  border-radius: 3px;
+  box-shadow: var(--glow-accent);
+}
+
+@keyframes flame-flicker {
+  0%, 100% { 
+    transform: scale(1);
+    box-shadow: var(--glow-accent);
+  }
+  50% { 
+    transform: scale(1.2);
+    box-shadow: 0 0 35px rgba(236, 72, 153, 0.5);
+  }
+}
 
 /* Movie-style backdrop layers */
 .cinematic-bg {

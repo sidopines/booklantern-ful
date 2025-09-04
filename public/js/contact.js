@@ -19,7 +19,7 @@ window.BLContact = {
   },
   
   loadPenAnimation(anim) {
-    anim.tryLottie('penLine', '/public/animations/pen-writing.json', {
+    anim.tryLottie('penLine', '/public/animations/pen.json', {
       loop: true,
       autoplay: true
     });

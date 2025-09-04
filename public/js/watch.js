@@ -33,11 +33,12 @@ window.BLWatch = {
     // Register ScrollTrigger
     gsap.registerPlugin(ScrollTrigger);
     
-    // Video cards reveal
+    // Video cards with depth reveal
     gsap.utils.toArray('.video-card').forEach((card, i) => {
       gsap.from(card, {
         opacity: 0,
         y: 50,
+        rotationY: 45,
         duration: 0.6,
         delay: i * 0.1,
         scrollTrigger: {
@@ -45,6 +46,29 @@ window.BLWatch = {
           start: 'top 85%',
           toggleActions: 'play none none reverse'
         }
+      });
+      
+      // Add depth hover effects
+      card.addEventListener('mouseenter', () => {
+        gsap.to(card, {
+          scale: 1.05,
+          rotationY: 5,
+          z: 20,
+          boxShadow: "0 0 30px rgba(99, 102, 241, 0.3)",
+          duration: 0.3,
+          ease: "power2.out"
+        });
+      });
+      
+      card.addEventListener('mouseleave', () => {
+        gsap.to(card, {
+          scale: 1,
+          rotationY: 0,
+          z: 0,
+          boxShadow: "0 0 20px rgba(0, 0, 0, 0.1)",
+          duration: 0.3,
+          ease: "power2.out"
+        });
       });
     });
     
