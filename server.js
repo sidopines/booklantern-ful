@@ -24,12 +24,16 @@ const isProd = process.env.NODE_ENV === 'production';
 
 // Build ID for cache-busting (stable, production-ready)
 const buildId =
-  (process.env.RENDER_GIT_COMMIT && process.env.RENDER_GIT_COMMIT.slice(0,7)) ||
-  process.env.SOURCE_VERSION ||            // (Render alternate)
-  process.env.BUILD_ID ||                  // manual override
+  process.env.RENDER_GIT_COMMIT ||
+  process.env.SOURCE_VERSION ||
+  process.env.BUILD_ID ||
   (process.env.NODE_ENV === 'production' ? Date.now().toString(36) : 'dev');
 
-app.locals.buildId = buildId;
+// Expose buildId to all templates
+app.use((req, res, next) => {
+  res.locals.buildId = buildId;
+  next();
+});
 
 // (Optional) keep startup quiet/fast in production
 if (isProd) {
@@ -53,23 +57,12 @@ app.set('views', path.join(__dirname, 'views'));
 // Trust reverse proxy (Render) so secure cookies work correctly in production
 app.set('trust proxy', 1);
 
-// Static files
-app.use('/public', express.static(path.join(__dirname, 'public'), {
-  maxAge: isProd ? '7d' : 0,
+// Static files - serve public directory at root
+app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,
-  setHeaders: (res) => {
-    // Allow fonts/images/CSS to be cached by the browser
-    if (isProd) res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
-  }
-}));
-
-// Vendor fallback files
-app.use('/vendor', express.static(path.join(__dirname, 'public/vendor'), {
-  maxAge: isProd ? '30d' : 0,
-  etag: true,
-  setHeaders: (res) => {
-    // Long cache for vendor files
-    if (isProd) res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+  maxAge: '7d',
+  setHeaders: (res, p) => {
+    if (p.endsWith('.json')) res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
 }));
 

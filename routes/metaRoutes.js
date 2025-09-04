@@ -129,4 +129,23 @@ router.get('/__anim', (req, res) => {
   });
 });
 
+/**
+ * Assets health route for CI smoke tests
+ */
+router.get('/health/assets', (req, res) => {
+  const fs = require('fs');
+  const p = require('path');
+  const must = [
+    'public/css/theme.css',
+    'public/js/scene-core.js',
+    'public/js/home-hero.js',
+    'public/vendor/three.r128.min.js',
+    'public/vendor/gsap.min.js',
+    'public/vendor/gsap-scrolltrigger.min.js',
+    'public/vendor/lottie.min.js'
+  ];
+  const report = must.map(f => ({file: f, exists: fs.existsSync(p.join(process.cwd(), f))}));
+  res.json({ok: report.every(x => x.exists), files: report});
+});
+
 module.exports = router;
