@@ -8,7 +8,7 @@
     loadLottie: true
   }) %>
 </head>
-<body class="contact-page">
+<body class="contact-page" data-page="contact">
   <%- include('./partials/nav.ejs') %>
 
   <!-- Animated Pen Line -->
@@ -110,23 +110,7 @@
 
   <%- include('./partials/footer.ejs') %>
 
-  <script defer src="/js/scene-core.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      // Initialize scene manager
-      if (window.SceneManager) {
-        const sceneManager = window.SceneManager;
-        
-        // Initialize Lottie animations
-        if (window.lottie) {
-          // Animated pen line
-          sceneManager.tryLottie('pen-line', '/animations/pen-writing.json', {
-            loop: true,
-            autoplay: true
-          });
-        }
-      }
-    });
-  </script>
+  <!-- Contact Page Scripts -->
+  <script defer src="/js/contact.js?v=<%= app.locals.buildId %>"></script>
 </body>
 </html>

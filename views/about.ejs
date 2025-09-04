@@ -8,7 +8,7 @@
     loadLottie: true
   }) %>
 </head>
-<body class="about-page">
+<body class="about-page" data-page="about">
   <%- include('./partials/nav.ejs') %>
 
   <!-- Timeline Candles -->
@@ -130,30 +130,7 @@
 
   <%- include('./partials/footer.ejs') %>
 
-  <script defer src="/js/scene-core.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      // Initialize scene manager
-      if (window.SceneManager) {
-        const sceneManager = window.SceneManager;
-        
-        // Initialize Lottie animations for candles
-        if (window.lottie) {
-          sceneManager.tryLottie('candle-1', '/animations/candle.json', {
-            loop: true,
-            autoplay: true
-          });
-          sceneManager.tryLottie('candle-2', '/animations/candle.json', {
-            loop: true,
-            autoplay: true
-          });
-          sceneManager.tryLottie('candle-3', '/animations/candle.json', {
-            loop: true,
-            autoplay: true
-          });
-        }
-      }
-    });
-  </script>
+  <!-- About Page Scripts -->
+  <script defer src="/js/about.js?v=<%= app.locals.buildId %>"></script>
 </body>
 </html>

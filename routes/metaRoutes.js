@@ -84,4 +84,30 @@ router.get('/robots.txt', (req, res) => {
   res.send(robots);
 });
 
+/**
+ * Diagnostics route - list available animation assets
+ */
+router.get('/__assets', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  
+  try {
+    const animationsDir = path.join(__dirname, '../public/animations');
+    const files = fs.readdirSync(animationsDir).filter(file => file.endsWith('.json'));
+    
+    res.json({
+      status: 'ok',
+      buildId: process.env.BUILD_ID || 'dev',
+      animations: files,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;

@@ -10,7 +10,7 @@
     loadLenis: true
   }) %>
 </head>
-<body class="home">
+<body class="home" data-page="home">
   <%- include('./partials/nav.ejs') %>
 
   <!-- CINEMATIC HERO SECTION -->
@@ -734,8 +734,7 @@
   </style>
 
   <!-- HOMEPAGE SCRIPTS -->
-  <script defer src="/js/hero-scene.js"></script>
-  <script defer src="/js/scene-core.js"></script>
+  <script defer src="/js/home.js?v=<%= app.locals.buildId %>"></script>
   <script>
     // Initialize cinematic homepage animations
     document.addEventListener('DOMContentLoaded', function() {

@@ -37,7 +37,7 @@
     }
   </style>
 </head>
-<body class="cinematic-bg">
+<body class="cinematic-bg" data-page="watch">
   <!-- Theater Curtain Animation -->
   <div class="theater-curtain" id="theater-curtain"></div>
   
@@ -72,56 +72,7 @@
     <% }) %>
   </div>
 
-  <script defer src="/js/scene-core.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      // Initialize scene manager
-      if (window.SceneManager) {
-        const sceneManager = window.SceneManager;
-        
-        // Initialize Lottie animations
-        if (window.lottie) {
-          // Theater curtain animation
-          sceneManager.tryLottie('theater-curtain', '/animations/curtain.json', {
-            loop: true,
-            autoplay: true
-          });
-        }
-
-        // Create a simple Three.js light plane background
-        if (window.THREE) {
-          sceneManager.tryThreeScene('theater-curtain', (container) => {
-            const scene = new THREE.Scene();
-            const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-            renderer.setSize(container.clientWidth, container.clientHeight);
-            container.appendChild(renderer.domElement);
-
-            // Create a simple light plane
-            const geometry = new THREE.PlaneGeometry(10, 10);
-            const material = new THREE.MeshBasicMaterial({ 
-              color: 0x6c7cff, 
-              transparent: true, 
-              opacity: 0.1 
-            });
-            const plane = new THREE.Mesh(geometry, material);
-            scene.add(plane);
-
-            camera.position.z = 5;
-
-            function animate() {
-              requestAnimationFrame(animate);
-              plane.rotation.x += 0.005;
-              plane.rotation.y += 0.005;
-              renderer.render(scene, camera);
-            }
-            animate();
-
-            return { scene, camera, renderer };
-          });
-        }
-      }
-    });
-  </script>
+  <!-- Watch Page Scripts -->
+  <script defer src="/js/watch.js?v=<%= app.locals.buildId %>"></script>
 </body>
 </html>
