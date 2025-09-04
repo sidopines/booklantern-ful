@@ -6,66 +6,90 @@
     pageDescription: pageDescription || 'Millions of free and public-domain books—one clean reader.',
     loadGSAP: true,
     loadThreeJS: true,
-    loadLottie: true
+    loadLottie: true,
+    loadLenis: true
   }) %>
 </head>
 <body class="home">
   <%- include('./partials/nav.ejs') %>
 
-  <!-- HERO SECTION -->
-  <section class="hero">
-    <!-- Library Doors Animation -->
-    <div class="hero-doors">
-      <div id="library-doors" class="doors-container"></div>
-    </div>
-
-    <!-- 3D Book Scene -->
-    <div class="hero-scene">
-      <div id="hero-scene" class="scene-container"></div>
-    </div>
-
-    <!-- Hero Content -->
-    <div class="hero-content">
-      <div class="container">
-        <div class="hero-inner">
-          <h1 class="hero-title reveal">Books, beautifully.</h1>
-          <p class="hero-subtitle reveal">
-            Search the open stacks — from globally trusted libraries across the web.
-            Read in a focused, book-like experience that stays out of the way.
-          </p>
-
-          <!-- Enhanced Search Bar -->
-          <form class="hero-search reveal" action="/read" method="GET">
-            <div class="search-wrapper">
-              <input type="text" name="query" placeholder="Try 'Plato', 'Socrates', 'Physics', 'Bible'…" class="search-input" />
-              <button class="btn btn-primary" type="submit">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <path d="m21 21-4.35-4.35"></path>
-                </svg>
-                Search Books
-              </button>
-            </div>
-          </form>
-
-          <div class="hero-cta reveal">
-            <a class="btn btn-accent" href="/read">Explore Free Books</a>
-            <a class="btn btn-ghost" href="/watch">Watch Videos</a>
-            <% if (!user) { %>
-              <a class="btn btn-glass" href="/register">Create Account</a>
-            <% } %>
-          </div>
+  <!-- CINEMATIC HERO SECTION -->
+  <section class="hero cinematic-bg vignette">
+    <!-- Act 1: Cold Open - Library Doors -->
+    <div class="hero-act-1">
+      <div class="doors-container">
+        <div id="library-doors" class="doors-animation"></div>
+        <div class="doors-overlay">
+          <div class="light-bloom"></div>
         </div>
       </div>
     </div>
 
-    <!-- Reading Character Animation -->
-    <div class="hero-character">
-      <div id="reading-character" class="character-container"></div>
+    <!-- Act 2: Living Library Scene -->
+    <div class="hero-act-2">
+      <div class="library-scene">
+        <!-- Parallax Starfield -->
+        <div class="starfield"></div>
+        
+        <!-- Floating Dust Motes -->
+        <div class="dust-motes" id="dust-motes"></div>
+        
+        <!-- 3D Book Scene -->
+        <div class="hero-scene">
+          <div id="hero-scene" class="scene-container"></div>
+        </div>
+        
+        <!-- Reading Hero Character -->
+        <div class="hero-character">
+          <div id="reading-hero" class="character-container"></div>
+        </div>
+        
+        <!-- Side Cat Animation -->
+        <div class="side-cat">
+          <div id="side-cat" class="cat-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Act 3: Call to Action -->
+    <div class="hero-act-3">
+      <div class="hero-content">
+        <div class="container">
+          <div class="hero-inner">
+            <h1 class="hero-title reveal">Books, beautifully.</h1>
+            <p class="hero-subtitle reveal">
+              Search the open stacks — from globally trusted libraries across the web.
+              Read in a focused, book-like experience that stays out of the way.
+            </p>
+
+            <!-- Large Neon Search Pill -->
+            <form class="hero-search reveal" action="/read" method="GET">
+              <div class="search-pill-large">
+                <input type="text" name="query" placeholder="Search title or author..." class="search-input-large" />
+                <button class="btn btn-primary btn-large" type="submit">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                  </svg>
+                  Search Books
+                </button>
+              </div>
+            </form>
+
+            <div class="hero-cta reveal">
+              <a class="btn btn-accent btn-large" href="/read">Explore Free Books</a>
+              <a class="btn btn-ghost btn-large" href="#how-it-works">How BookLantern Works</a>
+              <% if (!user) { %>
+                <a class="btn btn-glass btn-large" href="/register">Create Account</a>
+              <% } %>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
-  <!-- POPULAR GENRES -->
+  <!-- ANIMATED GENRES ROW -->
   <section class="section reveal-section">
     <div class="container">
       <div class="section-header">
@@ -73,28 +97,28 @@
         <p class="section-subtitle reveal">Explore our most loved categories</p>
       </div>
       <div class="genres-grid">
-        <a href="/read?query=History" class="genre-card reveal-card hover-lift">
-          <div class="genre-icon">📚</div>
+        <a href="/read?query=History" class="genre-card reveal-card card-parallax hover-lift" data-animation="history">
+          <div class="genre-icon" id="history-icon"></div>
           <h3>History</h3>
           <p>Ancient civilizations to modern times</p>
         </a>
-        <a href="/read?query=Philosophy" class="genre-card reveal-card hover-lift">
-          <div class="genre-icon">🤔</div>
+        <a href="/read?query=Philosophy" class="genre-card reveal-card card-parallax hover-lift" data-animation="philosophy">
+          <div class="genre-icon" id="philosophy-icon"></div>
           <h3>Philosophy</h3>
           <p>Great thinkers and timeless wisdom</p>
         </a>
-        <a href="/read?query=Science" class="genre-card reveal-card hover-lift">
-          <div class="genre-icon">🔬</div>
+        <a href="/read?query=Science" class="genre-card reveal-card card-parallax hover-lift" data-animation="science">
+          <div class="genre-icon" id="science-icon"></div>
           <h3>Science</h3>
           <p>Discoveries that shaped our world</p>
         </a>
-        <a href="/read?query=Religion" class="genre-card reveal-card hover-lift">
-          <div class="genre-icon">⛪</div>
+        <a href="/read?query=Religion" class="genre-card reveal-card card-parallax hover-lift" data-animation="religion">
+          <div class="genre-icon" id="religion-icon"></div>
           <h3>Religion</h3>
           <p>Sacred texts and spiritual wisdom</p>
         </a>
-        <a href="/read?query=Literature" class="genre-card reveal-card hover-lift">
-          <div class="genre-icon">📖</div>
+        <a href="/read?query=Literature" class="genre-card reveal-card card-parallax hover-lift" data-animation="literature">
+          <div class="genre-icon" id="literature-icon"></div>
           <h3>Literature</h3>
           <p>Classic novels and poetry</p>
         </a>
@@ -114,25 +138,25 @@
   </section>
 
   <!-- WHY BOOKLANTERN -->
-  <section class="section reveal-section">
+  <section class="section reveal-section" id="how-it-works">
     <div class="container">
       <div class="section-header">
         <h2 class="reveal">Why BookLantern?</h2>
         <p class="section-subtitle reveal">Built for readers, by readers</p>
       </div>
       <div class="features-grid">
-        <div class="feature-card glass-card reveal-card">
-          <div class="feature-icon">🚫</div>
+        <div class="feature-card glass-card reveal-card volumetric-glow" data-animation="security">
+          <div class="feature-icon" id="security-icon"></div>
           <h3>No Login Hoops</h3>
           <p>Start reading immediately. No account required to explore our vast collection of free books.</p>
         </div>
-        <div class="feature-card glass-card reveal-card">
-          <div class="feature-icon">📱</div>
+        <div class="feature-card glass-card reveal-card volumetric-glow" data-animation="reader">
+          <div class="feature-icon" id="reader-icon"></div>
           <h3>Single Reader</h3>
           <p>One beautiful, consistent reading experience across all books. No more juggling different interfaces.</p>
         </div>
-        <div class="feature-card glass-card reveal-card">
-          <div class="feature-icon">🔒</div>
+        <div class="feature-card glass-card reveal-card volumetric-glow" data-animation="trust">
+          <div class="feature-icon" id="trust-icon"></div>
           <h3>Safe & Free</h3>
           <p>All content is public domain or freely licensed. No ads, no tracking, just pure reading.</p>
         </div>
@@ -162,6 +186,8 @@
             <div class="preview-page skeleton"></div>
             <div class="preview-page skeleton"></div>
           </div>
+          <!-- Page Turning Animation -->
+          <div class="page-turn-animation" id="page-turn-demo"></div>
         </div>
       </div>
     </div>
@@ -176,18 +202,17 @@
 
   <!-- HOMEPAGE STYLES -->
   <style>
-    /* Hero Section */
+    /* Cinematic Hero Section */
     .hero {
       position: relative;
       min-height: 100vh;
       display: flex;
-      align-items: center;
-      justify-content: center;
+      flex-direction: column;
       overflow: hidden;
-      background: var(--gradient-bg);
     }
 
-    .hero-doors {
+    /* Act 1: Cold Open - Library Doors */
+    .hero-act-1 {
       position: absolute;
       top: 0;
       left: 0;
@@ -202,6 +227,61 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      position: relative;
+    }
+
+    .doors-animation {
+      width: 400px;
+      height: 300px;
+    }
+
+    .doors-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .light-bloom {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 200px;
+      height: 200px;
+      background: radial-gradient(circle, rgba(108, 124, 255, 0.3) 0%, transparent 70%);
+      transform: translate(-50%, -50%);
+      animation: light-bloom 2s ease-out 1s forwards;
+      opacity: 0;
+    }
+
+    @keyframes light-bloom {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+      100% { opacity: 1; transform: translate(-50%, -50%) scale(1.5); }
+    }
+
+    /* Act 2: Living Library Scene */
+    .hero-act-2 {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      opacity: 0;
+      animation: fade-in-scene 1s ease-out 3s forwards;
+    }
+
+    @keyframes fade-in-scene {
+      0% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+
+    .library-scene {
+      position: relative;
+      width: 100%;
+      height: 100%;
     }
 
     .hero-scene {
@@ -218,6 +298,49 @@
       height: 400px;
     }
 
+    .hero-character {
+      position: absolute;
+      top: 60%;
+      left: 30%;
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    .character-container {
+      width: 200px;
+      height: 150px;
+    }
+
+    .side-cat {
+      position: absolute;
+      top: 70%;
+      right: 20%;
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    .cat-container {
+      width: 100px;
+      height: 80px;
+    }
+
+    /* Act 3: Call to Action */
+    .hero-act-3 {
+      position: relative;
+      z-index: 4;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      animation: fade-in-cta 1s ease-out 4s forwards;
+    }
+
+    @keyframes fade-in-cta {
+      0% { opacity: 0; transform: translateY(50px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
     .hero-content {
       position: relative;
       z-index: 3;
@@ -225,6 +348,93 @@
       max-width: 800px;
       margin: 0 auto;
       padding: var(--space-2xl);
+    }
+
+    /* Large Neon Search Pill */
+    .search-pill-large {
+      display: flex;
+      gap: var(--space-md);
+      align-items: center;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 2px solid var(--glass-border);
+      border-radius: var(--radius-pill);
+      padding: var(--space-md);
+      box-shadow: var(--glass-shadow);
+      max-width: 600px;
+      margin: 0 auto var(--space-xl);
+      transition: all var(--transition-normal);
+    }
+
+    .search-pill-large:focus-within {
+      border-color: var(--primary);
+      box-shadow: var(--shadow-neon);
+      transform: scale(1.02);
+    }
+
+    .search-input-large {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-size: 1.1rem;
+      padding: var(--space-md) var(--space-lg);
+      outline: none;
+    }
+
+    .search-input-large::placeholder {
+      color: var(--muted);
+    }
+
+    .btn-large {
+      padding: var(--space-md) var(--space-xl);
+      font-size: 1.1rem;
+      font-weight: var(--font-weight-semibold);
+    }
+
+    /* Page Turn Animation */
+    .page-turn-animation {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 60px;
+      height: 60px;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Genre Icons with Animation IDs */
+    .genre-icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      margin-bottom: var(--space-md);
+      transition: transform var(--transition-normal);
+    }
+
+    .genre-card:hover .genre-icon {
+      transform: scale(1.2) rotate(5deg);
+    }
+
+    /* Feature Icons with Animation IDs */
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      margin-bottom: var(--space-md);
+      transition: transform var(--transition-normal);
+    }
+
+    .feature-card:hover .feature-icon {
+      transform: scale(1.2) rotate(-5deg);
     }
 
     .hero-title {
@@ -525,29 +735,76 @@
 
   <!-- HOMEPAGE SCRIPTS -->
   <script defer src="/js/hero-scene.js"></script>
+  <script defer src="/js/scene-core.js"></script>
   <script>
-    // Initialize Lottie animations
+    // Initialize cinematic homepage animations
     document.addEventListener('DOMContentLoaded', function() {
-      // Library doors animation
-      if (window.lottie && document.getElementById('library-doors')) {
-        lottie.loadAnimation({
-          container: document.getElementById('library-doors'),
-          renderer: 'svg',
+      // Initialize scene manager
+      if (window.SceneManager) {
+        const sceneManager = window.SceneManager;
+        
+        // Act 1: Library doors animation
+        sceneManager.tryLottie('library-doors', '/animations/library-doors.json', {
           loop: false,
-          autoplay: true,
-          path: '/animations/library-doors.json'
+          autoplay: true
+        });
+
+        // Act 2: Reading hero character
+        sceneManager.tryLottie('reading-hero', '/animations/reading-hero.json', {
+          loop: true,
+          autoplay: true
+        });
+
+        // Side cat animation
+        sceneManager.tryLottie('side-cat', '/animations/side-cat.json', {
+          loop: true,
+          autoplay: true
+        });
+
+        // Page turn demo
+        sceneManager.tryLottie('page-turn-demo', '/animations/page-flip.json', {
+          loop: true,
+          autoplay: true
+        });
+
+        // Add parallax layers
+        sceneManager.addParallaxLayer('.starfield', { speed: 0.3 });
+        sceneManager.addParallaxLayer('.dust-motes', { speed: 0.5 });
+        
+        // Create particle system for dust motes
+        sceneManager.createParticleSystem('dust-motes', {
+          count: 15,
+          color: 'rgba(255, 255, 255, 0.2)'
+        });
+
+        // Create spotlight effects
+        sceneManager.createSpotlight('hero-act-2', {
+          width: '400px',
+          height: '400px',
+          x: '50%',
+          y: '50%'
         });
       }
 
-      // Reading character animation
-      if (window.lottie && document.getElementById('reading-character')) {
-        lottie.loadAnimation({
-          container: document.getElementById('reading-character'),
-          renderer: 'svg',
-          loop: true,
-          autoplay: true,
-          path: '/animations/reading-loop.json'
+      // Initialize smooth scroll with Lenis
+      if (window.Lenis) {
+        const lenis = new Lenis({
+          duration: 1.2,
+          easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+          direction: 'vertical',
+          gestureDirection: 'vertical',
+          smooth: true,
+          mouseMultiplier: 1,
+          smoothTouch: false,
+          touchMultiplier: 2,
+          infinite: false,
         });
+
+        function raf(time) {
+          lenis.raf(time);
+          requestAnimationFrame(raf);
+        }
+        requestAnimationFrame(raf);
       }
     });
   </script>

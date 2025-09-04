@@ -81,6 +81,27 @@
       </div>
     </div>
 
+    <!-- Animated Bookshelf Strip -->
+    <div class="footer-bookshelf">
+      <div class="container">
+        <div class="bookshelf-strip">
+          <div class="bookshelf-book"></div>
+          <div class="bookshelf-book"></div>
+          <div class="bookshelf-book"></div>
+          <div class="bookshelf-book"></div>
+          <div class="bookshelf-book"></div>
+          <div class="bookshelf-book"></div>
+          <div class="bookshelf-book"></div>
+          <div class="bookshelf-book"></div>
+          <div class="bookshelf-book"></div>
+        </div>
+        <div class="bookshelf-cta">
+          <p>Explore our vast collection of free books</p>
+          <a href="/read" class="btn btn-primary">Start Reading</a>
+        </div>
+      </div>
+    </div>
+
     <!-- Footer Bottom -->
     <div class="footer-bottom">
       <div class="container">
@@ -386,6 +407,43 @@
   }
 }
 
+/* Bookshelf Strip */
+.footer-bookshelf {
+  padding: var(--space-2xl) 0;
+  background: linear-gradient(135deg, var(--card) 0%, var(--bg-soft) 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.footer-bookshelf::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 20%, rgba(108, 124, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(255, 94, 168, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.bookshelf-cta {
+  text-align: center;
+  margin-top: var(--space-lg);
+}
+
+.bookshelf-cta p {
+  color: var(--muted);
+  margin-bottom: var(--space-md);
+  font-size: 1.1rem;
+}
+
+.bookshelf-cta .btn {
+  font-size: 1rem;
+  padding: var(--space-md) var(--space-xl);
+}
+
 /* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
   .social-link,
@@ -398,6 +456,10 @@
   .social-link:hover,
   .newsletter-button:hover {
     transform: none;
+  }
+  
+  .bookshelf-book {
+    animation: none !important;
   }
 }
 </style>

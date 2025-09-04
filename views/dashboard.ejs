@@ -3,10 +3,12 @@
 <head>
   <%- include('./partials/head.ejs', {
     pageTitle: 'Dashboard',
-    pageDescription: 'Your account overview'
+    pageDescription: 'Your account overview',
+    loadGSAP: true,
+    loadLottie: true
   }) %>
   <style>
-    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --link:#1256b3; }
+    :root { --bg:var(--bg); --text:var(--text); --muted:var(--muted); --card:var(--card); --border:var(--glass-border); --link:var(--primary); }
     * { box-sizing: border-box; }
     body {
       margin: 0;
@@ -89,10 +91,42 @@
       font-weight: 600;
     }
     .btn:hover { background: #f9fafb; }
+
+    /* Reading Streak Meter */
+    .reading-streak {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--card);
+      border-radius: var(--radius-lg);
+      padding: var(--space-md);
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      z-index: 10;
+    }
+
+    .streak-flame {
+      width: 24px;
+      height: 24px;
+    }
+
+    .streak-text {
+      font-size: 0.9rem;
+      font-weight: var(--font-weight-medium);
+      color: var(--text);
+    }
   </style>
 </head>
 <body>
   <%- include('./partials/navbar.ejs') %>
+
+  <!-- Reading Streak Meter -->
+  <div class="reading-streak">
+    <div class="streak-flame" id="streak-flame"></div>
+    <div class="streak-text">Reading Streak: 7 days</div>
+  </div>
 
   <div class="wrap">
     <a href="javascript:history.back()" class="back">← Back</a>
@@ -129,5 +163,24 @@
       </div>
     </div>
   </div>
+
+  <script defer src="/js/scene-core.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Initialize scene manager
+      if (window.SceneManager) {
+        const sceneManager = window.SceneManager;
+        
+        // Initialize Lottie animations
+        if (window.lottie) {
+          // Reading streak flame
+          sceneManager.tryLottie('streak-flame', '/animations/flame.json', {
+            loop: true,
+            autoplay: true
+          });
+        }
+      }
+    });
+  </script>
 </body>
 </html>

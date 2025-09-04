@@ -464,6 +464,290 @@ body {
 }
 
 /* =========================
+   CINEMATIC LAYERS & EFFECTS
+   ========================= */
+
+/* Movie-style backdrop layers */
+.cinematic-bg {
+  position: relative;
+  background: var(--gradient-bg);
+  overflow: hidden;
+}
+
+.cinematic-bg::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 20%, rgba(108, 124, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(255, 94, 168, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 40% 60%, rgba(0, 224, 255, 0.05) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.cinematic-bg::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.1) 100%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Vignette effect */
+.vignette {
+  position: relative;
+}
+
+.vignette::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.2) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Volumetric glows */
+.volumetric-glow {
+  position: relative;
+}
+
+.volumetric-glow::before {
+  content: '';
+  position: absolute;
+  top: -20px;
+  left: -20px;
+  right: -20px;
+  bottom: -20px;
+  background: var(--gradient-primary);
+  border-radius: inherit;
+  opacity: 0.3;
+  filter: blur(20px);
+  z-index: -1;
+  animation: volumetric-pulse 3s ease-in-out infinite;
+}
+
+@keyframes volumetric-pulse {
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.05); }
+}
+
+/* Spotlight masks */
+.spotlight-mask {
+  position: relative;
+  overflow: hidden;
+}
+
+.spotlight-mask::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, transparent 30%, rgba(0, 0, 0, 0.3) 70%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Particle overlay */
+.particle-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+/* Card parallax utilities */
+.card-parallax {
+  transform-style: preserve-3d;
+  transition: transform 0.3s ease;
+}
+
+.card-parallax:hover {
+  transform: translateY(-10px) rotateX(5deg);
+}
+
+/* Animated page transition overlay */
+.page-turn-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--gradient-bg);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* Floating dust motes */
+.dust-motes {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.dust-mote {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  animation: dust-float 20s infinite linear;
+}
+
+@keyframes dust-float {
+  0% {
+    transform: translateY(100vh) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-10vh) translateX(50px);
+    opacity: 0;
+  }
+}
+
+/* Starfield parallax */
+.starfield {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    radial-gradient(2px 2px at 20px 30px, rgba(255, 255, 255, 0.3), transparent),
+    radial-gradient(2px 2px at 40px 70px, rgba(255, 255, 255, 0.2), transparent),
+    radial-gradient(1px 1px at 90px 40px, rgba(255, 255, 255, 0.4), transparent),
+    radial-gradient(1px 1px at 130px 80px, rgba(255, 255, 255, 0.3), transparent);
+  background-repeat: repeat;
+  background-size: 200px 100px;
+  animation: starfield-move 100s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes starfield-move {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-100px); }
+}
+
+/* Storybook ribbon effect */
+.storybook-ribbon {
+  position: relative;
+  background: var(--gradient-primary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-neon);
+}
+
+.storybook-ribbon::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, 
+    var(--accent) 0%, 
+    var(--gold) 25%, 
+    var(--primary) 50%, 
+    var(--primary-2) 75%, 
+    var(--accent) 100%);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+/* Glowing tabs */
+.glowing-tab {
+  position: relative;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  transition: all var(--transition-normal);
+  cursor: pointer;
+}
+
+.glowing-tab:hover {
+  background: var(--primary);
+  color: white;
+  box-shadow: var(--shadow-neon);
+  transform: translateY(-2px);
+}
+
+.glowing-tab.active {
+  background: var(--gradient-primary);
+  color: white;
+  box-shadow: var(--shadow-neon);
+}
+
+/* Animated bookshelf strip */
+.bookshelf-strip {
+  position: relative;
+  height: 60px;
+  background: linear-gradient(135deg, var(--card) 0%, var(--bg-soft) 100%);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin: var(--space-lg) 0;
+}
+
+.bookshelf-book {
+  position: absolute;
+  width: 8px;
+  height: 40px;
+  background: var(--gradient-primary);
+  border-radius: 2px;
+  animation: bookshelf-float 6s ease-in-out infinite;
+}
+
+.bookshelf-book:nth-child(1) { left: 10%; animation-delay: 0s; }
+.bookshelf-book:nth-child(2) { left: 20%; animation-delay: 1s; }
+.bookshelf-book:nth-child(3) { left: 30%; animation-delay: 2s; }
+.bookshelf-book:nth-child(4) { left: 40%; animation-delay: 3s; }
+.bookshelf-book:nth-child(5) { left: 50%; animation-delay: 4s; }
+.bookshelf-book:nth-child(6) { left: 60%; animation-delay: 5s; }
+.bookshelf-book:nth-child(7) { left: 70%; animation-delay: 0.5s; }
+.bookshelf-book:nth-child(8) { left: 80%; animation-delay: 1.5s; }
+.bookshelf-book:nth-child(9) { left: 90%; animation-delay: 2.5s; }
+
+@keyframes bookshelf-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-5px) rotate(2deg); }
+}
+
+/* =========================
    PERFORMANCE OPTIMIZATIONS
    ========================= */
 
@@ -471,7 +755,9 @@ body {
 .glass,
 .glass-card,
 .btn,
-.hover-lift {
+.hover-lift,
+.card-parallax,
+.volumetric-glow {
   will-change: transform;
   transform: translateZ(0);
 }
@@ -479,7 +765,8 @@ body {
 /* Optimize repaints */
 .book-cover img,
 .genre-card,
-.feature-card {
+.feature-card,
+.glowing-tab {
   backface-visibility: hidden;
   perspective: 1000px;
 }

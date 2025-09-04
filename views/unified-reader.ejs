@@ -2,30 +2,69 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title><%= pageTitle || 'Read • BookLantern' %></title>
-  <link rel="stylesheet" href="/css/site.css"/>
+  <%- include('./partials/head.ejs', {
+    pageTitle: pageTitle || 'Read • BookLantern',
+    pageDescription: 'Reading ' + (typeof bookTitle !== 'undefined' ? bookTitle : 'book') + ' in BookLantern\'s unified reader',
+    loadGSAP: true,
+    loadLottie: true
+  }) %>
   <style>
-    body{background:#fff;}
+    body{background:var(--bg);}
     
-    /* Enhanced toolbar with backdrop filter and solid contrast */
+    /* Enhanced toolbar with neon theme */
     .topbar{
       position:sticky;top:0;z-index:100;
-      background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);
+      background:var(--glass-bg);backdrop-filter:blur(20px);
       display:flex;gap:.5rem;align-items:center;padding:.75rem;
-      border-bottom:1px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.1)
+      border-bottom:1px solid var(--glass-border);box-shadow:var(--glass-shadow)
     }
     
     .page{max-width:1200px;margin:0 auto;padding:.5rem}
     .pane{min-height:80vh;display:flex;justify-content:center;align-items:flex-start;position:relative}
     
-    /* Centered reader with proper dimensions */
+    /* Centered reader with neon theme */
     #bookBox{
       width:100%;max-width:1200px;height:80vh;
-      border-radius:12px;border:1px solid #e5e7eb;
-      box-shadow:0 4px 20px rgba(0,0,0,.08);background:#fff;
+      border-radius:var(--radius-xl);border:1px solid var(--glass-border);
+      box-shadow:var(--glass-shadow);background:var(--card);
       padding:0;overflow:hidden;position:relative
+    }
+
+    /* Loading animation */
+    .loading-stack {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+    }
+
+    .loading-book {
+      width: 40px;
+      height: 60px;
+      background: var(--gradient-primary);
+      border-radius: 4px;
+      margin: 2px;
+      animation: book-rise 1.5s ease-in-out infinite;
+    }
+
+    .loading-book:nth-child(1) { animation-delay: 0s; }
+    .loading-book:nth-child(2) { animation-delay: 0.2s; }
+    .loading-book:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes book-rise {
+      0%, 100% { transform: translateY(0); opacity: 0.7; }
+      50% { transform: translateY(-20px); opacity: 1; }
+    }
+
+    /* Tiny assistant animation */
+    .reader-assistant {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 24px;
+      height: 24px;
+      z-index: 5;
     }
     
     /* Navigation chevrons - always visible */
@@ -82,6 +121,9 @@
   <% } %>
 </head>
 <body>
+  <!-- Tiny Assistant Animation -->
+  <div class="reader-assistant" id="reader-assistant" aria-hidden="true"></div>
+
   <header class="topbar page">
     <button class="btn back" onclick="history.back()" tabindex="0" aria-label="Go back to previous page">&larr; Back</button>
     <div class="muted small"><%= title || 'Book' %><% if (typeof author === 'string' && author) { %> — <%= author %><% } %></div>
@@ -116,6 +158,12 @@
     <div id="status" class="muted small">loading…</div>
     <section class="pane">
       <div id="bookBox">
+        <!-- Loading Animation -->
+        <div class="loading-stack" id="loading-stack">
+          <div class="loading-book"></div>
+          <div class="loading-book"></div>
+          <div class="loading-book"></div>
+        </div>
         <div class="muted" style="display:flex;align-items:center;justify-content:center;height:100%">Loading…</div>
       </div>
       <!-- Navigation chevrons -->
@@ -129,6 +177,36 @@
     const EPUB_URL = <%- JSON.stringify(typeof epubUrl==='string'?epubUrl:'') %>;
     const HTML_URL = <%- JSON.stringify(typeof htmlUrl==='string'?htmlUrl:'') %>;
     const PDF_URL = <%- JSON.stringify(typeof pdfUrl==='string'?pdfUrl:'') %>;
+
+    // Initialize scene manager for animations
+    if (window.SceneManager) {
+      const sceneManager = window.SceneManager;
+      
+      // Initialize Lottie animations
+      if (window.lottie) {
+        // Reader assistant animation
+        sceneManager.tryLottie('reader-assistant', '/animations/bookmark.json', {
+          loop: true,
+          autoplay: true
+        });
+      }
+    }
+
+    // Hide loading animation when content loads
+    const hideLoading = () => {
+      const loadingStack = document.getElementById('loading-stack');
+      if (loadingStack) {
+        loadingStack.style.display = 'none';
+      }
+    };
+
+    // Show loading animation
+    const showLoading = () => {
+      const loadingStack = document.getElementById('loading-stack');
+      if (loadingStack) {
+        loadingStack.style.display = 'flex';
+      }
+    };
     const GID = <%- JSON.stringify(typeof gid==='string'?gid:'') %>;
     const IA_ID = <%- JSON.stringify(typeof iaId==='string'?iaId:'') %>;
 
@@ -194,6 +272,7 @@
         if (!r.ok) throw new Error('fetch failed');
         const html = await r.text();
         bookBox.innerHTML = html; // fragment from server
+        hideLoading();
         setStatus('ready');
       } catch (e) {
         bookBox.innerHTML = '<div class="error-message">Could not load content.<br><button class="btn" onclick="location.reload()">Retry</button></div>';

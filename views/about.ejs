@@ -3,17 +3,52 @@
 <head>
   <%- include('./partials/head.ejs', {
     pageTitle: 'About BookLantern',
-    pageDescription: 'Learn how BookLantern brings together results from globally trusted libraries so you can discover millions of books in one place.'
+    pageDescription: 'Learn how BookLantern brings together results from globally trusted libraries so you can discover millions of books in one place.',
+    loadGSAP: true,
+    loadLottie: true
   }) %>
 </head>
 <body class="about-page">
   <%- include('./partials/nav.ejs') %>
+
+  <!-- Timeline Candles -->
+  <div class="timeline-candles">
+    <div class="candle" id="candle-1"></div>
+    <div class="candle" id="candle-2"></div>
+    <div class="candle" id="candle-3"></div>
+  </div>
+
   <style>
+    /* Timeline Candles */
+    .timeline-candles {
+      position: fixed;
+      top: 20%;
+      right: 5%;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .candle {
+      width: 20px;
+      height: 40px;
+      background: var(--gradient-primary);
+      border-radius: 10px 10px 2px 2px;
+      margin: 10px 0;
+      position: relative;
+      animation: candle-flicker 3s ease-in-out infinite;
+    }
+
+    .candle:nth-child(1) { animation-delay: 0s; }
+    .candle:nth-child(2) { animation-delay: 1s; }
+    .candle:nth-child(3) { animation-delay: 2s; }
+
+    @keyframes candle-flicker {
+      0%, 100% { opacity: 0.8; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.05); }
+    }
+
     .about-hero{
-      background:
-        radial-gradient(1000px 420px at 10% -10%, #e9f0ff 0%, transparent 55%),
-        radial-gradient(800px 340px at 95% 0%, #e8fff7 0%, transparent 60%),
-        #f7f9fc;
+      background: var(--gradient-bg);
       padding: 64px 0 24px;
     }
     .about-hero .inner{max-width:880px;margin:0 auto;text-align:center;padding:24px;}
@@ -94,5 +129,31 @@
   </main>
 
   <%- include('./partials/footer.ejs') %>
+
+  <script defer src="/js/scene-core.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Initialize scene manager
+      if (window.SceneManager) {
+        const sceneManager = window.SceneManager;
+        
+        // Initialize Lottie animations for candles
+        if (window.lottie) {
+          sceneManager.tryLottie('candle-1', '/animations/candle.json', {
+            loop: true,
+            autoplay: true
+          });
+          sceneManager.tryLottie('candle-2', '/animations/candle.json', {
+            loop: true,
+            autoplay: true
+          });
+          sceneManager.tryLottie('candle-3', '/animations/candle.json', {
+            loop: true,
+            autoplay: true
+          });
+        }
+      }
+    });
+  </script>
 </body>
 </html>

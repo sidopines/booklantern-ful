@@ -3,14 +3,16 @@
 <head>
   <%- include('./partials/head.ejs', {
     pageTitle: (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'Explore Free Books',
-    pageDescription: (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Search and read books in a clean, unified reader.'
+    pageDescription: (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Search and read books in a clean, unified reader.',
+    loadGSAP: true,
+    loadLottie: true
   }) %>
 </head>
 <body class="read-page">
   <%- include('./partials/nav.ejs') %>
 
-  <!-- Page Header -->
-  <div class="page-header">
+  <!-- Cinematic Page Header -->
+  <div class="page-header cinematic-bg spotlight-mask">
     <div class="container">
       <a class="back-link" href="javascript:history.back()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -20,15 +22,21 @@
       </a>
       <h1 class="page-title">📚 Explore Free Books</h1>
     </div>
+    <!-- Spotlight cones -->
+    <div class="spotlight-cones">
+      <div class="spotlight-cone spotlight-cone-1"></div>
+      <div class="spotlight-cone spotlight-cone-2"></div>
+      <div class="spotlight-cone spotlight-cone-3"></div>
+    </div>
   </div>
 
-  <!-- Sticky Glass Search Bar -->
+  <!-- Glowing Search Pill -->
   <div class="search-container glass">
     <div class="container">
       <form class="search-form" action="/read" method="GET" role="search">
-        <div class="search-wrapper">
-          <input type="text" name="query" placeholder="Search title or author..." value="<%= (typeof query !== 'undefined' && query) ? query : '' %>" aria-label="Search books" class="search-input">
-          <button type="submit" class="search-button">
+        <div class="search-pill-glow">
+          <input type="text" name="query" placeholder="Search title or author..." value="<%= (typeof query !== 'undefined' && query) ? query : '' %>" aria-label="Search books" class="search-input-glow">
+          <button type="submit" class="search-button-glow">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="11" cy="11" r="8"></circle>
               <path d="m21 21-4.35-4.35"></path>
@@ -62,14 +70,14 @@
       <% if (!books || books.length === 0) { %>
         <% if (hasQuery) { %>
           <div class="empty-state glass-card reveal">
-            <div class="empty-icon">🔍</div>
+            <div class="empty-icon" id="magnifier-animation"></div>
             <h3>No exact matches found</h3>
             <p>Try fewer words or different spelling. You can also browse without searching.</p>
             <a href="/read" class="btn btn-primary">Browse All Books</a>
           </div>
         <% } else { %>
           <div class="empty-state glass-card reveal">
-            <div class="empty-icon">📚</div>
+            <div class="empty-icon" id="books-animation"></div>
             <h3>Start exploring</h3>
             <p>Search for books by title, author, or topic to get started.</p>
           </div>
@@ -123,7 +131,7 @@
              else if (src === 'loc') { badgeClass = 'loc'; sourceName = 'LOC'; }
              else if (src === 'wikisource') { badgeClass = 'wikisource'; sourceName = 'Wikisource'; }
              %>
-          <div class="book-card glass-card reveal-card hover-lift" data-source="<%= src %>">
+          <div class="book-card glass-card reveal-card card-parallax hover-lift" data-source="<%= src %>">
             <% if (isDisabled) { %>
               <div class="book-content">
                 <div class="book-cover">
@@ -170,7 +178,10 @@
                   <h3 class="book-title"><%= title %></h3>
                   <% if (creator) { %><p class="book-author"><%= creator %></p><% } %>
                   <div class="book-actions">
-                    <span class="btn btn-primary">📖 Read</span>
+                    <span class="btn btn-primary book-flip-btn">
+                      <span class="btn-text">📖 Read</span>
+                      <div class="book-flip-animation" id="book-flip-<%= gid || Math.random().toString(36).substr(2, 9) %>"></div>
+                    </span>
                     <% if (src === 'gutenberg' && gid) { %>
                       <button type="button" class="btn btn-ghost preview-tts" data-gid="<%= gid %>" data-title="<%- title %>" aria-pressed="false" title="Preview first page by listening">🔊 Listen</button>
                     <% } %>
@@ -200,6 +211,51 @@
     .page-header {
       padding: var(--space-xl) 0;
       border-bottom: 1px solid var(--glass-border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Spotlight Cones */
+    .spotlight-cones {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .spotlight-cone {
+      position: absolute;
+      width: 200px;
+      height: 200px;
+      background: radial-gradient(circle, rgba(108, 124, 255, 0.1) 0%, transparent 70%);
+      border-radius: 50%;
+      animation: spotlight-move 8s ease-in-out infinite;
+    }
+
+    .spotlight-cone-1 {
+      top: 20%;
+      left: 10%;
+      animation-delay: 0s;
+    }
+
+    .spotlight-cone-2 {
+      top: 60%;
+      right: 15%;
+      animation-delay: 2.5s;
+    }
+
+    .spotlight-cone-3 {
+      bottom: 20%;
+      left: 50%;
+      animation-delay: 5s;
+    }
+
+    @keyframes spotlight-move {
+      0%, 100% { opacity: 0.3; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(1.2); }
     }
 
     .back-link {
@@ -235,6 +291,62 @@
       padding: var(--space-lg) 0;
       border-bottom: 1px solid var(--glass-border);
       margin-bottom: var(--space-2xl);
+    }
+
+    /* Glowing Search Pill */
+    .search-pill-glow {
+      display: flex;
+      gap: var(--space-md);
+      align-items: center;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 2px solid var(--glass-border);
+      border-radius: var(--radius-pill);
+      padding: var(--space-md);
+      box-shadow: var(--glass-shadow);
+      max-width: 600px;
+      margin: 0 auto;
+      transition: all var(--transition-normal);
+    }
+
+    .search-pill-glow:focus-within {
+      border-color: var(--primary);
+      box-shadow: var(--shadow-neon);
+      transform: scale(1.02);
+    }
+
+    .search-input-glow {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-size: 1.1rem;
+      padding: var(--space-md) var(--space-lg);
+      outline: none;
+    }
+
+    .search-input-glow::placeholder {
+      color: var(--muted);
+    }
+
+    .search-button-glow {
+      padding: var(--space-md) var(--space-xl);
+      background: var(--gradient-primary);
+      border: none;
+      border-radius: var(--radius-pill);
+      color: white;
+      font-weight: var(--font-weight-semibold);
+      cursor: pointer;
+      transition: all var(--transition-normal);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .search-button-glow:hover {
+      transform: scale(1.05);
+      box-shadow: var(--shadow-neon);
     }
 
     .search-form {
@@ -337,8 +449,30 @@
     }
 
     .book-card:hover {
-      transform: translateY(-4px);
+      transform: translateY(-4px) rotateX(5deg);
       box-shadow: var(--shadow-neon);
+    }
+
+    /* Book Flip Animation */
+    .book-flip-btn {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .book-flip-animation {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity var(--transition-normal);
+    }
+
+    .book-flip-btn:hover .book-flip-animation {
+      opacity: 1;
     }
 
     .book-content {
@@ -549,6 +683,53 @@
         });
       });
     })();
+
+    // Initialize cinematic read page animations
+    if (window.SceneManager) {
+      const sceneManager = window.SceneManager;
+      
+      // Initialize Lottie animations
+      if (window.lottie) {
+        // Magnifier animation for empty state
+        sceneManager.tryLottie('magnifier-animation', '/animations/magnifier.json', {
+          loop: true,
+          autoplay: true
+        });
+
+        // Books animation for empty state
+        sceneManager.tryLottie('books-animation', '/animations/books.json', {
+          loop: true,
+          autoplay: true
+        });
+
+        // Book flip animations for read buttons
+        document.querySelectorAll('.book-flip-animation').forEach((element, index) => {
+          const id = element.id || `book-flip-${index}`;
+          sceneManager.tryLottie(id, '/animations/page-flip.json', {
+            loop: false,
+            autoplay: false
+          });
+        });
+      }
+
+      // Add parallax to book cards
+      sceneManager.addParallaxLayer('.book-card', { speed: 0.1 });
+    }
+
+    // Initialize book flip animations on hover
+    document.querySelectorAll('.book-flip-btn').forEach(btn => {
+      btn.addEventListener('mouseenter', () => {
+        const animation = btn.querySelector('.book-flip-animation');
+        if (animation && window.lottie) {
+          const lottieInstance = lottie.getRegisteredAnimations().find(anim => 
+            anim.wrapper === animation
+          );
+          if (lottieInstance) {
+            lottieInstance.play();
+          }
+        }
+      });
+    });
   </script>
 </body>
 </html>

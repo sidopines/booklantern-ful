@@ -51,16 +51,20 @@
   <% }) %>
 <% } %>
 
-<!-- CDN Scripts (deferred) -->
-<% if (typeof loadGSAP !== 'undefined' && loadGSAP) { %>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-<% } %>
-<% if (typeof loadThreeJS !== 'undefined' && loadThreeJS) { %>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
-<% } %>
-<% if (typeof loadLottie !== 'undefined' && loadLottie) { %>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
-<% } %>
+        <!-- CDN Scripts (deferred) -->
+        <% if (typeof loadGSAP !== 'undefined' && loadGSAP) { %>
+          <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+          <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+        <% } %>
+        <% if (typeof loadThreeJS !== 'undefined' && loadThreeJS) { %>
+          <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
+        <% } %>
+        <% if (typeof loadLottie !== 'undefined' && loadLottie) { %>
+          <script defer src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+        <% } %>
+        <% if (typeof loadLenis !== 'undefined' && loadLenis) { %>
+          <script defer src="https://cdn.jsdelivr.net/gh/studio-freight/lenis@1.0.19/bundled/lenis.min.js"></script>
+        <% } %>
 
 <!-- Core UI Script -->
 <script defer src="/js/ui.js"></script>
