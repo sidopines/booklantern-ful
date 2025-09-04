@@ -42,6 +42,7 @@
 
 <!-- Core Styles -->
 <% const q = (typeof buildId !== 'undefined' && buildId) ? `?v=${buildId}` : '' %>
+<link rel="preload" as="style" href="/css/theme.css<%= q %>">
 <link rel="stylesheet" href="/css/theme.css<%= q %>">
 <link rel="stylesheet" href="/css/site.css<%= q %>">
 
