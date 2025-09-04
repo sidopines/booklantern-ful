@@ -63,6 +63,16 @@ app.use('/public', express.static(path.join(__dirname, 'public'), {
   }
 }));
 
+// Vendor fallback files
+app.use('/vendor', express.static(path.join(__dirname, 'public/vendor'), {
+  maxAge: isProd ? '30d' : 0,
+  etag: true,
+  setHeaders: (res) => {
+    // Long cache for vendor files
+    if (isProd) res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+  }
+}));
+
 // Body parsers (needed for login, forms, and bookmark POST JSON)
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
