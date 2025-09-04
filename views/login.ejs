@@ -83,8 +83,15 @@
     footer { text-align: center; color: var(--muted); padding: 1.25rem 1rem 2rem; }
   </style>
 </head>
-<body>
+<body data-page="auth">
   <%- include('./partials/navbar.ejs') %>
+
+  <!-- Auth Scene Background -->
+  <div class="auth-background">
+    <canvas id="auth3d" aria-hidden="true"></canvas>
+    <div id="auth-lottie" hidden></div>
+    <img id="auth-fallback" src="/img/auth-fallback.svg?v=<%= buildId %>" alt="" hidden />
+  </div>
 
   <div class="wrap">
     <main class="container">

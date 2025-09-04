@@ -38,6 +38,13 @@
   </style>
 </head>
 <body class="cinematic-bg" data-page="watch">
+  <!-- Cinema Scene Background -->
+  <div class="cinema-background">
+    <canvas id="cinema3d" aria-hidden="true"></canvas>
+    <div id="cinema-lottie" hidden></div>
+    <img id="cinema-fallback" src="/img/cinema-fallback.svg?v=<%= buildId %>" alt="" hidden />
+  </div>
+  
   <!-- Theater Curtain Animation -->
   <div class="theater-curtain" id="theater-curtain"></div>
   

@@ -94,8 +94,14 @@
       background-color: #005fa3;
     }
   </style>
-</head>
-<body>
+
+  <!-- Contact Scene Background -->
+  <div class="contact-background">
+    <canvas id="contact3d" aria-hidden="true"></canvas>
+    <div id="contact-lottie" hidden></div>
+    <img id="contact-fallback" src="/img/contact-fallback.svg?v=<%= buildId %>" alt="" hidden />
+  </div>
+
   <a href="javascript:history.back()" class="back-link">← Back</a>
   <div class="container">
     <h1>Contact Us</h1>

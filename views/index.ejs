@@ -10,18 +10,52 @@
     loadLenis: true
   }) %>
 </head>
-<body class="home" data-page="home">
+<body class="home" data-page="landing">
   <%- include('./partials/nav.ejs') %>
 
-  <!-- CINEMATIC HERO SECTION -->
-  <section class="hero-wrap">
-    <canvas id="hero3d" class="hero-canvas" aria-hidden="true"></canvas>
-    <div id="hero-lottie" class="hero-lottie" hidden></div>
-    <img id="hero-fallback" class="hero-fallback" src="/img/hero-fallback.svg?v=<%= buildId %>" alt="" hidden />
+  <!-- DOOR STAGE (Landing) -->
+  <section id="door-stage" class="door-stage">
+    <canvas id="door3d" aria-hidden="true"></canvas>
+    <div id="door-lottie" hidden></div>
+    <img id="door-fallback" src="/img/door-fallback.svg?v=<%= buildId %>" alt="" hidden />
     <div class="hero-overlays">
       <h1 class="shine">BookLantern</h1>
-      <p class="tag">Read. Learn. Glow.</p>
-      <a href="/read" class="cta">Start Reading</a>
+      <p class="tag">Enter the Library</p>
+      <button id="enterBtn" class="cta">Enter</button>
+    </div>
+  </section>
+
+  <!-- HOME STAGE (Library Hall) -->
+  <section id="home-stage" class="home-stage" style="display: none;">
+    <canvas id="library3d" aria-hidden="true"></canvas>
+    <div id="library-lottie" hidden></div>
+    <img id="library-fallback" src="/img/library-hall.svg?v=<%= buildId %>" alt="" hidden />
+    <div class="hero-overlays">
+      <h1 class="shine">Welcome to the Library</h1>
+      <p class="tag">Explore our collection</p>
+      <div class="genre-stacks">
+        <div class="genre-stack" data-genre="history">
+          <div class="genre-label">History</div>
+        </div>
+        <div class="genre-stack" data-genre="religion">
+          <div class="genre-label">Religion</div>
+        </div>
+        <div class="genre-stack" data-genre="philosophy">
+          <div class="genre-label">Philosophy</div>
+        </div>
+        <div class="genre-stack" data-genre="science">
+          <div class="genre-label">Science</div>
+        </div>
+        <div class="genre-stack" data-genre="ai">
+          <div class="genre-label">AI</div>
+        </div>
+        <div class="genre-stack" data-genre="technology">
+          <div class="genre-label">Technology</div>
+        </div>
+        <div class="genre-stack" data-genre="literature">
+          <div class="genre-label">Literature</div>
+        </div>
+      </div>
     </div>
   </section>
 

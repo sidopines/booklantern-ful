@@ -116,6 +116,10 @@ BL.anim = {
   
   initPage(page) {
     try {
+      if (page === 'landing') {
+        this.initLandingPage();
+        console.log('[BL] page landing ready');
+      }
       if (page === 'home') {
         this.initHomePage();
         console.log('[BL] page home ready');
@@ -128,24 +132,55 @@ BL.anim = {
         BLReader.init(this);
         console.log('[BL] page reader ready');
       }
-      if (page === 'watch' && window.BLWatch) {
-        BLWatch.init(this);
+      if (page === 'watch') {
+        this.initWatchPage();
         console.log('[BL] page watch ready');
       }
-      if (page === 'about' && window.BLAbout) {
-        BLAbout.init(this);
+      if (page === 'about') {
+        this.initAboutPage();
         console.log('[BL] page about ready');
       }
-      if (page === 'contact' && window.BLContact) {
-        BLContact.init(this);
+      if (page === 'contact') {
+        this.initContactPage();
         console.log('[BL] page contact ready');
       }
-      if (page === 'dashboard' && window.BLDesk) {
-        BLDesk.init(this);
+      if (page === 'dashboard') {
+        this.initDashboardPage();
         console.log('[BL] page dashboard ready');
+      }
+      if (page === 'auth') {
+        this.initAuthPage();
+        console.log('[BL] page auth ready');
       }
     } catch (e) {
       console.error('[BL] page init error', e);
+    }
+  },
+
+  async initLandingPage() {
+    const mode = this.getHeroMode();
+    console.log('[BL] boot page=%s build=%s mode=%s', 'landing', window.BL_BUILD_ID || '?', mode);
+    
+    // Self-check: verify door containers exist
+    const door3d = document.getElementById('door3d');
+    const doorLottie = document.getElementById('door-lottie');
+    const doorFallback = document.getElementById('door-fallback');
+    
+    if (!door3d && !doorLottie && !doorFallback) {
+      console.warn('[BL] door containers missing');
+      return;
+    }
+    
+    switch (mode) {
+      case 'webgl':
+        await this.initWebGLDoor();
+        break;
+      case 'lottie':
+        this.initLottieDoor();
+        break;
+      case 'static':
+        this.initStaticDoor();
+        break;
     }
   },
 
@@ -153,25 +188,156 @@ BL.anim = {
     const mode = this.getHeroMode();
     console.log('[BL] boot page=%s build=%s mode=%s', 'home', window.BL_BUILD_ID || '?', mode);
     
-    // Self-check: verify hero containers exist
-    const hero3d = document.getElementById('hero3d');
-    const heroLottie = document.getElementById('hero-lottie');
-    const heroFallback = document.getElementById('hero-fallback');
+    // Self-check: verify library containers exist
+    const library3d = document.getElementById('library3d');
+    const libraryLottie = document.getElementById('library-lottie');
+    const libraryFallback = document.getElementById('library-fallback');
     
-    if (!hero3d && !heroLottie && !heroFallback) {
-      console.warn('[BL] hero containers missing');
+    if (!library3d && !libraryLottie && !libraryFallback) {
+      console.warn('[BL] library containers missing');
       return;
     }
     
     switch (mode) {
       case 'webgl':
-        await this.initWebGLHero();
+        await this.initWebGLLibrary();
         break;
       case 'lottie':
-        this.initLottieHero();
+        this.initLottieLibrary();
         break;
       case 'static':
-        this.initStaticHero();
+        this.initStaticLibrary();
+        break;
+    }
+  },
+
+  async initWatchPage() {
+    const mode = this.getHeroMode();
+    console.log('[BL] boot page=%s build=%s mode=%s', 'watch', window.BL_BUILD_ID || '?', mode);
+    
+    const cinema3d = document.getElementById('cinema3d');
+    const cinemaLottie = document.getElementById('cinema-lottie');
+    const cinemaFallback = document.getElementById('cinema-fallback');
+    
+    if (!cinema3d && !cinemaLottie && !cinemaFallback) {
+      console.warn('[BL] cinema containers missing');
+      return;
+    }
+    
+    switch (mode) {
+      case 'webgl':
+        await this.initWebGLCinema();
+        break;
+      case 'lottie':
+        this.initLottieCinema();
+        break;
+      case 'static':
+        this.initStaticCinema();
+        break;
+    }
+  },
+
+  async initAboutPage() {
+    const mode = this.getHeroMode();
+    console.log('[BL] boot page=%s build=%s mode=%s', 'about', window.BL_BUILD_ID || '?', mode);
+    
+    const about3d = document.getElementById('about3d');
+    const aboutLottie = document.getElementById('about-lottie');
+    const aboutFallback = document.getElementById('about-fallback');
+    
+    if (!about3d && !aboutLottie && !aboutFallback) {
+      console.warn('[BL] about containers missing');
+      return;
+    }
+    
+    switch (mode) {
+      case 'webgl':
+        await this.initWebGLAbout();
+        break;
+      case 'lottie':
+        this.initLottieAbout();
+        break;
+      case 'static':
+        this.initStaticAbout();
+        break;
+    }
+  },
+
+  async initContactPage() {
+    const mode = this.getHeroMode();
+    console.log('[BL] boot page=%s build=%s mode=%s', 'contact', window.BL_BUILD_ID || '?', mode);
+    
+    const contact3d = document.getElementById('contact3d');
+    const contactLottie = document.getElementById('contact-lottie');
+    const contactFallback = document.getElementById('contact-fallback');
+    
+    if (!contact3d && !contactLottie && !contactFallback) {
+      console.warn('[BL] contact containers missing');
+      return;
+    }
+    
+    switch (mode) {
+      case 'webgl':
+        await this.initWebGLContact();
+        break;
+      case 'lottie':
+        this.initLottieContact();
+        break;
+      case 'static':
+        this.initStaticContact();
+        break;
+    }
+  },
+
+  async initDashboardPage() {
+    const mode = this.getHeroMode();
+    console.log('[BL] boot page=%s build=%s mode=%s', 'dashboard', window.BL_BUILD_ID || '?', mode);
+    
+    const dashboard3d = document.getElementById('dashboard3d');
+    const dashboardLottie = document.getElementById('dashboard-lottie');
+    const dashboardFallback = document.getElementById('dashboard-fallback');
+    
+    if (!dashboard3d && !dashboardLottie && !dashboardFallback) {
+      console.warn('[BL] dashboard containers missing');
+      return;
+    }
+    
+    switch (mode) {
+      case 'webgl':
+        await this.initWebGLDashboard();
+        break;
+      case 'lottie':
+        this.initLottieDashboard();
+        break;
+      case 'static':
+        this.initStaticDashboard();
+        break;
+    }
+  },
+
+  async initAuthPage() {
+    const mode = this.getHeroMode();
+    console.log('[BL] boot page=%s build=%s mode=%s', 'auth', window.BL_BUILD_ID || '?', mode);
+    
+    // Auth pages use the same cozy library scene as dashboard
+    const auth3d = document.getElementById('auth3d');
+    const authLottie = document.getElementById('auth-lottie');
+    const authFallback = document.getElementById('auth-fallback');
+    
+    if (!auth3d && !authLottie && !authFallback) {
+      console.warn('[BL] auth containers missing');
+      return;
+    }
+    
+    switch (mode) {
+      case 'webgl':
+        await this.initWebGLAuth();
+        break;
+      case 'lottie':
+        this.initLottieAuth();
+        break;
+      case 'static':
+        this.initStaticAuth();
         break;
     }
   },
@@ -186,6 +352,427 @@ BL.anim = {
     }
   },
 
+  // Door scene methods
+  async initWebGLDoor() {
+    try {
+      const lottieEl = document.getElementById('door-lottie');
+      const fallbackEl = document.getElementById('door-fallback');
+      if (lottieEl) lottieEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      const { initDoorHero } = await import('/js/door-hero.js?v=' + (window.BL_BUILD_ID || ''));
+      const doorController = initDoorHero({ containerId: 'door3d' });
+      
+      if (doorController) {
+        window.doorController = doorController;
+        console.log('[BL] WebGL door initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] WebGL door failed, falling back to Lottie:', error);
+      this.initLottieDoor();
+    }
+  },
+
+  initLottieDoor() {
+    try {
+      const canvasEl = document.getElementById('door3d');
+      const fallbackEl = document.getElementById('door-fallback');
+      if (canvasEl) canvasEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      const lottieEl = document.getElementById('door-lottie');
+      if (lottieEl) {
+        lottieEl.hidden = false;
+        this.tryLottie('door-lottie', '/animations/door-open.json', {
+          loop: true,
+          autoplay: true
+        });
+        console.log('[BL] Lottie door initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] Lottie door failed, falling back to static:', error);
+      this.initStaticDoor();
+    }
+  },
+
+  initStaticDoor() {
+    try {
+      const canvasEl = document.getElementById('door3d');
+      const lottieEl = document.getElementById('door-lottie');
+      if (canvasEl) canvasEl.hidden = true;
+      if (lottieEl) lottieEl.hidden = true;
+
+      const fallbackEl = document.getElementById('door-fallback');
+      if (fallbackEl) {
+        fallbackEl.hidden = false;
+        console.log('[BL] Static door initialized');
+      }
+    } catch (error) {
+      console.error('[BL] Static door failed:', error);
+    }
+  },
+
+  // Library scene methods
+  async initWebGLLibrary() {
+    try {
+      const lottieEl = document.getElementById('library-lottie');
+      const fallbackEl = document.getElementById('library-fallback');
+      if (lottieEl) lottieEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      const { initLibraryScene } = await import('/js/library-scene.js?v=' + (window.BL_BUILD_ID || ''));
+      const libraryController = initLibraryScene({ containerId: 'library3d' });
+      
+      if (libraryController) {
+        window.libraryController = libraryController;
+        console.log('[BL] WebGL library initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] WebGL library failed, falling back to Lottie:', error);
+      this.initLottieLibrary();
+    }
+  },
+
+  initLottieLibrary() {
+    try {
+      const canvasEl = document.getElementById('library3d');
+      const fallbackEl = document.getElementById('library-fallback');
+      if (canvasEl) canvasEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      const lottieEl = document.getElementById('library-lottie');
+      if (lottieEl) {
+        lottieEl.hidden = false;
+        this.tryLottie('library-lottie', '/animations/library-hall.json', {
+          loop: true,
+          autoplay: true
+        });
+        console.log('[BL] Lottie library initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] Lottie library failed, falling back to static:', error);
+      this.initStaticLibrary();
+    }
+  },
+
+  initStaticLibrary() {
+    try {
+      const canvasEl = document.getElementById('library3d');
+      const lottieEl = document.getElementById('library-lottie');
+      if (canvasEl) canvasEl.hidden = true;
+      if (lottieEl) lottieEl.hidden = true;
+
+      const fallbackEl = document.getElementById('library-fallback');
+      if (fallbackEl) {
+        fallbackEl.hidden = false;
+        console.log('[BL] Static library initialized');
+      }
+    } catch (error) {
+      console.error('[BL] Static library failed:', error);
+    }
+  },
+
+  // Cinema scene methods
+  async initWebGLCinema() {
+    try {
+      const lottieEl = document.getElementById('cinema-lottie');
+      const fallbackEl = document.getElementById('cinema-fallback');
+      if (lottieEl) lottieEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      const { initCinemaScene } = await import('/js/cinema-scene.js?v=' + (window.BL_BUILD_ID || ''));
+      const cinemaController = initCinemaScene({ containerId: 'cinema3d' });
+      
+      if (cinemaController) {
+        window.cinemaController = cinemaController;
+        console.log('[BL] WebGL cinema initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] WebGL cinema failed, falling back to Lottie:', error);
+      this.initLottieCinema();
+    }
+  },
+
+  initLottieCinema() {
+    try {
+      const canvasEl = document.getElementById('cinema3d');
+      const fallbackEl = document.getElementById('cinema-fallback');
+      if (canvasEl) canvasEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      const lottieEl = document.getElementById('cinema-lottie');
+      if (lottieEl) {
+        lottieEl.hidden = false;
+        this.tryLottie('cinema-lottie', '/animations/curtain.json', {
+          loop: true,
+          autoplay: true
+        });
+        console.log('[BL] Lottie cinema initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] Lottie cinema failed, falling back to static:', error);
+      this.initStaticCinema();
+    }
+  },
+
+  initStaticCinema() {
+    try {
+      const canvasEl = document.getElementById('cinema3d');
+      const lottieEl = document.getElementById('cinema-lottie');
+      if (canvasEl) canvasEl.hidden = true;
+      if (lottieEl) lottieEl.hidden = true;
+
+      const fallbackEl = document.getElementById('cinema-fallback');
+      if (fallbackEl) {
+        fallbackEl.hidden = false;
+        console.log('[BL] Static cinema initialized');
+      }
+    } catch (error) {
+      console.error('[BL] Static cinema failed:', error);
+    }
+  },
+
+  // About scene methods
+  async initWebGLAbout() {
+    try {
+      const lottieEl = document.getElementById('about-lottie');
+      const fallbackEl = document.getElementById('about-fallback');
+      if (lottieEl) lottieEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      const { initAboutScene } = await import('/js/about-scene.js?v=' + (window.BL_BUILD_ID || ''));
+      const aboutController = initAboutScene({ containerId: 'about3d' });
+      
+      if (aboutController) {
+        window.aboutController = aboutController;
+        console.log('[BL] WebGL about initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] WebGL about failed, falling back to Lottie:', error);
+      this.initLottieAbout();
+    }
+  },
+
+  initLottieAbout() {
+    try {
+      const canvasEl = document.getElementById('about3d');
+      const fallbackEl = document.getElementById('about-fallback');
+      if (canvasEl) canvasEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      const lottieEl = document.getElementById('about-lottie');
+      if (lottieEl) {
+        lottieEl.hidden = false;
+        this.tryLottie('about-lottie', '/animations/candle.json', {
+          loop: true,
+          autoplay: true
+        });
+        console.log('[BL] Lottie about initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] Lottie about failed, falling back to static:', error);
+      this.initStaticAbout();
+    }
+  },
+
+  initStaticAbout() {
+    try {
+      const canvasEl = document.getElementById('about3d');
+      const lottieEl = document.getElementById('about-lottie');
+      if (canvasEl) canvasEl.hidden = true;
+      if (lottieEl) lottieEl.hidden = true;
+
+      const fallbackEl = document.getElementById('about-fallback');
+      if (fallbackEl) {
+        fallbackEl.hidden = false;
+        console.log('[BL] Static about initialized');
+      }
+    } catch (error) {
+      console.error('[BL] Static about failed:', error);
+    }
+  },
+
+  // Contact scene methods
+  async initWebGLContact() {
+    try {
+      const lottieEl = document.getElementById('contact-lottie');
+      const fallbackEl = document.getElementById('contact-fallback');
+      if (lottieEl) lottieEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      const { initContactScene } = await import('/js/contact-scene.js?v=' + (window.BL_BUILD_ID || ''));
+      const contactController = initContactScene({ containerId: 'contact3d' });
+      
+      if (contactController) {
+        window.contactController = contactController;
+        console.log('[BL] WebGL contact initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] WebGL contact failed, falling back to Lottie:', error);
+      this.initLottieContact();
+    }
+  },
+
+  initLottieContact() {
+    try {
+      const canvasEl = document.getElementById('contact3d');
+      const fallbackEl = document.getElementById('contact-fallback');
+      if (canvasEl) canvasEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      const lottieEl = document.getElementById('contact-lottie');
+      if (lottieEl) {
+        lottieEl.hidden = false;
+        this.tryLottie('contact-lottie', '/animations/pen.json', {
+          loop: true,
+          autoplay: true
+        });
+        console.log('[BL] Lottie contact initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] Lottie contact failed, falling back to static:', error);
+      this.initStaticContact();
+    }
+  },
+
+  initStaticContact() {
+    try {
+      const canvasEl = document.getElementById('contact3d');
+      const lottieEl = document.getElementById('contact-lottie');
+      if (canvasEl) canvasEl.hidden = true;
+      if (lottieEl) lottieEl.hidden = true;
+
+      const fallbackEl = document.getElementById('contact-fallback');
+      if (fallbackEl) {
+        fallbackEl.hidden = false;
+        console.log('[BL] Static contact initialized');
+      }
+    } catch (error) {
+      console.error('[BL] Static contact failed:', error);
+    }
+  },
+
+  // Dashboard scene methods
+  async initWebGLDashboard() {
+    try {
+      const lottieEl = document.getElementById('dashboard-lottie');
+      const fallbackEl = document.getElementById('dashboard-fallback');
+      if (lottieEl) lottieEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      const { initDashboardScene } = await import('/js/dashboard-scene.js?v=' + (window.BL_BUILD_ID || ''));
+      const dashboardController = initDashboardScene({ containerId: 'dashboard3d' });
+      
+      if (dashboardController) {
+        window.dashboardController = dashboardController;
+        console.log('[BL] WebGL dashboard initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] WebGL dashboard failed, falling back to Lottie:', error);
+      this.initLottieDashboard();
+    }
+  },
+
+  initLottieDashboard() {
+    try {
+      const canvasEl = document.getElementById('dashboard3d');
+      const fallbackEl = document.getElementById('dashboard-fallback');
+      if (canvasEl) canvasEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      const lottieEl = document.getElementById('dashboard-lottie');
+      if (lottieEl) {
+        lottieEl.hidden = false;
+        this.tryLottie('dashboard-lottie', '/animations/flame.json', {
+          loop: true,
+          autoplay: true
+        });
+        console.log('[BL] Lottie dashboard initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] Lottie dashboard failed, falling back to static:', error);
+      this.initStaticDashboard();
+    }
+  },
+
+  initStaticDashboard() {
+    try {
+      const canvasEl = document.getElementById('dashboard3d');
+      const lottieEl = document.getElementById('dashboard-lottie');
+      if (canvasEl) canvasEl.hidden = true;
+      if (lottieEl) lottieEl.hidden = true;
+
+      const fallbackEl = document.getElementById('dashboard-fallback');
+      if (fallbackEl) {
+        fallbackEl.hidden = false;
+        console.log('[BL] Static dashboard initialized');
+      }
+    } catch (error) {
+      console.error('[BL] Static dashboard failed:', error);
+    }
+  },
+
+  // Auth scene methods (reuse dashboard scene)
+  async initWebGLAuth() {
+    try {
+      const lottieEl = document.getElementById('auth-lottie');
+      const fallbackEl = document.getElementById('auth-fallback');
+      if (lottieEl) lottieEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      const { initDashboardScene } = await import('/js/dashboard-scene.js?v=' + (window.BL_BUILD_ID || ''));
+      const authController = initDashboardScene({ containerId: 'auth3d' });
+      
+      if (authController) {
+        window.authController = authController;
+        console.log('[BL] WebGL auth initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] WebGL auth failed, falling back to Lottie:', error);
+      this.initLottieAuth();
+    }
+  },
+
+  initLottieAuth() {
+    try {
+      const canvasEl = document.getElementById('auth3d');
+      const fallbackEl = document.getElementById('auth-fallback');
+      if (canvasEl) canvasEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      const lottieEl = document.getElementById('auth-lottie');
+      if (lottieEl) {
+        lottieEl.hidden = false;
+        this.tryLottie('auth-lottie', '/animations/flame.json', {
+          loop: true,
+          autoplay: true
+        });
+        console.log('[BL] Lottie auth initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] Lottie auth failed, falling back to static:', error);
+      this.initStaticAuth();
+    }
+  },
+
+  initStaticAuth() {
+    try {
+      const canvasEl = document.getElementById('auth3d');
+      const lottieEl = document.getElementById('auth-lottie');
+      if (canvasEl) canvasEl.hidden = true;
+      if (lottieEl) lottieEl.hidden = true;
+
+      const fallbackEl = document.getElementById('auth-fallback');
+      if (fallbackEl) {
+        fallbackEl.hidden = false;
+        console.log('[BL] Static auth initialized');
+      }
+    } catch (error) {
+      console.error('[BL] Static auth failed:', error);
+    }
+  },
+
+  // Legacy hero methods (keep for compatibility)
   async initWebGLHero() {
     try {
       // Hide fallbacks
@@ -259,10 +846,17 @@ BL.anim = {
     if (window.lottie) {
       lottie.getRegisteredAnimations().forEach(anim => anim.pause());
     }
-    // Pause WebGL render loop if exists
-    if (window.heroController && window.heroController.pause) {
-      window.heroController.pause();
-    }
+    // Pause all WebGL render loops
+    const controllers = [
+      'doorController', 'libraryController', 'cinemaController', 
+      'aboutController', 'contactController', 'dashboardController', 
+      'authController', 'heroController'
+    ];
+    controllers.forEach(controllerName => {
+      if (window[controllerName] && window[controllerName].pause) {
+        window[controllerName].pause();
+      }
+    });
   },
   
   resumeAll() {
@@ -273,10 +867,17 @@ BL.anim = {
     if (window.lottie) {
       lottie.getRegisteredAnimations().forEach(anim => anim.play());
     }
-    // Resume WebGL render loop if exists
-    if (window.heroController && window.heroController.resume) {
-      window.heroController.resume();
-    }
+    // Resume all WebGL render loops
+    const controllers = [
+      'doorController', 'libraryController', 'cinemaController', 
+      'aboutController', 'contactController', 'dashboardController', 
+      'authController', 'heroController'
+    ];
+    controllers.forEach(controllerName => {
+      if (window[controllerName] && window[controllerName].resume) {
+        window[controllerName].resume();
+      }
+    });
   },
   
   toggle() {

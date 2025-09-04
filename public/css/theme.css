@@ -1231,6 +1231,457 @@ body {
 }
 
 /* =========================
+   3D SCENE CONTAINERS
+   ========================= */
+.door-stage,
+.home-stage {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.door-stage {
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.8) 0%, #0a0a0a 100%);
+}
+
+.home-stage {
+  background: radial-gradient(1200px 600px at 50% 20%, rgba(108, 124, 255, 0.35), transparent), #0b1020;
+}
+
+/* 3D Canvas containers */
+#door3d, #library3d, #cinema3d, #about3d, #contact3d, #dashboard3d, #auth3d {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Lottie fallback containers */
+#door-lottie, #library-lottie, #cinema-lottie, #about-lottie, #contact-lottie, #dashboard-lottie, #auth-lottie {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Static fallback containers */
+#door-fallback, #library-fallback, #cinema-fallback, #about-fallback, #contact-fallback, #dashboard-fallback, #auth-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.8;
+}
+
+/* =========================
+   ENHANCED GLASSMORPHISM
+   ========================= */
+.glass-card {
+  background: rgba(26, 31, 46, 0.4);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  color: var(--text);
+}
+
+.glass-input:focus {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--primary);
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+  outline: none;
+}
+
+/* =========================
+   NEON & GLOW UTILITIES
+   ========================= */
+.neon-glow {
+  box-shadow: 0 0 20px var(--primary), 0 0 40px var(--primary), 0 0 60px var(--primary);
+}
+
+.neon-glow-accent {
+  box-shadow: 0 0 20px var(--accent), 0 0 40px var(--accent), 0 0 60px var(--accent);
+}
+
+.neon-glow-gold {
+  box-shadow: 0 0 20px var(--gold), 0 0 40px var(--gold), 0 0 60px var(--gold);
+}
+
+.text-glow {
+  text-shadow: 0 0 10px currentColor, 0 0 20px currentColor, 0 0 30px currentColor;
+}
+
+/* =========================
+   SPOTLIGHT CONES
+   ========================= */
+.spotlight-cone {
+  position: absolute;
+  width: 200px;
+  height: 100px;
+  background: conic-gradient(from 0deg at center, 
+    transparent 0deg, 
+    rgba(245, 158, 11, 0.1) 30deg, 
+    transparent 60deg);
+  border-radius: 50%;
+  filter: blur(20px);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.reading-spotlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(ellipse at center top, 
+    rgba(245, 158, 11, 0.1) 0%, 
+    rgba(245, 158, 11, 0.05) 30%, 
+    transparent 70%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* =========================
+   FLOATING FAB MENU
+   ========================= */
+.fab-menu {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+}
+
+.fab-button {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--gradient-primary);
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fab-button:hover {
+  transform: scale(1.1);
+  box-shadow: 0 12px 40px rgba(99, 102, 241, 0.4);
+}
+
+.fab-button:active {
+  transform: scale(0.95);
+}
+
+.fab-dropdown {
+  position: absolute;
+  top: 70px;
+  right: 0;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 16px;
+  min-width: 200px;
+  box-shadow: var(--glass-shadow);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all 0.3s ease;
+}
+
+.fab-dropdown.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.fab-dropdown a {
+  display: block;
+  padding: 12px 16px;
+  color: var(--text);
+  text-decoration: none;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  margin-bottom: 4px;
+}
+
+.fab-dropdown a:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--primary);
+}
+
+.fab-dropdown a:last-child {
+  margin-bottom: 0;
+}
+
+/* =========================
+   STACK LABELS & DROPDOWN PANELS
+   ========================= */
+.genre-stack {
+  position: relative;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.genre-stack:hover {
+  transform: translateY(-5px);
+}
+
+.genre-label {
+  position: absolute;
+  bottom: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 8px 16px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.genre-stack:hover .genre-label {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(-5px);
+}
+
+.genre-panel {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 600px;
+  max-height: 400px;
+  overflow-y: auto;
+  box-shadow: var(--glass-shadow);
+  z-index: 1001;
+}
+
+/* =========================
+   BOOK CARD 3D STYLES
+   ========================= */
+.book-card {
+  position: relative;
+  perspective: 1000px;
+  transform-style: preserve-3d;
+  transition: all 0.3s ease;
+}
+
+.book-card:hover {
+  transform: translateY(-10px);
+}
+
+.book-content {
+  background: var(--glass-card);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 20px;
+  transition: all 0.3s ease;
+  transform-style: preserve-3d;
+}
+
+.book-spine {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--gradient-primary);
+  border-radius: 2px 0 0 2px;
+  z-index: 1;
+  transition: all 0.3s ease;
+}
+
+.book-card:hover .book-spine {
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+}
+
+/* =========================
+   INPUT GLOW EFFECTS
+   ========================= */
+.input-glow {
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border: 2px solid var(--primary);
+  border-radius: 8px;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.input-glow.active {
+  opacity: 1;
+}
+
+/* =========================
+   ACHIEVEMENT POPUPS
+   ========================= */
+.achievement-popup {
+  position: fixed;
+  top: 20%;
+  right: 20px;
+  background: linear-gradient(135deg, #ffd700, #ffed4e);
+  color: #333;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+  z-index: 1000;
+  transform: translateX(100%);
+  transition: transform 0.5s ease;
+  border: 2px solid #ffaa00;
+}
+
+.achievement-popup.show {
+  transform: translateX(0);
+}
+
+/* =========================
+   TIMELINE INFO PANELS
+   ========================= */
+.timeline-info {
+  position: fixed;
+  top: 20%;
+  right: 20px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  border-radius: 12px;
+  padding: 16px;
+  max-width: 300px;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(20px);
+  transition: all 0.3s ease;
+}
+
+.timeline-info.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
+.timeline-detail {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 2px solid rgba(255, 215, 0, 0.5);
+  border-radius: 16px;
+  padding: 30px;
+  max-width: 500px;
+  z-index: 1001;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.timeline-detail.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* =========================
+   RESPONSIVE DESIGN
+   ========================= */
+@media (max-width: 768px) {
+  .fab-menu {
+    top: 15px;
+    right: 15px;
+  }
+  
+  .fab-button {
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+  }
+  
+  .fab-dropdown {
+    min-width: 180px;
+    padding: 12px;
+  }
+  
+  .genre-panel {
+    max-width: 90%;
+    padding: 20px;
+  }
+  
+  .timeline-info {
+    max-width: 250px;
+    padding: 12px;
+  }
+  
+  .timeline-detail {
+    max-width: 90%;
+    padding: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-card,
+  .genre-stack,
+  .fab-button,
+  .glass-card,
+  .timeline-info,
+  .timeline-detail {
+    transition: none;
+  }
+  
+  .book-card:hover {
+    transform: none;
+  }
+  
+  .genre-stack:hover {
+    transform: none;
+  }
+}
+
+/* =========================
    PRINT STYLES
    ========================= */
 @media print {
