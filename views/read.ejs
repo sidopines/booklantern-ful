@@ -5,151 +5,77 @@
     pageTitle: (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'Explore Free Books',
     pageDescription: (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Search and read books in a clean, unified reader.'
   }) %>
-  <style>
-    .wrap{max-width:1200px;margin:0 auto;padding:1.25rem}
-    .back-link{display:inline-block;margin:.5rem 0 .75rem;color:#334155;text-decoration:none}
-    h1{font-size:1.75rem;margin:.25rem 0 1rem}
-    
-    /* Sticky search bar */
-    .search-container{
-      position:sticky;top:0;z-index:100;
-      background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);
-      border-bottom:1px solid #e5e7eb;margin:0 -1.25rem 1.25rem;padding:1.25rem;
-      box-shadow:0 2px 8px rgba(0,0,0,0.1)
-    }
-    
-    form.search{display:flex;gap:.75rem;max-width:800px;margin:0 auto}
-    form.search input[type="text"]{
-      flex:1;border:2px solid #e5e7eb;border-radius:2rem;padding:.75rem 1.25rem;
-      font-size:1.1rem;transition:all 0.2s;box-shadow:0 2px 4px rgba(0,0,0,0.05)
-    }
-    form.search input[type="text"]:focus{
-      outline:none;border-color:#4f46e5;box-shadow:0 0 0 3px rgba(79,70,229,0.1)
-    }
-    form.search button{
-      border:none;background:#4f46e5;color:#fff;border-radius:2rem;padding:.75rem 1.5rem;
-      font-weight:600;font-size:1rem;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 4px rgba(79,70,229,0.2)
-    }
-    form.search button:hover{background:#4338ca;transform:translateY(-1px);box-shadow:0 4px 8px rgba(79,70,229,0.3)}
-
-    /* Results header */
-    .results-header{
-      display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;
-      padding-bottom:1rem;border-bottom:1px solid #e5e7eb
-    }
-    .results-count{font-size:1.1rem;color:#6b7280}
-    .results-query{font-weight:600;color:#111827}
-
-    /* Responsive grid */
-    .grid{
-      display:grid;gap:1.5rem;
-      grid-template-columns:repeat(auto-fill,minmax(280px,1fr))
-    }
-    @media (max-width:640px){ .grid{grid-template-columns:1fr} }
-    @media (min-width:641px) and (max-width:1024px){ .grid{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))} }
-    @media (min-width:1025px){ .grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))} }
-
-    /* Enhanced cards */
-    .card{
-      background:#fff;border:1px solid #e5e7eb;border-radius:1rem;overflow:hidden;
-      display:flex;flex-direction:column;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.05)
-    }
-    .card:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(0,0,0,0.1);border-color:#d1d5db}
-    
-    .thumb{background:#f8fafc;aspect-ratio:3/4;display:grid;place-items:center;position:relative}
-    .thumb img{width:100%;height:100%;object-fit:cover}
-    .thumb .hint{color:#9ca3af;font-size:.9rem}
-    
-    .meta{padding:1rem}
-    .badge{
-      display:inline-block;font-size:.75rem;font-weight:600;border-radius:1rem;padding:.25rem .75rem;margin-bottom:.75rem;
-      text-transform:uppercase;letter-spacing:.025em
-    }
-    .badge.gutenberg{color:#059669;background:#d1fae5;border:1px solid #a7f3d0}
-    .badge.archive{color:#7c3aed;background:#ede9fe;border:1px solid #c4b5fd}
-    .badge.openlibrary{color:#dc2626;background:#fee2e2;border:1px solid #fca5a5}
-    .badge.loc{color:#1d4ed8;background:#dbeafe;border:1px solid #93c5fd}
-    .badge.wikisource{color:#ea580c;background:#fed7aa;border:1px solid #fdba74}
-    
-    .title{font-weight:700;font-size:1.1rem;margin:.25rem 0 .5rem;line-height:1.3;color:#111827}
-    .author{color:#6b7280;font-size:.9rem;margin-bottom:.75rem;line-height:1.4}
-    
-    .actions{display:flex;gap:.5rem;margin-top:.75rem}
-    .btn{
-      border:1px solid #e2e8f0;background:#fff;border-radius:.75rem;padding:.5rem .75rem;
-      font-weight:600;color:#111827;text-decoration:none;display:inline-flex;align-items:center;gap:.35rem;
-      transition:all 0.2s;font-size:.9rem
-    }
-    .btn:hover{background:#f8fafc;border-color:#d1d5db}
-    .btn.primary{background:#4f46e5;color:#fff;border-color:#4f46e5}
-    .btn.primary:hover{background:#4338ca;border-color:#4338ca}
-    .btn.small{padding:.4rem .6rem;font-size:.85rem}
-    
-    /* Empty state */
-    .empty{
-      border:2px dashed #e5e7eb;border-radius:1rem;padding:3rem 2rem;text-align:center;
-      color:#6b7280;background:#f9fafb
-    }
-    .empty h3{margin:0 0 .5rem 0;color:#374151;font-size:1.2rem}
-    .empty p{margin:0;font-size:1rem}
-    
-    /* Skeleton loader */
-    .skeleton{background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;animation:loading 1.5s infinite}
-    @keyframes loading{0%{background-position:200% 0}100%{background-position:-200% 0}}
-    
-    .hint{color:#6b7280;margin:1rem 0;text-align:center;font-size:.9rem}
-    
-    @media (max-width:640px){ 
-      h1{font-size:1.4rem}
-      .search-container{padding:1rem;margin:0 -1rem 1rem}
-      .wrap{padding:1rem}
-    }
-  </style>
 </head>
-<body>
-  <%- include('./partials/navbar.ejs') %>
+<body class="read-page">
+  <%- include('./partials/nav.ejs') %>
 
-  <div class="wrap">
-    <a class="back-link" href="javascript:history.back()">← Back</a>
-    <h1>📚 Explore Free Books</h1>
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="container">
+      <a class="back-link" href="javascript:history.back()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="m15 18-6-6 6-6"/>
+        </svg>
+        Back
+      </a>
+      <h1 class="page-title">📚 Explore Free Books</h1>
+    </div>
+  </div>
 
-    <!-- Sticky search bar -->
-    <div class="search-container">
-      <form class="search" action="/read" method="GET" role="search">
-        <input type="text" name="query" placeholder="Search title or author..." value="<%= (typeof query !== 'undefined' && query) ? query : '' %>" aria-label="Search books">
-        <button type="submit">Search</button>
+  <!-- Sticky Glass Search Bar -->
+  <div class="search-container glass">
+    <div class="container">
+      <form class="search-form" action="/read" method="GET" role="search">
+        <div class="search-wrapper">
+          <input type="text" name="query" placeholder="Search title or author..." value="<%= (typeof query !== 'undefined' && query) ? query : '' %>" aria-label="Search books" class="search-input">
+          <button type="submit" class="search-button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+            </svg>
+            Search
+          </button>
+        </div>
       </form>
     </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="container">
 
     <% const hasQuery = (typeof query !== 'undefined' && String(query).trim() !== ''); %>
 
-    <% if (hasQuery) { %>
-      <!-- Results header -->
-      <div class="results-header">
-        <div>
-          <span class="results-count">Results for</span>
-          <span class="results-query">"<%= query %>"</span>
-          <span class="results-count">(<%= books ? books.length : 0 %> found)</span>
-        </div>
-      </div>
-    <% } %>
-
-    <% function textOf(x){ if (!x) return ''; if (Array.isArray(x)) return x.join(', '); if (typeof x === 'object') return (x.name||x.title||x.text||''); return String(x); } %>
-
-    <% if (!books || books.length === 0) { %>
       <% if (hasQuery) { %>
-        <div class="empty">
-          <h3>No exact matches found</h3>
-          <p>Try fewer words or different spelling. You can also browse without searching.</p>
-        </div>
-      <% } else { %>
-        <div class="empty">
-          <h3>Start exploring</h3>
-          <p>Search for books by title, author, or topic to get started.</p>
+        <!-- Results header -->
+        <div class="results-header reveal">
+          <div class="results-info">
+            <span class="results-count">Results for</span>
+            <span class="results-query">"<%= query %>"</span>
+            <span class="results-count">(<%= books ? books.length : 0 %> found)</span>
+          </div>
         </div>
       <% } %>
-    <% } else { %>
-      <div class="grid">
+
+      <% function textOf(x){ if (!x) return ''; if (Array.isArray(x)) return x.join(', '); if (typeof x === 'object') return (x.name||x.title||x.text||''); return String(x); } %>
+
+      <% if (!books || books.length === 0) { %>
+        <% if (hasQuery) { %>
+          <div class="empty-state glass-card reveal">
+            <div class="empty-icon">🔍</div>
+            <h3>No exact matches found</h3>
+            <p>Try fewer words or different spelling. You can also browse without searching.</p>
+            <a href="/read" class="btn btn-primary">Browse All Books</a>
+          </div>
+        <% } else { %>
+          <div class="empty-state glass-card reveal">
+            <div class="empty-icon">📚</div>
+            <h3>Start exploring</h3>
+            <p>Search for books by title, author, or topic to get started.</p>
+          </div>
+        <% } %>
+      <% } else { %>
+        <div class="books-grid">
         <% books.forEach(function(book){ 
              const src   = String(book.source || '').toLowerCase();
              const id    = book.identifier || book._id || '';
@@ -188,54 +114,65 @@
              // Gate visitors to login before reading (unless disabled)
              let finalHref = isDisabled ? '#' : (dest || '#');
              
-             // Get badge class
+             // Get badge class and source name
              let badgeClass = '';
-             if (src === 'gutenberg') badgeClass = 'gutenberg';
-             else if (src === 'archive') badgeClass = 'archive';
-             else if (src === 'openlibrary') badgeClass = 'openlibrary';
-             else if (src === 'loc') badgeClass = 'loc';
-             else if (src === 'wikisource') badgeClass = 'wikisource';
+             let sourceName = '';
+             if (src === 'gutenberg') { badgeClass = 'gutenberg'; sourceName = 'Gutenberg'; }
+             else if (src === 'archive') { badgeClass = 'archive'; sourceName = 'Archive.org'; }
+             else if (src === 'openlibrary') { badgeClass = 'openlibrary'; sourceName = 'Open Library'; }
+             else if (src === 'loc') { badgeClass = 'loc'; sourceName = 'LOC'; }
+             else if (src === 'wikisource') { badgeClass = 'wikisource'; sourceName = 'Wikisource'; }
              %>
-          <div class="card" data-source="<%= src %>">
+          <div class="book-card glass-card reveal-card hover-lift" data-source="<%= src %>">
             <% if (isDisabled) { %>
-              <div style="text-decoration:none;color:inherit">
-                <div class="thumb">
+              <div class="book-content">
+                <div class="book-cover">
                   <% if (cover) { %>
-                    <img src="<%= cover %>" alt="" loading="lazy" referrerpolicy="no-referrer">
+                    <img src="<%= cover %>" alt="<%= title %>" loading="lazy" referrerpolicy="no-referrer">
                   <% } else { %>
-                    <div class="hint">No cover</div>
+                    <div class="cover-placeholder">
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                      </svg>
+                    </div>
                   <% } %>
                 </div>
-                <div class="meta">
+                <div class="book-info">
                   <% if (src) { %>
-                    <div class="badge <%= badgeClass %>"><%= (src==='gutenberg'?'Gutenberg':(src==='openlibrary'?'Open Library':(src==='archive'?'Archive.org':(src==='wikisource'?'Wikisource':(src==='loc'?'LOC':src))))) %></div>
+                    <div class="source-badge pill pill-muted"><%= sourceName %></div>
                   <% } %>
-                  <div class="title"><%= title %></div>
-                  <% if (creator) { %><div class="author"><%= creator %></div><% } %>
-                  <div class="actions">
-                    <span class="btn small" style="background:#f3f4f6;color:#6b7280;border-color:#d1d5db;cursor:not-allowed;">📖 Read</span>
+                  <h3 class="book-title"><%= title %></h3>
+                  <% if (creator) { %><p class="book-author"><%= creator %></p><% } %>
+                  <div class="book-actions">
+                    <span class="btn btn-disabled">📖 Read</span>
                   </div>
                 </div>
               </div>
             <% } else { %>
-              <a href="<%= (user ? finalHref : ('/login?next=' + encodeURIComponent(finalHref))) %>" style="text-decoration:none;color:inherit">
-                <div class="thumb">
+              <a href="<%= (user ? finalHref : ('/login?next=' + encodeURIComponent(finalHref))) %>" class="book-content">
+                <div class="book-cover">
                   <% if (cover) { %>
-                    <img src="<%= cover %>" alt="" loading="lazy" referrerpolicy="no-referrer">
+                    <img src="<%= cover %>" alt="<%= title %>" loading="lazy" referrerpolicy="no-referrer">
                   <% } else { %>
-                    <div class="hint">No cover</div>
+                    <div class="cover-placeholder">
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                      </svg>
+                    </div>
                   <% } %>
                 </div>
-                <div class="meta">
+                <div class="book-info">
                   <% if (src) { %>
-                    <div class="badge <%= badgeClass %>"><%= (src==='gutenberg'?'Gutenberg':(src==='openlibrary'?'Open Library':(src==='archive'?'Archive.org':(src==='wikisource'?'Wikisource':(src==='loc'?'LOC':src))))) %></div>
+                    <div class="source-badge pill pill-primary"><%= sourceName %></div>
                   <% } %>
-                  <div class="title"><%= title %></div>
-                  <% if (creator) { %><div class="author"><%= creator %></div><% } %>
-                  <div class="actions">
-                    <span class="btn primary small">📖 Read</span>
+                  <h3 class="book-title"><%= title %></h3>
+                  <% if (creator) { %><p class="book-author"><%= creator %></p><% } %>
+                  <div class="book-actions">
+                    <span class="btn btn-primary">📖 Read</span>
                     <% if (src === 'gutenberg' && gid) { %>
-                      <button type="button" class="btn small preview-tts" data-gid="<%= gid %>" data-title="<%- title %>" aria-pressed="false" title="Preview first page by listening">🔊 Listen</button>
+                      <button type="button" class="btn btn-ghost preview-tts" data-gid="<%= gid %>" data-title="<%- title %>" aria-pressed="false" title="Preview first page by listening">🔊 Listen</button>
                     <% } %>
                   </div>
                 </div>
@@ -246,10 +183,330 @@
       </div>
     <% } %>
 
-    <div class="hint">
-      Tip: "Listen" previews read the first page of a Project Gutenberg book without leaving this page.
+      <div class="search-tip reveal">
+        <p>💡 Tip: "Listen" previews read the first page of a Project Gutenberg book without leaving this page.</p>
+      </div>
     </div>
   </div>
+
+  <!-- Read Page Styles -->
+  <style>
+    /* Page Layout */
+    .read-page {
+      background: var(--gradient-bg);
+      min-height: 100vh;
+    }
+
+    .page-header {
+      padding: var(--space-xl) 0;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-sm);
+      color: var(--muted);
+      text-decoration: none;
+      font-weight: var(--font-weight-medium);
+      transition: color var(--transition-normal);
+      margin-bottom: var(--space-lg);
+    }
+
+    .back-link:hover {
+      color: var(--primary);
+    }
+
+    .page-title {
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: var(--font-weight-bold);
+      margin: 0;
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* Search Container */
+    .search-container {
+      position: sticky;
+      top: 0;
+      z-index: var(--z-sticky);
+      padding: var(--space-lg) 0;
+      border-bottom: 1px solid var(--glass-border);
+      margin-bottom: var(--space-2xl);
+    }
+
+    .search-form {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .search-wrapper {
+      display: flex;
+      gap: var(--space-md);
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-pill);
+      padding: var(--space-sm);
+      box-shadow: var(--glass-shadow);
+    }
+
+    .search-input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-size: 1.1rem;
+      padding: var(--space-md) var(--space-lg);
+      outline: none;
+    }
+
+    .search-input::placeholder {
+      color: var(--muted);
+    }
+
+    .search-input:focus {
+      box-shadow: var(--shadow-neon);
+    }
+
+    .search-button {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-md) var(--space-xl);
+      background: var(--gradient-primary);
+      border: none;
+      border-radius: var(--radius-pill);
+      color: white;
+      font-weight: var(--font-weight-semibold);
+      cursor: pointer;
+      transition: all var(--transition-normal);
+    }
+
+    .search-button:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-neon);
+    }
+
+    /* Main Content */
+    .main-content {
+      padding-bottom: var(--space-3xl);
+    }
+
+    /* Results Header */
+    .results-header {
+      margin-bottom: var(--space-2xl);
+      padding-bottom: var(--space-lg);
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .results-info {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      flex-wrap: wrap;
+    }
+
+    .results-count {
+      color: var(--muted);
+      font-size: 1.1rem;
+    }
+
+    .results-query {
+      font-weight: var(--font-weight-semibold);
+      color: var(--primary);
+      font-size: 1.1rem;
+    }
+
+    /* Books Grid */
+    .books-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: var(--space-xl);
+    }
+
+    /* Book Cards */
+    .book-card {
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      transition: all var(--transition-normal);
+      position: relative;
+    }
+
+    .book-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-neon);
+    }
+
+    .book-content {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .book-cover {
+      aspect-ratio: 3/4;
+      background: var(--bg-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .book-cover img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform var(--transition-normal);
+    }
+
+    .book-card:hover .book-cover img {
+      transform: scale(1.05);
+    }
+
+    .cover-placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      background: var(--bg-soft);
+    }
+
+    .book-info {
+      padding: var(--space-lg);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .source-badge {
+      margin-bottom: var(--space-md);
+      align-self: flex-start;
+    }
+
+    .book-title {
+      font-size: 1.2rem;
+      font-weight: var(--font-weight-semibold);
+      margin: 0 0 var(--space-sm) 0;
+      line-height: 1.3;
+      color: var(--text);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .book-author {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin: 0 0 var(--space-lg) 0;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .book-actions {
+      display: flex;
+      gap: var(--space-sm);
+      margin-top: auto;
+    }
+
+    .btn-disabled {
+      background: var(--muted);
+      color: var(--bg);
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: var(--space-3xl);
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .empty-icon {
+      font-size: 4rem;
+      margin-bottom: var(--space-lg);
+    }
+
+    .empty-state h3 {
+      font-size: 1.5rem;
+      font-weight: var(--font-weight-semibold);
+      margin: 0 0 var(--space-md) 0;
+      color: var(--text);
+    }
+
+    .empty-state p {
+      color: var(--muted);
+      margin: 0 0 var(--space-xl) 0;
+      line-height: 1.6;
+    }
+
+    /* Search Tip */
+    .search-tip {
+      text-align: center;
+      margin-top: var(--space-2xl);
+      padding: var(--space-lg);
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+    }
+
+    .search-tip p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .books-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .search-wrapper {
+        flex-direction: column;
+        gap: var(--space-sm);
+      }
+
+      .search-button {
+        justify-content: center;
+      }
+
+      .results-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-xs);
+      }
+    }
+
+    /* Reduced Motion */
+    @media (prefers-reduced-motion: reduce) {
+      .book-card:hover {
+        transform: none;
+      }
+
+      .book-cover img {
+        transition: none;
+      }
+
+      .book-card:hover .book-cover img {
+        transform: none;
+      }
+    }
+  </style>
 
   <script>
     // Tiny "Listen preview" for Gutenberg cards

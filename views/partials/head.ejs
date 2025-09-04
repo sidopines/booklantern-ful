@@ -2,6 +2,7 @@
 <%
   const t = (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern';
   const d = (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Free books & educational videos.';
+  const baseUrl = process.env.BASE_URL || 'https://booklantern.org';
 %>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,21 +11,14 @@
 <meta name="description" content="<%= d %>">
 
 <!-- Favicons / Icons -->
-<!-- Legacy fallback: /favicon.ico at the root -->
 <link rel="icon" href="/favicon.ico" sizes="any">
-<!-- Preferred vector (falls back to PNG if missing) -->
 <link rel="icon" href="/img/brand.svg" type="image/svg+xml">
-<!-- Small PNGs many UIs still read -->
 <link rel="icon" href="/img/favicon-32.png" sizes="32x32">
 <link rel="icon" href="/img/favicon-16.png" sizes="16x16">
-<!-- iOS homescreen -->
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<!-- PWA manifest (Chrome/Edge/Android) -->
 <link rel="manifest" href="/site.webmanifest">
-<!-- Safari pinned tab (optional monochrome) -->
-<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#111111">
-<!-- Browser UI color -->
-<meta name="theme-color" content="#ffffff">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#6c7cff">
+<meta name="theme-color" content="#6c7cff">
 <meta name="application-name" content="BookLantern">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="BookLantern">
@@ -33,14 +27,40 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="<%= t %>">
 <meta property="og:description" content="<%= d %>">
-<meta property="og:image" content="/img/social-card.png">
+<meta property="og:image" content="<%= baseUrl %>/img/social-card.png">
+<meta property="og:url" content="<%= baseUrl %>">
 <meta property="og:site_name" content="BookLantern">
 
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="<%= t %>">
 <meta name="twitter:description" content="<%= d %>">
-<meta name="twitter:image" content="/img/social-card.png">
+<meta name="twitter:image" content="<%= baseUrl %>/img/social-card.png">
 
-<!-- Perf -->
+<!-- Performance & Fonts -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+
+<!-- Core Styles -->
+<link rel="stylesheet" href="/css/theme.css">
 <link rel="stylesheet" href="/css/site.css">
+
+<!-- Page-specific scripts (loaded via blocks) -->
+<% if (typeof scripts !== 'undefined' && scripts) { %>
+  <% scripts.forEach(script => { %>
+    <%- script %>
+  <% }) %>
+<% } %>
+
+<!-- CDN Scripts (deferred) -->
+<% if (typeof loadGSAP !== 'undefined' && loadGSAP) { %>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<% } %>
+<% if (typeof loadThreeJS !== 'undefined' && loadThreeJS) { %>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
+<% } %>
+<% if (typeof loadLottie !== 'undefined' && loadLottie) { %>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+<% } %>
+
+<!-- Core UI Script -->
+<script defer src="/js/ui.js"></script>

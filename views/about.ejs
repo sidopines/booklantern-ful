@@ -5,7 +5,9 @@
     pageTitle: 'About BookLantern',
     pageDescription: 'Learn how BookLantern brings together results from globally trusted libraries so you can discover millions of books in one place.'
   }) %>
-  <link rel="stylesheet" href="/css/site.css">
+</head>
+<body class="about-page">
+  <%- include('./partials/nav.ejs') %>
   <style>
     .about-hero{
       background:
@@ -91,9 +93,6 @@
     </div>
   </main>
 
-  <footer class="footer">
-    &copy; <%= new Date().getFullYear() %> BookLantern • Built on open libraries •
-    <a href="/read">Start reading</a>
-  </footer>
+  <%- include('./partials/footer.ejs') %>
 </body>
 </html>
