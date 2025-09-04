@@ -151,7 +151,7 @@ BL.anim = {
 
   async initHomePage() {
     const mode = this.getHeroMode();
-    console.log('[BL] boot page=home build=' + (window.BL_BUILD_ID || 'unknown') + ' mode=' + mode);
+    console.log('[BL] boot page=%s build=%s mode=%s', 'home', window.BL_BUILD_ID || '?', mode);
     
     // Self-check: verify hero containers exist
     const hero3d = document.getElementById('hero3d');
