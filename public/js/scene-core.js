@@ -11,6 +11,7 @@ class SceneManager {
     this.isBooted = false;
     this.isScrollLocked = true;
     this.readyCallbacks = [];
+    this.animationsEnabled = this.getAnimationsEnabled();
     
     // Bind methods
     this.boot = this.boot.bind(this);
@@ -18,6 +19,20 @@ class SceneManager {
     this.ready = this.ready.bind(this);
     this.lockScroll = this.lockScroll.bind(this);
     this.unlockScroll = this.unlockScroll.bind(this);
+    this.mountGate = this.mountGate.bind(this);
+    this.mountHall = this.mountHall.bind(this);
+  }
+
+  /**
+   * Check if animations are enabled via feature flag
+   */
+  getAnimationsEnabled() {
+    // Check environment variable (server-side would need to pass this)
+    const envAnim = window.ANIM_ENABLED || 'on';
+    if (envAnim === 'off') return false;
+    
+    // Check motion preferences
+    return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
 
   /**
@@ -26,8 +41,7 @@ class SceneManager {
   lockScroll() {
     if (this.isScrollLocked) return;
     
-    document.documentElement.classList.add('no-scroll');
-    document.body.style.visibility = 'hidden';
+    document.body.classList.add('scrolling-locked');
     this.isScrollLocked = true;
   }
 
@@ -37,9 +51,65 @@ class SceneManager {
   unlockScroll() {
     if (!this.isScrollLocked) return;
     
-    document.documentElement.classList.remove('no-scroll');
-    document.body.style.visibility = 'visible';
+    document.body.classList.remove('scrolling-locked');
     this.isScrollLocked = false;
+  }
+
+  /**
+   * Mount the gate scene
+   */
+  async mountGate() {
+    const gateEl = document.getElementById('gate');
+    if (!gateEl) return;
+
+    if (this.animationsEnabled) {
+      try {
+        const { mount } = await import('/js/door-gate.js');
+        const controller = await mount(gateEl);
+        this.sceneControllers.set('gate', controller);
+        
+        // Listen for enter event
+        gateEl.addEventListener('Gate:enter', () => {
+          this.unlockScroll();
+          this.mountHall();
+          gateEl.classList.add('hidden');
+        });
+      } catch (error) {
+        console.error('Failed to mount gate:', error);
+        this.showStaticGate();
+      }
+    } else {
+      this.showStaticGate();
+    }
+  }
+
+  /**
+   * Mount the hall scene
+   */
+  async mountHall() {
+    const hallEl = document.getElementById('hall');
+    if (!hallEl) return;
+
+    hallEl.classList.remove('hidden');
+    // TODO: Implement hall scene mounting
+  }
+
+  /**
+   * Show static gate fallback
+   */
+  showStaticGate() {
+    const gateEl = document.getElementById('gate');
+    const fallbackImg = gateEl?.querySelector('#gate-fallback');
+    if (fallbackImg) {
+      fallbackImg.hidden = false;
+    }
+    
+    // Add click handler for static gate
+    gateEl?.addEventListener('click', () => {
+      this.unlockScroll();
+      this.mountHall();
+      gateEl.classList.add('hidden');
+    });
   }
 
   /**
@@ -208,12 +278,8 @@ class SceneManager {
     // Wait for required libraries
     await this.waitForLibraries();
     
-    // Initialize landing scene
-    const page = document.body.getAttribute('data-page') || 'landing';
-    await this.route(page);
-    
-    // Unlock scroll and show body
-    this.unlockScroll();
+    // Mount gate scene
+    await this.mountGate();
     
     // Mark as booted
     this.isBooted = true;
