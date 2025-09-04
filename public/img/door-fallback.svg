@@ -1,0 +1,62 @@
+<svg width="400" height="400" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="doorGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B4513;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#654321;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="frameGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#654321;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4A2C17;stop-opacity:1" />
+    </linearGradient>
+    <radialGradient id="lightGradient" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#FFD700;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#FFD700;stop-opacity:0" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="400" height="400" fill="#0a0a0a"/>
+  
+  <!-- Door frame -->
+  <rect x="50" y="50" width="300" height="300" fill="url(#frameGradient)" rx="10"/>
+  
+  <!-- Left door -->
+  <rect x="70" y="70" width="130" height="260" fill="url(#doorGradient)" rx="5"/>
+  
+  <!-- Right door -->
+  <rect x="200" y="70" width="130" height="260" fill="url(#doorGradient)" rx="5"/>
+  
+  <!-- Door handles -->
+  <circle cx="190" cy="200" r="8" fill="#888888"/>
+  <circle cx="210" cy="200" r="8" fill="#888888"/>
+  
+  <!-- Wood grain lines -->
+  <line x1="80" y1="100" x2="190" y2="100" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  <line x1="80" y1="130" x2="190" y2="130" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  <line x1="80" y1="160" x2="190" y2="160" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  <line x1="80" y1="190" x2="190" y2="190" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  <line x1="80" y1="220" x2="190" y2="220" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  <line x1="80" y1="250" x2="190" y2="250" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  <line x1="80" y1="280" x2="190" y2="280" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  <line x1="80" y1="310" x2="190" y2="310" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  
+  <line x1="210" y1="100" x2="320" y2="100" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  <line x1="210" y1="130" x2="320" y2="130" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  <line x1="210" y1="160" x2="320" y2="160" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  <line x1="210" y1="190" x2="320" y2="190" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  <line x1="210" y1="220" x2="320" y2="220" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  <line x1="210" y1="250" x2="320" y2="250" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  <line x1="210" y1="280" x2="320" y2="280" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  <line x1="210" y1="310" x2="320" y2="310" stroke="#654321" stroke-width="2" opacity="0.3"/>
+  
+  <!-- Light burst effect -->
+  <circle cx="200" cy="200" r="100" fill="url(#lightGradient)"/>
+  
+  <!-- Dust particles -->
+  <circle cx="100" cy="80" r="2" fill="#ffffff" opacity="0.6"/>
+  <circle cx="300" cy="120" r="1.5" fill="#ffffff" opacity="0.4"/>
+  <circle cx="150" cy="60" r="1" fill="#ffffff" opacity="0.5"/>
+  <circle cx="250" cy="90" r="2" fill="#ffffff" opacity="0.3"/>
+  <circle cx="80" cy="150" r="1.5" fill="#ffffff" opacity="0.4"/>
+  <circle cx="320" cy="180" r="1" fill="#ffffff" opacity="0.5"/>
+</svg>

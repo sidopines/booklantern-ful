@@ -1,8 +1,8 @@
-<!-- views/partials/nav.ejs - Storybook Ribbon Navigation -->
-<nav class="floating-nav" aria-label="Primary navigation">
+<!-- views/partials/nav.ejs - Floating FAB Navigation -->
+<nav class="fab-menu" aria-label="Primary navigation">
   <!-- Floating Action Button -->
-  <button class="nav-fab volumetric-glow" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="nav-menu">
-    <span class="nav-fab-icon">
+  <button class="fab-button" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="fab-dropdown">
+    <span class="fab-icon">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="3" y1="6" x2="21" y2="6"></line>
         <line x1="3" y1="12" x2="21" y2="12"></line>
@@ -11,8 +11,8 @@
     </span>
   </button>
 
-  <!-- Storybook Ribbon Panel -->
-  <div id="nav-menu" class="nav-menu storybook-ribbon" role="menu">
+  <!-- FAB Dropdown Panel -->
+  <div id="fab-dropdown" class="fab-dropdown" role="menu">
     <!-- Search Pill -->
     <div class="nav-search">
       <form action="/read" method="GET" role="search">
@@ -101,62 +101,13 @@
 </nav>
 
 <style>
-/* Storybook Ribbon Navigation Styles */
-.floating-nav {
-  position: fixed;
-  top: var(--space-lg);
-  right: var(--space-lg);
-  z-index: var(--z-fixed);
-}
-
-.nav-fab {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: var(--gradient-primary);
-  border: none;
-  color: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: var(--shadow-neon);
-  transition: all var(--transition-normal);
-  position: relative;
-  overflow: hidden;
-}
-
-.nav-fab:hover {
-  transform: scale(1.1);
-  box-shadow: var(--shadow-xl), var(--shadow-neon);
-}
-
-.nav-fab:active {
-  transform: scale(0.95);
-}
-
-.nav-fab-icon {
+/* FAB Navigation Styles */
+.fab-icon {
   transition: transform var(--transition-normal);
 }
 
-.nav-fab[aria-expanded="true"] .nav-fab-icon {
+.fab-button[aria-expanded="true"] .fab-icon {
   transform: rotate(90deg);
-}
-
-.nav-menu {
-  position: absolute;
-  top: 80px;
-  right: 0;
-  min-width: 320px;
-  transform: scale(0);
-  opacity: 0;
-  transform-origin: top right;
-  transition: all var(--transition-normal);
-}
-
-.nav-menu.open {
-  transform: scale(1);
-  opacity: 1;
 }
 
 .nav-search {

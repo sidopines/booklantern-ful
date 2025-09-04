@@ -11,6 +11,13 @@
 <body class="about-page" data-page="about">
   <%- include('./partials/nav.ejs') %>
 
+  <!-- About Scene Background -->
+  <div class="about-background">
+    <canvas id="about3d" aria-hidden="true"></canvas>
+    <div id="about-lottie" hidden></div>
+    <img id="about-fallback" src="/img/about-fallback.svg?v=<%= buildId %>" alt="" hidden />
+  </div>
+
   <!-- Timeline Candles -->
   <div class="timeline-candles">
     <div class="candle" id="candle-1"></div>

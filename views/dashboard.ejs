@@ -122,6 +122,13 @@
 <body data-page="dashboard">
   <%- include('./partials/navbar.ejs') %>
 
+  <!-- Dashboard Scene Background -->
+  <div class="dashboard-background">
+    <canvas id="dashboard3d" aria-hidden="true"></canvas>
+    <div id="dashboard-lottie" hidden></div>
+    <img id="dashboard-fallback" src="/img/dashboard-fallback.svg?v=<%= buildId %>" alt="" hidden />
+  </div>
+
   <!-- Reading Streak Meter -->
   <div class="reading-streak">
     <div class="streak-flame" id="streak-flame"></div>
