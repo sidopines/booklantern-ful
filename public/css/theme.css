@@ -6,14 +6,13 @@
    DESIGN TOKENS & COLOR PALETTE
    ========================= */
 :root {
-  /* Vibrant Color Palette */
-  --bg: #0f1226;
-  --bg-soft: #14183a;
-  --card: #191f4b;
+  /* Lusion-inspired Color Palette */
+  --bg: #0b0f1a;
+  --surface: #12172a;
+  --card: #1a1f3a;
   --primary: #6c7cff;
-  --primary-2: #00e0ff;
-  --accent: #ff5ea8;
-  --gold: #f9c74f;
+  --accent: #ff6ea8;
+  --glow: 0 0 32px rgba(108,124,255,.45);
   --text: #eaf0ff;
   --muted: #aab1d6;
   
@@ -31,10 +30,10 @@
   --info: #3b82f6;
   
   /* Gradients */
-  --gradient-primary: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%);
-  --gradient-accent: linear-gradient(135deg, var(--accent) 0%, var(--gold) 100%);
-  --gradient-bg: linear-gradient(135deg, var(--bg) 0%, var(--bg-soft) 100%);
-  --gradient-card: linear-gradient(135deg, var(--card) 0%, rgba(25, 31, 75, 0.8) 100%);
+  --gradient-primary: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+  --gradient-accent: linear-gradient(135deg, var(--accent) 0%, #ff9a9e 100%);
+  --gradient-bg: linear-gradient(135deg, var(--bg) 0%, var(--surface) 100%);
+  --gradient-card: linear-gradient(135deg, var(--card) 0%, rgba(26, 31, 58, 0.8) 100%);
   
   /* Glassmorphism */
   --glass-bg: rgba(25, 31, 75, 0.3);
@@ -112,7 +111,9 @@
 }
 
 html {
+  font-size: 16px;
   scroll-behavior: smooth;
+  height: 100%;
 }
 
 body {
@@ -123,6 +124,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
+  overflow-x: hidden;
   transition: background var(--transition-normal), color var(--transition-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

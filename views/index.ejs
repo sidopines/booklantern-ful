@@ -34,7 +34,12 @@
         <!-- Floating Dust Motes -->
         <div class="dust-motes" id="dust-motes"></div>
         
-        <!-- 3D Book Scene -->
+        <!-- WebGL Hero Canvas -->
+        <div class="hero-canvas-container">
+          <div id="hero-canvas" class="hero-canvas"></div>
+        </div>
+        
+        <!-- 3D Book Scene (fallback) -->
         <div class="hero-scene">
           <div id="hero-scene" class="scene-container"></div>
         </div>
@@ -85,6 +90,49 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCROLL CHAPTERS -->
+  <section class="chapter-discover">
+    <div class="chapter-content">
+      <h2>Discover</h2>
+      <p>Flowing particles & book cards floating in z-space</p>
+      <div class="particles-container">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+      </div>
+      <div class="floating-books">
+        <div class="floating-book">📚</div>
+        <div class="floating-book">📖</div>
+        <div class="floating-book">📕</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter-read">
+    <div class="chapter-content">
+      <h2>Read</h2>
+      <p>Page-flip micro-animation; hovering book tilts with subtle refraction</p>
+      <div class="page-flip-demo">📄</div>
+      <div class="hover-book">📖</div>
+    </div>
+  </section>
+
+  <section class="chapter-learn">
+    <div class="chapter-content">
+      <h2>Learn</h2>
+      <p>Constellation/lines connecting topics</p>
+      <div class="constellation">
+        <div class="constellation-node">💡</div>
+        <div class="constellation-line"></div>
+        <div class="constellation-node">📚</div>
+        <div class="constellation-line"></div>
+        <div class="constellation-node">🎓</div>
       </div>
     </div>
   </section>
@@ -291,6 +339,20 @@
       transform: translate(-50%, -50%);
       z-index: 2;
       pointer-events: none;
+    }
+
+    .hero-canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    .hero-canvas {
+      width: 100%;
+      height: 100%;
     }
 
     .scene-container {
@@ -724,16 +786,140 @@
       }
     }
 
+    /* Chapter Sections */
+    .chapter-discover,
+    .chapter-read,
+    .chapter-learn {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem;
+      position: relative;
+    }
+
+    .chapter-content h2 {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .chapter-content p {
+      font-size: 1.2rem;
+      color: var(--muted);
+      margin-bottom: 2rem;
+    }
+
+    .particles-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: var(--primary);
+      border-radius: 50%;
+      opacity: 0.6;
+    }
+
+    .floating-books {
+      display: flex;
+      gap: 2rem;
+      justify-content: center;
+      margin-top: 2rem;
+    }
+
+    .floating-book {
+      font-size: 3rem;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    .floating-book:nth-child(2) {
+      animation-delay: 1s;
+    }
+
+    .floating-book:nth-child(3) {
+      animation-delay: 2s;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-20px); }
+    }
+
+    .page-flip-demo {
+      font-size: 4rem;
+      margin: 2rem 0;
+      transform-style: preserve-3d;
+    }
+
+    .hover-book {
+      font-size: 3rem;
+      margin: 2rem 0;
+      cursor: pointer;
+      transition: transform 0.3s ease;
+    }
+
+    .hover-book:hover {
+      transform: rotateY(15deg) rotateX(10deg);
+    }
+
+    .constellation {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+
+    .constellation-node {
+      font-size: 2rem;
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--glass-bg);
+      border-radius: 50%;
+      backdrop-filter: blur(10px);
+    }
+
+    .constellation-line {
+      width: 100px;
+      height: 2px;
+      background: var(--gradient-primary);
+      transform-origin: left center;
+    }
+
     /* Reduced Motion */
     @media (prefers-reduced-motion: reduce) {
       .genre-card:hover,
       .feature-card:hover {
         transform: none;
       }
+      
+      .floating-book,
+      .page-flip-demo,
+      .hover-book {
+        animation: none;
+        transform: none;
+      }
     }
   </style>
 
   <!-- HOMEPAGE SCRIPTS -->
+  <script defer src="/js/home-hero.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
+  <script defer src="/js/home-chapters.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
   <script defer src="/js/home.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
   <script>
     // Initialize cinematic homepage animations

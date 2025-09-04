@@ -110,4 +110,17 @@ router.get('/__assets', (req, res) => {
   }
 });
 
+/**
+ * Animation diagnostics route - check WebGL and motion preferences
+ */
+router.get('/__anim', (req, res) => {
+  res.json({
+    status: 'ok',
+    webgl: 'check client-side',
+    reducedMotion: 'check client-side',
+    buildId: process.env.BUILD_ID || 'dev',
+    timestamp: new Date().toISOString()
+  });
+});
+
 module.exports = router;
