@@ -51,15 +51,23 @@
   <% }) %>
 <% } %>
 
-        <!-- CDN Scripts (deferred) -->
-        <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-        <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-        <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-        <script defer src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.10.2/lottie.min.js"></script>
-        <script defer src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@1/bundled/lenis.min.js"></script>
+        <!-- CDN Scripts with fallbacks (deferred) -->
+        <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"
+                onerror="var s=document.createElement('script'); s.src='/public/vendor/gsap.min.js?v=<%= buildId %>'; s.defer=true; document.head.appendChild(s);"></script>
+        <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"
+                onerror="var s=document.createElement('script'); s.src='/public/vendor/ScrollTrigger.min.js?v=<%= buildId %>'; s.defer=true; document.head.appendChild(s);"></script>
+        <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"
+                onerror="var s=document.createElement('script'); s.src='/public/vendor/three.r128.min.js?v=<%= buildId %>'; s.defer=true; document.head.appendChild(s);"></script>
+        <script defer src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.10.2/lottie.min.js"
+                onerror="var s=document.createElement('script'); s.src='/public/vendor/lottie.5.10.2.min.js?v=<%= buildId %>'; s.defer=true; document.head.appendChild(s);"></script>
+        <script defer src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@1/bundled/lenis.min.js"
+                onerror="var s=document.createElement('script'); s.src='/public/vendor/lenis.min.js?v=<%= buildId %>'; s.defer=true; document.head.appendChild(s);"></script>
 
 <!-- Core UI Script -->
 <script defer src="/js/ui.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
 
 <!-- Animation Boot System -->
+<script>
+  window.BL_BUILD_ID = '<%= buildId %>';
+</script>
 <script defer src="/js/scene-core.js<%= buildId ? `?v=${buildId}` : '' %>"></script>

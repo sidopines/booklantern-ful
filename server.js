@@ -22,10 +22,14 @@ const Genre = require('./models/Genre');
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
 
-// Build ID for cache-busting (Render exposes commit SHA via env)
-app.locals.buildId =
-  process.env.BUILD_ID ||
-  (process.env.RENDER_GIT_COMMIT || Date.now().toString(36)).slice(0, 8);
+// Build ID for cache-busting (stable, production-ready)
+const buildId =
+  (process.env.RENDER_GIT_COMMIT && process.env.RENDER_GIT_COMMIT.slice(0,7)) ||
+  process.env.SOURCE_VERSION ||            // (Render alternate)
+  process.env.BUILD_ID ||                  // manual override
+  (process.env.NODE_ENV === 'production' ? Date.now().toString(36) : 'dev');
+
+app.locals.buildId = buildId;
 
 // (Optional) keep startup quiet/fast in production
 if (isProd) {
@@ -82,7 +86,7 @@ app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.pageTitle = 'BookLantern';
   res.locals.pageDescription = 'Free books & educational videos.';
-  res.locals.buildId = app.locals.buildId;
+  res.locals.buildId = buildId;
   next();
 });
 
