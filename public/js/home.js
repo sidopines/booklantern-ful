@@ -1,150 +1,163 @@
 /**
  * public/js/home.js - Homepage Animation Module
+ * Integrates WebGL hero scene with scroll chapters
  */
 
 window.BLHome = {
   init(anim) {
     console.log('[BL] home init');
     
-    // Load Lottie animations
-    this.loadDoorsAnimation(anim);
-    this.loadCharacterAnimations(anim);
-    this.loadBookFlipAnimation(anim);
-    
-    // Setup GSAP animations
-    anim.tryGSAP(() => {
-      this.setupGSAPAnimations();
-    });
-    
-    // Setup Three.js scene
-    anim.tryThreeJS(() => {
-      this.setupThreeScene();
-    });
-  },
-  
-  loadDoorsAnimation(anim) {
-    const doorsContainer = document.getElementById('doorsLottie');
-    if (!doorsContainer) return;
-    
-    const animation = anim.tryLottie('doorsLottie', '/public/animations/library-doors.json', {
-      loop: false,
-      autoplay: true
-    });
-    
-    if (animation && animation.addEventListener) {
-      animation.addEventListener('complete', () => {
-        // Fade out doors overlay
-        doorsContainer.style.transition = 'opacity 1s ease';
-        doorsContainer.style.opacity = '0';
-        setTimeout(() => {
-          doorsContainer.style.display = 'none';
-        }, 1000);
-      });
+    // Initialize WebGL hero scene
+    if (window.BLHomeHero) {
+      BLHomeHero.init(anim);
     }
+    
+    // Initialize scroll chapters
+    if (window.BLHomeChapters) {
+      BLHomeChapters.init(anim);
+    }
+    
+    // Load Lottie animations as fallbacks
+    this.loadLottieAnimations(anim);
+    
+    // Setup entrance timeline
+    anim.tryGSAP(() => {
+      this.setupEntranceTimeline();
+    });
+    
+    // Setup fluid cursor
+    this.setupFluidCursor(anim);
   },
   
-  loadCharacterAnimations(anim) {
-    // Reading hero character
+  loadLottieAnimations(anim) {
+    // Load fallback animations
+    anim.tryLottie('hero-fallback', '/public/animations/hero-fallback.json', {
+      loop: true,
+      autoplay: true,
+      allowReducedMotion: true
+    });
+    
+    // Load character animations
     anim.tryLottie('heroCharacter', '/public/animations/reading-hero.json', {
       loop: true,
       autoplay: true
     });
     
-    // Side cat
+    // Load side cat
     anim.tryLottie('sideCat', '/public/animations/side-cat.json', {
       loop: true,
       autoplay: true
     });
   },
   
-  loadBookFlipAnimation(anim) {
-    anim.tryLottie('bookFlip', '/public/animations/page-flip.json', {
-      loop: true,
-      autoplay: true
+  setupEntranceTimeline() {
+    if (!window.gsap) return;
+    
+    // Create entrance timeline
+    const tl = gsap.timeline();
+    
+    // Ambient fade-in
+    tl.from('.hero-overlay', {
+      opacity: 0,
+      duration: 1,
+      ease: "power2.out"
     });
+    
+    // Camera dolly effect (simulated with transform)
+    tl.from('.hero-content', {
+      scale: 0.8,
+      y: 50,
+      opacity: 0,
+      duration: 1.5,
+      ease: "power2.out"
+    }, "-=0.5");
+    
+    // Title reveal
+    tl.from('.hero-title', {
+      y: 30,
+      opacity: 0,
+      duration: 1,
+      ease: "back.out(1.7)"
+    }, "-=1");
+    
+    // Subtitle reveal
+    tl.from('.hero-subtitle', {
+      y: 20,
+      opacity: 0,
+      duration: 0.8,
+      ease: "power2.out"
+    }, "-=0.5");
+    
+    // CTA reveal
+    tl.from('.hero-cta', {
+      y: 20,
+      opacity: 0,
+      duration: 0.8,
+      ease: "power2.out"
+    }, "-=0.3");
+    
+    // Search pill reveal
+    tl.from('.search-pill-large', {
+      scale: 0.9,
+      opacity: 0,
+      duration: 0.8,
+      ease: "back.out(1.7)"
+    }, "-=0.5");
   },
   
-  setupGSAPAnimations() {
-    if (!window.gsap || !window.ScrollTrigger) return;
+  setupFluidCursor(anim) {
+    if (!anim.wantsMotion()) return;
     
-    // Register ScrollTrigger
-    gsap.registerPlugin(ScrollTrigger);
+    // Create fluid cursor
+    const cursor = document.createElement('div');
+    cursor.className = 'fluid-cursor';
+    cursor.style.cssText = `
+      position: fixed;
+      width: 20px;
+      height: 20px;
+      background: radial-gradient(circle, rgba(108, 124, 255, 0.8) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9999;
+      mix-blend-mode: difference;
+      transition: transform 0.1s ease;
+    `;
+    document.body.appendChild(cursor);
     
-    // Hero section animations
-    gsap.timeline()
-      .from('.hero-act-1', { opacity: 0, y: 50, duration: 1 })
-      .from('.hero-act-2', { opacity: 0, y: 50, duration: 1 }, '-=0.5')
-      .from('.hero-act-3', { opacity: 0, y: 50, duration: 1 }, '-=0.5');
+    // Track mouse movement
+    let mouseX = 0, mouseY = 0;
+    let cursorX = 0, cursorY = 0;
     
-    // Scroll-triggered reveals
-    gsap.utils.toArray('.reveal-card').forEach((card, i) => {
-      gsap.from(card, {
-        opacity: 0,
-        y: 50,
-        duration: 0.8,
-        scrollTrigger: {
-          trigger: card,
-          start: 'top 80%',
-          end: 'bottom 20%',
-          toggleActions: 'play none none reverse'
-        }
+    document.addEventListener('mousemove', (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    });
+    
+    // Smooth cursor follow
+    function animateCursor() {
+      cursorX += (mouseX - cursorX) * 0.1;
+      cursorY += (mouseY - cursorY) * 0.1;
+      
+      cursor.style.left = cursorX - 10 + 'px';
+      cursor.style.top = cursorY - 10 + 'px';
+      
+      requestAnimationFrame(animateCursor);
+    }
+    animateCursor();
+    
+    // Cursor interactions
+    const interactiveElements = document.querySelectorAll('a, button, .hover-lift');
+    
+    interactiveElements.forEach(el => {
+      el.addEventListener('mouseenter', () => {
+        cursor.style.transform = 'scale(2)';
+        cursor.style.background = 'radial-gradient(circle, rgba(255, 110, 168, 0.8) 0%, transparent 70%)';
       });
-    });
-    
-    // Search CTA pulse
-    gsap.to('.search-cta', {
-      scale: 1.05,
-      duration: 2,
-      repeat: -1,
-      yoyo: true,
-      ease: 'power2.inOut'
-    });
-  },
-  
-  setupThreeScene() {
-    const container = document.getElementById('starfield');
-    if (!container) return;
-    
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, container.offsetWidth / container.offsetHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    
-    renderer.setSize(container.offsetWidth, container.offsetHeight);
-    container.appendChild(renderer.domElement);
-    
-    // Create starfield
-    const starsGeometry = new THREE.BufferGeometry();
-    const starsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5 });
-    
-    const starsVertices = [];
-    for (let i = 0; i < 1000; i++) {
-      starsVertices.push(
-        (Math.random() - 0.5) * 2000,
-        (Math.random() - 0.5) * 2000,
-        (Math.random() - 0.5) * 2000
-      );
-    }
-    
-    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
-    const stars = new THREE.Points(starsGeometry, starsMaterial);
-    scene.add(stars);
-    
-    camera.position.z = 5;
-    
-    // Animation loop
-    function animate() {
-      requestAnimationFrame(animate);
-      stars.rotation.x += 0.0005;
-      stars.rotation.y += 0.001;
-      renderer.render(scene, camera);
-    }
-    animate();
-    
-    // Handle resize
-    window.addEventListener('resize', () => {
-      camera.aspect = container.offsetWidth / container.offsetHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(container.offsetWidth, container.offsetHeight);
+      
+      el.addEventListener('mouseleave', () => {
+        cursor.style.transform = 'scale(1)';
+        cursor.style.background = 'radial-gradient(circle, rgba(108, 124, 255, 0.8) 0%, transparent 70%)';
+      });
     });
   }
 };

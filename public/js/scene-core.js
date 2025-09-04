@@ -1,12 +1,14 @@
 /**
- * public/js/scene-core.js - Robust Animation Boot System
- * Handles all animations with graceful fallbacks and user preferences
+ * public/js/scene-core.js - Progressive WebGL Animation Boot System
+ * Lusion-inspired cinematic experience with graceful fallbacks
  */
 
 window.BL = window.BL || {};
 
 BL.anim = {
   ready: false,
+  webglSupported: false,
+  reducedMotion: false,
   
   wantsMotion() {
     const force = localStorage.getItem('bl:anim:force'); // 'on'|'off'|null
@@ -15,17 +17,40 @@ BL.anim = {
     return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   },
   
-  boot() {
+  detectWebGL() {
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      return !!gl;
+    } catch (e) {
+      return false;
+    }
+  },
+  
+  boot(page) {
     if (this.ready) return;
     this.ready = true;
     
-    document.documentElement.classList.add('bl-booted');
-    console.log('[BL] anim boot', { wantsMotion: this.wantsMotion() });
+    // Detect capabilities
+    this.webglSupported = this.detectWebGL();
+    this.reducedMotion = !this.wantsMotion();
     
-    // Lenis smooth scroll if motion allowed
+    document.documentElement.classList.add('bl-booted');
+    console.log('[BL] anim boot', { 
+      wantsMotion: this.wantsMotion(), 
+      webglSupported: this.webglSupported,
+      reducedMotion: this.reducedMotion 
+    });
+    
+    // Initialize smooth scroll if motion allowed
     if (this.wantsMotion() && window.Lenis) {
       try {
-        const lenis = new Lenis({ smoothWheel: true });
+        const lenis = new Lenis({ 
+          smoothWheel: true,
+          duration: 1.2,
+          easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t))
+        });
+        
         function raf(time) { 
           lenis.raf(time); 
           requestAnimationFrame(raf); 
@@ -37,8 +62,20 @@ BL.anim = {
       }
     }
     
-    // Page inits
-    const page = document.body.dataset.page || '';
+    // Initialize page-specific modules
+    this.initPage(page);
+    
+    // Handle tab visibility for performance
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.pauseAll();
+      } else {
+        this.resumeAll();
+      }
+    });
+  },
+  
+  initPage(page) {
     try {
       if (page === 'home' && window.BLHome) {
         BLHome.init(this);
@@ -71,6 +108,33 @@ BL.anim = {
     } catch (e) {
       console.error('[BL] page init error', e);
     }
+  },
+  
+  pauseAll() {
+    // Pause all animations when tab is hidden
+    if (window.gsap) {
+      gsap.globalTimeline.pause();
+    }
+    if (window.lottie) {
+      lottie.getRegisteredAnimations().forEach(anim => anim.pause());
+    }
+  },
+  
+  resumeAll() {
+    // Resume animations when tab becomes visible
+    if (window.gsap) {
+      gsap.globalTimeline.resume();
+    }
+    if (window.lottie) {
+      lottie.getRegisteredAnimations().forEach(anim => anim.play());
+    }
+  },
+  
+  toggle() {
+    const current = localStorage.getItem('bl:anim:force');
+    const newValue = current === 'on' ? 'off' : 'on';
+    localStorage.setItem('bl:anim:force', newValue);
+    window.location.reload();
   },
   
   // Helper methods for page modules
@@ -124,7 +188,7 @@ BL.anim = {
   },
   
   tryThreeJS(callback) {
-    if (!this.wantsMotion()) return;
+    if (!this.wantsMotion() || !this.webglSupported) return;
     
     try {
       if (!window.THREE) {
@@ -156,7 +220,8 @@ BL.anim = {
       'curtain': '🎭',
       'candle': '🕯️',
       'pen-writing': '✍️',
-      'flame': '🔥'
+      'flame': '🔥',
+      'hero-fallback': '✨'
     };
     
     const icon = fallbackIcons[animationName] || '✨';
@@ -170,6 +235,7 @@ BL.anim = {
         height: 100%;
         font-size: 3rem;
         opacity: 0.7;
+        color: var(--primary);
       ">
         ${icon}
       </div>
@@ -180,14 +246,12 @@ BL.anim = {
 };
 
 // Boot on DOM ready
-document.addEventListener('DOMContentLoaded', () => BL.anim.boot());
+document.addEventListener('DOMContentLoaded', () => {
+  const page = document.body.dataset.page || '';
+  BL.anim.boot(page);
+});
 
 // Animation toggle function for nav
-window.toggleAnimations = function() {
-  const current = localStorage.getItem('bl:anim:force');
-  const newValue = current === 'on' ? 'off' : 'on';
-  localStorage.setItem('bl:anim:force', newValue);
-  window.location.reload();
-};
+window.toggleAnimations = () => BL.anim.toggle();
 
 console.log('[BL] scene-core loaded');
