@@ -1119,6 +1119,118 @@ body {
 }
 
 /* =========================
+   HERO PACK STYLES
+   ========================= */
+
+/* Hero wrapper */
+.hero-wrap {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background: radial-gradient(1200px 600px at 50% 20%, rgba(108, 124, 255, 0.35), transparent), #0b1020;
+}
+
+/* Hero canvas, Lottie, and fallback */
+.hero-canvas,
+.hero-lottie,
+.hero-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Hero overlays */
+.hero-overlays {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.hero-overlays .cta {
+  pointer-events: auto;
+}
+
+/* Shine effect for title */
+.shine {
+  background: linear-gradient(90deg, #fff, #9fb0ff, #fff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shine 6s linear infinite;
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: var(--font-weight-extrabold);
+  margin-bottom: var(--space-lg);
+}
+
+@keyframes shine {
+  0% { background-position: 0 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Tag line */
+.tag {
+  font-size: 1.25rem;
+  color: var(--muted);
+  margin-bottom: var(--space-2xl);
+  line-height: 1.6;
+}
+
+/* CTA button */
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-xl);
+  border: none;
+  border-radius: var(--radius-pill);
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+  background: var(--gradient-primary);
+  color: white;
+  box-shadow: var(--shadow-neon);
+}
+
+.cta::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left var(--transition-slow);
+}
+
+.cta:hover::before {
+  left: 100%;
+}
+
+.cta:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-xl), var(--shadow-neon);
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .shine {
+    animation: none;
+  }
+}
+
+/* =========================
    PRINT STYLES
    ========================= */
 @media print {

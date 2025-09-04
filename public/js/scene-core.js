@@ -26,6 +26,10 @@ BL.anim = {
       return false;
     }
   },
+
+  hasWebGL() {
+    return this.webglSupported;
+  },
   
   boot(page) {
     if (this.ready) return;
@@ -106,8 +110,8 @@ BL.anim = {
   
   initPage(page) {
     try {
-      if (page === 'home' && window.BLHome) {
-        BLHome.init(this);
+      if (page === 'home') {
+        this.initHomePage();
         console.log('[BL] page home ready');
       }
       if (page === 'read' && window.BLRead) {
@@ -136,6 +140,98 @@ BL.anim = {
       }
     } catch (e) {
       console.error('[BL] page init error', e);
+    }
+  },
+
+  async initHomePage() {
+    const mode = this.getHeroMode();
+    console.log('[BL] boot page=home build=' + (window.BL_BUILD_ID || 'unknown') + ' mode=' + mode);
+    
+    switch (mode) {
+      case 'webgl':
+        await this.initWebGLHero();
+        break;
+      case 'lottie':
+        this.initLottieHero();
+        break;
+      case 'static':
+        this.initStaticHero();
+        break;
+    }
+  },
+
+  getHeroMode() {
+    if (this.wantsMotion() && this.hasWebGL()) {
+      return 'webgl';
+    } else if (this.wantsMotion()) {
+      return 'lottie';
+    } else {
+      return 'static';
+    }
+  },
+
+  async initWebGLHero() {
+    try {
+      // Hide fallbacks
+      const lottieEl = document.getElementById('hero-lottie');
+      const fallbackEl = document.getElementById('hero-fallback');
+      if (lottieEl) lottieEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      // Dynamically import and initialize WebGL hero
+      const { initHomeHero } = await import('/js/home-hero.js?v=' + (window.BL_BUILD_ID || ''));
+      const heroController = initHomeHero({ containerId: 'hero3d' });
+      
+      if (heroController) {
+        window.heroController = heroController;
+        console.log('[BL] WebGL hero initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] WebGL hero failed, falling back to Lottie:', error);
+      this.initLottieHero();
+    }
+  },
+
+  initLottieHero() {
+    try {
+      // Hide WebGL canvas and static fallback
+      const canvasEl = document.getElementById('hero3d');
+      const fallbackEl = document.getElementById('hero-fallback');
+      if (canvasEl) canvasEl.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = true;
+
+      // Show and initialize Lottie
+      const lottieEl = document.getElementById('hero-lottie');
+      if (lottieEl) {
+        lottieEl.hidden = false;
+        this.tryLottie('hero-lottie', '/animations/library-hero.json', {
+          loop: true,
+          autoplay: true
+        });
+        console.log('[BL] Lottie hero initialized');
+      }
+    } catch (error) {
+      console.warn('[BL] Lottie hero failed, falling back to static:', error);
+      this.initStaticHero();
+    }
+  },
+
+  initStaticHero() {
+    try {
+      // Hide WebGL canvas and Lottie
+      const canvasEl = document.getElementById('hero3d');
+      const lottieEl = document.getElementById('hero-lottie');
+      if (canvasEl) canvasEl.hidden = true;
+      if (lottieEl) lottieEl.hidden = true;
+
+      // Show static fallback
+      const fallbackEl = document.getElementById('hero-fallback');
+      if (fallbackEl) {
+        fallbackEl.hidden = false;
+        console.log('[BL] Static hero initialized');
+      }
+    } catch (error) {
+      console.error('[BL] Static hero failed:', error);
     }
   },
   
