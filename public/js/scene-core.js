@@ -37,11 +37,39 @@ BL.anim = {
     
     document.documentElement.classList.add('bl-booted');
     console.log('[BL] anim boot', { 
+      buildId: window.BL_BUILD_ID || 'unknown',
+      page: page || document.body.dataset.page || 'unknown',
       wantsMotion: this.wantsMotion(), 
       webglSupported: this.webglSupported,
       reducedMotion: this.reducedMotion 
     });
     
+    // Wait for fallback libraries if needed
+    if (this.wantsMotion()) {
+      this.waitForLibraries().then(() => {
+        this.initializeLibraries();
+      });
+    } else {
+      this.initializeLibraries();
+    }
+  },
+  
+  async waitForLibraries() {
+    const maxWait = 2000; // 2 seconds
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < maxWait) {
+      if (window.THREE && window.gsap && window.lottie && window.Lenis) {
+        console.log('[BL] all libraries loaded');
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    console.warn('[BL] some libraries not loaded after 2s, continuing with fallbacks');
+  },
+  
+  initializeLibraries() {
     // Initialize smooth scroll if motion allowed
     if (this.wantsMotion() && window.Lenis) {
       try {
@@ -63,6 +91,7 @@ BL.anim = {
     }
     
     // Initialize page-specific modules
+    const page = document.body.dataset.page || '';
     this.initPage(page);
     
     // Handle tab visibility for performance

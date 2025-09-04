@@ -114,11 +114,17 @@ router.get('/__assets', (req, res) => {
  * Animation diagnostics route - check WebGL and motion preferences
  */
 router.get('/__anim', (req, res) => {
+  const buildId =
+    (process.env.RENDER_GIT_COMMIT && process.env.RENDER_GIT_COMMIT.slice(0,7)) ||
+    process.env.SOURCE_VERSION ||
+    process.env.BUILD_ID ||
+    (process.env.NODE_ENV === 'production' ? Date.now().toString(36) : 'dev');
+    
   res.json({
     status: 'ok',
     webgl: 'check client-side',
     reducedMotion: 'check client-side',
-    buildId: process.env.BUILD_ID || 'dev',
+    buildId: buildId,
     timestamp: new Date().toISOString()
   });
 });
