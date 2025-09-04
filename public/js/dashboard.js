@@ -78,9 +78,50 @@ window.BLDesk = {
           snap: { textContent: 1 },
           onUpdate: function() {
             counter.textContent = Math.ceil(this.targets()[0].textContent);
+          },
+          onComplete: () => {
+            // Confetti burst on milestone
+            if (target % 10 === 0) {
+              this.createConfettiBurst(counter);
+            }
           }
         });
       }
     });
+  },
+  
+  createConfettiBurst(element) {
+    if (!window.gsap) return;
+    
+    const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981'];
+    
+    for (let i = 0; i < 20; i++) {
+      const confetti = document.createElement('div');
+      confetti.style.cssText = `
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        background: ${colors[Math.floor(Math.random() * colors.length)]};
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 1000;
+      `;
+      
+      const rect = element.getBoundingClientRect();
+      confetti.style.left = rect.left + rect.width / 2 + 'px';
+      confetti.style.top = rect.top + rect.height / 2 + 'px';
+      
+      document.body.appendChild(confetti);
+      
+      gsap.to(confetti, {
+        x: (Math.random() - 0.5) * 200,
+        y: (Math.random() - 0.5) * 200,
+        scale: 0,
+        rotation: Math.random() * 360,
+        duration: 1,
+        ease: "power2.out",
+        onComplete: () => confetti.remove()
+      });
+    }
   }
 };

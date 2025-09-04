@@ -30,24 +30,30 @@ window.BLRead = {
   setupSpotlightHeader() {
     if (!window.gsap) return;
     
-    // Create spotlight cones
+    // Create reading lamp spotlight cones
     const header = document.querySelector('.read-header');
     if (!header) return;
     
-    // Add spotlight overlay
+    // Add reading lamp spotlight overlay
     const spotlight = document.createElement('div');
-    spotlight.className = 'spotlight-overlay';
+    spotlight.className = 'reading-spotlight';
     spotlight.style.cssText = `
       position: absolute;
       top: 0;
       left: 0;
       right: 0;
       bottom: 0;
-      background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.3) 100%);
+      background: radial-gradient(ellipse at center top, 
+        rgba(245, 158, 11, 0.1) 0%, 
+        rgba(245, 158, 11, 0.05) 30%, 
+        transparent 70%);
       pointer-events: none;
       z-index: 1;
     `;
     header.appendChild(spotlight);
+    
+    // Create multiple spotlight cones
+    this.createSpotlightCones(header);
     
     // Animate spotlight movement
     gsap.to(spotlight, {
@@ -71,6 +77,43 @@ window.BLRead = {
         ease: "power2.out"
       }
     );
+  },
+  
+  createSpotlightCones(container) {
+    // Create multiple reading lamp spotlight cones
+    for (let i = 0; i < 3; i++) {
+      const cone = document.createElement('div');
+      cone.className = `spotlight-cone-${i + 1}`;
+      cone.style.cssText = `
+        position: absolute;
+        width: 200px;
+        height: 100px;
+        background: conic-gradient(from 0deg at center, 
+          transparent 0deg, 
+          rgba(245, 158, 11, 0.1) 30deg, 
+          transparent 60deg);
+        border-radius: 50%;
+        filter: blur(20px);
+        pointer-events: none;
+        z-index: 1;
+        top: ${20 + i * 30}%;
+        left: ${30 + i * 20}%;
+        transform: translate(-50%, -50%);
+      `;
+      container.appendChild(cone);
+      
+      // Animate cone movement
+      gsap.to(cone, {
+        x: `random(-100, 100)`,
+        y: `random(-50, 50)`,
+        rotation: `random(-30, 30)`,
+        duration: `random(8, 12)`,
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut",
+        delay: i * 1
+      });
+    }
   },
   
   setupGlowingSearch(anim) {
@@ -123,6 +166,21 @@ window.BLRead = {
       card.style.perspective = '1000px';
       card.style.transformStyle = 'preserve-3d';
       
+      // Add book spine effect
+      const spine = document.createElement('div');
+      spine.className = 'book-spine';
+      spine.style.cssText = `
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: var(--gradient-primary);
+        border-radius: 2px 0 0 2px;
+        z-index: 1;
+      `;
+      card.appendChild(spine);
+      
       card.addEventListener('mousemove', (e) => {
         const rect = card.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -131,16 +189,26 @@ window.BLRead = {
         const centerX = rect.width / 2;
         const centerY = rect.height / 2;
         
-        const rotateX = ((y - centerY) / centerY) * 10;
-        const rotateY = -((x - centerX) / centerX) * 10;
+        const rotateX = ((y - centerY) / centerY) * 8;
+        const rotateY = -((x - centerX) / centerX) * 8;
         
         gsap.to(cardContent, {
           rotationX: rotateX,
           rotationY: rotateY,
-          scale: 1.02,
+          scale: 1.03,
+          z: 15,
+          boxShadow: "0 0 30px rgba(99, 102, 241, 0.3)",
           duration: 0.3,
           ease: "power1.out",
           overwrite: true
+        });
+        
+        // Animate spine
+        gsap.to(spine, {
+          scaleY: 1.05,
+          boxShadow: "0 0 15px rgba(99, 102, 241, 0.4)",
+          duration: 0.3,
+          ease: "power1.out"
         });
       });
       
@@ -149,9 +217,18 @@ window.BLRead = {
           rotationX: 0,
           rotationY: 0,
           scale: 1,
+          z: 0,
+          boxShadow: "0 0 20px rgba(99, 102, 241, 0.1)",
           duration: 0.5,
           ease: "power1.out",
           overwrite: true
+        });
+        
+        gsap.to(spine, {
+          scaleY: 1,
+          boxShadow: "0 0 10px rgba(99, 102, 241, 0.2)",
+          duration: 0.5,
+          ease: "power1.out"
         });
       });
     });
