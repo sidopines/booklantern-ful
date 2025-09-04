@@ -1,11 +1,13 @@
-<!-- views/contact.ejs -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/header.ejs', {
+  <%- include('./partials/head.ejs', {
     pageTitle: 'Contact',
     pageDescription: 'Get in touch with the BookLantern team.'
   }) %>
+</head>
+<body class="contact-page">
+  <%- include('./partials/nav.ejs') %>
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -79,5 +81,7 @@
       <button type="submit">Send Message</button>
     </form>
   </div>
+
+  <%- include('./partials/footer.ejs') %>
 </body>
 </html>

@@ -13,6 +13,7 @@ const indexRoutes = require('./routes/index');
 const homeRoutes  = require('./routes/homeRoutes'); // /api/featured-books, /api/shelves
 const adminRoutes = require('./routes/admin');      // Admin console
 const pdfRoutes   = require('./routes/pdf');        // <-- NEW: /read/pdf
+const metaRoutes  = require('./routes/metaRoutes'); // <-- NEW: /sitemap.xml, /robots.txt
 
 // Models used on server routes
 const Video = require('./models/Video');
@@ -86,6 +87,7 @@ app.use('/', authRoutes);        // login / register / dashboard / settings
 app.use('/admin', adminRoutes);  // Admin console (protected by middleware)
 app.use('/', pdfRoutes);         // <-- NEW: /read/pdf inline viewer
 app.use('/', bookRoutes);        // /read, /read/book/:identifier, Gutenberg reader, etc.
+app.use('/', metaRoutes);        // <-- NEW: /sitemap.xml, /robots.txt
 
 // Public watch + player
 app.get('/watch', async (req, res) => {
@@ -131,10 +133,6 @@ app.get('/player/:id', async (req, res) => {
 app.get('/healthz', (req, res) => res.type('text/plain').send('ok'));
 
 // ─── 6) STATIC / 404 / ERROR ─────────────────────────────────────────────────
-app.get('/robots.txt', (req, res) => {
-  res.type('text/plain');
-  res.sendFile(path.join(__dirname, 'public', 'robots.txt'));
-});
 
 app.use((req, res) => {
   res.status(404).render('404', {

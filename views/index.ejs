@@ -3,98 +3,554 @@
 <head>
   <%- include('./partials/head.ejs', {
     pageTitle: pageTitle || 'BookLantern — Read & Learn',
-    pageDescription: pageDescription || 'Millions of free and public-domain books—one clean reader.'
+    pageDescription: pageDescription || 'Millions of free and public-domain books—one clean reader.',
+    loadGSAP: true,
+    loadThreeJS: true,
+    loadLottie: true
   }) %>
-  <link rel="stylesheet" href="/css/site.css">
 </head>
 <body class="home">
-  <%- include('./partials/navbar.ejs') %>
+  <%- include('./partials/nav.ejs') %>
 
-  <!-- HERO -->
+  <!-- HERO SECTION -->
   <section class="hero">
-    <div class="hero-inner fade-in">
-      <h1>Books, beautifully.</h1>
-      <p>
-        Search the open stacks — from globally trusted libraries across the web.
-        Read in a focused, book-like experience that stays out of the way.
-      </p>
+    <!-- Library Doors Animation -->
+    <div class="hero-doors">
+      <div id="library-doors" class="doors-container"></div>
+    </div>
 
-      <!-- Search bar that goes to /read -->
-      <form class="searchbar" action="/read" method="GET">
-        <input type="text" name="query" placeholder="Try ‘Plato’, ‘Socrates’, ‘Physics’, ‘Bible’…" />
-        <button class="btn" type="submit">Search Books</button>
-        <a class="btn alt" href="/watch">Explore Videos</a>
-      </form>
+    <!-- 3D Book Scene -->
+    <div class="hero-scene">
+      <div id="hero-scene" class="scene-container"></div>
+    </div>
 
-      <div class="hero-cta">
-        <% if (!user) { %>
-          <a class="btn ghost" href="/register">Create a free account</a>
-        <% } %>
+    <!-- Hero Content -->
+    <div class="hero-content">
+      <div class="container">
+        <div class="hero-inner">
+          <h1 class="hero-title reveal">Books, beautifully.</h1>
+          <p class="hero-subtitle reveal">
+            Search the open stacks — from globally trusted libraries across the web.
+            Read in a focused, book-like experience that stays out of the way.
+          </p>
+
+          <!-- Enhanced Search Bar -->
+          <form class="hero-search reveal" action="/read" method="GET">
+            <div class="search-wrapper">
+              <input type="text" name="query" placeholder="Try 'Plato', 'Socrates', 'Physics', 'Bible'…" class="search-input" />
+              <button class="btn btn-primary" type="submit">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
+                Search Books
+              </button>
+            </div>
+          </form>
+
+          <div class="hero-cta reveal">
+            <a class="btn btn-accent" href="/read">Explore Free Books</a>
+            <a class="btn btn-ghost" href="/watch">Watch Videos</a>
+            <% if (!user) { %>
+              <a class="btn btn-glass" href="/register">Create Account</a>
+            <% } %>
+          </div>
+        </div>
       </div>
+    </div>
+
+    <!-- Reading Character Animation -->
+    <div class="hero-character">
+      <div id="reading-character" class="character-container"></div>
     </div>
   </section>
 
-  <!-- TRENDING (from /api/featured-books) -->
-  <section class="section">
+  <!-- POPULAR GENRES -->
+  <section class="section reveal-section">
     <div class="container">
-      <div class="shelf-header">
-        <h2>Trending now</h2>
-        <div class="hint">Latest from BookLantern</div>
+      <div class="section-header">
+        <h2 class="reveal">Popular Genres</h2>
+        <p class="section-subtitle reveal">Explore our most loved categories</p>
       </div>
-      <div id="featured-grid" class="grid" aria-live="polite"></div>
+      <div class="genres-grid">
+        <a href="/read?query=History" class="genre-card reveal-card hover-lift">
+          <div class="genre-icon">📚</div>
+          <h3>History</h3>
+          <p>Ancient civilizations to modern times</p>
+        </a>
+        <a href="/read?query=Philosophy" class="genre-card reveal-card hover-lift">
+          <div class="genre-icon">🤔</div>
+          <h3>Philosophy</h3>
+          <p>Great thinkers and timeless wisdom</p>
+        </a>
+        <a href="/read?query=Science" class="genre-card reveal-card hover-lift">
+          <div class="genre-icon">🔬</div>
+          <h3>Science</h3>
+          <p>Discoveries that shaped our world</p>
+        </a>
+        <a href="/read?query=Religion" class="genre-card reveal-card hover-lift">
+          <div class="genre-icon">⛪</div>
+          <h3>Religion</h3>
+          <p>Sacred texts and spiritual wisdom</p>
+        </a>
+        <a href="/read?query=Literature" class="genre-card reveal-card hover-lift">
+          <div class="genre-icon">📖</div>
+          <h3>Literature</h3>
+          <p>Classic novels and poetry</p>
+        </a>
+      </div>
     </div>
   </section>
 
-  <!-- CURATED SHELVES (from /api/shelves) -->
-  <section class="section section-tight">
+  <!-- TRENDING BOOKS -->
+  <section class="section reveal-section">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="reveal">Trending Now</h2>
+        <p class="section-subtitle reveal">Latest from BookLantern</p>
+      </div>
+      <div id="featured-grid" class="books-grid" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- WHY BOOKLANTERN -->
+  <section class="section reveal-section">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="reveal">Why BookLantern?</h2>
+        <p class="section-subtitle reveal">Built for readers, by readers</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card glass-card reveal-card">
+          <div class="feature-icon">🚫</div>
+          <h3>No Login Hoops</h3>
+          <p>Start reading immediately. No account required to explore our vast collection of free books.</p>
+        </div>
+        <div class="feature-card glass-card reveal-card">
+          <div class="feature-icon">📱</div>
+          <h3>Single Reader</h3>
+          <p>One beautiful, consistent reading experience across all books. No more juggling different interfaces.</p>
+        </div>
+        <div class="feature-card glass-card reveal-card">
+          <div class="feature-icon">🔒</div>
+          <h3>Safe & Free</h3>
+          <p>All content is public domain or freely licensed. No ads, no tracking, just pure reading.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIVE PREVIEW -->
+  <section class="section reveal-section">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="reveal">See It In Action</h2>
+        <p class="section-subtitle reveal">Experience our beautiful reader</p>
+      </div>
+      <div class="preview-container glass-card reveal-card">
+        <div class="preview-header">
+          <div class="preview-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div class="preview-title">BookLantern Reader</div>
+        </div>
+        <div class="preview-content">
+          <div class="preview-pages">
+            <div class="preview-page skeleton"></div>
+            <div class="preview-page skeleton"></div>
+            <div class="preview-page skeleton"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CURATED SHELVES -->
+  <section class="section reveal-section">
     <div class="container" id="shelves"></div>
   </section>
 
-  <!-- VALUE STRIP -->
-  <section class="value-strip">
-    <div class="container value-inner">
-      <div class="value-item">
-        <div class="vi-title">Millions+ titles</div>
-        <div class="vi-copy">Discover a vast, ever-growing catalog of free and public-domain books.</div>
-      </div>
-      <div class="value-item">
-        <div class="vi-title">From globally trusted libraries</div>
-        <div class="vi-copy">One search that brings the open stacks together in one place.</div>
-      </div>
-      <div class="value-item">
-        <div class="vi-title">One clean reader</div>
-        <div class="vi-copy">Distraction-free pagination, bookmarks, and a consistent reading flow.</div>
-      </div>
-    </div>
-  </section>
+  <%- include('./partials/footer.ejs') %>
 
-  <!-- HOW IT WORKS -->
-  <section class="section">
-    <div class="container">
-      <div class="shelf-header">
-        <h2>How it works</h2>
-        <div class="hint">Simple, fast, delightful</div>
-      </div>
-      <div class="tiles">
-        <div class="tile">
-          <h3>1) One search, many libraries</h3>
-          <p>We gather results from trusted open collections so you don’t have to hop across sites.</p>
-        </div>
-        <div class="tile">
-          <h3>2) Read like a book</h3>
-          <p>Turn pages with arrows and stay focused with a clean layout that feels like print.</p>
-        </div>
-        <div class="tile">
-          <h3>3) One account, everywhere</h3>
-          <p>Create a free account to favorite titles and pick up where you left off anywhere.</p>
-        </div>
-      </div>
-    </div>
-  </section>
+  <!-- HOMEPAGE STYLES -->
+  <style>
+    /* Hero Section */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: var(--gradient-bg);
+    }
 
-  <footer class="footer">
-    &copy; <%= new Date().getFullYear() %> BookLantern • Built on open libraries • <a href="/about">About</a>
-  </footer>
+    .hero-doors {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    .doors-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .hero-scene {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .scene-container {
+      width: 300px;
+      height: 400px;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 3;
+      text-align: center;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: var(--space-2xl);
+    }
+
+    .hero-title {
+      font-size: clamp(2.5rem, 5vw, 4rem);
+      font-weight: var(--font-weight-extrabold);
+      margin-bottom: var(--space-lg);
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-subtitle {
+      font-size: 1.25rem;
+      color: var(--muted);
+      margin-bottom: var(--space-2xl);
+      line-height: 1.6;
+    }
+
+    .hero-search {
+      margin-bottom: var(--space-2xl);
+    }
+
+    .search-wrapper {
+      display: flex;
+      gap: var(--space-md);
+      max-width: 600px;
+      margin: 0 auto;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-pill);
+      padding: var(--space-sm);
+      box-shadow: var(--glass-shadow);
+    }
+
+    .search-input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-size: 1.1rem;
+      padding: var(--space-md) var(--space-lg);
+      outline: none;
+    }
+
+    .search-input::placeholder {
+      color: var(--muted);
+    }
+
+    .hero-cta {
+      display: flex;
+      gap: var(--space-md);
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .hero-character {
+      position: absolute;
+      bottom: var(--space-xl);
+      right: var(--space-xl);
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .character-container {
+      width: 200px;
+      height: 150px;
+    }
+
+    /* Section Styles */
+    .section {
+      padding: var(--space-3xl) 0;
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: var(--space-3xl);
+    }
+
+    .section-header h2 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: var(--font-weight-bold);
+      margin-bottom: var(--space-md);
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .section-subtitle {
+      font-size: 1.1rem;
+      color: var(--muted);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    /* Genres Grid */
+    .genres-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: var(--space-xl);
+      margin-bottom: var(--space-2xl);
+    }
+
+    .genre-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-xl);
+      padding: var(--space-2xl);
+      text-align: center;
+      text-decoration: none;
+      color: var(--text);
+      transition: all var(--transition-normal);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .genre-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      transition: left var(--transition-slow);
+    }
+
+    .genre-card:hover::before {
+      left: 100%;
+    }
+
+    .genre-card:hover {
+      transform: translateY(-8px);
+      box-shadow: var(--shadow-neon);
+      border-color: var(--primary);
+    }
+
+    .genre-icon {
+      font-size: 3rem;
+      margin-bottom: var(--space-lg);
+    }
+
+    .genre-card h3 {
+      font-size: 1.5rem;
+      font-weight: var(--font-weight-semibold);
+      margin-bottom: var(--space-md);
+    }
+
+    .genre-card p {
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* Books Grid */
+    .books-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: var(--space-xl);
+    }
+
+    /* Features Grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: var(--space-xl);
+    }
+
+    .feature-card {
+      text-align: center;
+      padding: var(--space-2xl);
+    }
+
+    .feature-icon {
+      font-size: 3rem;
+      margin-bottom: var(--space-lg);
+    }
+
+    .feature-card h3 {
+      font-size: 1.5rem;
+      font-weight: var(--font-weight-semibold);
+      margin-bottom: var(--space-md);
+    }
+
+    .feature-card p {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* Preview Container */
+    .preview-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .preview-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-lg);
+      background: rgba(0, 0, 0, 0.1);
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .preview-dots {
+      display: flex;
+      gap: var(--space-sm);
+    }
+
+    .preview-dots span {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+
+    .preview-dots span:first-child {
+      background: #ff5f57;
+    }
+
+    .preview-dots span:nth-child(2) {
+      background: #ffbd2e;
+    }
+
+    .preview-dots span:last-child {
+      background: #28ca42;
+    }
+
+    .preview-title {
+      font-weight: var(--font-weight-medium);
+      color: var(--text);
+    }
+
+    .preview-content {
+      padding: var(--space-2xl);
+    }
+
+    .preview-pages {
+      display: flex;
+      gap: var(--space-md);
+      justify-content: center;
+    }
+
+    .preview-page {
+      width: 200px;
+      height: 300px;
+      border-radius: var(--radius-lg);
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .hero-content {
+        padding: var(--space-lg);
+      }
+
+      .search-wrapper {
+        flex-direction: column;
+        gap: var(--space-sm);
+      }
+
+      .hero-cta {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .genres-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .preview-pages {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .hero-character {
+        display: none;
+      }
+    }
+
+    /* Reduced Motion */
+    @media (prefers-reduced-motion: reduce) {
+      .genre-card:hover,
+      .feature-card:hover {
+        transform: none;
+      }
+    }
+  </style>
+
+  <!-- HOMEPAGE SCRIPTS -->
+  <script defer src="/js/hero-scene.js"></script>
+  <script>
+    // Initialize Lottie animations
+    document.addEventListener('DOMContentLoaded', function() {
+      // Library doors animation
+      if (window.lottie && document.getElementById('library-doors')) {
+        lottie.loadAnimation({
+          container: document.getElementById('library-doors'),
+          renderer: 'svg',
+          loop: false,
+          autoplay: true,
+          path: '/animations/library-doors.json'
+        });
+      }
+
+      // Reading character animation
+      if (window.lottie && document.getElementById('reading-character')) {
+        lottie.loadAnimation({
+          container: document.getElementById('reading-character'),
+          renderer: 'svg',
+          loop: true,
+          autoplay: true,
+          path: '/animations/reading-loop.json'
+        });
+      }
+    });
+  </script>
 
   <!-- HOMEPAGE POPULATION SCRIPT -->
   <script>
