@@ -2,338 +2,45 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: pageTitle || 'BookLantern — Read & Learn',
-    pageDescription: pageDescription || 'Millions of free and public-domain books—one clean reader.',
+    pageTitle: 'BookLantern - Discover Books from Global Libraries',
+    pageDescription: 'Search millions of books from Open Library, Internet Archive, Library of Congress, and Gutenberg. Find your next great read.',
     loadGSAP: true,
-    loadThreeJS: true,
-    loadLottie: true,
-    loadLenis: true
+    loadLottie: true
   }) %>
 </head>
 <body class="home" data-page="landing">
   <%- include('./partials/nav.ejs') %>
-
-  <!-- DOOR STAGE (Landing) -->
-  <section id="door-stage" class="door-stage">
-    <canvas id="door3d" aria-hidden="true"></canvas>
-    <div id="door-lottie" hidden></div>
-    <img id="door-fallback" src="/img/door-fallback.svg?v=<%= buildId %>" alt="" hidden />
-    <div class="hero-overlays">
-      <h1 class="shine">BookLantern</h1>
-      <p class="tag">Enter the Library</p>
-      <button id="enterBtn" class="cta">Enter</button>
-    </div>
+  
+  <!-- Gate (Door) Scene -->
+  <section id="gate" class="gate">
+    <canvas id="gate3d" aria-hidden="true"></canvas>
+    <div id="gate-lottie" hidden></div>
+    <img id="gate-fallback" src="/img/door-gate.svg?v=<%= buildId %>" alt="" hidden />
+  </section>
+  
+  <!-- Library Hall Scene -->
+  <section id="hall" class="hall" style="display: none;">
+    <canvas id="hall3d" aria-hidden="true"></canvas>
+    <div id="hall-lottie" hidden></div>
+    <img id="hall-fallback" src="/img/library-hall.svg?v=<%= buildId %>" alt="" hidden />
   </section>
 
-  <!-- HOME STAGE (Library Hall) -->
-  <section id="home-stage" class="home-stage" style="display: none;">
-    <canvas id="library3d" aria-hidden="true"></canvas>
-    <div id="library-lottie" hidden></div>
-    <img id="library-fallback" src="/img/library-hall.svg?v=<%= buildId %>" alt="" hidden />
-    <div class="hero-overlays">
-      <h1 class="shine">Welcome to the Library</h1>
-      <p class="tag">Explore our collection</p>
-      <div class="genre-stacks">
-        <div class="genre-stack" data-genre="history">
-          <div class="genre-label">History</div>
-        </div>
-        <div class="genre-stack" data-genre="religion">
-          <div class="genre-label">Religion</div>
-        </div>
-        <div class="genre-stack" data-genre="philosophy">
-          <div class="genre-label">Philosophy</div>
-        </div>
-        <div class="genre-stack" data-genre="science">
-          <div class="genre-label">Science</div>
-        </div>
-        <div class="genre-stack" data-genre="ai">
-          <div class="genre-label">AI</div>
-        </div>
-        <div class="genre-stack" data-genre="technology">
-          <div class="genre-label">Technology</div>
-        </div>
-        <div class="genre-stack" data-genre="literature">
-          <div class="genre-label">Literature</div>
+  <!-- Shelf Modal -->
+  <div id="shelf-modal" class="shelf-modal" role="dialog" aria-labelledby="shelf-modal-title" aria-hidden="true">
+    <div class="shelf-modal-content">
+      <div class="shelf-modal-header">
+        <h2 id="shelf-modal-title" class="shelf-modal-title"></h2>
+        <button class="shelf-modal-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="shelf-modal-body">
+        <div class="shelf-books-grid" id="shelf-books-grid">
+          <!-- Books will be populated here -->
         </div>
       </div>
     </div>
-  </section>
+  </div>
 
-  <!-- SCROLL CHAPTERS -->
-  <section class="chapter-discover">
-    <div class="chapter-content">
-      <h2>Discover</h2>
-      <p>Flowing particles & book cards floating in z-space</p>
-      <div class="particles-container">
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-      </div>
-      <div class="floating-books">
-        <div class="floating-book">📚</div>
-        <div class="floating-book">📖</div>
-        <div class="floating-book">📕</div>
-      </div>
-    </div>
-  </section>
-
-  <section class="chapter-read">
-    <div class="chapter-content">
-      <h2>Read</h2>
-      <p>Page-flip micro-animation; hovering book tilts with subtle refraction</p>
-      <div class="page-flip-demo">📄</div>
-      <div class="hover-book">📖</div>
-    </div>
-  </section>
-
-  <section class="chapter-learn">
-    <div class="chapter-content">
-      <h2>Learn</h2>
-      <p>Constellation/lines connecting topics</p>
-      <div class="constellation">
-        <div class="constellation-node">💡</div>
-        <div class="constellation-line"></div>
-        <div class="constellation-node">📚</div>
-        <div class="constellation-line"></div>
-        <div class="constellation-node">🎓</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ANIMATED GENRES ROW -->
-  <section class="section reveal-section">
-    <div class="container">
-      <div class="section-header">
-        <h2 class="reveal">Popular Genres</h2>
-        <p class="section-subtitle reveal">Explore our most loved categories</p>
-      </div>
-      <div class="genres-grid">
-        <a href="/read?query=History" class="genre-card reveal-card card-parallax hover-lift" data-animation="history">
-          <div class="genre-icon" id="history-icon"></div>
-          <h3>History</h3>
-          <p>Ancient civilizations to modern times</p>
-        </a>
-        <a href="/read?query=Philosophy" class="genre-card reveal-card card-parallax hover-lift" data-animation="philosophy">
-          <div class="genre-icon" id="philosophy-icon"></div>
-          <h3>Philosophy</h3>
-          <p>Great thinkers and timeless wisdom</p>
-        </a>
-        <a href="/read?query=Science" class="genre-card reveal-card card-parallax hover-lift" data-animation="science">
-          <div class="genre-icon" id="science-icon"></div>
-          <h3>Science</h3>
-          <p>Discoveries that shaped our world</p>
-        </a>
-        <a href="/read?query=Religion" class="genre-card reveal-card card-parallax hover-lift" data-animation="religion">
-          <div class="genre-icon" id="religion-icon"></div>
-          <h3>Religion</h3>
-          <p>Sacred texts and spiritual wisdom</p>
-        </a>
-        <a href="/read?query=Literature" class="genre-card reveal-card card-parallax hover-lift" data-animation="literature">
-          <div class="genre-icon" id="literature-icon"></div>
-          <h3>Literature</h3>
-          <p>Classic novels and poetry</p>
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- TRENDING BOOKS -->
-  <section class="section reveal-section">
-    <div class="container">
-      <div class="section-header">
-        <h2 class="reveal">Trending Now</h2>
-        <p class="section-subtitle reveal">Latest from BookLantern</p>
-      </div>
-      <div id="featured-grid" class="books-grid" aria-live="polite"></div>
-    </div>
-  </section>
-
-  <!-- WHY BOOKLANTERN -->
-  <section class="section reveal-section" id="how-it-works">
-    <div class="container">
-      <div class="section-header">
-        <h2 class="reveal">Why BookLantern?</h2>
-        <p class="section-subtitle reveal">Built for readers, by readers</p>
-      </div>
-      <div class="features-grid">
-        <div class="feature-card glass-card reveal-card volumetric-glow" data-animation="security">
-          <div class="feature-icon" id="security-icon"></div>
-          <h3>No Login Hoops</h3>
-          <p>Start reading immediately. No account required to explore our vast collection of free books.</p>
-        </div>
-        <div class="feature-card glass-card reveal-card volumetric-glow" data-animation="reader">
-          <div class="feature-icon" id="reader-icon"></div>
-          <h3>Single Reader</h3>
-          <p>One beautiful, consistent reading experience across all books. No more juggling different interfaces.</p>
-        </div>
-        <div class="feature-card glass-card reveal-card volumetric-glow" data-animation="trust">
-          <div class="feature-icon" id="trust-icon"></div>
-          <h3>Safe & Free</h3>
-          <p>All content is public domain or freely licensed. No ads, no tracking, just pure reading.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- LIVE PREVIEW -->
-  <section class="section reveal-section">
-    <div class="container">
-      <div class="section-header">
-        <h2 class="reveal">See It In Action</h2>
-        <p class="section-subtitle reveal">Experience our beautiful reader</p>
-      </div>
-      <div class="preview-container glass-card reveal-card">
-        <div class="preview-header">
-          <div class="preview-dots">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
-          <div class="preview-title">BookLantern Reader</div>
-        </div>
-        <div class="preview-content">
-          <div class="preview-pages">
-            <div class="preview-page skeleton"></div>
-            <div class="preview-page skeleton"></div>
-            <div class="preview-page skeleton"></div>
-          </div>
-          <!-- Page Turning Animation -->
-          <div class="page-turn-animation" id="page-turn-demo"></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- CURATED SHELVES -->
-  <section class="section reveal-section">
-    <div class="container" id="shelves"></div>
-  </section>
-
-  <%- include('./partials/footer.ejs') %>
-
-
-
-  <!-- HOMEPAGE POPULATION SCRIPT -->
-  <script>
-    (function(){
-      const IS_LOGGED_IN = <%= !!user %>;
-
-      const featuredGrid = document.getElementById('featured-grid');
-      const shelvesRoot  = document.getElementById('shelves');
-
-      function escapeHtml(s){
-        return String(s || '')
-          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-      }
-
-      function buildHrefFromCard(b){
-        if (b && b.href) return b.href; // server provided deep link
-
-        const src = (b.source || '').toLowerCase();
-        const id  = b.identifier || '';
-        const ia  = b.archiveId || (src === 'archive' ? id : '');
-        if (ia) {
-          return '/read/book/' + encodeURIComponent(ia);
-        } else if (src === 'gutenberg') {
-          const gid = String(id).replace(/^gutenberg:/,'');
-          const qs  = b.readerUrl ? ('?u=' + encodeURIComponent(b.readerUrl)) : '';
-          return '/read/gutenberg/' + encodeURIComponent(gid) + '/reader' + qs;
-        }
-        return b.readerUrl || '#';
-      }
-
-      function brandFromSource(src){
-        const s = (src || '').toLowerCase();
-        if (s === 'archive') return 'Open library';
-        if (s === 'gutenberg') return 'Open library';
-        if (s === 'openlibrary') return 'Open library';
-        return 'Book';
-      }
-
-      // Gate all homepage book clicks: guests go to /login?next=...
-      function gatedHref(dest){
-        if (IS_LOGGED_IN) return dest;
-        return '/login?next=' + encodeURIComponent(dest || '/');
-      }
-
-      function cardTemplate(b){
-        const dest  = buildHrefFromCard(b);
-        const href  = gatedHref(dest);
-        const internal = IS_LOGGED_IN && (b.archiveId || (b.source||'').toLowerCase()==='archive' || (b.source||'').toLowerCase()==='gutenberg');
-
-        return `
-          <article class="card fade-in">
-            <a href="${href}" ${internal ? '' : 'rel="noopener"'} style="text-decoration:none;color:inherit">
-              <div class="thumb">
-                ${b.cover ? `<img src="${b.cover}" alt="${escapeHtml(b.title || '')}" loading="lazy" referrerpolicy="no-referrer">` : ''}
-              </div>
-              <div class="meta">
-                <span class="badge">${brandFromSource(b.source)}</span>
-                <h3>${escapeHtml(b.title || '')}</h3>
-                <p>${escapeHtml(b.creator || '')}</p>
-              </div>
-            </a>
-          </article>
-        `;
-      }
-
-      function renderGrid(items, targetEl){
-        if (!items || !items.length) {
-          targetEl.innerHTML = '<div class="hint">No books found right now. Try a search above.</div>';
-          return;
-        }
-        targetEl.innerHTML = items.map(cardTemplate).join('');
-      }
-
-      function shelfTemplate(shelf){
-        const cards = (shelf.items || []).map(cardTemplate).join('');
-        return `
-          <div class="shelf">
-            <div class="shelf-header">
-              <h2>${escapeHtml(shelf.title)}</h2>
-              <a class="hint" href="/read?query=${encodeURIComponent(shelf.q)}">See more</a>
-            </div>
-            <div class="shelf-row">
-              ${cards}
-            </div>
-          </div>
-        `;
-      }
-
-      async function loadFeatured(){
-        try {
-          const r = await fetch('/api/featured-books', { credentials: 'same-origin' });
-          if (!r.ok) throw new Error('Bad status');
-          const data = await r.json();
-          const items =
-            Array.isArray(data) ? data :
-            (Array.isArray(data.items) ? data.items :
-            (Array.isArray(data.results) ? data.results : []));
-          renderGrid(items, featuredGrid);
-        } catch (e) {
-          featuredGrid.innerHTML = '<div class="hint">Could not load books. Try refreshing.</div>';
-          console.error('featured error', e);
-        }
-      }
-
-      async function loadShelves(){
-        try {
-          const r = await fetch('/api/shelves', { credentials: 'same-origin' });
-          if (!r.ok) throw new Error('Bad status');
-          const data = await r.json();
-          const shelves = Array.isArray(data.shelves) ? data.shelves : [];
-          shelvesRoot.innerHTML = shelves.map(shelfTemplate).join('');
-        } catch (e) {
-          console.error('shelves error', e);
-        }
-      }
-
-      loadFeatured();
-      loadShelves();
-    })();
-  </script>
+  <!-- Homepage Scripts -->
+  <script defer src="/js/scene-core.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
 </body>
 </html>
