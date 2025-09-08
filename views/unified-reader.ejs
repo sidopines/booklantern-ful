@@ -280,18 +280,20 @@
           const gid = EPUB_URL.match(/\/proxy\/gutenberg-epub\/(\d+)/)?.[1];
           if (gid) {
             // Show spinner with progress message
-            bookBox.innerHTML = '<div class="muted" style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:1rem"><div>Loading book...</div><div style="font-size:0.9rem;color:#999">large books may take ~1–2 minutes on first open</div></div>';
+            showProgressIndicator('Loading book...', 'Finding best EPUB source...');
             await pollGutenbergHealth(gid);
           }
         }
         
         // Step 1: Fetch EPUB as blob
+        showProgressIndicator('Loading book...', 'Downloading EPUB file...');
         const r = await fetch(EPUB_URL, { cache: 'no-store' });
         if (!r.ok) {
           throw new Error(`HTTP ${r.status}: ${r.statusText}`);
         }
         
         // Step 2: Get blob and validate
+        showProgressIndicator('Loading book...', 'Processing EPUB file...');
         const blob = await r.blob();
         if (blob.type !== 'application/epub+zip' && blob.size < 80 * 1024) {
           throw new Error('Invalid EPUB file (too small or wrong type)');
@@ -418,8 +420,27 @@
       }
     }
 
+    function showProgressIndicator(mainMessage, subMessage) {
+      bookBox.innerHTML = `
+        <div class="muted" style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:1rem">
+          <div style="display:flex;align-items:center;gap:1rem">
+            <div class="spinner" style="width:20px;height:20px;border:2px solid #ccc;border-top:2px solid #666;border-radius:50%;animation:spin 1s linear infinite"></div>
+            <div>${mainMessage}</div>
+          </div>
+          <div style="font-size:0.9rem;color:#999">${subMessage}</div>
+          <div style="font-size:0.8rem;color:#777">Loading may take up to 60 seconds for large books</div>
+        </div>
+        <style>
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        </style>
+      `;
+    }
+
     async function pollGutenbergHealth(gid) {
-      const maxAttempts = 60; // 2 minutes max
+      const maxAttempts = 30; // 60 seconds max (30 * 2s intervals)
       let attempts = 0;
       
       while (attempts < maxAttempts) {
@@ -429,6 +450,7 @@
             const data = await response.json();
             if (data.cached && data.size > 0) {
               console.log(`[GUTENBERG] Health check: cached=true, size=${data.size}`);
+              showProgressIndicator('Book ready!', 'Initializing reader...');
               return; // Success - file is cached
             }
           }
@@ -437,10 +459,15 @@
         }
         
         attempts++;
+        const remainingSeconds = (maxAttempts - attempts) * 2;
+        if (attempts % 5 === 0) {
+          showProgressIndicator('Loading book...', `Downloading EPUB... (~${remainingSeconds}s remaining)`);
+        }
         await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
       }
       
-      console.log('[GUTENBERG] Health polling timed out after 2 minutes');
+      console.log('[GUTENBERG] Health polling timed out after 60 seconds');
+      throw new Error('Timeout: Book download took too long. Please try again.');
     }
 
     function downloadEPUB() {
