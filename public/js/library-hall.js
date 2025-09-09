@@ -1,36 +1,36 @@
-// public/js/library-hall.js - Library Hall with 3D Stacks and Modal
+// public/js/library-hall.js
 class LibraryHall {
   constructor(options = {}) {
     this.webgl = options.webgl !== false;
     this.reducedMotion = options.reducedMotion || false;
     this.container = null;
     this.mode = null; // 'webgl', 'lottie', 'svg'
-    this.instance = null;
     this.scene = null;
     this.camera = null;
     this.renderer = null;
-    this.bookStacks = [];
+    this.genreStacks = [];
     this.raycaster = null;
     this.mouse = window.THREE ? new THREE.Vector2() : { x: 0, y: 0 };
     this.hoveredStack = null;
     this.animationId = null;
+    this.modal = null;
   }
 
   async mount(container) {
     this.container = container;
     
-    // Setup genre buttons first (always available)
+    // Setup genre buttons (always available)
     this.setupGenreButtons();
+    this.setupModal();
 
     // Try different visual modes
     if (this.webgl && window.THREE && !this.reducedMotion) {
       try {
         await this.mountWebGL();
         this.mode = 'webgl';
-        console.log('[LibraryHall] Mounted WebGL mode');
         return;
       } catch (e) {
-        console.warn('[LibraryHall] WebGL failed, trying Lottie:', e);
+        console.warn('[HALL] WebGL failed, trying Lottie:', e);
       }
     }
 
@@ -39,42 +39,124 @@ class LibraryHall {
       try {
         await this.mountLottie();
         this.mode = 'lottie';
-        console.log('[LibraryHall] Mounted Lottie mode');
         return;
       } catch (e) {
-        console.warn('[LibraryHall] Lottie failed, using SVG:', e);
+        console.warn('[HALL] Lottie failed, using SVG:', e);
       }
     }
 
     // Final fallback: SVG
     this.mountSVG();
     this.mode = 'svg';
-    console.log('[LibraryHall] Mounted SVG mode');
   }
 
   setupGenreButtons() {
-    const stacks = this.container.querySelector('.stacks');
-    if (!stacks) return;
+    // Create genre buttons if they don't exist
+    let stacksNav = this.container.querySelector('.genre-stacks');
+    if (!stacksNav) {
+      stacksNav = document.createElement('nav');
+      stacksNav.className = 'genre-stacks';
+      stacksNav.setAttribute('aria-label', 'Genres');
+      
+      const genres = ['History', 'Religion', 'Philosophy', 'Science', 'AI', 'Technology', 'Literature'];
+      genres.forEach(genre => {
+        const button = document.createElement('button');
+        button.textContent = genre;
+        button.className = 'genre-stack-btn';
+        button.dataset.genre = genre;
+        button.setAttribute('aria-label', `Browse ${genre} books`);
+        
+        // Style the button
+        Object.assign(button.style, {
+          padding: '12px 24px',
+          margin: '8px',
+          background: 'rgba(255, 255, 255, 0.1)',
+          border: '1px solid rgba(255, 255, 255, 0.2)',
+          borderRadius: '8px',
+          color: '#fff',
+          fontSize: '16px',
+          fontWeight: '600',
+          cursor: 'pointer',
+          transition: 'all 0.3s ease',
+          backdropFilter: 'blur(10px)'
+        });
 
-    stacks.querySelectorAll('button[data-genre]').forEach(button => {
-      button.addEventListener('click', () => {
-        const genre = button.dataset.genre;
-        this.openShelf(genre);
+        // Add hover effects
+        button.addEventListener('mouseenter', () => {
+          Object.assign(button.style, {
+            background: 'rgba(108, 124, 255, 0.3)',
+            borderColor: '#6c7cff',
+            transform: 'translateY(-2px)',
+            boxShadow: '0 4px 20px rgba(108, 124, 255, 0.3)'
+          });
+        });
+
+        button.addEventListener('mouseleave', () => {
+          Object.assign(button.style, {
+            background: 'rgba(255, 255, 255, 0.1)',
+            borderColor: 'rgba(255, 255, 255, 0.2)',
+            transform: 'translateY(0)',
+            boxShadow: 'none'
+          });
+        });
+
+        button.addEventListener('click', () => this.populateShelf(genre));
+        button.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            this.populateShelf(genre);
+          }
+        });
+
+        stacksNav.appendChild(button);
       });
 
-      // Add keyboard navigation
-      button.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          button.click();
-        }
+      // Position the nav
+      Object.assign(stacksNav.style, {
+        position: 'absolute',
+        bottom: '10vh',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: '8px',
+        zIndex: '5',
+        maxWidth: '90vw'
       });
-    });
+
+      this.container.appendChild(stacksNav);
+    }
+  }
+
+  setupModal() {
+    this.modal = document.getElementById('shelfModal');
+    if (!this.modal) {
+      // Create modal if it doesn't exist
+      this.modal = document.createElement('div');
+      this.modal.id = 'shelfModal';
+      this.modal.className = 'shelf-modal hidden';
+      this.modal.setAttribute('role', 'dialog');
+      this.modal.setAttribute('aria-modal', 'true');
+      this.modal.setAttribute('aria-hidden', 'true');
+      
+      this.modal.innerHTML = `
+        <div class="shelf-content">
+          <button class="shelf-close" aria-label="Close">×</button>
+          <h2 id="shelfTitle"></h2>
+          <div class="book-grid"></div>
+        </div>
+      `;
+
+      this.container.appendChild(this.modal);
+    }
   }
 
   async mountWebGL() {
-    const canvas = this.container.querySelector('#hall3d');
-    if (!canvas) throw new Error('WebGL canvas not found');
+    // Create canvas
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+    this.container.appendChild(canvas);
 
     this.raycaster = new THREE.Raycaster();
 
@@ -95,16 +177,15 @@ class LibraryHall {
     const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
     this.scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(10, 10, 5);
-    directionalLight.castShadow = true;
     this.scene.add(directionalLight);
 
     // Create library environment
     this.createLibraryEnvironment();
     
-    // Create genre stacks
-    this.createGenreStacks();
+    // Create genre stacks (3D visualization)
+    this.createGenreStacks3D();
 
     // Position camera
     this.camera.position.set(0, 2, 8);
@@ -133,73 +214,71 @@ class LibraryHall {
     floor.rotation.x = -Math.PI / 2;
     this.scene.add(floor);
 
-    // Walls with subtle texture
+    // Back wall
     const wallGeometry = new THREE.PlaneGeometry(20, 10);
     const wallMaterial = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-    
     const backWall = new THREE.Mesh(wallGeometry, wallMaterial);
     backWall.position.set(0, 5, -10);
     this.scene.add(backWall);
 
-    // Add floating dust particles
-    this.createDustParticles();
+    // Add floating particles
+    this.createFloatingParticles();
   }
 
-  createDustParticles() {
-    const dustGeometry = new THREE.BufferGeometry();
-    const dustCount = 50;
-    const positions = new Float32Array(dustCount * 3);
+  createFloatingParticles() {
+    const particleCount = 30;
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
 
-    for (let i = 0; i < dustCount * 3; i += 3) {
+    for (let i = 0; i < particleCount * 3; i += 3) {
       positions[i] = (Math.random() - 0.5) * 20;     // x
       positions[i + 1] = Math.random() * 10;         // y
       positions[i + 2] = (Math.random() - 0.5) * 20; // z
     }
 
-    dustGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     
-    const dustMaterial = new THREE.PointsMaterial({
+    const material = new THREE.PointsMaterial({
       color: 0xffffff,
-      size: 0.02,
+      size: 0.05,
       transparent: true,
-      opacity: 0.3
+      opacity: 0.6
     });
 
-    this.dustParticles = new THREE.Points(dustGeometry, dustMaterial);
-    this.scene.add(this.dustParticles);
+    this.particles = new THREE.Points(geometry, material);
+    this.scene.add(this.particles);
   }
 
-  createGenreStacks() {
+  createGenreStacks3D() {
     const genres = [
       { name: 'History', color: 0x8B4513, position: [-6, 0, -6] },
       { name: 'Religion', color: 0x4B0082, position: [-2, 0, -6] },
       { name: 'Philosophy', color: 0x2E8B57, position: [2, 0, -6] },
       { name: 'Science', color: 0x1E90FF, position: [6, 0, -6] },
-      { name: 'AI', color: 0xFF6347, position: [-4, 0, -2] },
+      { name: 'AI', color: 0xFF6347, position: [-3, 0, -2] },
       { name: 'Technology', color: 0x32CD32, position: [0, 0, -2] },
-      { name: 'Literature', color: 0xFFD700, position: [4, 0, -2] }
+      { name: 'Literature', color: 0xFFD700, position: [3, 0, -2] }
     ];
 
     genres.forEach((genre, index) => {
-      const stack = this.createBookStack(genre, index);
-      this.bookStacks.push(stack);
+      const stack = this.createBookStack3D(genre, index);
+      this.genreStacks.push(stack);
       this.scene.add(stack);
     });
   }
 
-  createBookStack(genre, index) {
+  createBookStack3D(genre, index) {
     const stack = new THREE.Group();
     stack.userData = { genre: genre.name, index: index };
 
-    // Create book geometry
-    const bookGeometry = new THREE.BoxGeometry(0.3, 0.4, 0.05);
-    const bookMaterial = new THREE.MeshLambertMaterial({ color: genre.color });
-    
-    // Create individual books
-    for (let i = 0; i < 20; i++) {
+    // Create books
+    for (let i = 0; i < 15; i++) {
+      const bookGeometry = new THREE.BoxGeometry(0.3, 0.4, 0.05);
+      const bookMaterial = new THREE.MeshLambertMaterial({ color: genre.color });
       const book = new THREE.Mesh(bookGeometry, bookMaterial);
-      const x = (i % 4) * 0.35 - 0.525;
-      const y = Math.floor(i / 4) * 0.45;
+      
+      const x = (i % 3) * 0.35 - 0.35;
+      const y = Math.floor(i / 3) * 0.45;
       const z = (Math.random() - 0.5) * 0.1;
       
       book.position.set(x, y, z);
@@ -210,15 +289,15 @@ class LibraryHall {
     // Position stack
     stack.position.set(genre.position[0], genre.position[1], genre.position[2]);
 
-    // Add hover zone (invisible box for easier clicking)
-    const hoverGeometry = new THREE.BoxGeometry(2, 3, 1);
+    // Add hover zone for easier interaction
+    const hoverGeometry = new THREE.BoxGeometry(1.5, 3, 1);
     const hoverMaterial = new THREE.MeshBasicMaterial({ 
       transparent: true, 
       opacity: 0,
       visible: false 
     });
     const hoverZone = new THREE.Mesh(hoverGeometry, hoverMaterial);
-    hoverZone.position.set(0, 1, 0);
+    hoverZone.position.set(0, 1.5, 0);
     hoverZone.userData = { isHoverZone: true, genre: genre.name };
     stack.add(hoverZone);
 
@@ -226,7 +305,7 @@ class LibraryHall {
   }
 
   setupWebGLInteractions() {
-    const canvas = this.container.querySelector('#hall3d');
+    const canvas = this.container.querySelector('canvas');
     
     canvas.addEventListener('mousemove', (event) => {
       const rect = canvas.getBoundingClientRect();
@@ -235,8 +314,11 @@ class LibraryHall {
       this.updateHover();
     });
 
-    canvas.addEventListener('click', (event) => {
-      this.handleStackClick();
+    canvas.addEventListener('click', () => {
+      if (this.hoveredStack) {
+        const genre = this.hoveredStack.userData.genre;
+        this.populateShelf(genre);
+      }
     });
   }
 
@@ -245,9 +327,8 @@ class LibraryHall {
 
     this.raycaster.setFromCamera(this.mouse, this.camera);
     
-    // Find all hover zones
     const hoverZones = [];
-    this.bookStacks.forEach(stack => {
+    this.genreStacks.forEach(stack => {
       stack.children.forEach(child => {
         if (child.userData.isHoverZone) {
           hoverZones.push(child);
@@ -265,18 +346,11 @@ class LibraryHall {
 
     // Set new hover
     if (intersects.length > 0) {
-      this.hoveredStack = intersects[0].object.parent; // Get the stack group
-      this.hoveredStack.scale.set(1.05, 1.05, 1.05);
+      this.hoveredStack = intersects[0].object.parent;
+      this.hoveredStack.scale.set(1.1, 1.1, 1.1);
       document.body.style.cursor = 'pointer';
     } else {
       document.body.style.cursor = 'default';
-    }
-  }
-
-  handleStackClick() {
-    if (this.hoveredStack) {
-      const genre = this.hoveredStack.userData.genre;
-      this.openShelf(genre);
     }
   }
 
@@ -284,26 +358,25 @@ class LibraryHall {
     const animate = () => {
       this.animationId = requestAnimationFrame(animate);
       
-      // Animate dust particles
-      if (this.dustParticles) {
-        this.dustParticles.rotation.y += 0.001;
+      // Animate particles
+      if (this.particles) {
+        this.particles.rotation.y += 0.001;
         
-        // Move dust particles
-        const positions = this.dustParticles.geometry.attributes.position.array;
+        const positions = this.particles.geometry.attributes.position.array;
         for (let i = 1; i < positions.length; i += 3) {
-          positions[i] += 0.001; // y movement
+          positions[i] += 0.002; // y movement
           if (positions[i] > 10) {
-            positions[i] = 0; // Reset to bottom
+            positions[i] = 0;
           }
         }
-        this.dustParticles.geometry.attributes.position.needsUpdate = true;
+        this.particles.geometry.attributes.position.needsUpdate = true;
       }
 
-      // Subtle book stack animations
-      this.bookStacks.forEach((stack, index) => {
+      // Subtle genre stack animations
+      this.genreStacks.forEach((stack, index) => {
         const time = Date.now() * 0.0005;
         stack.rotation.y = Math.sin(time + index) * 0.02;
-        stack.position.y = Math.sin(time * 2 + index) * 0.05;
+        stack.position.y = Math.sin(time * 1.5 + index) * 0.03;
       });
 
       this.renderer.render(this.scene, this.camera);
@@ -312,10 +385,9 @@ class LibraryHall {
   }
 
   async mountLottie() {
-    const lottieContainer = this.container.querySelector('#hallLottie');
-    if (!lottieContainer) throw new Error('Lottie container not found');
-
-    lottieContainer.classList.remove('hidden');
+    const lottieContainer = document.createElement('div');
+    lottieContainer.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+    this.container.appendChild(lottieContainer);
 
     this.instance = lottie.loadAnimation({
       container: lottieContainer,
@@ -325,7 +397,6 @@ class LibraryHall {
       path: '/assets/lottie/hall.json'
     });
 
-    // Wait for animation to load
     await new Promise((resolve, reject) => {
       this.instance.addEventListener('DOMLoaded', resolve, { once: true });
       this.instance.addEventListener('error', reject, { once: true });
@@ -334,132 +405,156 @@ class LibraryHall {
   }
 
   mountSVG() {
-    const svg = this.container.querySelector('#hallSvg');
-    if (!svg) {
-      console.warn('[LibraryHall] SVG element not found');
-      return;
-    }
-
-    svg.classList.remove('hidden');
-    this.instance = svg;
+    const img = document.createElement('img');
+    img.src = '/assets/img/hall.svg';
+    img.alt = 'Library Hall';
+    img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover';
+    this.container.appendChild(img);
+    this.instance = img;
   }
 
-  async openShelf(genre) {
-    const modal = document.getElementById('shelfModal');
-    const title = document.getElementById('shelfTitle');
-    const grid = document.querySelector('.grid.books');
+  async populateShelf(genre) {
+    console.log(`[HALL] genre=${genre}`);
     
-    if (!modal || !title || !grid) {
-      console.warn('[LibraryHall] Modal elements not found');
+    const modal = this.modal;
+    const title = modal.querySelector('#shelfTitle') || modal.querySelector('h2');
+    const grid = modal.querySelector('.book-grid');
+    const closeBtn = modal.querySelector('.shelf-close');
+    
+    if (!modal || !grid) {
+      console.warn('[HALL] Modal elements not found');
       return;
     }
 
-    title.textContent = `${genre} Books`;
-    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--muted);">Loading books...</div>';
-    
+    // Show modal
     modal.classList.remove('hidden');
     modal.setAttribute('aria-hidden', 'false');
+    
+    if (title) title.textContent = `${genre} Books`;
+    grid.innerHTML = '<div style="text-align:center;padding:2rem;color:#ccc;">Loading books...</div>';
 
     try {
-      // Check auth status first
-      const isLoggedIn = await this.checkAuthStatus();
+      // First attempt: direct genre search
+      let results = await this.fetchBooks(genre);
       
-      // Fetch books for this genre
-      const response = await fetch(`/read?query=${encodeURIComponent(genre)}`);
-      const html = await response.text();
-      
-      // Parse the response to extract book data
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      const bookCards = doc.querySelectorAll('.book-card, .item-card, .result-item');
-      
-      if (bookCards.length === 0) {
-        grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--muted);">No books found for this genre</div>';
-        return;
+      // Retry logic if <6 results
+      if (results.length < 6) {
+        console.log(`[HALL] genre=${genre} first attempt results=${results.length}, retrying...`);
+        
+        // Second attempt: with synonyms
+        const synonyms = this.getGenreSynonyms(genre);
+        if (synonyms) {
+          const retryResults = await this.fetchBooks(synonyms);
+          results = results.concat(retryResults);
+        }
+        
+        // Third attempt: fallback query
+        if (results.length < 6) {
+          const fallbackResults = await this.fetchBooks(`${genre} books`);
+          results = results.concat(fallbackResults);
+        }
       }
 
-      // Convert found books to modal format
-      const books = Array.from(bookCards).slice(0, 12).map(card => {
-        const titleEl = card.querySelector('h3, .title, .book-title');
-        const authorEl = card.querySelector('.author, .creator, .book-author');
-        const coverEl = card.querySelector('img');
-        const linkEl = card.querySelector('a') || card;
-        
-        return {
-          title: titleEl?.textContent?.trim() || 'Untitled',
-          author: authorEl?.textContent?.trim() || 'Unknown Author',
-          cover: coverEl?.src || '/img/cover-fallback.svg',
-          link: linkEl?.getAttribute('href') || '#'
-        };
-      });
-
-      this.populateShelf(books, grid, isLoggedIn);
+      // Remove duplicates
+      const uniqueResults = this.removeDuplicates(results);
+      
+      console.log(`[HALL] genre=${genre} results=${uniqueResults.length}`);
+      
+      if (uniqueResults.length === 0) {
+        grid.innerHTML = '<div style="text-align:center;padding:2rem;color:#ccc;">No books found for this genre</div>';
+      } else {
+        this.renderBooks(uniqueResults, grid);
+      }
     } catch (error) {
-      console.error('Failed to fetch books:', error);
-      grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--error);">Failed to load books</div>';
+      console.error(`[HALL] genre=${genre} error:`, error);
+      grid.innerHTML = '<div style="text-align:center;padding:2rem;color:#ff6b6b;">Failed to load books</div>';
     }
 
     // Setup modal interactions
-    this.setupModalInteractions(modal);
+    this.setupModalInteractions(modal, closeBtn);
   }
 
-  async checkAuthStatus() {
-    try {
-      const response = await fetch('/me');
-      return response.ok;
-    } catch (e) {
-      return false;
-    }
+  async fetchBooks(query) {
+    const url = `/read?query=${encodeURIComponent(query)}&sources=ol,ia,loc&limit=24&format=json`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Search failed');
+    return await response.json();
   }
 
-  populateShelf(books, grid, isLoggedIn) {
-    grid.innerHTML = books.map(book => `
-      <div class="book-card" data-book-link="${book.link}">
-        <img src="${book.cover}" alt="${book.title}" loading="lazy" onerror="this.src='/img/cover-fallback.svg'">
-        <div class="title">${book.title}</div>
-        <div class="author">${book.author}</div>
-        <div class="source">Read Now</div>
+  getGenreSynonyms(genre) {
+    const synonymMap = {
+      'History': 'world history',
+      'Religion': 'religious studies',
+      'Philosophy': 'philosophical thought',
+      'Science': 'scientific research',
+      'AI': 'artificial intelligence',
+      'Technology': 'computer science',
+      'Literature': 'classic literature'
+    };
+    return synonymMap[genre] || null;
+  }
+
+  removeDuplicates(books) {
+    const seen = new Set();
+    return books.filter(book => {
+      const key = `${book.title}:${book.author}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  renderBooks(books, grid) {
+    const limitedBooks = books.slice(0, 24);
+    
+    grid.innerHTML = limitedBooks.map(book => `
+      <div class="book-card" data-href="${book.href}">
+        <img class="book-cover" src="${book.cover}" alt="${book.title}" loading="lazy" 
+             onerror="this.src='/img/cover-fallback.svg'">
+        <h3 class="book-title">${book.title}</h3>
+        <p class="book-author">${book.author}</p>
+        <span class="book-source">${book.source.toUpperCase()}</span>
+        <button class="btn-read">Read</button>
       </div>
     `).join('');
 
     // Add click handlers
     grid.querySelectorAll('.book-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const bookLink = card.dataset.bookLink;
-        if (bookLink && bookLink !== '#') {
-          if (!isLoggedIn) {
-            // Redirect to login with next parameter
-            window.location.href = `/login?next=${encodeURIComponent(bookLink)}`;
-          } else {
-            // Navigate to book
-            window.location.href = bookLink;
-          }
+      const href = card.dataset.href;
+      const readBtn = card.querySelector('.btn-read');
+      
+      const handleClick = (e) => {
+        e.preventDefault();
+        if (href && href !== '#') {
+          window.location.href = href; // Keep user on booklantern.org
         }
-      });
+      };
+
+      card.addEventListener('click', handleClick);
+      readBtn.addEventListener('click', handleClick);
     });
   }
 
-  setupModalInteractions(modal) {
-    const closeBtn = modal.querySelector('.close');
-    const backdrop = modal.querySelector('.modal-backdrop');
-    
-    // Close handlers
+  setupModalInteractions(modal, closeBtn) {
     const closeModal = () => {
       modal.classList.add('hidden');
       modal.setAttribute('aria-hidden', 'true');
+      document.body.style.cursor = 'default';
     };
 
+    // Close button
     if (closeBtn) {
-      closeBtn.removeEventListener('click', closeModal); // Remove any existing listeners
-      closeBtn.addEventListener('click', closeModal);
+      closeBtn.onclick = closeModal;
     }
-    
-    if (backdrop) {
-      backdrop.removeEventListener('click', closeModal);
-      backdrop.addEventListener('click', closeModal);
-    }
-    
-    // ESC key handler
+
+    // Backdrop click
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        closeModal();
+      }
+    };
+
+    // ESC key
     const handleKeydown = (e) => {
       if (e.key === 'Escape') {
         closeModal();
@@ -515,14 +610,18 @@ class LibraryHall {
       this.instance.destroy();
     }
 
-    // Reset cursor
     document.body.style.cursor = 'default';
 
-    // Hide all elements
-    ['#hall3d', '#hallLottie', '#hallSvg'].forEach(selector => {
-      const el = this.container?.querySelector(selector);
-      if (el) el.classList.add('hidden');
-    });
+    if (this.container) {
+      // Remove only the visual elements, keep modal and buttons
+      const canvas = this.container.querySelector('canvas');
+      const lottieDiv = this.container.querySelector('div:not(.genre-stacks):not(.shelf-modal)');
+      const img = this.container.querySelector('img');
+      
+      if (canvas) canvas.remove();
+      if (lottieDiv) lottieDiv.remove();
+      if (img) img.remove();
+    }
   }
 }
 
