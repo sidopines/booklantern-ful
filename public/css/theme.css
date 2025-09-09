@@ -1842,6 +1842,280 @@ body.scrolling-locked {
 }
 
 /* =========================
+   CINEMATIC LANDING EXPERIENCE
+   ========================= */
+
+/* Stage Layout */
+.stage {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #0c0d11;
+  overflow: hidden;
+}
+
+.stage.hidden {
+  display: none;
+}
+
+/* Gate Stage */
+.gate {
+  background: radial-gradient(circle at center, #1a1d29 0%, #0c0d11 100%);
+}
+
+.gate .enter-hit {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 22vmin;
+  height: 22vmin;
+  min-width: 160px;
+  min-height: 160px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  z-index: 10;
+  transition: transform 0.3s ease;
+}
+
+.gate .enter-hit:hover {
+  transform: scale(1.05);
+}
+
+.gate .enter-hit:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
+}
+
+/* Hall Stage */
+.hall {
+  background: linear-gradient(135deg, #0a0e1a 0%, #1a1f2e 100%);
+}
+
+.stacks {
+  position: absolute;
+  bottom: 10vh;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 5;
+}
+
+.stacks button {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  color: var(--text);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.stacks button:hover,
+.stacks button:focus {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
+  outline: none;
+}
+
+/* Modal Styles */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+
+.modal-card {
+  position: relative;
+  background: rgba(26, 31, 46, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  max-width: 90vw;
+  max-height: 80vh;
+  width: 800px;
+  overflow: hidden;
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-card h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.modal-card .close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: color 0.2s ease;
+}
+
+.modal-card .close:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.grid.books {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1.5rem;
+  padding: 2rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* Book Cards in Modal */
+.grid.books .book-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1rem;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.grid.books .book-card:hover {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: var(--primary);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 30px rgba(99, 102, 241, 0.2);
+}
+
+.grid.books .book-card img {
+  width: 100%;
+  max-width: 120px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.grid.books .book-card .title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.grid.books .book-card .author {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.grid.books .book-card .source {
+  background: var(--primary);
+  color: white;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+/* Scroll Lock */
+body.locked {
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .stacks {
+    gap: 1rem;
+    padding: 0.5rem;
+  }
+  
+  .stacks button {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+  }
+  
+  .modal-card {
+    margin: 1rem;
+    width: auto;
+  }
+  
+  .modal-card header {
+    padding: 1rem 1.5rem;
+  }
+  
+  .grid.books {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 1rem;
+    padding: 1.5rem;
+  }
+  
+  .gate .enter-hit {
+    width: 160px;
+    height: 160px;
+  }
+}
+
+/* =========================
    PRINT STYLES
    ========================= */
 @media print {
