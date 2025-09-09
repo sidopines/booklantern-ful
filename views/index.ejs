@@ -3,29 +3,46 @@
 <head>
   <%- include('./partials/head.ejs', {
     pageTitle: 'BookLantern - Discover Books from Global Libraries',
-    pageDescription: 'Search millions of books from Open Library, Internet Archive, Library of Congress, and Gutenberg. Find your next great read.',
-    loadGSAP: true,
-    loadLottie: true
+    pageDescription: 'Search millions of books from Open Library, Internet Archive, Library of Congress, and Gutenberg. Find your next great read.'
   }) %>
 </head>
-<body class="home" data-page="landing">
-  <%- include('./partials/nav.ejs') %>
-  
-  <!-- Gate Stage -->
-  <section id="gate" class="gate stage locked">
-    <canvas id="gate3d" aria-hidden="true"></canvas>
-    <div id="gate-lottie" hidden></div>
-    <img id="gate-fallback" src="/img/door-gate.svg?v=<%= buildId %>" alt="" hidden />
-  </section>
-  
-  <!-- Hall Stage -->
-  <section id="hall" class="hall stage hidden">
-    <canvas id="hall3d" aria-hidden="true"></canvas>
-    <div id="hall-lottie" hidden></div>
-    <img id="hall-fallback" src="/img/library-hall.svg?v=<%= buildId %>" alt="" hidden />
-  </section>
-
-  <!-- Homepage Scripts -->
-  <script defer src="/js/scene-core.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
+<body data-page="landing">
+  <main id="app">
+    <section id="gate" class="stage gate active">
+      <div id="gate3d" aria-label="Library door scene"></div>
+      <video id="gateVideo" class="hidden" playsinline muted loop preload="auto" src="/assets/video/door-loop.webm"></video>
+      <div id="gateLottie" class="hidden" aria-hidden="true"></div>
+      <img id="gateSvg" class="hidden" src="/assets/img/door.svg" alt="Library door"/>
+      <button class="enter-hit" aria-label="Enter the Library"></button>
+    </section>
+    <section id="hall" class="stage hall hidden">
+      <div id="hall3d" aria-label="Library hall scene"></div>
+      <div id="hallLottie" class="hidden" aria-hidden="true"></div>
+      <img id="hallSvg" class="hidden" src="/assets/img/hall.svg" alt="Library hall"/>
+      <nav class="stacks" aria-label="Genres">
+        <button data-genre="History">History</button>
+        <button data-genre="Religion">Religion</button>
+        <button data-genre="Philosophy">Philosophy</button>
+        <button data-genre="Science">Science</button>
+        <button data-genre="AI">AI</button>
+        <button data-genre="Technology">Technology</button>
+        <button data-genre="Literature">Literature</button>
+      </nav>
+      <div id="shelfModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="shelfTitle">
+        <div class="modal-backdrop"></div>
+        <div class="modal-card">
+          <header><h2 id="shelfTitle"></h2><button class="close" aria-label="Close">×</button></header>
+          <div class="grid books" aria-live="polite"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script defer src="/vendor/three.r128.min.js?v=<%= buildId %>"></script>
+  <script defer src="/vendor/gsap.min.js?v=<%= buildId %>"></script>
+  <script defer src="/vendor/gsap-scrolltrigger.min.js?v=<%= buildId %>"></script>
+  <script defer src="/vendor/lottie.min.js?v=<%= buildId %>"></script>
+  <script defer src="/js/scene-core.js?v=<%= buildId %>"></script>
+  <script defer src="/js/door-gate.js?v=<%= buildId %>"></script>
+  <script defer src="/js/library-hall.js?v=<%= buildId %>"></script>
 </body>
 </html>
