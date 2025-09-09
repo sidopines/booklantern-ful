@@ -259,7 +259,14 @@ async function searchArchive(q, rows = 30) {
 router.get('/read', async (req, res) => {
   try {
     const query = (req.query.query || '').trim();
+    const format = req.query.format || 'html';
+    const limit = parseInt(req.query.limit) || (format === 'json' ? 24 : 0);
+    const sources = req.query.sources ? req.query.sources.split(',') : null;
+    
     if (!query) {
+      if (format === 'json') {
+        return res.json([]);
+      }
       return res.render('read', {
         pageTitle: 'Explore Free Books',
         pageDescription: 'Search and read free, public-domain books.',
@@ -268,11 +275,11 @@ router.get('/read', async (req, res) => {
       });
     }
 
-    // Search all sources with individual error handling
+    // Search sources based on filter
     let gb = [], ws = [], ia = [], ol = [], fb = [], ht = [], loc = [], fw = [];
     
-    // Only search Gutenberg if enabled
-    if (config.GUTEN_ENABLED) {
+    // Only search Gutenberg if enabled and requested (exclude if sources filter excludes it)
+    if (config.GUTEN_ENABLED && (!sources || sources.includes('gutenberg') || sources.includes('gb'))) {
       try {
         gb = await searchGutenberg(query, 32);
       } catch (e) {
@@ -280,26 +287,35 @@ router.get('/read', async (req, res) => {
       }
     }
     
-    try {
-      ws = await searchWikisource(query, 16, 'en');
-    } catch (e) {
-      console.error('Wikisource search failed:', e.message);
+    // Wikisource
+    if (!sources || sources.includes('wikisource') || sources.includes('ws')) {
+      try {
+        ws = await searchWikisource(query, 16, 'en');
+      } catch (e) {
+        console.error('Wikisource search failed:', e.message);
+      }
     }
     
-    try {
-      ia = await searchArchive(query, 24);
-    } catch (e) {
-      console.error('Archive.org search failed:', e.message);
+    // Archive.org / Internet Archive
+    if (!sources || sources.includes('ia') || sources.includes('archive')) {
+      try {
+        ia = await searchArchive(query, 24);
+      } catch (e) {
+        console.error('Archive.org search failed:', e.message);
+      }
     }
     
-    try {
-      ol = await searchOpenLibrary(query, 40);
-    } catch (e) {
-      console.error('Open Library search failed:', e.message);
+    // Open Library
+    if (!sources || sources.includes('ol') || sources.includes('openlibrary')) {
+      try {
+        ol = await searchOpenLibrary(query, 40);
+      } catch (e) {
+        console.error('Open Library search failed:', e.message);
+      }
     }
     
     // Feature-flagged connectors
-    if (config.CONNECTOR_FEEDBOOKS) {
+    if (config.CONNECTOR_FEEDBOOKS && (!sources || sources.includes('feedbooks') || sources.includes('fb'))) {
       try {
         fb = await searchFeedbooksPD(query, 20);
       } catch (e) {
@@ -307,7 +323,7 @@ router.get('/read', async (req, res) => {
       }
     }
     
-    if (config.CONNECTOR_HATHI) {
+    if (config.CONNECTOR_HATHI && (!sources || sources.includes('hathi') || sources.includes('ht'))) {
       try {
         ht = await searchHathiFullView(query, 20);
       } catch (e) {
@@ -315,13 +331,16 @@ router.get('/read', async (req, res) => {
       }
     }
     
-    try {
-      loc = await searchLOC(query, 20);
-    } catch (e) {
-      console.error('Library of Congress search failed:', e.message);
+    // Library of Congress
+    if (!sources || sources.includes('loc') || sources.includes('congress')) {
+      try {
+        loc = await searchLOC(query, 20);
+      } catch (e) {
+        console.error('Library of Congress search failed:', e.message);
+      }
     }
     
-    if (config.CONNECTOR_FREEWEB) {
+    if (config.CONNECTOR_FREEWEB && (!sources || sources.includes('freeweb') || sources.includes('fw'))) {
       try {
         fw = await searchFreeWeb(query, 20);
       } catch (e) {
@@ -329,38 +348,68 @@ router.get('/read', async (req, res) => {
       }
     }
 
-    // Only include Wikisource results if they exist (filtered for book-like content)
-    const sources = [ol, ia, loc]; // Always enabled: Open Library, Archive, LOC
-    if (config.GUTEN_ENABLED && gb.length > 0) sources.push(gb);
-    if (config.CONNECTOR_FEEDBOOKS && fb.length > 0) sources.push(fb);
-    if (config.CONNECTOR_HATHI && ht.length > 0) sources.push(ht);
-    if (config.CONNECTOR_FREEWEB && fw.length > 0) sources.push(fw);
-    if (ws.length > 0) {
-      sources.push(ws);
-    }
+    // Compile results based on what was searched
+    const allSources = [];
+    if (ol.length > 0) allSources.push(ol);
+    if (ia.length > 0) allSources.push(ia);
+    if (loc.length > 0) allSources.push(loc);
+    if (gb.length > 0) allSources.push(gb);
+    if (fb.length > 0) allSources.push(fb);
+    if (ht.length > 0) allSources.push(ht);
+    if (fw.length > 0) allSources.push(fw);
+    if (ws.length > 0) allSources.push(ws);
     
-    const merged = deDupe(sources.flat());
+    const merged = deDupe(allSources.flat());
     
     // Apply relevance filtering and sorting
     const tokens = tokenize(query);
-    const sortedResults = sortResults(merged, tokens);
+    let sortedResults = sortResults(merged, tokens);
+    
+    // For JSON format, if we get too few results, just return the merged results without strict filtering
+    if (format === 'json' && sortedResults.length < 6 && merged.length > 0) {
+      sortedResults = merged.filter(item => item.title && (item.href || item.readerUrl)).slice(0, 24);
+    }
+    
+    // Apply limit if specified
+    const finalResults = limit > 0 ? sortedResults.slice(0, limit) : sortedResults;
     
     // Log search results with the requested format
-    const gutenbergCount = config.GUTEN_ENABLED ? gb.length : 0;
-    const feedbooksCount = config.CONNECTOR_FEEDBOOKS ? fb.length : 0;
-    const hathiCount = config.CONNECTOR_HATHI ? ht.length : 0;
-    const freewebCount = config.CONNECTOR_FREEWEB ? fw.length : 0;
-    console.log('SEARCH "%s" — counts: gutenberg=%d, archive=%d, openlibrary=%d, feedbooks=%d, hathitrust=%d, loc=%d, freeweb=%d, merged=%d, relevant=%d',
-      query, gutenbergCount, ia.length, ol.length, feedbooksCount, hathiCount, loc.length, freewebCount, merged.length, sortedResults.length);
+    const gutenbergCount = gb.length;
+    const feedbooksCount = fb.length;
+    const hathiCount = ht.length;
+    const freewebCount = fw.length;
+    console.log('SEARCH "%s" — counts: gutenberg=%d, archive=%d, openlibrary=%d, feedbooks=%d, hathitrust=%d, loc=%d, freeweb=%d, merged=%d, relevant=%d, final=%d',
+      query, gutenbergCount, ia.length, ol.length, feedbooksCount, hathiCount, loc.length, freewebCount, merged.length, sortedResults.length, finalResults.length);
+
+    // Return JSON if requested
+    if (format === 'json') {
+      console.log(`[JSON] Merged: ${merged.length}, Final: ${finalResults.length}`);
+      if (merged.length > 0 && finalResults.length === 0) {
+        console.log('[JSON] Sample merged item:', JSON.stringify(merged[0], null, 2));
+      }
+      
+      const jsonResults = finalResults.map(book => ({
+        id: book.identifier || book.id,
+        title: book.title || 'Untitled',
+        author: book.creator || book.author || 'Unknown Author',
+        cover: book.cover || '/img/cover-fallback.svg',
+        source: book.source || 'unknown',
+        href: book.href || book.readerUrl || '#'
+      }));
+      return res.json(jsonResults);
+    }
 
     res.render('read', {
       pageTitle: `Search • ${query}`,
-      pageDescription: `Results for “${query}”`,
-      books: sortedResults,
+      pageDescription: `Results for "${query}"`,
+      books: finalResults,
       query
     });
   } catch (err) {
     console.error('Read search error:', err);
+    if (req.query.format === 'json') {
+      return res.status(500).json({ error: 'Search failed' });
+    }
     res.status(500).render('read', {
       pageTitle: 'Explore Free Books',
       pageDescription: 'Search and read free, public-domain books.',

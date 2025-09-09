@@ -434,6 +434,33 @@
         this.accessibilityEnhancer.announce(`Theme changed to ${newTheme} mode`);
       };
 
+      // Animation toggle functionality
+      window.toggleAnimations = () => {
+        const current = localStorage.getItem('bl:anim:force');
+        const newSetting = current === 'on' ? 'off' : 'on';
+        localStorage.setItem('bl:anim:force', newSetting);
+        
+        // Update UI
+        const animText = document.getElementById('anim-text');
+        const animIcon = document.getElementById('anim-icon');
+        
+        if (animText) {
+          animText.textContent = newSetting === 'on' ? 'Anim: On' : 'Anim: Off';
+        }
+        
+        if (animIcon) {
+          animIcon.textContent = newSetting === 'on' ? '🎬' : '⏸️';
+        }
+        
+        // Notify scene manager if available
+        if (window.sceneManager) {
+          window.sceneManager.animEnabled = newSetting === 'on';
+        }
+        
+        this.accessibilityEnhancer.announce(`Animations ${newSetting}`);
+        console.log(`[ANIM] Animations ${newSetting}`);
+      };
+
       // Expose UI instance globally for debugging
       window.booklanternUI = this;
 

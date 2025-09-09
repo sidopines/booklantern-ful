@@ -1,4 +1,4 @@
-// public/js/door-gate.js - WebGL Door with Fallbacks
+// public/js/door-gate.js
 class DoorGate {
   constructor(options = {}) {
     this.webgl = options.webgl !== false;
@@ -6,21 +6,30 @@ class DoorGate {
     this.container = null;
     this.mode = null; // 'webgl', 'video', 'lottie', 'svg'
     this.instance = null;
+    this.scene = null;
+    this.camera = null;
+    this.renderer = null;
+    this.doorModel = null;
+    this.medallion = null;
+    this.enterButton = null;
+    this.animationId = null;
     this.isEntering = false;
   }
 
   async mount(container) {
     this.container = container;
     
+    // Create enter button overlay first (works for all modes)
+    this.createEnterButton();
+    
     // Try different modes in order of preference
     if (this.webgl && window.THREE && !this.reducedMotion) {
       try {
         await this.mountWebGL();
         this.mode = 'webgl';
-        console.log('[DoorGate] Mounted WebGL mode');
         return;
       } catch (e) {
-        console.warn('[DoorGate] WebGL failed, trying video:', e);
+        console.warn('[GATE] WebGL failed, trying video:', e);
       }
     }
 
@@ -28,10 +37,9 @@ class DoorGate {
     try {
       await this.mountVideo();
       this.mode = 'video';
-      console.log('[DoorGate] Mounted video mode');
       return;
     } catch (e) {
-      console.warn('[DoorGate] Video failed, trying Lottie:', e);
+      console.warn('[GATE] Video failed, trying Lottie:', e);
     }
 
     // Try Lottie fallback
@@ -39,22 +47,99 @@ class DoorGate {
       try {
         await this.mountLottie();
         this.mode = 'lottie';
-        console.log('[DoorGate] Mounted Lottie mode');
         return;
       } catch (e) {
-        console.warn('[DoorGate] Lottie failed, using SVG:', e);
+        console.warn('[GATE] Lottie failed, using SVG:', e);
       }
     }
 
     // Final fallback: SVG
     this.mountSVG();
     this.mode = 'svg';
-    console.log('[DoorGate] Mounted SVG mode');
+  }
+
+  createEnterButton() {
+    // Create large central clickable area
+    this.enterButton = document.createElement('button');
+    this.enterButton.className = 'enter-medallion';
+    this.enterButton.setAttribute('aria-label', 'Enter the Library');
+    this.enterButton.innerHTML = '<span class="enter-text">ENTER</span>';
+    
+    // Style the button
+    Object.assign(this.enterButton.style, {
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      width: 'min(25vmin, 200px)',
+      height: 'min(25vmin, 200px)',
+      minWidth: '160px',
+      minHeight: '160px',
+      borderRadius: '50%',
+      border: '3px solid rgba(255, 215, 0, 0.8)',
+      background: 'radial-gradient(circle, rgba(255, 215, 0, 0.3) 0%, rgba(255, 215, 0, 0.1) 100%)',
+      color: '#FFD700',
+      fontSize: 'clamp(16px, 4vmin, 24px)',
+      fontWeight: 'bold',
+      fontFamily: 'inherit',
+      cursor: 'pointer',
+      zIndex: '10',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      transition: 'all 0.3s ease',
+      backdropFilter: 'blur(10px)'
+    });
+
+    // Hover effects
+    this.enterButton.addEventListener('mouseenter', () => {
+      Object.assign(this.enterButton.style, {
+        transform: 'translate(-50%, -50%) scale(1.05)',
+        boxShadow: '0 0 30px rgba(255, 215, 0, 0.6)',
+        background: 'radial-gradient(circle, rgba(255, 215, 0, 0.4) 0%, rgba(255, 215, 0, 0.2) 100%)'
+      });
+    });
+
+    this.enterButton.addEventListener('mouseleave', () => {
+      Object.assign(this.enterButton.style, {
+        transform: 'translate(-50%, -50%) scale(1)',
+        boxShadow: 'none',
+        background: 'radial-gradient(circle, rgba(255, 215, 0, 0.3) 0%, rgba(255, 215, 0, 0.1) 100%)'
+      });
+    });
+
+    // Click and keyboard handlers
+    this.enterButton.addEventListener('click', () => this.handleEnter());
+    this.enterButton.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        this.handleEnter();
+      }
+    });
+
+    this.container.appendChild(this.enterButton);
+  }
+
+  async handleEnter() {
+    if (this.isEntering) return;
+    this.isEntering = true;
+
+    try {
+      await this.playEnter();
+      // Dispatch the Gate:enter event
+      window.dispatchEvent(new CustomEvent('Gate:enter'));
+    } catch (e) {
+      console.warn('[GATE] Enter animation failed:', e);
+      // Still dispatch event even if animation fails
+      window.dispatchEvent(new CustomEvent('Gate:enter'));
+    }
   }
 
   async mountWebGL() {
-    const canvas = this.container.querySelector('#gate3d');
-    if (!canvas) throw new Error('WebGL canvas not found');
+    // Create canvas
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+    this.container.appendChild(canvas);
 
     // Initialize Three.js scene
     this.scene = new THREE.Scene();
@@ -70,10 +155,10 @@ class DoorGate {
     this.renderer.setClearColor(0x0a0a0a, 1);
 
     // Setup lighting
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
     this.scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
     directionalLight.position.set(5, 5, 5);
     this.scene.add(directionalLight);
 
@@ -110,15 +195,15 @@ class DoorGate {
         this.scene.add(this.doorModel);
         return;
       } catch (e) {
-        console.warn('[DoorGate] GLB loading failed, using fallback geometry:', e);
+        console.warn('[GATE] GLB loading failed, using procedural door:', e);
       }
     }
 
     // Fallback: create procedural door
-    this.createFallbackDoor();
+    this.createProceduralDoor();
   }
 
-  createFallbackDoor() {
+  createProceduralDoor() {
     const doorGroup = new THREE.Group();
 
     // Left door panel
@@ -137,14 +222,16 @@ class DoorGate {
     rightDoor.userData = { isRight: true };
     doorGroup.add(rightDoor);
 
-    // Central medallion
-    const medallionGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16);
+    // Central medallion area (invisible, for reference)
+    const medallionGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.1, 16);
     const medallionMaterial = new THREE.MeshLambertMaterial({ 
       color: 0xFFD700,
-      emissive: 0x333300
+      emissive: 0x331100,
+      transparent: true,
+      opacity: 0.3
     });
     this.medallion = new THREE.Mesh(medallionGeometry, medallionMaterial);
-    this.medallion.position.set(0, 0, 0.2);
+    this.medallion.position.set(0, 0, 0.15);
     this.medallion.rotation.x = Math.PI / 2;
     doorGroup.add(this.medallion);
 
@@ -158,9 +245,9 @@ class DoorGate {
       
       // Subtle medallion glow
       if (this.medallion) {
-        this.medallion.rotation.z += 0.01;
+        this.medallion.rotation.z += 0.005;
+        const intensity = 0.1 + Math.sin(Date.now() * 0.003) * 0.05;
         if (this.medallion.material.emissive) {
-          const intensity = 0.1 + Math.sin(Date.now() * 0.002) * 0.05;
           this.medallion.material.emissive.setScalar(intensity);
         }
       }
@@ -171,215 +258,147 @@ class DoorGate {
   }
 
   async mountVideo() {
-    const video = this.container.querySelector('#gateVideo');
-    if (!video) throw new Error('Video element not found');
-
-    video.classList.remove('hidden');
+    const video = document.createElement('video');
+    video.src = '/assets/video/door-loop.webm';
+    video.loop = true;
+    video.muted = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover';
     
-    // Ensure video loads and plays
+    this.container.appendChild(video);
+    
+    // Wait for video to load
     await new Promise((resolve, reject) => {
       video.addEventListener('loadeddata', resolve, { once: true });
       video.addEventListener('error', reject, { once: true });
-      video.load();
-      
-      // Timeout after 5 seconds
       setTimeout(() => reject(new Error('Video load timeout')), 5000);
     });
 
-    video.play().catch(e => console.warn('[DoorGate] Video autoplay failed:', e));
+    video.play().catch(e => console.warn('[GATE] Video autoplay failed:', e));
     this.instance = video;
   }
 
   async mountLottie() {
-    const lottieContainer = this.container.querySelector('#gateLottie');
-    if (!lottieContainer) throw new Error('Lottie container not found');
-
-    lottieContainer.classList.remove('hidden');
+    const lottieContainer = document.createElement('div');
+    lottieContainer.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+    this.container.appendChild(lottieContainer);
 
     this.instance = lottie.loadAnimation({
       container: lottieContainer,
       renderer: 'svg',
       loop: true,
       autoplay: true,
-      path: '/assets/lottie/door.json'
+      path: '/animations/door.json'
     });
 
     // Wait for animation to load
     await new Promise((resolve, reject) => {
       this.instance.addEventListener('DOMLoaded', resolve, { once: true });
       this.instance.addEventListener('error', reject, { once: true });
-      
-      // Timeout after 5 seconds
       setTimeout(() => reject(new Error('Lottie load timeout')), 5000);
     });
   }
 
   mountSVG() {
-    const svg = this.container.querySelector('#gateSvg');
-    if (!svg) {
-      console.warn('[DoorGate] SVG element not found');
-      return;
-    }
-
-    svg.classList.remove('hidden');
-    this.instance = svg;
+    const img = document.createElement('img');
+    img.src = '/img/door.svg';
+    img.alt = 'Library Door';
+    img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:contain';
+    this.container.appendChild(img);
+    this.instance = img;
   }
 
   async playEnter() {
-    if (this.isEntering) return Promise.resolve();
-    this.isEntering = true;
+    // Animate light burst
+    const lightBurst = document.createElement('div');
+    lightBurst.style.cssText = `
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, transparent 70%);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 5;
+    `;
+    this.container.appendChild(lightBurst);
 
-    try {
-      switch (this.mode) {
-        case 'webgl':
-          await this.playWebGLEnter();
-          break;
-        case 'video':
-          await this.playVideoEnter();
-          break;
-        case 'lottie':
-          await this.playLottieEnter();
-          break;
-        case 'svg':
-          await this.playSVGEnter();
-          break;
-        default:
-          await this.playFallbackEnter();
-      }
-    } catch (e) {
-      console.warn('[DoorGate] Enter animation failed:', e);
+    // Disable button during animation
+    if (this.enterButton) {
+      this.enterButton.disabled = true;
+      this.enterButton.style.opacity = '0.5';
     }
 
-    this.isEntering = false;
-    return Promise.resolve();
-  }
-
-  async playWebGLEnter() {
-    if (!window.gsap) {
-      await this.playFallbackEnter();
-      return;
-    }
-
-    return new Promise((resolve) => {
-      const leftDoor = this.doorModel?.children.find(child => child.userData?.isLeft);
-      const rightDoor = this.doorModel?.children.find(child => child.userData?.isRight);
-      
-      // Door opening animation
-      const tl = gsap.timeline({
-        onComplete: resolve
-      });
-
-      if (leftDoor && rightDoor) {
-        tl.to(leftDoor.rotation, { 
-          y: -Math.PI/3, 
-          duration: 1.5, 
-          ease: "power2.out" 
-        }, 0);
-        tl.to(rightDoor.rotation, { 
-          y: Math.PI/3, 
-          duration: 1.5, 
-          ease: "power2.out" 
-        }, 0);
-      }
-
-      // Camera dolly
-      tl.to(this.camera.position, { 
-        z: -2, 
-        duration: 2, 
-        ease: "power2.inOut" 
-      }, 0.5);
-
-      // Medallion glow
-      if (this.medallion?.material) {
-        tl.to(this.medallion.scale, {
-          x: 1.5,
-          y: 1.5,
-          z: 1.5,
-          duration: 0.5,
-          yoyo: true,
-          repeat: 1
-        }, 0);
-      }
-    });
-  }
-
-  async playVideoEnter() {
-    return new Promise((resolve) => {
-      // Add a light burst effect overlay
-      const overlay = document.createElement('div');
-      overlay.style.cssText = `
-        position: absolute;
-        inset: 0;
-        background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, transparent 70%);
-        opacity: 0;
-        pointer-events: none;
-        z-index: 10;
-      `;
-      this.container.appendChild(overlay);
-
-      // Animate overlay
-      if (window.gsap) {
-        gsap.to(overlay, {
-          opacity: 1,
-          duration: 0.3,
-          yoyo: true,
-          repeat: 1,
+    if (window.gsap) {
+      return new Promise((resolve) => {
+        const tl = gsap.timeline({
           onComplete: () => {
-            overlay.remove();
+            lightBurst.remove();
             resolve();
           }
         });
-      } else {
-        setTimeout(() => {
-          overlay.remove();
-          resolve();
-        }, 600);
-      }
-    });
-  }
 
-  async playLottieEnter() {
-    if (this.instance && typeof this.instance.goToAndPlay === 'function') {
-      // If animation has enter sequence, play it
-      this.instance.goToAndPlay(0, true);
-    }
-    
-    return new Promise((resolve) => {
-      setTimeout(resolve, 1000); // Standard duration
-    });
-  }
+        // Light burst
+        tl.to(lightBurst, {
+          opacity: 1,
+          duration: 0.3,
+          ease: "power2.out"
+        });
 
-  async playSVGEnter() {
-    const svg = this.instance;
-    if (!svg) return Promise.resolve();
+        tl.to(lightBurst, {
+          opacity: 0,
+          duration: 0.5,
+          ease: "power2.in"
+        }, 0.2);
 
-    return new Promise((resolve) => {
-      if (window.gsap) {
-        gsap.fromTo(svg, 
-          { scale: 1, rotation: 0 },
-          { 
-            scale: 1.1, 
-            rotation: 5,
-            duration: 0.3,
-            yoyo: true,
-            repeat: 1,
-            onComplete: resolve
+        // Door animation if WebGL
+        if (this.mode === 'webgl' && this.doorModel) {
+          const leftDoor = this.doorModel.children.find(child => child.userData?.isLeft);
+          const rightDoor = this.doorModel.children.find(child => child.userData?.isRight);
+          
+          if (leftDoor && rightDoor) {
+            tl.to(leftDoor.rotation, { 
+              y: -Math.PI/4, 
+              duration: 1.2, 
+              ease: "power2.out" 
+            }, 0);
+            tl.to(rightDoor.rotation, { 
+              y: Math.PI/4, 
+              duration: 1.2, 
+              ease: "power2.out" 
+            }, 0);
           }
-        );
-      } else {
-        svg.style.transform = 'scale(1.1) rotate(5deg)';
-        setTimeout(() => {
-          svg.style.transform = '';
-          resolve();
-        }, 600);
-      }
-    });
-  }
 
-  async playFallbackEnter() {
-    return new Promise((resolve) => {
-      setTimeout(resolve, 300);
-    });
+          // Camera dolly
+          tl.to(this.camera.position, { 
+            z: 1, 
+            duration: 1.5, 
+            ease: "power2.inOut" 
+          }, 0.3);
+        }
+
+        // Button shake
+        if (this.enterButton) {
+          tl.to(this.enterButton, {
+            x: '+=5',
+            duration: 0.1,
+            yoyo: true,
+            repeat: 3
+          }, 0);
+        }
+      });
+    } else {
+      // Fallback without GSAP
+      return new Promise((resolve) => {
+        lightBurst.style.opacity = '1';
+        setTimeout(() => {
+          lightBurst.style.opacity = '0';
+          setTimeout(() => {
+            lightBurst.remove();
+            resolve();
+          }, 500);
+        }, 300);
+      });
+    }
   }
 
   pause() {
@@ -399,7 +418,7 @@ class DoorGate {
     if (this.mode === 'webgl' && !this.animationId) {
       this.startRenderLoop();
     } else if (this.mode === 'video' && this.instance) {
-      this.instance.play().catch(e => console.warn('[DoorGate] Video resume failed:', e));
+      this.instance.play().catch(e => console.warn('[GATE] Video resume failed:', e));
     } else if (this.mode === 'lottie' && this.instance) {
       this.instance.play();
     }
@@ -424,11 +443,14 @@ class DoorGate {
       this.instance.destroy();
     }
 
-    // Hide all elements
-    ['#gate3d', '#gateVideo', '#gateLottie', '#gateSvg'].forEach(selector => {
-      const el = this.container?.querySelector(selector);
-      if (el) el.classList.add('hidden');
-    });
+    if (this.enterButton) {
+      this.enterButton.remove();
+    }
+
+    // Clear container
+    if (this.container) {
+      this.container.innerHTML = '';
+    }
   }
 }
 

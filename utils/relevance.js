@@ -80,8 +80,8 @@ function score(item, tokens) {
 }
 
 function isBookLike(item) {
-  // Must have a title and be readable
-  if (!item.title || !item.readable) return false;
+  // Must have a title
+  if (!item.title) return false;
   
   // Must have a href for navigation
   if (!item.href && !item.readerUrl) return false;
@@ -110,13 +110,13 @@ function isBookLike(item) {
 }
 
 function sortResults(items, tokens) {
+  // For JSON API calls, be more permissive to ensure we get results
   return items
-    .filter(item => isBookLike(item))
+    .filter(item => item.title && (item.href || item.readerUrl)) // Basic filtering only
     .map(item => ({
       ...item,
       relevanceScore: score(item, tokens)
     }))
-    .filter(item => item.relevanceScore >= 1) // Must match at least one token
     .sort((a, b) => {
       // Primary: relevance score (desc)
       if (b.relevanceScore !== a.relevanceScore) {

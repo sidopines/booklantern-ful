@@ -1,27 +1,27 @@
-// public/js/scene-core.js - Scene Management and Progressive Enhancement
+// public/js/scene-core.js
 class SceneManager {
   constructor() {
     this.webglSupported = this.detectWebGL();
     this.animEnabled = this.getAnimSetting();
     this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    this.doorGate = null;
-    this.libraryHall = null;
+    this.gateInstance = null;
+    this.hallInstance = null;
     this.isTransitioning = false;
   }
 
   detectWebGL() {
     try {
       const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-      if (!ctx) return false;
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (!gl) return false;
       
       // Test texture creation
-      const texture = ctx.createTexture();
-      ctx.bindTexture(ctx.TEXTURE_2D, texture);
-      ctx.texImage2D(ctx.TEXTURE_2D, 0, ctx.RGBA, 1, 1, 0, ctx.RGBA, ctx.UNSIGNED_BYTE, new Uint8Array([255, 0, 0, 255]));
+      const texture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 0, 0, 255]));
       
-      const isValid = ctx.getError() === ctx.NO_ERROR;
-      ctx.deleteTexture(texture);
+      const isValid = gl.getError() === gl.NO_ERROR;
+      gl.deleteTexture(texture);
       canvas.remove();
       
       return isValid;
@@ -36,272 +36,138 @@ class SceneManager {
     if (override === 'on') return true;
     if (override === 'off') return false;
     
-    // Check server-side ANIM flag
-    const animData = document.body.dataset.anim || window.BL_ANIM;
-    if (animData === 'off') return false;
+    // Respect prefers-reduced-motion
+    if (this.reducedMotion) return false;
     
     // Default to on
     return true;
   }
 
+  lockScroll() {
+    document.body.classList.add('scroll-locked');
+  }
+
+  unlockScroll() {
+    document.body.classList.remove('scroll-locked');
+  }
+
   boot() {
-    console.log('[SceneCore] Booting...', {
+    console.log('[GATE] booting...', {
       webgl: this.webglSupported,
       anim: this.animEnabled,
       reducedMotion: this.reducedMotion
     });
 
     this.lockScroll();
-    this.mountGate(document.getElementById('gate'));
-    this.setupEnterHandler();
-  }
+    
+    const gateEl = document.getElementById('gate');
+    if (gateEl) {
+      this.mountGate(gateEl);
+    } else {
+      console.warn('[GATE] element not found');
+    }
 
-  lockScroll() {
-    document.body.classList.add('locked');
-  }
-
-  unlockScroll() {
-    document.body.classList.remove('locked');
+    // Listen for Gate:enter event
+    window.addEventListener('Gate:enter', () => {
+      this.handleGateEnter();
+    });
   }
 
   mountGate(element) {
-    if (!element) return;
-    
+    if (!window.DoorGate) {
+      console.warn('[GATE] DoorGate class not available');
+      return;
+    }
+
     try {
-      if (window.DoorGate) {
-        this.doorGate = new DoorGate({
-          webgl: this.webglSupported && this.animEnabled && !this.reducedMotion,
-          reducedMotion: this.reducedMotion
-        });
-        this.doorGate.mount(element);
-      } else {
-        // Fallback: just make the enter button clickable
-        console.warn('[SceneCore] DoorGate not available, using fallback');
-      }
+      this.gateInstance = new DoorGate({
+        webgl: this.webglSupported && this.animEnabled,
+        reducedMotion: this.reducedMotion
+      });
+      this.gateInstance.mount(element);
+      console.log('[GATE] mounted');
     } catch (e) {
-      console.warn('[SceneCore] Failed to mount gate:', e);
+      console.error('[GATE] mount failed:', e);
     }
   }
 
   mountHall(element) {
-    if (!element) return;
-    
+    if (!window.LibraryHall) {
+      console.warn('[HALL] LibraryHall class not available');
+      return;
+    }
+
     try {
-      if (window.LibraryHall) {
-        this.libraryHall = new LibraryHall({
-          webgl: this.webglSupported && this.animEnabled && !this.reducedMotion,
-          reducedMotion: this.reducedMotion
-        });
-        this.libraryHall.mount(element);
-      } else {
-        // Fallback: setup basic genre buttons
-        console.warn('[SceneCore] LibraryHall not available, using fallback');
-        this.setupBasicGenreButtons();
-      }
+      this.hallInstance = new LibraryHall({
+        webgl: this.webglSupported && this.animEnabled,
+        reducedMotion: this.reducedMotion
+      });
+      this.hallInstance.mount(element);
+      console.log('[HALL] mounted');
     } catch (e) {
-      console.warn('[SceneCore] Failed to mount hall:', e);
-      this.setupBasicGenreButtons();
+      console.error('[HALL] mount failed:', e);
     }
   }
 
-  setupEnterHandler() {
-    const enterButton = document.querySelector('.enter-hit');
-    if (!enterButton) return;
-
-    enterButton.addEventListener('click', async (e) => {
-      e.preventDefault();
-      if (this.isTransitioning) return;
-      
-      this.isTransitioning = true;
-      
-      try {
-        // Play entrance effect
-        if (this.doorGate && typeof this.doorGate.playEnter === 'function') {
-          await this.doorGate.playEnter();
-        } else {
-          // Fallback delay for static mode
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
-        
-        // Transition to hall
-        this.transitionToHall();
-      } catch (e) {
-        console.warn('[SceneCore] Enter transition failed:', e);
-        this.transitionToHall(); // Still transition even if effects fail
-      }
-    });
-  }
-
-  transitionToHall() {
-    const gate = document.getElementById('gate');
-    const hall = document.getElementById('hall');
+  handleGateEnter() {
+    if (this.isTransitioning) return;
     
-    if (gate) gate.classList.add('hidden');
-    if (hall) hall.classList.remove('hidden');
+    this.isTransitioning = true;
+    console.log('[GATE] enter');
+
+    // Hide gate, show hall, unlock scroll
+    const gateEl = document.getElementById('gate');
+    const hallEl = document.getElementById('hall');
+    
+    if (gateEl) gateEl.classList.add('hidden');
+    if (hallEl) {
+      hallEl.classList.remove('hidden');
+      this.mountHall(hallEl);
+    }
     
     this.unlockScroll();
-    this.mountHall(hall);
     this.isTransitioning = false;
   }
 
   pauseAll() {
-    if (this.doorGate && typeof this.doorGate.pause === 'function') {
-      this.doorGate.pause();
+    if (this.gateInstance && typeof this.gateInstance.pause === 'function') {
+      this.gateInstance.pause();
     }
-    if (this.libraryHall && typeof this.libraryHall.pause === 'function') {
-      this.libraryHall.pause();
+    if (this.hallInstance && typeof this.hallInstance.pause === 'function') {
+      this.hallInstance.pause();
     }
   }
 
   resumeAll() {
-    if (this.doorGate && typeof this.doorGate.resume === 'function') {
-      this.doorGate.resume();
+    if (this.gateInstance && typeof this.gateInstance.resume === 'function') {
+      this.gateInstance.resume();
     }
-    if (this.libraryHall && typeof this.libraryHall.resume === 'function') {
-      this.libraryHall.resume();
+    if (this.hallInstance && typeof this.hallInstance.resume === 'function') {
+      this.hallInstance.resume();
     }
   }
 
   dispose() {
-    if (this.doorGate && typeof this.doorGate.dispose === 'function') {
-      this.doorGate.dispose();
+    if (this.gateInstance && typeof this.gateInstance.dispose === 'function') {
+      this.gateInstance.dispose();
     }
-    if (this.libraryHall && typeof this.libraryHall.dispose === 'function') {
-      this.libraryHall.dispose();
+    if (this.hallInstance && typeof this.hallInstance.dispose === 'function') {
+      this.hallInstance.dispose();
     }
     this.unlockScroll();
   }
-
-  teardownAll() {
-    this.dispose();
-  }
-
-  setupBasicGenreButtons() {
-    // Fallback: setup genre buttons for basic shelf modal functionality
-    const stacks = document.querySelector('.stacks');
-    if (!stacks) return;
-
-    stacks.querySelectorAll('button[data-genre]').forEach(button => {
-      button.addEventListener('click', () => {
-        const genre = button.dataset.genre;
-        this.openShelfModal(genre);
-      });
-    });
-  }
-
-  async openShelfModal(genre) {
-    const modal = document.getElementById('shelfModal');
-    const title = document.getElementById('shelfTitle');
-    const grid = document.querySelector('.grid.books');
-    
-    if (!modal || !title || !grid) return;
-
-    title.textContent = `${genre} Books`;
-    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--muted);">Loading books...</div>';
-    
-    modal.classList.remove('hidden');
-    modal.setAttribute('aria-hidden', 'false');
-
-    try {
-      // Fetch books for this genre
-      const response = await fetch(`/read?query=${encodeURIComponent(genre)}`);
-      const html = await response.text();
-      
-      // Parse the response to extract book data
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      const bookCards = doc.querySelectorAll('.book-card, .item-card');
-      
-      if (bookCards.length === 0) {
-        grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--muted);">No books found for this genre</div>';
-        return;
-      }
-
-      // Convert found books to modal format
-      const books = Array.from(bookCards).slice(0, 12).map(card => {
-        const title = card.querySelector('h3, .title')?.textContent?.trim() || 'Untitled';
-        const author = card.querySelector('.author, .creator')?.textContent?.trim() || 'Unknown Author';
-        const cover = card.querySelector('img')?.src || '/img/cover-fallback.svg';
-        const link = card.getAttribute('href') || card.querySelector('a')?.getAttribute('href') || '#';
-        
-        return { title, author, cover, link };
-      });
-
-      this.populateShelf(books, grid);
-    } catch (error) {
-      console.error('Failed to fetch books:', error);
-      grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--error);">Failed to load books</div>';
-    }
-
-    // Setup modal interactions
-    this.setupModalInteractions(modal);
-  }
-
-  populateShelf(books, grid) {
-    grid.innerHTML = books.map(book => `
-      <a href="${book.link}" class="book-card">
-        <img src="${book.cover}" alt="${book.title}" loading="lazy" onerror="this.src='/img/cover-fallback.svg'">
-        <div class="title">${book.title}</div>
-        <div class="author">${book.author}</div>
-        <div class="source">Read Now</div>
-      </a>
-    `).join('');
-  }
-
-  setupModalInteractions(modal) {
-    const closeBtn = modal.querySelector('.close');
-    const backdrop = modal.querySelector('.modal-backdrop');
-    
-    // Close handlers
-    const closeModal = () => {
-      modal.classList.add('hidden');
-      modal.setAttribute('aria-hidden', 'true');
-    };
-
-    if (closeBtn) closeBtn.addEventListener('click', closeModal);
-    if (backdrop) backdrop.addEventListener('click', closeModal);
-    
-    // ESC key handler
-    const handleKeydown = (e) => {
-      if (e.key === 'Escape') {
-        closeModal();
-        document.removeEventListener('keydown', handleKeydown);
-      }
-    };
-    document.addEventListener('keydown', handleKeydown);
-  }
-}
-
-// Initialize on DOM ready
-let sceneManager = null;
-
-function initSceneManager() {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initSceneManager);
-    return;
-  }
-  
-  // Only initialize on landing page
-  if (document.body.dataset.page !== 'landing') return;
-  
-  sceneManager = new SceneManager();
-  sceneManager.boot();
 }
 
 // Page visibility handling
 document.addEventListener('visibilitychange', () => {
-  if (!sceneManager) return;
-  
-  if (document.hidden) {
-    sceneManager.pauseAll();
-  } else {
-    sceneManager.resumeAll();
+  if (window.sceneManager) {
+    if (document.hidden) {
+      window.sceneManager.pauseAll();
+    } else {
+      window.sceneManager.resumeAll();
+    }
   }
 });
 
-// Initialize
-initSceneManager();
-
-// Export for global access
+// Export to global scope
 window.SceneManager = SceneManager;
-if (sceneManager) window.sceneManager = sceneManager;
