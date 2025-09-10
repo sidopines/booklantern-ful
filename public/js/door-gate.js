@@ -182,21 +182,32 @@ class DoorGate {
   }
 
   async createDoor() {
-    // Try to load GLB model
-    if (window.THREE && window.THREE.GLTFLoader) {
-      try {
-        const loader = new THREE.GLTFLoader();
+    // Try to load GLB model if GLTFLoader is available
+    try {
+      // Check if GLTFLoader is available (might need to be imported separately)
+      if (window.THREE && (window.THREE.GLTFLoader || window.GLTFLoader)) {
+        const GLTFLoader = window.THREE.GLTFLoader || window.GLTFLoader;
+        const loader = new GLTFLoader();
+        
         const gltf = await new Promise((resolve, reject) => {
           loader.load('/assets/3d/door.glb', resolve, null, reject);
         });
         
         this.doorModel = gltf.scene;
         this.doorModel.position.set(0, 0, 0);
+        
+        // Scale to fit viewport
+        const box = new THREE.Box3().setFromObject(this.doorModel);
+        const size = box.getSize(new THREE.Vector3());
+        const scale = Math.min(4 / size.x, 4 / size.y, 1 / size.z);
+        this.doorModel.scale.setScalar(scale);
+        
         this.scene.add(this.doorModel);
+        console.log('[GATE] GLB model loaded successfully');
         return;
-      } catch (e) {
-        console.warn('[GATE] GLB loading failed, using procedural door:', e);
       }
+    } catch (e) {
+      console.warn('[GATE] GLB loading failed, using procedural door:', e);
     }
 
     // Fallback: create procedural door
@@ -206,37 +217,102 @@ class DoorGate {
   createProceduralDoor() {
     const doorGroup = new THREE.Group();
 
-    // Left door panel
-    const leftGeometry = new THREE.BoxGeometry(2, 4, 0.2);
-    const leftMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-    const leftDoor = new THREE.Mesh(leftGeometry, leftMaterial);
-    leftDoor.position.set(-1, 0, 0);
+    // Create rich wood material
+    const woodMaterial = new THREE.MeshPhongMaterial({ 
+      color: 0x8B4513,
+      shininess: 30,
+      specular: 0x222222
+    });
+
+    // Create brass material for details
+    const brassMaterial = new THREE.MeshPhongMaterial({ 
+      color: 0xB8860B,
+      shininess: 100,
+      specular: 0x444444,
+      emissive: 0x221100
+    });
+
+    // Door frame
+    const frameGeometry = new THREE.BoxGeometry(4.5, 5, 0.3);
+    const frameMaterial = new THREE.MeshPhongMaterial({ color: 0x654321 });
+    const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+    frame.position.set(0, 0, -0.2);
+    doorGroup.add(frame);
+
+    // Left door panel - positioned for hinge at edge
+    const leftGeometry = new THREE.BoxGeometry(2, 4.5, 0.15);
+    const leftDoor = new THREE.Mesh(leftGeometry, woodMaterial);
+    leftDoor.position.set(-2, 0, 0);  // Position for left hinge
     leftDoor.userData = { isLeft: true };
+    
+    // Move geometry so pivot is at left edge
+    leftGeometry.translate(1, 0, 0);
+    
+    // Add door details
+    const leftPanelGeometry = new THREE.BoxGeometry(1.6, 3.8, 0.05);
+    const leftPanel = new THREE.Mesh(leftPanelGeometry, woodMaterial);
+    leftPanel.position.set(0, 0, 0.1);
+    leftDoor.add(leftPanel);
+    
     doorGroup.add(leftDoor);
 
-    // Right door panel
-    const rightGeometry = new THREE.BoxGeometry(2, 4, 0.2);
-    const rightMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-    const rightDoor = new THREE.Mesh(rightGeometry, rightMaterial);
-    rightDoor.position.set(1, 0, 0);
+    // Right door panel - positioned for hinge at edge  
+    const rightGeometry = new THREE.BoxGeometry(2, 4.5, 0.15);
+    const rightDoor = new THREE.Mesh(rightGeometry, woodMaterial);
+    rightDoor.position.set(2, 0, 0);  // Position for right hinge
     rightDoor.userData = { isRight: true };
+    
+    // Move geometry so pivot is at right edge
+    rightGeometry.translate(-1, 0, 0);
+    
+    // Add door details
+    const rightPanelGeometry = new THREE.BoxGeometry(1.6, 3.8, 0.05);
+    const rightPanel = new THREE.Mesh(rightPanelGeometry, woodMaterial);
+    rightPanel.position.set(0, 0, 0.1);
+    rightDoor.add(rightPanel);
+    
     doorGroup.add(rightDoor);
 
-    // Central medallion area (invisible, for reference)
-    const medallionGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.1, 16);
-    const medallionMaterial = new THREE.MeshLambertMaterial({ 
-      color: 0xFFD700,
-      emissive: 0x331100,
-      transparent: true,
-      opacity: 0.3
-    });
-    this.medallion = new THREE.Mesh(medallionGeometry, medallionMaterial);
-    this.medallion.position.set(0, 0, 0.15);
+    // Central medallion area (glowing brass)
+    const medallionGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.08, 32);
+    this.medallion = new THREE.Mesh(medallionGeometry, brassMaterial);
+    this.medallion.position.set(0, 0, 0.2);
     this.medallion.rotation.x = Math.PI / 2;
     doorGroup.add(this.medallion);
 
+    // Add door handles (positioned relative to the door center after translation)
+    const handleGeometry = new THREE.SphereGeometry(0.08, 16, 8);
+    
+    const leftHandle = new THREE.Mesh(handleGeometry, brassMaterial);
+    leftHandle.position.set(0.7, 0, 0.2);  // Right side of left door
+    leftDoor.add(leftHandle);
+    
+    const rightHandle = new THREE.Mesh(handleGeometry, brassMaterial);
+    rightHandle.position.set(-0.7, 0, 0.2);  // Left side of right door
+    rightDoor.add(rightHandle);
+
+    // Add decorative brass strips
+    const stripGeometry = new THREE.BoxGeometry(0.05, 3.5, 0.03);
+    
+    const leftStrip1 = new THREE.Mesh(stripGeometry, brassMaterial);
+    leftStrip1.position.set(0.3, 0, 0.12);
+    leftDoor.add(leftStrip1);
+    
+    const leftStrip2 = new THREE.Mesh(stripGeometry, brassMaterial);
+    leftStrip2.position.set(-0.3, 0, 0.12);
+    leftDoor.add(leftStrip2);
+    
+    const rightStrip1 = new THREE.Mesh(stripGeometry, brassMaterial);
+    rightStrip1.position.set(0.3, 0, 0.12);
+    rightDoor.add(rightStrip1);
+    
+    const rightStrip2 = new THREE.Mesh(stripGeometry, brassMaterial);
+    rightStrip2.position.set(-0.3, 0, 0.12);
+    rightDoor.add(rightStrip2);
+
     this.doorModel = doorGroup;
     this.scene.add(this.doorModel);
+    console.log('[GATE] Procedural door created');
   }
 
   startRenderLoop() {
@@ -356,24 +432,33 @@ class DoorGate {
           const rightDoor = this.doorModel.children.find(child => child.userData?.isRight);
           
           if (leftDoor && rightDoor) {
+            // Left door swings inward to the left
             tl.to(leftDoor.rotation, { 
-              y: -Math.PI/4, 
+              y: -Math.PI/2.5, 
               duration: 1.2, 
               ease: "power2.out" 
             }, 0);
+            // Right door swings inward to the right
             tl.to(rightDoor.rotation, { 
-              y: Math.PI/4, 
+              y: Math.PI/2.5, 
               duration: 1.2, 
               ease: "power2.out" 
             }, 0);
           }
 
-          // Camera dolly
+          // Camera dolly through the opening
           tl.to(this.camera.position, { 
-            z: 1, 
+            z: 0.5, 
             duration: 1.5, 
             ease: "power2.inOut" 
-          }, 0.3);
+          }, 0.4);
+          
+          // Slight camera tilt for drama
+          tl.to(this.camera.rotation, {
+            z: 0.02,
+            duration: 0.8,
+            ease: "power1.out"
+          }, 0.5);
         }
 
         // Button shake

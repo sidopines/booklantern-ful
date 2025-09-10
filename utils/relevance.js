@@ -112,7 +112,12 @@ function isBookLike(item) {
 function sortResults(items, tokens) {
   // For JSON API calls, be more permissive to ensure we get results
   return items
-    .filter(item => item.title && (item.href || item.readerUrl)) // Basic filtering only
+    .filter(item => {
+      // Very basic filtering - just ensure we have essential fields
+      if (!item.title || item.title.trim().length === 0) return false;
+      if (!item.href && !item.readerUrl) return false;
+      return true;
+    })
     .map(item => ({
       ...item,
       relevanceScore: score(item, tokens)

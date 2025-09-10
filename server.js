@@ -146,6 +146,41 @@ app.get('/player/:id', async (req, res) => {
 // Simple healthcheck (useful for Render)
 app.get('/healthz', (req, res) => res.type('text/plain').send('ok'));
 
+// Scene observability endpoint
+app.get('/__scene', (req, res) => {
+  const userAgent = req.headers['user-agent'] || '';
+  const isBot = userAgent.includes('bot') || userAgent.includes('crawler') || userAgent.includes('spider');
+  const acceptsWebGL = !isBot;
+  
+  // Extract route from referrer or default
+  const referrer = req.headers.referer || req.headers.referrer || '';
+  let page = 'unknown';
+  
+  if (referrer.includes('/read')) page = 'read';
+  else if (referrer.includes('/watch')) page = 'watch';
+  else if (referrer.includes('/about')) page = 'about';
+  else if (referrer.includes('/dashboard')) page = 'dashboard';
+  else if (referrer.includes('/login') || referrer.includes('/register')) page = 'auth';
+  else if (referrer.includes('/contact')) page = 'contact';
+  else if (referrer === '' || referrer.endsWith('/')) page = 'gate';
+  
+  const sceneData = {
+    mode: acceptsWebGL ? 'webgl' : 'fallback',
+    page: page,
+    timestamp: new Date().toISOString(),
+    userAgent: userAgent.substring(0, 100), // Truncate for privacy
+    buildId: buildId,
+    serverDetected: true
+  };
+  
+  // Add reason for fallback mode
+  if (!acceptsWebGL) {
+    sceneData.reason = 'bot-detected';
+  }
+  
+  res.json(sceneData);
+});
+
 // ─── 7) STATIC / 404 / ERROR ─────────────────────────────────────────────────
 
 app.use((req, res) => {

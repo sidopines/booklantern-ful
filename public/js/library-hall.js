@@ -437,9 +437,9 @@ class LibraryHall {
       // First attempt: direct genre search
       let results = await this.fetchBooks(genre);
       
-      // Retry logic if <6 results
-      if (results.length < 6) {
-        console.log(`[HALL] genre=${genre} first attempt results=${results.length}, retrying...`);
+      // Retry logic if <12 results (ensure never empty)
+      if (results.length < 12) {
+        console.log(`[HALL] genre=${genre} first attempt results=${results.length}, trying synonyms...`);
         
         // Second attempt: with synonyms
         const synonyms = this.getGenreSynonyms(genre);
@@ -448,17 +448,33 @@ class LibraryHall {
           results = results.concat(retryResults);
         }
         
-        // Third attempt: fallback query
-        if (results.length < 6) {
+        // Third attempt: fallback query if still <12
+        if (results.length < 12) {
           const fallbackResults = await this.fetchBooks(`${genre} books`);
           results = results.concat(fallbackResults);
+        }
+        
+        // Fourth attempt: seed data as ultimate fallback
+        if (results.length < 12) {
+          console.log(`[HALL] genre=${genre} using seed data fallback...`);
+          const seedData = await this.fetchGenreSeeds(genre);
+          results = results.concat(seedData);
         }
       }
 
       // Remove duplicates
       const uniqueResults = this.removeDuplicates(results);
       
-      console.log(`[HALL] genre=${genre} results=${uniqueResults.length}`);
+      console.log(`[HALL] genre=${genre} final results=${uniqueResults.length}`);
+      
+      // Show at least 12 books (pad with seeds if needed)
+      if (uniqueResults.length < 12) {
+        const seedData = await this.fetchGenreSeeds(genre);
+        const additionalSeeds = seedData.filter(seed => 
+          !uniqueResults.some(book => book.title === seed.title)
+        );
+        uniqueResults.push(...additionalSeeds.slice(0, 12 - uniqueResults.length));
+      }
       
       if (uniqueResults.length === 0) {
         grid.innerHTML = '<div style="text-align:center;padding:2rem;color:#ccc;">No books found for this genre</div>';
@@ -467,7 +483,17 @@ class LibraryHall {
       }
     } catch (error) {
       console.error(`[HALL] genre=${genre} error:`, error);
-      grid.innerHTML = '<div style="text-align:center;padding:2rem;color:#ff6b6b;">Failed to load books</div>';
+      // Use seed data even on error
+      try {
+        const seedData = await this.fetchGenreSeeds(genre);
+        if (seedData.length > 0) {
+          this.renderBooks(seedData, grid);
+        } else {
+          grid.innerHTML = '<div style="text-align:center;padding:2rem;color:#ff6b6b;">Failed to load books</div>';
+        }
+      } catch (seedError) {
+        grid.innerHTML = '<div style="text-align:center;padding:2rem;color:#ff6b6b;">Failed to load books</div>';
+      }
     }
 
     // Setup modal interactions
@@ -475,10 +501,22 @@ class LibraryHall {
   }
 
   async fetchBooks(query) {
-    const url = `/read?query=${encodeURIComponent(query)}&sources=ol,ia,loc&limit=24&format=json`;
+    const url = `/read?query=${encodeURIComponent(query)}&sources=ol,ia,loc,gutenberg&limit=24&format=json`;
     const response = await fetch(url);
     if (!response.ok) throw new Error('Search failed');
     return await response.json();
+  }
+
+  async fetchGenreSeeds(genre) {
+    try {
+      const response = await fetch('/data/genre-seeds.json');
+      if (!response.ok) throw new Error('Seed data not available');
+      const seeds = await response.json();
+      return seeds[genre] || [];
+    } catch (error) {
+      console.warn('[HALL] Failed to fetch seed data:', error);
+      return [];
+    }
   }
 
   getGenreSynonyms(genre) {

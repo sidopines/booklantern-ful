@@ -5,6 +5,7 @@
     pageTitle: 'BookLantern - Discover Books from Global Libraries',
     pageDescription: 'Search millions of books from Open Library, Internet Archive, Library of Congress, and Gutenberg. Find your next great read.'
   }) %>
+  <link rel="stylesheet" href="/css/landing.css?v=<%= buildId %>">
 </head>
 <body data-page="landing" class="scroll-locked">
   <section id="gate" class="stage"></section>
@@ -16,6 +17,25 @@
   </section>
   <%- include('./partials/nav.ejs') %>
   <script src="/vendor/three.r128.min.js?v=<%= buildId %>"></script>
+  <script>
+    // Add GLTFLoader to THREE namespace for compatibility
+    if (window.THREE) {
+      window.THREE.GLTFLoader = class GLTFLoader {
+        constructor() {
+          this.manager = THREE.DefaultLoadingManager;
+        }
+        
+        load(url, onLoad, onProgress, onError) {
+          // Simple fallback - create a basic door structure instead of loading GLB
+          setTimeout(() => {
+            const scene = new THREE.Group();
+            // This will trigger the fallback to procedural door
+            if (onError) onError(new Error('GLB loader not available'));
+          }, 100);
+        }
+      };
+    }
+  </script>
   <script src="/vendor/gsap.min.js?v=<%= buildId %>"></script>
   <script src="/vendor/gsap-scrolltrigger.min.js?v=<%= buildId %>"></script>
   <script src="/vendor/lottie.min.js?v=<%= buildId %>"></script>
@@ -25,6 +45,14 @@
   <script>window.addEventListener('DOMContentLoaded', () => {
     window.sceneManager = new SceneManager();
     window.sceneManager.boot();
+    
+    // Expose scene data for observability
+    window.getSceneData = () => {
+      if (window.sceneManager) {
+        return window.sceneManager.getCurrentSceneData();
+      }
+      return { mode: 'unknown', page: 'landing', reason: 'manager-not-ready' };
+    };
   });</script>
 </body>
 </html>
