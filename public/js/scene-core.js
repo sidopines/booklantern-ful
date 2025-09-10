@@ -126,7 +126,39 @@ class SceneManager {
     }
     
     this.unlockScroll();
+    
+    // Update page state for scene reporting
+    document.body.setAttribute('data-page', 'hall');
+    
     this.isTransitioning = false;
+  }
+
+  getCurrentSceneData() {
+    const page = document.body.getAttribute('data-page') || 'unknown';
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    
+    let mode = 'svg';
+    let reason = null;
+    
+    if (reducedMotion) {
+      reason = 'prefers-reduced-motion';
+    } else if (!this.webglSupported) {
+      mode = 'svg';
+      reason = 'webgl-failed';
+    } else if (this.gateInstance?.mode) {
+      mode = this.gateInstance.mode;
+    } else if (this.hallInstance?.mode) {
+      mode = this.hallInstance.mode;
+    }
+    
+    return {
+      mode,
+      page,
+      reason,
+      webglSupported: this.webglSupported,
+      animEnabled: this.animEnabled,
+      reducedMotion
+    };
   }
 
   pauseAll() {

@@ -365,9 +365,14 @@ router.get('/read', async (req, res) => {
     const tokens = tokenize(query);
     let sortedResults = sortResults(merged, tokens);
     
-    // For JSON format, if we get too few results, just return the merged results without strict filtering
-    if (format === 'json' && sortedResults.length < 6 && merged.length > 0) {
-      sortedResults = merged.filter(item => item.title && (item.href || item.readerUrl)).slice(0, 24);
+    // For JSON format, if we get too few results, be more permissive
+    if (format === 'json' && sortedResults.length < 12 && merged.length > 0) {
+      // Use basic filtering only - just require title and href
+      sortedResults = merged.filter(item => 
+        item.title && 
+        item.title.trim().length > 0 && 
+        (item.href || item.readerUrl)
+      ).slice(0, 24);
     }
     
     // Apply limit if specified

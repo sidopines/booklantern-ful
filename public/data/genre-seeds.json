@@ -1,0 +1,604 @@
+{
+  "History": [
+    {
+      "title": "The History of the Decline and Fall of the Roman Empire",
+      "author": "Edward Gibbon",
+      "cover": "https://www.gutenberg.org/cache/epub/25717/pg25717.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/25717/reader"
+    },
+    {
+      "title": "The History of England",
+      "author": "David Hume",
+      "cover": "https://www.gutenberg.org/cache/epub/6989/pg6989.cover.medium.jpg",
+      "source": "gutenberg", 
+      "href": "/read/gutenberg/6989/reader"
+    },
+    {
+      "title": "A History of the United States",
+      "author": "Cecil Chesterton",
+      "cover": "https://www.gutenberg.org/cache/epub/16960/pg16960.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/16960/reader"
+    },
+    {
+      "title": "History of the Peloponnesian War",
+      "author": "Thucydides",
+      "cover": "https://www.gutenberg.org/cache/epub/7142/pg7142.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/7142/reader"
+    },
+    {
+      "title": "The Story of Mankind",
+      "author": "Hendrik Willem van Loon",
+      "cover": "https://www.gutenberg.org/cache/epub/1270/pg1270.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/1270/reader"
+    },
+    {
+      "title": "Ancient History",
+      "author": "George Rawlinson",
+      "cover": "https://www.gutenberg.org/cache/epub/16161/pg16161.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/16161/reader"
+    },
+    {
+      "title": "The History of Rome",
+      "author": "Theodor Mommsen",
+      "cover": "https://www.gutenberg.org/cache/epub/10706/pg10706.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/10706/reader"
+    },
+    {
+      "title": "The Civil War in France",
+      "author": "Karl Marx",
+      "cover": "https://www.gutenberg.org/cache/epub/1280/pg1280.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/1280/reader"
+    },
+    {
+      "title": "Napoleon Bonaparte",
+      "author": "John S. C. Abbott",
+      "cover": "https://www.gutenberg.org/cache/epub/3567/pg3567.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/3567/reader"
+    },
+    {
+      "title": "The French Revolution",
+      "author": "Thomas Carlyle",
+      "cover": "https://www.gutenberg.org/cache/epub/1301/pg1301.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/1301/reader"
+    },
+    {
+      "title": "The American Crisis",
+      "author": "Thomas Paine",
+      "cover": "https://www.gutenberg.org/cache/epub/3741/pg3741.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/3741/reader"
+    },
+    {
+      "title": "Common Sense",
+      "author": "Thomas Paine",
+      "cover": "https://www.gutenberg.org/cache/epub/147/pg147.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/147/reader"
+    }
+  ],
+  "Religion": [
+    {
+      "title": "The King James Bible",
+      "author": "King James Version",
+      "cover": "https://www.gutenberg.org/cache/epub/10/pg10.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/10/reader"
+    },
+    {
+      "title": "The Confessions of Saint Augustine",
+      "author": "Saint Augustine",
+      "cover": "https://www.gutenberg.org/cache/epub/3296/pg3296.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/3296/reader"
+    },
+    {
+      "title": "The Imitation of Christ",
+      "author": "Thomas à Kempis",
+      "cover": "https://www.gutenberg.org/cache/epub/1653/pg1653.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/1653/reader"
+    },
+    {
+      "title": "Pilgrim's Progress",
+      "author": "John Bunyan",
+      "cover": "https://www.gutenberg.org/cache/epub/131/pg131.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/131/reader"
+    },
+    {
+      "title": "Paradise Lost",
+      "author": "John Milton",
+      "cover": "https://www.gutenberg.org/cache/epub/26/pg26.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/26/reader"
+    },
+    {
+      "title": "The Varieties of Religious Experience",
+      "author": "William James",
+      "cover": "https://www.gutenberg.org/cache/epub/621/pg621.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/621/reader"
+    },
+    {
+      "title": "The City of God",
+      "author": "Saint Augustine",
+      "cover": "https://www.gutenberg.org/cache/epub/45304/pg45304.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/45304/reader"
+    },
+    {
+      "title": "The Life of Jesus",
+      "author": "Ernest Renan",
+      "cover": "https://www.gutenberg.org/cache/epub/3692/pg3692.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/3692/reader"
+    },
+    {
+      "title": "Summa Theologica",
+      "author": "Thomas Aquinas",
+      "cover": "https://www.gutenberg.org/cache/epub/17611/pg17611.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/17611/reader"
+    },
+    {
+      "title": "The Koran",
+      "author": "E.H. Palmer (translator)",
+      "cover": "https://www.gutenberg.org/cache/epub/2800/pg2800.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/2800/reader"
+    },
+    {
+      "title": "The Bhagavad-Gita",
+      "author": "Sir Edwin Arnold (translator)",
+      "cover": "https://www.gutenberg.org/cache/epub/2388/pg2388.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/2388/reader"
+    },
+    {
+      "title": "The Analects of Confucius",
+      "author": "Confucius",
+      "cover": "https://www.gutenberg.org/cache/epub/3330/pg3330.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/3330/reader"
+    }
+  ],
+  "Philosophy": [
+    {
+      "title": "The Republic",
+      "author": "Plato",
+      "cover": "https://www.gutenberg.org/cache/epub/1497/pg1497.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/1497/reader"
+    },
+    {
+      "title": "Nicomachean Ethics",
+      "author": "Aristotle",
+      "cover": "https://www.gutenberg.org/cache/epub/8438/pg8438.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/8438/reader"
+    },
+    {
+      "title": "Meditations",
+      "author": "Marcus Aurelius",
+      "cover": "https://www.gutenberg.org/cache/epub/2680/pg2680.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/2680/reader"
+    },
+    {
+      "title": "The Prince",
+      "author": "Niccolò Machiavelli",
+      "cover": "https://www.gutenberg.org/cache/epub/1232/pg1232.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/1232/reader"
+    },
+    {
+      "title": "Discourse on Method",
+      "author": "René Descartes",
+      "cover": "https://www.gutenberg.org/cache/epub/59/pg59.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/59/reader"
+    },
+    {
+      "title": "An Essay Concerning Human Understanding",
+      "author": "John Locke",
+      "cover": "https://www.gutenberg.org/cache/epub/10615/pg10615.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/10615/reader"
+    },
+    {
+      "title": "A Treatise of Human Nature",
+      "author": "David Hume",
+      "cover": "https://www.gutenberg.org/cache/epub/4705/pg4705.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/4705/reader"
+    },
+    {
+      "title": "Critique of Pure Reason",
+      "author": "Immanuel Kant",
+      "cover": "https://www.gutenberg.org/cache/epub/4280/pg4280.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/4280/reader"
+    },
+    {
+      "title": "The Wealth of Nations",
+      "author": "Adam Smith",
+      "cover": "https://www.gutenberg.org/cache/epub/3300/pg3300.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/3300/reader"
+    },
+    {
+      "title": "On Liberty",
+      "author": "John Stuart Mill",
+      "cover": "https://www.gutenberg.org/cache/epub/34901/pg34901.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/34901/reader"
+    },
+    {
+      "title": "Beyond Good and Evil",
+      "author": "Friedrich Nietzsche",
+      "cover": "https://www.gutenberg.org/cache/epub/4363/pg4363.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/4363/reader"
+    },
+    {
+      "title": "Thus Spoke Zarathustra",
+      "author": "Friedrich Nietzsche",
+      "cover": "https://www.gutenberg.org/cache/epub/1998/pg1998.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/1998/reader"
+    }
+  ],
+  "Science": [
+    {
+      "title": "On the Origin of Species",
+      "author": "Charles Darwin",
+      "cover": "https://www.gutenberg.org/cache/epub/1228/pg1228.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/1228/reader"
+    },
+    {
+      "title": "The Descent of Man",
+      "author": "Charles Darwin",
+      "cover": "https://www.gutenberg.org/cache/epub/2300/pg2300.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/2300/reader"
+    },
+    {
+      "title": "Principia Mathematica",
+      "author": "Isaac Newton",
+      "cover": "https://www.gutenberg.org/cache/epub/28233/pg28233.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/28233/reader"
+    },
+    {
+      "title": "The Voyage of the Beagle",
+      "author": "Charles Darwin",
+      "cover": "https://www.gutenberg.org/cache/epub/944/pg944.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/944/reader"
+    },
+    {
+      "title": "The Structure of Scientific Revolutions",
+      "author": "Thomas S. Kuhn",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=kuhn%20scientific%20revolutions"
+    },
+    {
+      "title": "Silent Spring",
+      "author": "Rachel Carson",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=rachel%20carson%20silent%20spring"
+    },
+    {
+      "title": "The Double Helix",
+      "author": "James D. Watson",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=watson%20double%20helix"
+    },
+    {
+      "title": "Cosmos",
+      "author": "Carl Sagan",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=carl%20sagan%20cosmos"
+    },
+    {
+      "title": "A Brief History of Time",
+      "author": "Stephen Hawking",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=hawking%20brief%20history%20time"
+    },
+    {
+      "title": "Relativity: The Special and General Theory",
+      "author": "Albert Einstein",
+      "cover": "https://www.gutenberg.org/cache/epub/5001/pg5001.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/5001/reader"
+    },
+    {
+      "title": "The Interpretation of Dreams",
+      "author": "Sigmund Freud",
+      "cover": "https://www.gutenberg.org/cache/epub/15489/pg15489.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/15489/reader"
+    },
+    {
+      "title": "The Expression of the Emotions in Man and Animals",
+      "author": "Charles Darwin",
+      "cover": "https://www.gutenberg.org/cache/epub/1227/pg1227.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/1227/reader"
+    }
+  ],
+  "AI": [
+    {
+      "title": "Artificial Intelligence: A Modern Approach",
+      "author": "Stuart Russell and Peter Norvig",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=artificial%20intelligence%20modern%20approach"
+    },
+    {
+      "title": "The Singularity Is Near",
+      "author": "Ray Kurzweil",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=kurzweil%20singularity%20near"
+    },
+    {
+      "title": "Superintelligence",
+      "author": "Nick Bostrom",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=bostrom%20superintelligence"
+    },
+    {
+      "title": "Life 3.0",
+      "author": "Max Tegmark",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=tegmark%20life%203.0"
+    },
+    {
+      "title": "The Age of Spiritual Machines",
+      "author": "Ray Kurzweil",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=kurzweil%20spiritual%20machines"
+    },
+    {
+      "title": "Gödel, Escher, Bach",
+      "author": "Douglas Hofstadter",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=hofstadter%20godel%20escher%20bach"
+    },
+    {
+      "title": "The Society of Mind",
+      "author": "Marvin Minsky",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=minsky%20society%20mind"
+    },
+    {
+      "title": "I, Robot",
+      "author": "Isaac Asimov",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=asimov%20robot"
+    },
+    {
+      "title": "Do Androids Dream of Electric Sheep?",
+      "author": "Philip K. Dick",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=philip%20dick%20androids%20electric%20sheep"
+    },
+    {
+      "title": "The Turing Test",
+      "author": "Alan Turing",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=turing%20test%20computing%20machinery"
+    },
+    {
+      "title": "Cybernetics",
+      "author": "Norbert Wiener",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=wiener%20cybernetics"
+    },
+    {
+      "title": "The Emperor's New Mind",
+      "author": "Roger Penrose",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=penrose%20emperor%20new%20mind"
+    }
+  ],
+  "Technology": [
+    {
+      "title": "The Design of Everyday Things",
+      "author": "Donald A. Norman",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=norman%20design%20everyday%20things"
+    },
+    {
+      "title": "The Mythical Man-Month",
+      "author": "Frederick P. Brooks Jr.",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=brooks%20mythical%20man%20month"
+    },
+    {
+      "title": "Code: The Hidden Language of Computer Hardware and Software",
+      "author": "Charles Petzold",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=petzold%20code%20hidden%20language"
+    },
+    {
+      "title": "The Soul of a New Machine",
+      "author": "Tracy Kidder",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=kidder%20soul%20new%20machine"
+    },
+    {
+      "title": "Hackers: Heroes of the Computer Revolution",
+      "author": "Steven Levy",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=levy%20hackers%20heroes%20computer"
+    },
+    {
+      "title": "The Cathedral and the Bazaar",
+      "author": "Eric S. Raymond",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=raymond%20cathedral%20bazaar"
+    },
+    {
+      "title": "Free as in Freedom",
+      "author": "Sam Williams",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=williams%20free%20freedom%20stallman"
+    },
+    {
+      "title": "The Art of Computer Programming",
+      "author": "Donald E. Knuth",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=knuth%20art%20computer%20programming"
+    },
+    {
+      "title": "Computer Power and Human Reason",
+      "author": "Joseph Weizenbaum",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=weizenbaum%20computer%20power%20human"
+    },
+    {
+      "title": "The Information",
+      "author": "James Gleick",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=gleick%20information"
+    },
+    {
+      "title": "Where Wizards Stay Up Late",
+      "author": "Katie Hafner and Matthew Lyon",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=hafner%20lyon%20wizards%20internet"
+    },
+    {
+      "title": "The Cuckoo's Egg",
+      "author": "Clifford Stoll",
+      "cover": "/img/cover-fallback.svg",
+      "source": "openlibrary",
+      "href": "/read?query=stoll%20cuckoo%20egg"
+    }
+  ],
+  "Literature": [
+    {
+      "title": "Pride and Prejudice",
+      "author": "Jane Austen",
+      "cover": "https://www.gutenberg.org/cache/epub/1342/pg1342.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/1342/reader"
+    },
+    {
+      "title": "Jane Eyre",
+      "author": "Charlotte Brontë",
+      "cover": "https://www.gutenberg.org/cache/epub/1260/pg1260.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/1260/reader"
+    },
+    {
+      "title": "Wuthering Heights",
+      "author": "Emily Brontë",
+      "cover": "https://www.gutenberg.org/cache/epub/768/pg768.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/768/reader"
+    },
+    {
+      "title": "Great Expectations",
+      "author": "Charles Dickens",
+      "cover": "https://www.gutenberg.org/cache/epub/1400/pg1400.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/1400/reader"
+    },
+    {
+      "title": "A Tale of Two Cities",
+      "author": "Charles Dickens",
+      "cover": "https://www.gutenberg.org/cache/epub/98/pg98.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/98/reader"
+    },
+    {
+      "title": "Moby-Dick",
+      "author": "Herman Melville",
+      "cover": "https://www.gutenberg.org/cache/epub/2701/pg2701.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/2701/reader"
+    },
+    {
+      "title": "The Adventures of Huckleberry Finn",
+      "author": "Mark Twain",
+      "cover": "https://www.gutenberg.org/cache/epub/76/pg76.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/76/reader"
+    },
+    {
+      "title": "The Adventures of Tom Sawyer",
+      "author": "Mark Twain",
+      "cover": "https://www.gutenberg.org/cache/epub/74/pg74.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/74/reader"
+    },
+    {
+      "title": "Little Women",
+      "author": "Louisa May Alcott",
+      "cover": "https://www.gutenberg.org/cache/epub/514/pg514.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/514/reader"
+    },
+    {
+      "title": "The Count of Monte Cristo",
+      "author": "Alexandre Dumas",
+      "cover": "https://www.gutenberg.org/cache/epub/1184/pg1184.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/1184/reader"
+    },
+    {
+      "title": "Les Misérables",
+      "author": "Victor Hugo",
+      "cover": "https://www.gutenberg.org/cache/epub/135/pg135.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/135/reader"
+    },
+    {
+      "title": "The Picture of Dorian Gray",
+      "author": "Oscar Wilde",
+      "cover": "https://www.gutenberg.org/cache/epub/174/pg174.cover.medium.jpg",
+      "source": "gutenberg",
+      "href": "/read/gutenberg/174/reader"
+    }
+  ]
+}
