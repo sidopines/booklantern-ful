@@ -130,6 +130,47 @@ router.get('/__anim', (req, res) => {
 });
 
 /**
+ * Scene telemetry endpoint
+ */
+router.get('/__scene', (req, res) => {
+  const buildId =
+    (process.env.RENDER_GIT_COMMIT && process.env.RENDER_GIT_COMMIT.slice(0,7)) ||
+    process.env.SOURCE_VERSION ||
+    process.env.BUILD_ID ||
+    (process.env.NODE_ENV === 'production' ? Date.now().toString(36) : 'dev');
+    
+  const userAgent = req.headers['user-agent'] || '';
+  const isBot = userAgent.includes('bot') || userAgent.includes('crawler') || userAgent.includes('spider');
+  const acceptsWebGL = !isBot;
+  
+  const referrer = req.headers.referer || req.headers.referrer || '';
+  let page = 'unknown';
+  
+  if (referrer.includes('/read')) page = 'read';
+  else if (referrer.includes('/watch')) page = 'watch';
+  else if (referrer.includes('/about')) page = 'about';
+  else if (referrer.includes('/dashboard')) page = 'dashboard';
+  else if (referrer.includes('/login') || referrer.includes('/register')) page = 'auth';
+  else if (referrer.includes('/contact')) page = 'contact';
+  else if (referrer === '' || referrer.endsWith('/')) page = 'gate';
+  
+  const sceneData = {
+    mode: acceptsWebGL ? 'css' : 'css', // Force CSS mode for production reliability
+    page: page,
+    timestamp: new Date().toISOString(),
+    userAgent: userAgent.substring(0, 100),
+    buildId: buildId,
+    serverDetected: true
+  };
+  
+  if (!acceptsWebGL) {
+    sceneData.reason = 'bot-detected';
+  }
+  
+  res.json(sceneData);
+});
+
+/**
  * Assets health route for CI smoke tests
  */
 router.get('/health/assets', (req, res) => {
@@ -138,11 +179,7 @@ router.get('/health/assets', (req, res) => {
   const must = [
     'public/css/theme.css',
     'public/js/scene-core.js',
-    'public/js/home-hero.js',
-    'public/vendor/three.r128.min.js',
-    'public/vendor/gsap.min.js',
-    'public/vendor/gsap-scrolltrigger.min.js',
-    'public/vendor/lottie.min.js'
+    'public/assets/seed/genres.json'
   ];
   const report = must.map(f => ({file: f, exists: fs.existsSync(p.join(process.cwd(), f))}));
   res.json({ok: report.every(x => x.exists), files: report});

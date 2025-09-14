@@ -44,11 +44,11 @@ class SceneManager {
   }
 
   lockScroll() {
-    document.body.classList.add('scroll-locked');
+    document.body.classList.add('scrolling-locked');
   }
 
   unlockScroll() {
-    document.body.classList.remove('scroll-locked');
+    document.body.classList.remove('scrolling-locked');
   }
 
   boot() {
@@ -74,21 +74,29 @@ class SceneManager {
   }
 
   mountGate(element) {
-    if (!window.DoorGate) {
-      console.warn('[GATE] DoorGate class not available');
-      return;
-    }
-
-    try {
-      this.gateInstance = new DoorGate({
-        webgl: this.webglSupported && this.animEnabled,
-        reducedMotion: this.reducedMotion
+    // Simple CSS-only approach for production reliability
+    const enterButton = element.querySelector('.gate__enter');
+    if (enterButton) {
+      enterButton.addEventListener('click', () => {
+        this.handleEnterClick();
       });
-      this.gateInstance.mount(element);
-      console.log('[GATE] mounted');
-    } catch (e) {
-      console.error('[GATE] mount failed:', e);
+      
+      enterButton.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          this.handleEnterClick();
+        }
+      });
     }
+    
+    console.log('[GATE] mounted with mode: css');
+  }
+  
+  handleEnterClick() {
+    console.log('[GATE] enter');
+    
+    // Emit the Gate:enter event
+    window.dispatchEvent(new CustomEvent('Gate:enter'));
   }
 
   mountHall(element) {
@@ -103,7 +111,7 @@ class SceneManager {
         reducedMotion: this.reducedMotion
       });
       this.hallInstance.mount(element);
-      console.log('[HALL] mounted');
+      console.log('[HALL] mounted with mode:', this.hallInstance.mode);
     } catch (e) {
       console.error('[HALL] mount failed:', e);
     }
@@ -137,18 +145,11 @@ class SceneManager {
     const page = document.body.getAttribute('data-page') || 'unknown';
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     
-    let mode = 'svg';
+    let mode = 'css';
     let reason = null;
     
     if (reducedMotion) {
       reason = 'prefers-reduced-motion';
-    } else if (!this.webglSupported) {
-      mode = 'svg';
-      reason = 'webgl-failed';
-    } else if (this.gateInstance?.mode) {
-      mode = this.gateInstance.mode;
-    } else if (this.hallInstance?.mode) {
-      mode = this.hallInstance.mode;
     }
     
     return {
