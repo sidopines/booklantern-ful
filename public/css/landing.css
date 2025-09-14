@@ -13,9 +13,9 @@ body[data-page="landing"] {
 }
 
 /* Scroll lock during gate sequence */
-.scroll-locked {
-  overflow: hidden;
-  height: 100vh;
+body.scroll-locked {
+  overflow: hidden !important;
+  height: 100vh !important;
 }
 
 /* Stage containers */
@@ -25,6 +25,7 @@ body[data-page="landing"] {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
+  z-index: 10;
 }
 
 .stage.hidden {
@@ -70,7 +71,9 @@ body[data-page="landing"] {
 }
 
 .enter-medallion:focus {
-  box-shadow: 0 0 0 4px rgba(255, 215, 0, 0.3);
+  box-shadow: 0 0 0 4px rgba(255, 215, 0, 0.6), 0 0 20px rgba(255, 215, 0, 0.4);
+  outline: 2px solid rgba(255, 215, 0, 0.8);
+  outline-offset: 2px;
 }
 
 .enter-medallion:hover {

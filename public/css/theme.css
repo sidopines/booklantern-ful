@@ -2118,9 +2118,13 @@ body.locked {
 /* =========================
    EXACT SPEC: STAGE & MODAL RULES
    ========================= */
-.stage{position:fixed;inset:0}
+.stage{position:fixed;inset:0;width:100vw;height:100vh;z-index:1000;overflow:hidden}
+.visible{display:block}
 .hidden{display:none}
-body.scroll-locked{overflow:hidden}
+body.scrolling-locked{overflow:hidden !important;height:100vh !important}
+.gate__enter{width:220px;height:220px;border-radius:9999px;display:grid;place-items:center;font:600 24px/1 system-ui;outline:2px solid transparent;outline-offset:6px;background:var(--gradient-primary);color:white;border:none;cursor:pointer;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10;transition:all 0.3s ease}
+.gate__enter:focus-visible{outline-color:var(--accent,#8fd3ff);box-shadow:0 0 20px rgba(139,92,246,0.5)}
+.gate__enter:hover{transform:translate(-50%,-50%) scale(1.05);box-shadow:0 0 30px rgba(99,102,241,0.4)}
 .shelf-modal{position:fixed;inset:0;display:grid;place-items:center;background:color-mix(in oklab, #000 60%, transparent);backdrop-filter:blur(12px)}
 .shelf-content{width:min(1100px,92vw);max-height:82vh;overflow:auto;background:rgba(18,20,30,.7);border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.6);padding:18px}
 .shelf-close{position:absolute;top:20px;right:24px;font-size:28px;background:transparent;border:0;color:#fff;cursor:pointer}
