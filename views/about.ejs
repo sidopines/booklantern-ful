@@ -3,27 +3,22 @@
 <head>
   <%- include('./partials/head.ejs', {
     pageTitle: 'About BookLantern',
-    pageDescription: 'Learn how BookLantern brings together results from globally trusted libraries so you can discover millions of books in one place.',
-    loadGSAP: true,
-    loadLottie: true
+    pageDescription: 'Learn how BookLantern brings together results from globally trusted libraries so you can discover millions of books in one place.'
   }) %>
 </head>
 <body class="about-page" data-page="about">
   <%- include('./partials/nav.ejs') %>
 
-  <!-- About Scene Background -->
-  <div class="about-background">
-    <canvas id="about3d" aria-hidden="true"></canvas>
-    <div id="about-lottie" hidden></div>
-    <img id="about-fallback" src="/img/about-fallback.svg?v=<%= buildId %>" alt="" hidden />
-  </div>
-
-  <!-- Timeline Candles -->
-  <div class="timeline-candles">
-    <div class="candle" id="candle-1"></div>
-    <div class="candle" id="candle-2"></div>
-    <div class="candle" id="candle-3"></div>
-  </div>
+  <!-- About Hero -->
+  <section class="page-hero">
+    <div class="container">
+      <h1>About BookLantern</h1>
+      <p class="hero-description">
+        We bring together millions of free books from trusted libraries worldwide, 
+        making knowledge accessible to everyone through one simple, beautiful interface.
+      </p>
+    </div>
+  </section>
 
   <style>
     /* Timeline Candles */

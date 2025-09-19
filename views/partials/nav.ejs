@@ -1,386 +1,153 @@
-<!-- views/partials/nav.ejs - Floating FAB Navigation -->
-<nav class="fab-menu" aria-label="Primary navigation">
-  <!-- Floating Action Button -->
-  <button class="fab-button" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="fab-dropdown">
-    <span class="fab-icon">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="3" y1="6" x2="21" y2="6"></line>
-        <line x1="3" y1="12" x2="21" y2="12"></line>
-        <line x1="3" y1="18" x2="21" y2="18"></line>
-      </svg>
-    </span>
-  </button>
+<!-- views/partials/nav.ejs - Everand-style Sticky Header -->
+<header class="everand-header" id="main-header">
+  <div class="container">
+    <div class="header-content">
+      <!-- Logo/Brand -->
+      <a href="/" class="header-logo">
+        <img src="/img/brand.svg" alt="BookLantern" width="32" height="32">
+        BookLantern
+      </a>
 
-  <!-- FAB Dropdown Panel -->
-  <div id="fab-dropdown" class="fab-dropdown" role="menu">
-    <!-- Search Pill -->
-    <div class="nav-search">
-      <form action="/read" method="GET" role="search">
-        <div class="search-pill">
-          <input type="text" name="query" placeholder="Search books..." aria-label="Search books">
-          <button type="submit" aria-label="Search">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <!-- Search (Desktop) -->
+      <div class="header-search">
+        <form action="/read" method="GET" class="header-search-form">
+          <svg class="header-search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
+          <input
+            type="text"
+            name="query"
+            class="header-search-input"
+            placeholder="Search books, authors, topics..."
+            aria-label="Search books"
+          >
+        </form>
+      </div>
+
+      <!-- Navigation Links (Desktop) -->
+      <nav class="header-nav" aria-label="Primary navigation">
+        <a href="/read" class="header-nav-link">Read</a>
+        <a href="/watch" class="header-nav-link">Watch</a>
+        <a href="/about" class="header-nav-link">About</a>
+        <a href="/contact" class="header-nav-link">Contact</a>
+        
+        <% if (user) { %>
+          <a href="/dashboard" class="header-nav-link">Dashboard</a>
+          <% if (user.isAdmin) { %>
+            <a href="/admin" class="header-nav-link">Admin</a>
+          <% } %>
+          <a href="/logout" class="header-nav-link">Logout</a>
+        <% } else { %>
+          <a href="/login" class="header-nav-link">Login</a>
+          <a href="/register" class="header-nav-link btn-primary">Register</a>
+        <% } %>
+      </nav>
+
+      <!-- Mobile Menu Toggle -->
+      <button class="header-mobile-toggle" aria-label="Toggle menu" aria-expanded="false" id="mobile-toggle">
+        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Mobile Menu -->
+    <div class="header-mobile-menu" id="mobile-menu">
+      <div class="header-mobile-content">
+        <!-- Mobile Search -->
+        <div class="header-mobile-search">
+          <form action="/read" method="GET" class="header-search-form">
+            <svg class="header-search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <circle cx="11" cy="11" r="8"></circle>
               <path d="m21 21-4.35-4.35"></path>
             </svg>
-          </button>
+            <input
+              type="text"
+              name="query"
+              class="header-search-input"
+              placeholder="Search books, authors, topics..."
+              aria-label="Search books"
+            >
+          </form>
         </div>
-      </form>
-    </div>
 
-    <!-- Glowing Tabs -->
-    <div class="nav-tabs">
-      <a href="/" class="glowing-tab" role="menuitem" data-animation="home">
-        <div class="tab-icon" id="home-icon"></div>
-        <span class="tab-text">Home</span>
-      </a>
-      
-      <a href="/read" class="glowing-tab" role="menuitem" data-animation="books">
-        <div class="tab-icon" id="books-icon"></div>
-        <span class="tab-text">Read</span>
-      </a>
-      
-      <a href="/watch" class="glowing-tab" role="menuitem" data-animation="video">
-        <div class="tab-icon" id="video-icon"></div>
-        <span class="tab-text">Watch</span>
-      </a>
-      
-      <a href="/about" class="glowing-tab" role="menuitem" data-animation="info">
-        <div class="tab-icon" id="info-icon"></div>
-        <span class="tab-text">About</span>
-      </a>
-      
-      <a href="/contact" class="glowing-tab" role="menuitem" data-animation="mail">
-        <div class="tab-icon" id="mail-icon"></div>
-        <span class="tab-text">Contact</span>
-      </a>
-
-      <% if (user) { %>
-        <a href="/dashboard" class="glowing-tab" role="menuitem" data-animation="user">
-          <div class="tab-icon" id="user-icon"></div>
-          <span class="tab-text">Dashboard</span>
-        </a>
-        
-        <% if (user.isAdmin) { %>
-          <a href="/admin" class="glowing-tab" role="menuitem" data-animation="settings">
-            <div class="tab-icon" id="settings-icon"></div>
-            <span class="tab-text">Admin</span>
-          </a>
-        <% } %>
-        
-        <a href="/logout" class="glowing-tab nav-link-logout" role="menuitem" data-animation="logout">
-          <div class="tab-icon" id="logout-icon"></div>
-          <span class="tab-text">Logout</span>
-        </a>
-      <% } else { %>
-        <a href="/login" class="glowing-tab" role="menuitem" data-animation="key">
-          <div class="tab-icon" id="key-icon"></div>
-          <span class="tab-text">Login</span>
-        </a>
-        
-        <a href="/register" class="glowing-tab nav-link-primary" role="menuitem" data-animation="star">
-          <div class="tab-icon" id="star-icon"></div>
-          <span class="tab-text">Register</span>
-        </a>
-      <% } %>
-    </div>
-
-    <!-- Theme & Animation Controls -->
-    <div class="nav-theme">
-      <button class="glowing-tab theme-toggle" aria-label="Toggle theme" onclick="toggleTheme()">
-        <div class="tab-icon" id="theme-icon"></div>
-        <span class="tab-text">Theme</span>
-      </button>
-      
-      <button class="glowing-tab anim-toggle" aria-label="Toggle animations" onclick="toggleAnimations()">
-        <div class="tab-icon" id="anim-icon">🎬</div>
-        <span class="tab-text" id="anim-text">Animations</span>
-      </button>
+        <!-- Mobile Navigation -->
+        <nav class="header-mobile-nav" aria-label="Mobile navigation">
+          <a href="/read" class="header-nav-link">Read</a>
+          <a href="/watch" class="header-nav-link">Watch</a>
+          <a href="/about" class="header-nav-link">About</a>
+          <a href="/contact" class="header-nav-link">Contact</a>
+          
+          <% if (user) { %>
+            <a href="/dashboard" class="header-nav-link">Dashboard</a>
+            <% if (user.isAdmin) { %>
+              <a href="/admin" class="header-nav-link">Admin</a>
+            <% } %>
+            <a href="/logout" class="header-nav-link">Logout</a>
+          <% } else { %>
+            <a href="/login" class="header-nav-link">Login</a>
+            <a href="/register" class="header-nav-link btn-primary">Register</a>
+          <% } %>
+        </nav>
+      </div>
     </div>
   </div>
-</nav>
-
-<style>
-/* FAB Navigation Styles */
-.fab-icon {
-  transition: transform var(--transition-normal);
-}
-
-.fab-button[aria-expanded="true"] .fab-icon {
-  transform: rotate(90deg);
-}
-
-.nav-search {
-  margin-bottom: var(--space-lg);
-}
-
-.search-pill {
-  display: flex;
-  gap: var(--space-sm);
-  align-items: center;
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-pill);
-  padding: var(--space-sm);
-  box-shadow: var(--glass-shadow);
-}
-
-.search-pill input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font-size: 0.9rem;
-  padding: var(--space-sm) var(--space-md);
-  outline: none;
-}
-
-.search-pill input::placeholder {
-  color: var(--muted);
-}
-
-.search-pill input:focus {
-  box-shadow: var(--shadow-neon);
-}
-
-.search-pill button {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--gradient-primary);
-  border: none;
-  color: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition-normal);
-}
-
-.search-pill button:hover {
-  transform: scale(1.1);
-  box-shadow: var(--shadow-neon);
-}
-
-.nav-tabs {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: var(--space-sm);
-  margin-bottom: var(--space-lg);
-}
-
-.glowing-tab {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-md);
-  border-radius: var(--radius-lg);
-  text-decoration: none;
-  color: var(--text);
-  transition: all var(--transition-normal);
-  position: relative;
-  overflow: hidden;
-  min-height: 80px;
-  justify-content: center;
-}
-
-.glowing-tab::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-  transition: left var(--transition-slow);
-}
-
-.glowing-tab:hover::before {
-  left: 100%;
-}
-
-.glowing-tab:hover {
-  background: var(--primary);
-  color: white;
-  box-shadow: var(--shadow-neon);
-  transform: translateY(-2px);
-}
-
-.glowing-tab.active {
-  background: var(--gradient-primary);
-  color: white;
-  box-shadow: var(--shadow-neon);
-}
-
-.nav-link-primary {
-  background: var(--gradient-accent);
-  color: white;
-}
-
-.nav-link-primary:hover {
-  background: var(--gradient-primary);
-  transform: translateY(-2px) scale(1.02);
-}
-
-.nav-link-logout {
-  color: var(--accent);
-}
-
-.nav-link-logout:hover {
-  background: rgba(255, 94, 168, 0.2);
-}
-
-.tab-icon {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  transition: transform var(--transition-normal);
-}
-
-.glowing-tab:hover .tab-icon {
-  transform: scale(1.2);
-}
-
-.tab-text {
-  font-weight: var(--font-weight-medium);
-  font-size: 0.85rem;
-  text-align: center;
-}
-
-.nav-theme {
-  border-top: 1px solid var(--glass-border);
-  padding-top: var(--space-md);
-}
-
-.theme-toggle {
-  width: 100%;
-  justify-content: center;
-}
-
-/* Mobile Responsive */
-@media (max-width: 768px) {
-  .floating-nav {
-    top: var(--space-md);
-    right: var(--space-md);
-  }
-  
-  .nav-fab {
-    width: 50px;
-    height: 50px;
-  }
-  
-  .nav-menu {
-    top: 70px;
-    right: -10px;
-    min-width: 280px;
-  }
-  
-  .nav-tabs {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .glowing-tab {
-    min-height: 70px;
-    padding: var(--space-sm);
-  }
-}
-
-/* Reduced Motion */
-@media (prefers-reduced-motion: reduce) {
-  .nav-fab,
-  .glowing-tab,
-  .search-pill button {
-    transition: none;
-  }
-  
-  .nav-fab:hover,
-  .glowing-tab:hover {
-    transform: none;
-  }
-  
-  .nav-fab-icon,
-  .tab-icon {
-    transition: none;
-  }
-  
-  .nav-fab[aria-expanded="true"] .nav-fab-icon {
-    transform: none;
-  }
-}
-</style>
+</header>
 
 <script>
-// FAB Menu Toggle
+// Header scroll shadow
 document.addEventListener('DOMContentLoaded', function() {
-  const fabButton = document.querySelector('.fab-button');
-  const fabDropdown = document.querySelector('.fab-dropdown');
-  
-  if (fabButton && fabDropdown) {
-    fabButton.addEventListener('click', function() {
-      const isExpanded = fabButton.getAttribute('aria-expanded') === 'true';
-      fabButton.setAttribute('aria-expanded', !isExpanded);
-      fabDropdown.classList.toggle('open', !isExpanded);
+  const header = document.getElementById('main-header');
+  const mobileToggle = document.getElementById('mobile-toggle');
+  const mobileMenu = document.getElementById('mobile-menu');
+
+  // Add scroll shadow to header
+  function handleScroll() {
+    if (window.scrollY > 10) {
+      header.classList.add('scrolled');
+    } else {
+      header.classList.remove('scrolled');
+    }
+  }
+
+  window.addEventListener('scroll', handleScroll);
+
+  // Mobile menu toggle
+  if (mobileToggle && mobileMenu) {
+    mobileToggle.addEventListener('click', function() {
+      const isExpanded = mobileToggle.getAttribute('aria-expanded') === 'true';
+      mobileToggle.setAttribute('aria-expanded', !isExpanded);
+      mobileMenu.classList.toggle('open');
     });
-    
+
     // Close on outside click
     document.addEventListener('click', function(e) {
-      if (!fabButton.contains(e.target) && !fabDropdown.contains(e.target)) {
-        fabButton.setAttribute('aria-expanded', 'false');
-        fabDropdown.classList.remove('open');
+      if (!header.contains(e.target)) {
+        mobileToggle.setAttribute('aria-expanded', 'false');
+        mobileMenu.classList.remove('open');
+      }
+    });
+
+    // Close on escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        mobileToggle.setAttribute('aria-expanded', 'false');
+        mobileMenu.classList.remove('open');
       }
     });
   }
-});
 
-// Theme toggle
-function toggleTheme() {
-  const currentTheme = document.documentElement.getAttribute('data-theme');
-  const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-  document.documentElement.setAttribute('data-theme', newTheme);
-  localStorage.setItem('bl:theme', newTheme);
-}
-
-// Animation toggle
-function toggleAnimations() {
-  const currentAnim = localStorage.getItem('bl:anim:force');
-  let newAnim;
+  // Set active nav link based on current page
+  const currentPath = window.location.pathname;
+  const navLinks = document.querySelectorAll('.header-nav-link');
   
-  if (currentAnim === 'off') {
-    newAnim = 'on';
-  } else if (currentAnim === 'on') {
-    newAnim = 'off';
-  } else {
-    newAnim = 'off'; // Default to off for production
-  }
-  
-  localStorage.setItem('bl:anim:force', newAnim);
-  
-  const animText = document.getElementById('anim-text');
-  if (animText) {
-    animText.textContent = newAnim === 'on' ? 'Animations On' : 'Animations Off';
-  }
-  
-  // Reload to apply changes
-  window.location.reload();
-}
-
-// Load saved preferences
-document.addEventListener('DOMContentLoaded', function() {
-  const savedTheme = localStorage.getItem('bl:theme');
-  if (savedTheme) {
-    document.documentElement.setAttribute('data-theme', savedTheme);
-  }
-  
-  const savedAnim = localStorage.getItem('bl:anim:force');
-  const animText = document.getElementById('anim-text');
-  if (animText) {
-    animText.textContent = savedAnim === 'on' ? 'Animations On' : 'Animations Off';
-  }
+  navLinks.forEach(link => {
+    if (link.getAttribute('href') === currentPath) {
+      link.classList.add('active');
+    }
+  });
 });
 </script>
