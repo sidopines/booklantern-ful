@@ -4,19 +4,39 @@
 <head>
   <%- include('./partials/head.ejs', {
     pageTitle: pageTitle || 'Read • BookLantern',
-    pageDescription: 'Reading ' + (typeof bookTitle !== 'undefined' ? bookTitle : 'book') + ' in BookLantern\'s unified reader',
-    loadGSAP: true,
-    loadLottie: true
+    pageDescription: 'Reading ' + (typeof bookTitle !== 'undefined' ? bookTitle : 'book') + ' in BookLantern\'s unified reader'
   }) %>
   <style>
     body{background:var(--bg);}
     
-    /* Enhanced toolbar with neon theme */
-    .topbar{
+    /* Clean reader top bar */
+    .reader-topbar{
       position:sticky;top:0;z-index:100;
-      background:var(--glass-bg);backdrop-filter:blur(20px);
-      display:flex;gap:.5rem;align-items:center;padding:.75rem;
-      border-bottom:1px solid var(--glass-border);box-shadow:var(--glass-shadow)
+      background:white;backdrop-filter:blur(12px);
+      display:flex;gap:var(--space-lg);align-items:center;padding:0 var(--space-lg);
+      border-bottom:1px solid var(--line);height:56px;
+    }
+    
+    .reader-back{
+      display:flex;align-items:center;gap:var(--space-sm);
+      background:none;border:none;color:var(--text);
+      font-weight:var(--font-weight-medium);padding:var(--space-sm) var(--space-md);
+      border-radius:var(--r-sm);cursor:pointer;transition:all var(--transition-fast);
+    }
+    
+    .reader-back:hover{
+      background:var(--card);color:var(--brand);
+    }
+    
+    .reader-title{
+      flex:1;font-weight:var(--font-weight-medium);text-align:center;
+      color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    
+    .reader-source{
+      background:var(--card);color:var(--muted);
+      padding:var(--space-xs) var(--space-sm);border-radius:var(--r-xs);
+      font-size:0.75rem;font-weight:var(--font-weight-medium);
     }
     
     .page{max-width:1200px;margin:0 auto;padding:.5rem}
@@ -127,10 +147,15 @@
   <!-- Tiny Assistant Animation -->
   <div class="reader-assistant" id="reader-assistant" aria-hidden="true"></div>
 
-  <header class="topbar page">
-    <button class="btn back" onclick="history.back()" tabindex="0" aria-label="Go back to previous page">&larr; Back</button>
-    <div class="muted small"><%= title || 'Book' %><% if (typeof author === 'string' && author) { %> — <%= author %><% } %></div>
-    <div class="grow"></div>
+  <header class="reader-topbar">
+    <button class="reader-back" onclick="history.back()" tabindex="0" aria-label="Go back to previous page">
+      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+      </svg>
+      Back
+    </button>
+    <div class="reader-title"><%= title || 'Book' %><% if (typeof author === 'string' && author) { %> — <%= author %><% } %></div>
+    <div class="reader-source"><%= source || '' %></div>
 
     <!-- Admin test button -->
     <% if (typeof user !== 'undefined' && user && user.isAdmin && mode === 'epub') { %>

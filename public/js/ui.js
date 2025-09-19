@@ -104,120 +104,139 @@
   }
 
   // =========================
-  // FLOATING NAVIGATION
+  // CAROUSEL FUNCTIONALITY
   // =========================
-  class FloatingNav {
+  class CarouselManager {
     constructor() {
-      this.fab = null;
-      this.menu = null;
-      this.isOpen = false;
+      this.carousels = new Map();
       this.init();
     }
 
     init() {
-      this.fab = document.querySelector('.nav-fab');
-      this.menu = document.querySelector('.nav-menu');
-      
-      if (!this.fab || !this.menu) return;
-
-      this.setupEventListeners();
-      this.setupKeyboardNavigation();
-    }
-
-    setupEventListeners() {
-      this.fab.addEventListener('click', (e) => {
-        e.preventDefault();
-        this.toggle();
-      });
-
-      // Close menu when clicking outside
-      document.addEventListener('click', (e) => {
-        if (this.isOpen && !this.fab.contains(e.target) && !this.menu.contains(e.target)) {
-          this.close();
+      const carouselElements = document.querySelectorAll('.carousel-track');
+      carouselElements.forEach(track => {
+        const carouselId = track.id;
+        if (carouselId) {
+          this.carousels.set(carouselId, new Carousel(track));
         }
       });
 
-      // Close menu on escape key
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && this.isOpen) {
-          this.close();
-        }
-      });
-    }
-
-    setupKeyboardNavigation() {
-      const menuItems = this.menu.querySelectorAll('a, button');
-      
-      menuItems.forEach((item, index) => {
-        item.addEventListener('keydown', (e) => {
-          switch (e.key) {
-            case 'ArrowDown':
-              e.preventDefault();
-              const nextIndex = (index + 1) % menuItems.length;
-              menuItems[nextIndex].focus();
-              break;
-            case 'ArrowUp':
-              e.preventDefault();
-              const prevIndex = index === 0 ? menuItems.length - 1 : index - 1;
-              menuItems[prevIndex].focus();
-              break;
-            case 'Home':
-              e.preventDefault();
-              menuItems[0].focus();
-              break;
-            case 'End':
-              e.preventDefault();
-              menuItems[menuItems.length - 1].focus();
-              break;
+      // Set up control buttons
+      const controls = document.querySelectorAll('.carousel-control');
+      controls.forEach(control => {
+        control.addEventListener('click', (e) => {
+          const carouselName = control.dataset.carousel;
+          const direction = control.dataset.direction;
+          const carouselId = `${carouselName}-carousel`;
+          
+          const carousel = this.carousels.get(carouselId);
+          if (carousel) {
+            if (direction === 'next') {
+              carousel.next();
+            } else if (direction === 'prev') {
+              carousel.prev();
+            }
           }
         });
       });
     }
+  }
 
-    toggle() {
-      if (this.isOpen) {
-        this.close();
-      } else {
-        this.open();
+  class Carousel {
+    constructor(track) {
+      this.track = track;
+      this.items = track.querySelectorAll('.carousel-item');
+      this.itemWidth = 184 + 16; // Item width + gap
+      this.visibleItems = this.calculateVisibleItems();
+      this.currentIndex = 0;
+      this.maxIndex = Math.max(0, this.items.length - this.visibleItems);
+      
+      this.init();
+    }
+
+    calculateVisibleItems() {
+      const containerWidth = this.track.parentElement.offsetWidth;
+      return Math.floor(containerWidth / this.itemWidth);
+    }
+
+    init() {
+      // Handle window resize
+      window.addEventListener('resize', () => {
+        this.visibleItems = this.calculateVisibleItems();
+        this.maxIndex = Math.max(0, this.items.length - this.visibleItems);
+        this.updatePosition();
+      });
+
+      // Touch/swipe support for mobile
+      this.setupTouchEvents();
+    }
+
+    setupTouchEvents() {
+      let startX = 0;
+      let currentX = 0;
+      let isDragging = false;
+
+      this.track.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+        isDragging = true;
+      });
+
+      this.track.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        currentX = e.touches[0].clientX;
+      });
+
+      this.track.addEventListener('touchend', () => {
+        if (!isDragging) return;
+        isDragging = false;
+
+        const diffX = startX - currentX;
+        const threshold = 50;
+
+        if (Math.abs(diffX) > threshold) {
+          if (diffX > 0) {
+            this.next();
+          } else {
+            this.prev();
+          }
+        }
+      });
+    }
+
+    next() {
+      if (this.currentIndex < this.maxIndex) {
+        this.currentIndex += Math.min(3, this.maxIndex - this.currentIndex);
+        this.updatePosition();
       }
     }
 
-    open() {
-      this.isOpen = true;
-      this.fab.setAttribute('aria-expanded', 'true');
-      this.menu.classList.add('open');
-      
-      // Focus first menu item
-      const firstItem = this.menu.querySelector('a, button');
-      if (firstItem) {
-        setTimeout(() => firstItem.focus(), 100);
-      }
-
-      // Animate with GSAP if available
-      if (window.gsap) {
-        gsap.fromTo(this.menu, 
-          { scale: 0, opacity: 0 },
-          { scale: 1, opacity: 1, duration: 0.3, ease: "back.out(1.7)" }
-        );
+    prev() {
+      if (this.currentIndex > 0) {
+        this.currentIndex -= Math.min(3, this.currentIndex);
+        this.updatePosition();
       }
     }
 
-    close() {
-      this.isOpen = false;
-      this.fab.setAttribute('aria-expanded', 'false');
-      this.menu.classList.remove('open');
+    updatePosition() {
+      const translateX = -this.currentIndex * this.itemWidth;
+      this.track.style.transform = `translateX(${translateX}px)`;
       
-      // Return focus to FAB
-      this.fab.focus();
+      this.updateControls();
+    }
 
-      // Animate with GSAP if available
-      if (window.gsap) {
-        gsap.to(this.menu, {
-          scale: 0,
-          opacity: 0,
-          duration: 0.2,
-          ease: "back.in(1.7)"
-        });
+    updateControls() {
+      const carouselId = this.track.id;
+      const carouselName = carouselId.replace('-carousel', '');
+      
+      const prevBtn = document.querySelector(`[data-carousel="${carouselName}"][data-direction="prev"]`);
+      const nextBtn = document.querySelector(`[data-carousel="${carouselName}"][data-direction="next"]`);
+      
+      if (prevBtn) {
+        prevBtn.disabled = this.currentIndex === 0;
+      }
+      
+      if (nextBtn) {
+        nextBtn.disabled = this.currentIndex >= this.maxIndex;
       }
     }
   }
@@ -344,12 +363,12 @@
           }
         }
 
-        // Alt + M for menu toggle
+        // Alt + M for mobile menu toggle
         if (e.altKey && e.key === 'm') {
           e.preventDefault();
-          const fab = document.querySelector('.nav-fab');
-          if (fab) {
-            fab.click();
+          const mobileToggle = document.querySelector('.header-mobile-toggle');
+          if (mobileToggle) {
+            mobileToggle.click();
           }
         }
       });
@@ -383,7 +402,7 @@
     constructor() {
       this.themeManager = new ThemeManager();
       this.scrollReveal = new ScrollReveal();
-      this.floatingNav = new FloatingNav();
+      this.carouselManager = new CarouselManager();
       this.searchEnhancer = new SearchEnhancer();
       this.performanceMonitor = new PerformanceMonitor();
       this.accessibilityEnhancer = new AccessibilityEnhancer();
@@ -485,3 +504,4 @@
   }
 
 })();
+

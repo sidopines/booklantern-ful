@@ -5,32 +5,266 @@
     pageTitle: 'BookLantern - Discover Books from Global Libraries',
     pageDescription: 'Search millions of books from Open Library, Internet Archive, Library of Congress, and Gutenberg. Find your next great read.'
   }) %>
-  <link rel="stylesheet" href="/css/landing.css?v=<%= buildId %>">
 </head>
-<body data-page="landing" class="scrolling-locked">
-  <section id="gate" class="stage gate visible">
-    <button class="gate__enter" tabindex="0" aria-label="Enter the library">ENTER</button>
-  </section>
-  <section id="hall" class="stage hall hidden">
-    <div id="shelfModal" class="shelf-modal hidden" aria-hidden="true" role="dialog">
-      <div class="shelf-content"></div>
-      <button class="shelf-close" aria-label="Close">×</button>
+<body data-page="home">
+  <%- include('./partials/nav.ejs') %>
+  
+  <!-- Hero Section -->
+  <section class="everand-hero">
+    <div class="container">
+      <div class="hero-content">
+        <h1 class="hero-headline">Read smarter.</h1>
+        <p class="hero-subline">
+          Access millions of free books from the world's greatest libraries. 
+          One search, countless possibilities.
+        </p>
+        
+        <!-- Hero Search -->
+        <div class="hero-search">
+          <form action="/read" method="GET" class="hero-search-form">
+            <svg class="hero-search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+            </svg>
+            <input
+              type="text"
+              name="query"
+              class="hero-search-input"
+              placeholder="Search by title, author, topic..."
+              aria-label="Search books"
+            >
+            <button type="submit" class="hero-search-submit">Search</button>
+          </form>
+        </div>
+        
+        <!-- Quick Links -->
+        <div class="hero-links">
+          <a href="/read?category=fiction" class="hero-link">Fiction</a>
+          <a href="/read?category=philosophy" class="hero-link">Philosophy</a>
+          <a href="/read?category=history" class="hero-link">History</a>
+          <a href="/read?category=science" class="hero-link">Science</a>
+          <a href="/read" class="hero-link">Browse All →</a>
+        </div>
+      </div>
     </div>
   </section>
-  <%- include('./partials/nav.ejs') %>
-  <script src="/js/scene-core.js?v=<%= buildId %>"></script>
-  <script src="/js/library-hall.js?v=<%= buildId %>"></script>
-  <script>window.addEventListener('DOMContentLoaded', () => {
-    window.sceneManager = new SceneManager();
-    window.sceneManager.boot();
-    
-    // Expose scene data for observability
-    window.getSceneData = () => {
-      if (window.sceneManager) {
-        return window.sceneManager.getCurrentSceneData();
-      }
-      return { mode: 'unknown', page: 'landing', reason: 'manager-not-ready' };
-    };
-  });</script>
+
+  <!-- Featured Carousels -->
+  <main class="container">
+    <!-- Trending Books -->
+    <section class="carousel-section">
+      <div class="carousel-header">
+        <h2 class="carousel-title">Trending on Open Library</h2>
+        <div class="carousel-controls">
+          <button class="carousel-control" data-carousel="trending" data-direction="prev" aria-label="Previous books">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="15,18 9,12 15,6"></polyline>
+            </svg>
+          </button>
+          <button class="carousel-control" data-carousel="trending" data-direction="next" aria-label="Next books">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="9,18 15,12 9,6"></polyline>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="carousel-wrapper">
+        <div class="carousel-track" id="trending-carousel">
+          <!-- Sample trending books -->
+          <div class="carousel-item">
+            <%- include('./partials/card.ejs', {
+              book: {
+                title: 'Pride and Prejudice',
+                author: 'Jane Austen',
+                cover: '/img/cover-fallback.svg',
+                readUrl: '/read?id=pride-prejudice',
+                source: 'gutenberg'
+              }
+            }) %>
+          </div>
+          <div class="carousel-item">
+            <%- include('./partials/card.ejs', {
+              book: {
+                title: 'The Republic',
+                author: 'Plato',
+                cover: '/img/cover-fallback.svg',
+                readUrl: '/read?id=republic-plato',
+                source: 'gutenberg'
+              }
+            }) %>
+          </div>
+          <div class="carousel-item">
+            <%- include('./partials/card.ejs', {
+              book: {
+                title: 'Alice\'s Adventures in Wonderland',
+                author: 'Lewis Carroll',
+                cover: '/img/cover-fallback.svg',
+                readUrl: '/read?id=alice-wonderland',
+                source: 'gutenberg'
+              }
+            }) %>
+          </div>
+          <div class="carousel-item">
+            <%- include('./partials/card.ejs', {
+              book: {
+                title: 'The Art of War',
+                author: 'Sun Tzu',
+                cover: '/img/cover-fallback.svg',
+                readUrl: '/read?id=art-of-war',
+                source: 'gutenberg'
+              }
+            }) %>
+          </div>
+          <div class="carousel-item">
+            <%- include('./partials/card.ejs', {
+              book: {
+                title: 'Frankenstein',
+                author: 'Mary Shelley',
+                cover: '/img/cover-fallback.svg',
+                readUrl: '/read?id=frankenstein',
+                source: 'gutenberg'
+              }
+            }) %>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Philosophy Picks -->
+    <section class="carousel-section">
+      <div class="carousel-header">
+        <h2 class="carousel-title">Philosophy Picks</h2>
+        <div class="carousel-controls">
+          <button class="carousel-control" data-carousel="philosophy" data-direction="prev" aria-label="Previous books">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="15,18 9,12 15,6"></polyline>
+            </svg>
+          </button>
+          <button class="carousel-control" data-carousel="philosophy" data-direction="next" aria-label="Next books">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="9,18 15,12 9,6"></polyline>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="carousel-wrapper">
+        <div class="carousel-track" id="philosophy-carousel">
+          <!-- Sample philosophy books -->
+          <div class="carousel-item">
+            <%- include('./partials/card.ejs', {
+              book: {
+                title: 'Meditations',
+                author: 'Marcus Aurelius',
+                cover: '/img/cover-fallback.svg',
+                readUrl: '/read?id=meditations',
+                source: 'gutenberg'
+              }
+            }) %>
+          </div>
+          <div class="carousel-item">
+            <%- include('./partials/card.ejs', {
+              book: {
+                title: 'Beyond Good and Evil',
+                author: 'Friedrich Nietzsche',
+                cover: '/img/cover-fallback.svg',
+                readUrl: '/read?id=beyond-good-evil',
+                source: 'gutenberg'
+              }
+            }) %>
+          </div>
+          <div class="carousel-item">
+            <%- include('./partials/card.ejs', {
+              book: {
+                title: 'The Critique of Pure Reason',
+                author: 'Immanuel Kant',
+                cover: '/img/cover-fallback.svg',
+                readUrl: '/read?id=critique-pure-reason',
+                source: 'gutenberg'
+              }
+            }) %>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- History Picks -->
+    <section class="carousel-section">
+      <div class="carousel-header">
+        <h2 class="carousel-title">History Picks</h2>
+        <div class="carousel-controls">
+          <button class="carousel-control" data-carousel="history" data-direction="prev" aria-label="Previous books">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="15,18 9,12 15,6"></polyline>
+            </svg>
+          </button>
+          <button class="carousel-control" data-carousel="history" data-direction="next" aria-label="Next books">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <polyline points="9,18 15,12 9,6"></polyline>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="carousel-wrapper">
+        <div class="carousel-track" id="history-carousel">
+          <!-- Sample history books -->
+          <div class="carousel-item">
+            <%- include('./partials/card.ejs', {
+              book: {
+                title: 'The Histories',
+                author: 'Herodotus',
+                cover: '/img/cover-fallback.svg',
+                readUrl: '/read?id=histories-herodotus',
+                source: 'gutenberg'
+              }
+            }) %>
+          </div>
+          <div class="carousel-item">
+            <%- include('./partials/card.ejs', {
+              book: {
+                title: 'The American Crisis',
+                author: 'Thomas Paine',
+                cover: '/img/cover-fallback.svg',
+                readUrl: '/read?id=american-crisis',
+                source: 'gutenberg'
+              }
+            }) %>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Why BookLantern Section -->
+  <section class="container">
+    <div class="feature-cards">
+      <div class="feature-card">
+        <div class="feature-icon">📚</div>
+        <h3 class="feature-title">Read Anywhere</h3>
+        <p class="feature-description">
+          Access millions of books instantly from your browser. No downloads, no apps, just pure reading.
+        </p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">✨</div>
+        <h3 class="feature-title">Clean Reader</h3>
+        <p class="feature-description">
+          Beautiful, distraction-free reading experience optimized for focus and comprehension.
+        </p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">🌍</div>
+        <h3 class="feature-title">Open Sources</h3>
+        <p class="feature-description">
+          Public domain and open access content from the world's greatest libraries and archives.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <%- include('./partials/footer.ejs') %>
+
+  <script src="/js/ui.js?v=<%= buildId %>"></script>
 </body>
 </html>
