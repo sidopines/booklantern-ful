@@ -4,82 +4,147 @@
 <head>
   <%- include('./partials/head.ejs', {
     pageTitle: 'Watch Educational Videos',
-    pageDescription: 'Stream free educational videos in a Netflix-style interface.',
-    loadGSAP: true,
-    loadThreeJS: true,
-    loadLottie: true
+    pageDescription: 'Stream free educational videos.'
   }) %>
-  <style>
-    body { background:var(--bg); color:var(--text); font-family:var(--font-family-base); margin:0; }
-    .back-link{ display:inline-block; margin:1rem 2rem; color:#fff; text-decoration:none; font-size:.9rem; }
-    .back-link:hover{ text-decoration:underline; }
-    .genre-select{ margin: 1rem 2rem; }
-    .genre-select label{ margin-right: .75rem; color:#ccc; }
-    select{ padding:.5rem; font-size:1rem; border-radius:6px; border:none; }
-    .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:1.2rem; padding:1.2rem 2rem 2rem; }
-    .card{ background:var(--card); border-radius:var(--radius-lg); overflow:hidden; box-shadow:var(--shadow-lg); transition: transform var(--transition-normal); }
-    .card:hover{ transform: translateY(-4px); box-shadow:var(--shadow-neon); }
-    .card img{ width:100%; height:150px; object-fit:cover; background:#2a2a2a; }
-    .card-content{ padding:1rem; }
-    .card-content h3{ margin:0; font-size:1.05rem; }
-    .card-content p{ color:#bbb; font-size:.9rem; margin:.45rem 0 0; min-height:2.4em; }
-    .watch-btn{ margin-top:.7rem; display:inline-block; padding:.5rem .9rem; background:#e50914; color:#fff; border-radius:6px; text-decoration:none; font-weight:700; }
-
-    /* Theater Curtain Animation */
-    .theater-curtain {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 1;
-      pointer-events: none;
-    }
-  </style>
 </head>
-<body class="cinematic-bg" data-page="watch">
-  <!-- Cinema Scene Background -->
-  <div class="cinema-background">
-    <canvas id="cinema3d" aria-hidden="true"></canvas>
-    <div id="cinema-lottie" hidden></div>
-    <img id="cinema-fallback" src="/img/cinema-fallback.svg?v=<%= buildId %>" alt="" hidden />
+<body data-page="watch">
+  <%- include('./partials/navbar.ejs') %>
+  
+  <!-- Page Header -->
+  <div class="watch-header">
+    <div class="watch-container">
+      <%- include('./partials/backLink.ejs', { text: 'Back', fallback: '/' }) %>
+      <h1 class="watch-title">Educational Videos</h1>
+      <p class="watch-description">Explore curated educational content from trusted sources.</p>
+    </div>
   </div>
   
-  <!-- Theater Curtain Animation -->
-  <div class="theater-curtain" id="theater-curtain"></div>
-  
-  <a href="javascript:history.back()" class="back-link">← Back</a>
-
-  <div class="genre-select">
-    <form method="GET" action="/watch">
-      <label for="genre">Filter by Genre:</label>
-      <select name="genre" id="genre" onchange="this.form.submit()">
-        <option value="">All Genres</option>
-        <% genres.forEach(function(g){ %>
-          <option value="<%= g._id %>" <%= (String(g._id)===String(genreFilter)) ? 'selected' : '' %>><%= g.name %></option>
-        <% }) %>
-      </select>
-    </form>
-  </div>
-
-  <div class="grid">
-    <% videos.forEach(function(video){
-         const m = (video.youtubeUrl||'').match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{11})/);
-         const ytId = m ? m[1] : '';
-         const thumb = video.thumbnail || (ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : '');
-    %>
-      <div class="card">
-        <img src="<%= thumb %>" alt="Thumbnail" loading="lazy">
-        <div class="card-content">
-          <h3><%= video.title %></h3>
-          <p><%= video.description || '' %></p>
-          <a class="watch-btn" href="/player/<%= video._id %>">▶ Watch Now</a>
+  <!-- Video Grid -->
+  <main class="watch-main">
+    <div class="watch-container">
+      <% if (typeof user !== 'undefined' && user && user.isAdmin) { %>
+        <div class="admin-controls">
+          <a href="/admin/videos" class="admin-link">Admin: Manage Videos</a>
         </div>
-      </div>
-    <% }) %>
-  </div>
+      <% } %>
 
-  <!-- Watch Page Scripts -->
-  <script defer src="/js/watch.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
+      <div class="video-grid">
+        <% if (typeof videos !== 'undefined' && videos && videos.length > 0) { %>
+          <% videos.forEach(function(video){
+               const m = (video.youtubeUrl||'').match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{11})/);
+               const ytId = m ? m[1] : '';
+               const thumb = video.thumbnail || (ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : '');
+               const videoData = {
+                 title: video.title,
+                 description: video.description || '',
+                 thumbnail: thumb,
+                 url: `/player/${video._id}`
+               };
+          %>
+            <%- include('./partials/videoCard.ejs', { video: videoData }) %>
+          <% }) %>
+        <% } else { %>
+          <div class="no-videos">
+            <h3>No videos available</h3>
+            <p>Check back later for educational content.</p>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </main>
+
+  <%- include('./partials/footer.ejs') %>
 </body>
 </html>
+
+<style>
+/* Watch Page Styles */
+.watch-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding: 32px 0;
+}
+
+.watch-container {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.watch-title {
+  font-size: var(--h1);
+  font-weight: 600;
+  color: var(--ink);
+  margin: 16px 0 8px;
+}
+
+.watch-description {
+  color: var(--ink-weak);
+  font-size: 18px;
+  margin: 0;
+}
+
+.watch-main {
+  padding: 48px 0;
+}
+
+.admin-controls {
+  margin-bottom: 32px;
+}
+
+.admin-link {
+  display: inline-block;
+  background: var(--ink);
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.admin-link:hover {
+  background: var(--brand);
+  transform: translateY(-1px);
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.no-videos {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--ink-weak);
+}
+
+.no-videos h3 {
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .video-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  
+  .watch-header {
+    padding: 24px 0;
+  }
+  
+  .watch-main {
+    padding: 32px 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .video-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

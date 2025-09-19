@@ -3,16 +3,201 @@
 <head>
   <%- include('./partials/head.ejs', {
     pageTitle: 'Contact',
-    pageDescription: 'Get in touch with the BookLantern team.',
-    loadGSAP: true,
-    loadLottie: true
+    pageDescription: 'Get in touch with the BookLantern team.'
   }) %>
 </head>
 <body class="contact-page" data-page="contact">
-  <%- include('./partials/nav.ejs') %>
+  <%- include('./partials/navbar.ejs') %>
 
-  <!-- Animated Pen Line -->
-  <div class="pen-line" id="pen-line"></div>
+  <!-- Contact Header -->
+  <div class="contact-header">
+    <div class="contact-container">
+      <%- include('./partials/backLink.ejs', { text: 'Back', fallback: '/' }) %>
+      <h1 class="contact-title">Contact Us</h1>
+      <p class="contact-description">
+        We'd love to hear from you. Send us a message and we'll respond as soon as possible.
+      </p>
+    </div>
+  </div>
+
+  <!-- Contact Form -->
+  <main class="contact-main">
+    <div class="contact-container">
+      <div class="contact-form-wrapper">
+        <form class="contact-form" action="/contact" method="POST">
+          <div class="form-group">
+            <label for="name" class="form-label">Name</label>
+            <input 
+              type="text" 
+              id="name" 
+              name="name" 
+              class="form-input" 
+              required
+              placeholder="Your full name"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="email" class="form-label">Email</label>
+            <input 
+              type="email" 
+              id="email" 
+              name="email" 
+              class="form-input" 
+              required
+              placeholder="your@email.com"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="message" class="form-label">Message</label>
+            <textarea 
+              id="message" 
+              name="message" 
+              class="form-textarea" 
+              rows="6"
+              required
+              placeholder="Tell us what's on your mind..."
+            ></textarea>
+          </div>
+
+          <button type="submit" class="contact-submit">Send Message</button>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <%- include('./partials/footer.ejs') %>
+</body>
+</html>
+
+<style>
+/* Contact Page Styles */
+.contact-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding: 32px 0;
+}
+
+.contact-container {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.contact-title {
+  font-size: var(--h1);
+  font-weight: 600;
+  color: var(--ink);
+  margin: 16px 0 16px;
+}
+
+.contact-description {
+  color: var(--ink-weak);
+  font-size: 18px;
+  line-height: 1.6;
+  max-width: 500px;
+  margin: 0;
+}
+
+.contact-main {
+  padding: 48px 0;
+}
+
+.contact-form-wrapper {
+  max-width: 600px;
+  margin: 0 auto;
+  background: var(--surface);
+  padding: 48px;
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow);
+}
+
+.contact-form {
+  width: 100%;
+}
+
+.form-group {
+  margin-bottom: 24px;
+}
+
+.form-label {
+  display: block;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.form-input,
+.form-textarea {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 16px;
+  font-family: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  transition: all 0.2s ease;
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.form-input::placeholder,
+.form-textarea::placeholder {
+  color: var(--ink-weak);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.contact-submit {
+  width: 100%;
+  background: var(--brand);
+  color: var(--brand-ink);
+  border: none;
+  padding: 16px 24px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.contact-submit:hover {
+  background: var(--accent);
+  transform: translateY(-1px);
+}
+
+.contact-submit:focus {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .contact-header {
+    padding: 24px 0;
+  }
+  
+  .contact-main {
+    padding: 32px 0;
+  }
+  
+  .contact-form-wrapper {
+    padding: 32px 24px;
+    margin: 0 16px;
+  }
+}
+</style>
 
   <style>
     /* Animated Pen Line */

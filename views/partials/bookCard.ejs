@@ -1,0 +1,163 @@
+<!-- views/partials/bookCard.ejs - Reusable book card -->
+<%
+  // Extract book properties with defaults
+  const title = book.title || 'Unknown Title';
+  const author = book.author || book.authors?.[0] || 'Unknown Author';
+  const cover = book.cover || book.coverUrl || '/img/cover-fallback.svg';
+  const source = book.source || 'unknown';
+  const readUrl = book.readUrl || book.url || '#';
+  
+  // Source badge mapping
+  const sourceBadges = {
+    'gutenberg': 'Gutenberg',
+    'openlibrary': 'Open Library',
+    'archive': 'Archive.org',
+    'loc': 'Library of Congress',
+    'hathitrust': 'HathiTrust',
+    'feedbooks': 'FeedBooks',
+    'wikisource': 'Wikisource'
+  };
+  
+  const sourceLabel = sourceBadges[source.toLowerCase()] || source;
+  
+  // Handle guest gating - if user not logged in, redirect to login
+  const finalUrl = (typeof user !== 'undefined' && user) ? readUrl : `/login?next=${encodeURIComponent(readUrl)}`;
+%>
+
+<div class="book-card">
+  <a href="<%= finalUrl %>" class="book-card-link">
+    <div class="book-card-cover">
+      <img 
+        src="<%= cover %>" 
+        alt="Cover of <%= title %>"
+        loading="lazy"
+        onerror="this.src='/img/cover-fallback.svg'"
+      >
+      <div class="book-card-source"><%= sourceLabel %></div>
+    </div>
+    
+    <div class="book-card-content">
+      <h3 class="book-card-title" title="<%= title %>"><%= title %></h3>
+      <p class="book-card-author" title="<%= author %>"><%= author %></p>
+      <div class="book-card-cta">
+        <span class="book-card-button">Read</span>
+      </div>
+    </div>
+  </a>
+</div>
+
+<style>
+/* Book Card Styles */
+.book-card {
+  background: var(--surface);
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: all 0.3s ease;
+  height: 100%;
+}
+
+.book-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.book-card-link {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  text-decoration: none;
+  color: inherit;
+}
+
+.book-card-cover {
+  position: relative;
+  aspect-ratio: 3/4;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.book-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.book-card:hover .book-card-cover img {
+  transform: scale(1.05);
+}
+
+.book-card-source {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(11, 18, 32, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.book-card-content {
+  padding: 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.book-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 8px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.book-card-author {
+  font-size: 14px;
+  color: var(--ink-weak);
+  margin: 0 0 16px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.book-card-cta {
+  margin-top: auto;
+}
+
+.book-card-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand);
+  color: var(--brand-ink);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.book-card:hover .book-card-button {
+  background: var(--accent);
+  transform: translateY(-1px);
+}
+
+/* Focus States */
+.book-card-link:focus {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+</style>

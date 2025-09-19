@@ -1,0 +1,188 @@
+<!-- views/partials/videoCard.ejs - Video thumbnail + title + CTA -->
+<%
+  // Extract video properties with defaults
+  const title = video.title || video.name || 'Untitled Video';
+  const thumbnail = video.thumbnail || video.thumbnailUrl || '';
+  const videoUrl = video.url || video.videoUrl || '#';
+  const duration = video.duration || '';
+  const description = video.description || '';
+  
+  // Extract video ID for thumbnail if not provided
+  let videoId = '';
+  if (videoUrl && !thumbnail) {
+    const youtubeMatch = videoUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+    if (youtubeMatch) {
+      videoId = youtubeMatch[1];
+    }
+  }
+  
+  const finalThumbnail = thumbnail || (videoId ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` : '/img/video-fallback.svg');
+%>
+
+<div class="video-card">
+  <a href="<%= videoUrl %>" class="video-card-link" target="_blank" rel="noopener">
+    <div class="video-card-thumbnail">
+      <img 
+        src="<%= finalThumbnail %>" 
+        alt="Thumbnail for <%= title %>"
+        loading="lazy"
+        onerror="this.src='/img/video-fallback.svg'"
+      >
+      <div class="video-card-play">
+        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </div>
+      <% if (duration) { %>
+        <div class="video-card-duration"><%= duration %></div>
+      <% } %>
+    </div>
+    
+    <div class="video-card-content">
+      <h3 class="video-card-title" title="<%= title %>"><%= title %></h3>
+      <% if (description) { %>
+        <p class="video-card-description" title="<%= description %>"><%= description %></p>
+      <% } %>
+      <div class="video-card-cta">
+        <span class="video-card-button">Watch</span>
+      </div>
+    </div>
+  </a>
+</div>
+
+<style>
+/* Video Card Styles */
+.video-card {
+  background: var(--surface);
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: all 0.3s ease;
+  height: 100%;
+}
+
+.video-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.video-card-link {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  text-decoration: none;
+  color: inherit;
+}
+
+.video-card-thumbnail {
+  position: relative;
+  aspect-ratio: 16/9;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.video-card-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.video-card:hover .video-card-thumbnail img {
+  transform: scale(1.05);
+}
+
+.video-card-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 48px;
+  height: 48px;
+  background: rgba(37, 99, 235, 0.9);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  opacity: 0.8;
+}
+
+.video-card:hover .video-card-play {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1.1);
+  background: var(--accent);
+}
+
+.video-card-duration {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(11, 18, 32, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.video-card-content {
+  padding: 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.video-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 8px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.video-card-description {
+  font-size: 14px;
+  color: var(--ink-weak);
+  margin: 0 0 16px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.video-card-cta {
+  margin-top: auto;
+}
+
+.video-card-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand);
+  color: var(--brand-ink);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.video-card:hover .video-card-button {
+  background: var(--accent);
+  transform: translateY(-1px);
+}
+
+/* Focus States */
+.video-card-link:focus {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+</style>

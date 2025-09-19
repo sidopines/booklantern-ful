@@ -65,6 +65,25 @@
       cursor: pointer;
     }
     .btn:hover { background: var(--brandHover); }
+    
+    .checkbox-group {
+      margin: 0.5rem 0;
+    }
+    
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    
+    .checkbox-label input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+    }
+    
     .links { text-align: center; margin-top: 1rem; color: var(--muted); font-size: .95rem; }
     .links a { color: var(--link); text-decoration: none; }
     .links a:hover { text-decoration: underline; }
@@ -133,6 +152,14 @@
               name="password"
               required
               autocomplete="current-password" />
+          </div>
+
+          <div class="checkbox-group">
+            <label for="remember" class="checkbox-label">
+              <input type="checkbox" id="remember" name="remember" value="true">
+              <span class="checkmark"></span>
+              Remember me
+            </label>
           </div>
 
           <button class="btn" type="submit">Login</button>
