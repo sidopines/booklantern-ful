@@ -1,54 +1,299 @@
-<!-- views/partials/navbar.ejs -->
-<header class="nav-wrap">
-  <div class="container">
-    <nav class="navbar" aria-label="Primary">
-      <a class="brand" href="/" aria-label="BookLantern home">
-        <picture>
-          <!-- If you later upload a crisp SVG, browsers will use it -->
-          <source srcset="/img/brand.svg" type="image/svg+xml">
-          <!-- Fallback to your PNG logo automatically -->
-          <img src="/img/brand.png" alt="BookLantern" width="28" height="28" style="vertical-align:middle;margin-right:10px;border-radius:4px">
-        </picture>
-        <span class="brand-text">BookLantern</span>
-      </a>
+<!-- views/partials/navbar.ejs - Single source of truth navigation -->
+<nav class="navbar" id="navbar">
+  <div class="navbar-container">
+    <!-- Brand -->
+    <a href="/" class="navbar-brand">
+      <img src="/img/brand.svg" alt="BookLantern" width="28" height="28">
+      <span class="navbar-wordmark">BookLantern</span>
+    </a>
 
-      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
-        <span class="bar"></span><span class="bar"></span><span class="bar"></span>
-      </button>
+    <!-- Desktop Links -->
+    <div class="navbar-links">
+      <a href="/read" class="navbar-link">Read</a>
+      <a href="/watch" class="navbar-link">Watch</a>
+      <a href="/about" class="navbar-link">About</a>
+      <a href="/contact" class="navbar-link">Contact</a>
+    </div>
 
-      <ul id="nav-links" class="links">
-        <li><a href="/">Home</a></li>
-        <li><a href="/read">Read</a></li>
-        <li><a href="/watch">Watch</a></li>
-        <li class="sep" aria-hidden="true"></li>
-        <li><a href="/about">About</a></li>
-        <li><a href="/contact">Contact</a></li>
+    <!-- Right Side Auth -->
+    <div class="navbar-auth">
+      <% if (typeof user !== 'undefined' && user) { %>
+        <a href="/dashboard" class="navbar-link">Account</a>
+        <a href="/logout" class="navbar-link">Logout</a>
+      <% } else { %>
+        <a href="/login" class="navbar-link">Login</a>
+        <a href="/register" class="navbar-button">Register</a>
+      <% } %>
+    </div>
 
-        <% if (user) { %>
-          <% if (user.isAdmin) { %>
-            <li class="sep" aria-hidden="true"></li>
-            <li><a href="/admin">Admin</a></li>
-          <% } %>
-          <li><a href="/dashboard">Dashboard</a></li>
-          <li><a href="/logout" class="btn small alt">Logout</a></li>
-        <% } else { %>
-          <li class="sep" aria-hidden="true"></li>
-          <li><a href="/login" class="btn small alt">Login</a></li>
-          <li><a href="/register" class="btn small">Register</a></li>
-        <% } %>
-      </ul>
-    </nav>
+    <!-- Mobile Menu Toggle -->
+    <button class="navbar-toggle" aria-label="Toggle menu" aria-expanded="false" id="navbar-toggle">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
   </div>
-</header>
+
+  <!-- Mobile Menu -->
+  <div class="navbar-mobile" id="navbar-mobile">
+    <div class="navbar-mobile-links">
+      <a href="/read" class="navbar-mobile-link">Read</a>
+      <a href="/watch" class="navbar-mobile-link">Watch</a>
+      <a href="/about" class="navbar-mobile-link">About</a>
+      <a href="/contact" class="navbar-mobile-link">Contact</a>
+      <% if (typeof user !== 'undefined' && user) { %>
+        <a href="/dashboard" class="navbar-mobile-link">Account</a>
+        <a href="/logout" class="navbar-mobile-link">Logout</a>
+      <% } else { %>
+        <a href="/login" class="navbar-mobile-link">Login</a>
+        <a href="/register" class="navbar-mobile-button">Register</a>
+      <% } %>
+    </div>
+  </div>
+</nav>
+
+<style>
+/* Navbar Styles */
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  height: 64px;
+  transition: box-shadow 0.2s ease;
+}
+
+.navbar.scrolled {
+  box-shadow: var(--shadow);
+}
+
+.navbar-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.navbar-wordmark {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.navbar-links {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.navbar-link {
+  text-decoration: none;
+  color: var(--ink-weak);
+  font-weight: 500;
+  font-size: 15px;
+  transition: color 0.2s ease;
+}
+
+.navbar-link:hover,
+.navbar-link.active {
+  color: var(--brand);
+}
+
+.navbar-auth {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.navbar-button {
+  background: var(--brand);
+  color: var(--brand-ink);
+  text-decoration: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.navbar-button:hover {
+  background: var(--accent);
+  transform: translateY(-1px);
+}
+
+.navbar-toggle {
+  display: none;
+  flex-direction: column;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  gap: 3px;
+}
+
+.navbar-toggle span {
+  width: 20px;
+  height: 2px;
+  background: var(--ink);
+  transition: all 0.3s ease;
+}
+
+.navbar-toggle[aria-expanded="true"] span:nth-child(1) {
+  transform: rotate(45deg) translate(5px, 5px);
+}
+
+.navbar-toggle[aria-expanded="true"] span:nth-child(2) {
+  opacity: 0;
+}
+
+.navbar-toggle[aria-expanded="true"] span:nth-child(3) {
+  transform: rotate(-45deg) translate(7px, -6px);
+}
+
+.navbar-mobile {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  transform: translateY(-100%);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.navbar-mobile.open {
+  transform: translateY(0);
+  opacity: 1;
+  visibility: visible;
+}
+
+.navbar-mobile-links {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 24px;
+  gap: 8px;
+}
+
+.navbar-mobile-link {
+  text-decoration: none;
+  color: var(--ink);
+  font-weight: 500;
+  font-size: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  transition: color 0.2s ease;
+}
+
+.navbar-mobile-link:last-child {
+  border-bottom: none;
+}
+
+.navbar-mobile-link:hover {
+  color: var(--brand);
+}
+
+.navbar-mobile-button {
+  background: var(--brand);
+  color: var(--brand-ink);
+  text-decoration: none;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 16px;
+  text-align: center;
+  margin-top: 8px;
+  transition: all 0.2s ease;
+}
+
+.navbar-mobile-button:hover {
+  background: var(--accent);
+}
+
+/* Mobile Styles */
+@media (max-width: 768px) {
+  .navbar-links,
+  .navbar-auth {
+    display: none;
+  }
+
+  .navbar-toggle {
+    display: flex;
+  }
+}
+
+/* Focus States */
+.navbar-link:focus,
+.navbar-button:focus,
+.navbar-toggle:focus {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+</style>
 
 <script>
-  (function(){
-    const btn  = document.querySelector('.nav-toggle');
-    const list = document.getElementById('nav-links');
-    if (!btn || !list) return;
-    btn.addEventListener('click', function(){
-      const open = list.classList.toggle('open');
-      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+// Navbar functionality
+document.addEventListener('DOMContentLoaded', function() {
+  const navbar = document.getElementById('navbar');
+  const toggle = document.getElementById('navbar-toggle');
+  const mobile = document.getElementById('navbar-mobile');
+  
+  // Scroll shadow
+  window.addEventListener('scroll', function() {
+    if (window.scrollY > 10) {
+      navbar.classList.add('scrolled');
+    } else {
+      navbar.classList.remove('scrolled');
+    }
+  });
+  
+  // Mobile toggle
+  if (toggle && mobile) {
+    toggle.addEventListener('click', function() {
+      const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', !isExpanded);
+      mobile.classList.toggle('open');
     });
-  })();
+    
+    // Close on outside click
+    document.addEventListener('click', function(e) {
+      if (!navbar.contains(e.target)) {
+        toggle.setAttribute('aria-expanded', 'false');
+        mobile.classList.remove('open');
+      }
+    });
+    
+    // Close on escape
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        toggle.setAttribute('aria-expanded', 'false');
+        mobile.classList.remove('open');
+      }
+    });
+  }
+  
+  // Set active state
+  const currentPath = window.location.pathname;
+  const links = document.querySelectorAll('.navbar-link, .navbar-mobile-link');
+  links.forEach(link => {
+    if (link.getAttribute('href') === currentPath) {
+      link.classList.add('active');
+    }
+  });
+});
 </script>

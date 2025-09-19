@@ -1,28 +1,16 @@
-<!-- views/partials/footer.ejs - Clean Everand-style Footer -->
-<footer class="everand-footer">
-  <div class="container">
+<!-- views/partials/footer.ejs - Tidy footer with Help & Contact, Legal, brief brand paragraph -->
+<footer class="site-footer">
+  <div class="footer-container">
     <div class="footer-grid">
       <!-- Brand Section -->
       <div class="footer-brand">
         <a href="/" class="footer-logo">
-          <img src="/img/brand.svg" alt="BookLantern" width="32" height="32">
+          <img src="/img/brand.svg" alt="BookLantern" width="24" height="24">
           BookLantern
         </a>
         <p class="footer-description">
-          Discover millions of free books and educational content from trusted libraries worldwide. 
-          One search, one reader, endless knowledge.
+          Millions of books from globally trusted libraries, searchable in one place with a clean reader experience.
         </p>
-      </div>
-
-      <!-- About Links -->
-      <div class="footer-section">
-        <h3>About</h3>
-        <ul class="footer-links">
-          <li><a href="/about">About Us</a></li>
-          <li><a href="/read">Free Books</a></li>
-          <li><a href="/watch">Educational Videos</a></li>
-          <li><a href="/sitemap.xml">Sitemap</a></li>
-        </ul>
       </div>
 
       <!-- Help & Contact -->
@@ -30,9 +18,9 @@
         <h3>Help & Contact</h3>
         <ul class="footer-links">
           <li><a href="/contact">Contact Us</a></li>
-          <li><a href="/help">Help Center</a></li>
-          <li><a href="/feedback">Send Feedback</a></li>
-          <li><a href="/accessibility">Accessibility</a></li>
+          <li><a href="/about">About</a></li>
+          <li><a href="/read">Browse Books</a></li>
+          <li><a href="/watch">Educational Videos</a></li>
         </ul>
       </div>
 
@@ -42,15 +30,111 @@
         <ul class="footer-links">
           <li><a href="/privacy">Privacy Policy</a></li>
           <li><a href="/terms">Terms of Service</a></li>
-          <li><a href="/cookies">Cookie Policy</a></li>
-          <li><a href="/copyright">Copyright Notice</a></li>
+          <li><a href="/sitemap.xml">Sitemap</a></li>
         </ul>
       </div>
     </div>
 
     <!-- Footer Bottom -->
     <div class="footer-bottom">
-      <p>&copy; <%= new Date().getFullYear() %> BookLantern. Built on open libraries and public domain content.</p>
+      <p>&copy; <%= new Date().getFullYear() %> BookLantern</p>
     </div>
   </div>
 </footer>
+
+<style>
+/* Site Footer Styles */
+.site-footer {
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  margin-top: 80px;
+  padding: 48px 0 24px;
+}
+
+.footer-container {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 48px;
+  margin-bottom: 32px;
+}
+
+.footer-brand {
+  max-width: 300px;
+}
+
+.footer-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 18px;
+  margin-bottom: 16px;
+}
+
+.footer-description {
+  color: var(--ink-weak);
+  line-height: 1.5;
+  margin: 0;
+  font-size: 14px;
+}
+
+.footer-section h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 16px;
+}
+
+.footer-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.footer-links li {
+  margin-bottom: 8px;
+}
+
+.footer-links a {
+  color: var(--ink-weak);
+  text-decoration: none;
+  font-size: 14px;
+  transition: color 0.2s ease;
+}
+
+.footer-links a:hover {
+  color: var(--brand);
+}
+
+.footer-bottom {
+  border-top: 1px solid var(--line);
+  padding-top: 24px;
+  text-align: center;
+}
+
+.footer-bottom p {
+  color: var(--ink-weak);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .footer-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  
+  .footer-brand {
+    max-width: none;
+  }
+}
+</style>

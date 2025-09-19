@@ -7,18 +7,166 @@
   }) %>
 </head>
 <body class="about-page" data-page="about">
-  <%- include('./partials/nav.ejs') %>
+  <%- include('./partials/navbar.ejs') %>
 
-  <!-- About Hero -->
-  <section class="page-hero">
-    <div class="container">
-      <h1>About BookLantern</h1>
-      <p class="hero-description">
-        We bring together millions of free books from trusted libraries worldwide, 
+  <!-- About Header -->
+  <div class="about-header">
+    <div class="about-container">
+      <%- include('./partials/backLink.ejs', { text: 'Back', fallback: '/' }) %>
+      <h1 class="about-title">About BookLantern</h1>
+      <p class="about-description">
+        We bring together millions of free books from globally trusted libraries, 
         making knowledge accessible to everyone through one simple, beautiful interface.
       </p>
     </div>
-  </section>
+  </div>
+
+  <!-- About Content -->
+  <main class="about-main">
+    <div class="about-container">
+      <!-- Mission Section -->
+      <section class="about-section">
+        <h2>Our Mission</h2>
+        <p>BookLantern exists to democratize access to knowledge. We believe that great books and educational content should be freely available to everyone, regardless of their location or economic circumstances.</p>
+      </section>
+
+      <!-- What Makes Us Different -->
+      <section class="about-section">
+        <h2>What makes BookLantern different</h2>
+        <div class="feature-grid">
+          <div class="feature-item">
+            <h3>Unified Search</h3>
+            <p>Search across millions of books from multiple sources in one place, without jumping between different library websites.</p>
+          </div>
+          <div class="feature-item">
+            <h3>Clean Reading Experience</h3>
+            <p>Our distraction-free reader is optimized for focus and comprehension, making long-form reading a pleasure.</p>
+          </div>
+          <div class="feature-item">
+            <h3>Trusted Sources</h3>
+            <p>All content comes from respected public domain and open access collections from globally trusted institutions.</p>
+          </div>
+          <div class="feature-item">
+            <h3>No Barriers</h3>
+            <p>Free to use, no subscriptions, no ads interrupting your reading. Just pure access to knowledge.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Promise Section -->
+      <section class="about-section">
+        <h2>Our Promise to readers</h2>
+        <p>We're committed to keeping BookLantern free, fast, and focused on what matters most: connecting you with the books you want to read. We respect your privacy, never sell your data, and continuously work to improve your reading experience.</p>
+      </section>
+    </div>
+  </main>
+
+  <%- include('./partials/footer.ejs') %>
+</body>
+</html>
+
+<style>
+/* About Page Styles */
+.about-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding: 32px 0;
+}
+
+.about-container {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.about-title {
+  font-size: var(--h1);
+  font-weight: 600;
+  color: var(--ink);
+  margin: 16px 0 16px;
+}
+
+.about-description {
+  color: var(--ink-weak);
+  font-size: 18px;
+  line-height: 1.6;
+  max-width: 600px;
+  margin: 0;
+}
+
+.about-main {
+  padding: 48px 0;
+}
+
+.about-section {
+  margin-bottom: 48px;
+}
+
+.about-section h2 {
+  font-size: var(--h2);
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 24px;
+}
+
+.about-section p {
+  color: var(--ink-weak);
+  line-height: 1.6;
+  font-size: 16px;
+  max-width: 700px;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 32px;
+  margin-top: 32px;
+}
+
+.feature-item {
+  background: var(--surface);
+  padding: 24px;
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow);
+}
+
+.feature-item h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 12px;
+}
+
+.feature-item p {
+  color: var(--ink-weak);
+  line-height: 1.5;
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .about-header {
+    padding: 24px 0;
+  }
+  
+  .about-main {
+    padding: 32px 0;
+  }
+  
+  .about-section {
+    margin-bottom: 32px;
+  }
+  
+  .feature-grid {
+    gap: 24px;
+  }
+  
+  .feature-item {
+    padding: 20px;
+  }
+}
+</style>
 
   <style>
     /* Timeline Candles */

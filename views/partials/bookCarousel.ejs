@@ -1,0 +1,273 @@
+<!-- views/partials/bookCarousel.ejs - Horizontal carousel with arrow controls -->
+<%
+  // Carousel configuration
+  const carouselId = locals.id || 'carousel-' + Math.random().toString(36).substr(2, 9);
+  const carouselTitle = locals.title || 'Books';
+  const carouselItems = locals.items || [];
+%>
+
+<section class="book-carousel" aria-label="<%= carouselTitle %>">
+  <div class="book-carousel-container">
+    <div class="book-carousel-header">
+      <h2 class="book-carousel-title"><%= carouselTitle %></h2>
+      <div class="book-carousel-controls">
+        <button 
+          class="book-carousel-control book-carousel-prev" 
+          data-carousel="<%= carouselId %>"
+          aria-label="Previous books"
+          disabled
+        >
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <polyline points="15,18 9,12 15,6"></polyline>
+          </svg>
+        </button>
+        <button 
+          class="book-carousel-control book-carousel-next" 
+          data-carousel="<%= carouselId %>"
+          aria-label="Next books"
+        >
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <polyline points="9,18 15,12 9,6"></polyline>
+          </svg>
+        </button>
+      </div>
+    </div>
+    
+    <div class="book-carousel-wrapper">
+      <div class="book-carousel-track" id="<%= carouselId %>" role="group" aria-label="<%= carouselTitle %> books">
+        <% if (carouselItems && carouselItems.length > 0) { %>
+          <% carouselItems.forEach(function(book) { %>
+            <div class="book-carousel-item">
+              <%- include('./bookCard.ejs', { book: book }) %>
+            </div>
+          <% }) %>
+        <% } else { %>
+          <!-- Placeholder items if no data -->
+          <% for (let i = 0; i < 6; i++) { %>
+            <div class="book-carousel-item">
+              <%- include('./bookCard.ejs', { 
+                book: {
+                  title: 'Sample Book ' + (i + 1),
+                  author: 'Sample Author',
+                  cover: '/img/cover-fallback.svg',
+                  source: 'sample',
+                  readUrl: '/read'
+                }
+              }) %>
+            </div>
+          <% } %>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+/* Book Carousel Styles */
+.book-carousel {
+  margin: 48px 0;
+}
+
+.book-carousel-container {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.book-carousel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.book-carousel-title {
+  font-size: var(--h2);
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+
+.book-carousel-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.book-carousel-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--ink-weak);
+}
+
+.book-carousel-control:hover:not(:disabled) {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--brand-ink);
+  transform: translateY(-1px);
+}
+
+.book-carousel-control:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.book-carousel-control:focus {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.book-carousel-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.book-carousel-track {
+  display: flex;
+  gap: 24px;
+  transition: transform 0.3s ease;
+  scroll-behavior: smooth;
+}
+
+.book-carousel-item {
+  flex: 0 0 auto;
+  width: 220px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .book-carousel-item {
+    width: 180px;
+  }
+  
+  .book-carousel-track {
+    gap: 16px;
+  }
+  
+  .book-carousel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .book-carousel-controls {
+    align-self: flex-end;
+  }
+}
+
+@media (max-width: 480px) {
+  .book-carousel-item {
+    width: 150px;
+  }
+}
+</style>
+
+<script>
+// Carousel functionality
+document.addEventListener('DOMContentLoaded', function() {
+  const carousels = document.querySelectorAll('.book-carousel-track');
+  
+  carousels.forEach(function(carousel) {
+    const carouselId = carousel.id;
+    const prevBtn = document.querySelector(`[data-carousel="${carouselId}"].book-carousel-prev`);
+    const nextBtn = document.querySelector(`[data-carousel="${carouselId}"].book-carousel-next`);
+    
+    if (!prevBtn || !nextBtn) return;
+    
+    let currentIndex = 0;
+    const items = carousel.querySelectorAll('.book-carousel-item');
+    const itemWidth = 220 + 24; // item width + gap
+    const visibleItems = Math.floor(carousel.parentElement.offsetWidth / itemWidth);
+    const maxIndex = Math.max(0, items.length - visibleItems);
+    
+    function updatePosition() {
+      const translateX = -currentIndex * itemWidth;
+      carousel.style.transform = `translateX(${translateX}px)`;
+      
+      prevBtn.disabled = currentIndex === 0;
+      nextBtn.disabled = currentIndex >= maxIndex;
+    }
+    
+    function scrollNext() {
+      if (currentIndex < maxIndex) {
+        currentIndex += Math.min(visibleItems, maxIndex - currentIndex);
+        updatePosition();
+      }
+    }
+    
+    function scrollPrev() {
+      if (currentIndex > 0) {
+        currentIndex -= Math.min(visibleItems, currentIndex);
+        updatePosition();
+      }
+    }
+    
+    nextBtn.addEventListener('click', scrollNext);
+    prevBtn.addEventListener('click', scrollPrev);
+    
+    // Keyboard navigation
+    carousel.addEventListener('keydown', function(e) {
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        scrollNext();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        scrollPrev();
+      }
+    });
+    
+    // Touch/swipe support for mobile
+    let startX = 0;
+    let isDragging = false;
+    
+    carousel.addEventListener('touchstart', function(e) {
+      startX = e.touches[0].clientX;
+      isDragging = true;
+    });
+    
+    carousel.addEventListener('touchmove', function(e) {
+      if (!isDragging) return;
+      e.preventDefault();
+    });
+    
+    carousel.addEventListener('touchend', function(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      
+      const endX = e.changedTouches[0].clientX;
+      const diffX = startX - endX;
+      const threshold = 50;
+      
+      if (Math.abs(diffX) > threshold) {
+        if (diffX > 0) {
+          scrollNext();
+        } else {
+          scrollPrev();
+        }
+      }
+    });
+    
+    // Initial state
+    updatePosition();
+    
+    // Update on resize
+    window.addEventListener('resize', function() {
+      const newVisibleItems = Math.floor(carousel.parentElement.offsetWidth / itemWidth);
+      const newMaxIndex = Math.max(0, items.length - newVisibleItems);
+      
+      if (currentIndex > newMaxIndex) {
+        currentIndex = newMaxIndex;
+      }
+      
+      updatePosition();
+    });
+  });
+});
+</script>
