@@ -45,71 +45,97 @@
   </div>
 </footer>
 
-<!-- Listen functionality script -->
+<!-- Carousel centering script -->
 <script>
 (function(){
-  const synth = window.speechSynthesis;
-  let utter = null, activeToast = null;
-  
-  function showToast(text){
-    if(!activeToast){
-      activeToast = document.createElement('div');
-      activeToast.className = 'toast';
-      document.body.appendChild(activeToast);
-      activeToast.innerHTML = '<div class="text"></div><div class="actions"><button class="btn">Play</button><button class="btn secondary">Pause</button><button class="btn secondary">Stop</button></div>';
-      
-      const [play, pause, stop] = activeToast.querySelectorAll('button');
-      
-      play.addEventListener('click', () => {
-        if(utter && synth) {
-          if(synth.paused) {
-            synth.resume();
-          } else {
-            synth.speak(utter);
-          }
-        }
-      });
-      
-      pause.addEventListener('click', () => {
-        if(synth && synth.speaking) {
-          synth.pause();
-        }
-      });
-      
-      stop.addEventListener('click', () => {
-        if(synth) {
-          synth.cancel();
-          activeToast.classList.remove('show');
-        }
-      });
-    }
-    
-    activeToast.querySelector('.text').textContent = text;
-    activeToast.classList.add('show');
+  function markShortTracks(){
+    document.querySelectorAll('.carousel-track').forEach(t=>{
+      // Remove previous marking
+      t.classList.remove('is-short');
+      // If content doesn't overflow, center items
+      if (t.scrollWidth <= t.clientWidth + 1) t.classList.add('is-short');
+    });
   }
-  
+  window.addEventListener('load', markShortTracks);
+  window.addEventListener('resize', markShortTracks);
+})();
+</script>
+
+<!-- Improved Listen functionality script -->
+<script>
+(function(){
+  const synth = window.speechSynthesis || null;
+  let utter = null, toast = null;
+
+  function ensureToast(){
+    if (toast) return toast;
+    toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = `
+      <div class="text" style="max-width:320px"></div>
+      <div class="actions">
+        <button class="btn" data-act="play">Play</button>
+        <button class="btn secondary" data-act="pause">Pause</button>
+        <button class="btn secondary" data-act="stop">Stop</button>
+      </div>`;
+    document.body.appendChild(toast);
+
+    toast.querySelector('[data-act="play"]').addEventListener('click', ()=> {
+      if (!synth || !utter) return;
+      if (synth.speaking && synth.paused) { synth.resume(); return; }
+      if (!synth.speaking) { synth.speak(utter); }
+    });
+    toast.querySelector('[data-act="pause"]').addEventListener('click', ()=> {
+      if (synth && synth.speaking && !synth.paused) synth.pause();
+    });
+    toast.querySelector('[data-act="stop"]').addEventListener('click', ()=> {
+      if (synth) synth.cancel();
+      toast.classList.remove('show');
+    });
+
+    return toast;
+  }
+
+  function pickVoice(){
+    if (!synth) return null;
+    const voices = synth.getVoices();
+    // Prefer a clear US English voice if available
+    return voices.find(v=>/en[-_]US/i.test(v.lang) && /Female|Male|Google|Natural|Siri|Microsoft/i.test(v.name)) || voices[0] || null;
+  }
+
+  // Public hook called by Listen buttons
   window.BL_listen = function(summary){
-    if(!('speechSynthesis' in window)) {
-      alert(summary);
-      return;
-    }
-    
+    // Fallback if API not available
+    if (!synth) { alert(summary); return; }
+
+    // Cancel any ongoing speech first
+    synth.cancel();
+
+    // Create utterance fresh each time
     utter = new SpeechSynthesisUtterance(summary);
-    utter.rate = 1.0;
-    utter.pitch = 1.0;
-    utter.lang = 'en-US';
-    
-    // Auto-hide toast after speech ends
-    utter.onend = function() {
-      if(activeToast) {
-        setTimeout(() => {
-          activeToast.classList.remove('show');
-        }, 2000);
-      }
-    };
-    
-    showToast(summary);
+    utter.rate = 1.0; utter.pitch = 1.0;
+    const v = pickVoice(); if (v) utter.voice = v;
+
+    // Show toast & bind text
+    const t = ensureToast();
+    t.querySelector('.text').textContent = summary;
+    t.classList.add('show');
+
+    // Start speaking immediately on user gesture
+    // (BL_listen is called from a click handler)
+    synth.speak(utter);
+
+    // Auto-hide on end
+    utter.onend = () => { t.classList.remove('show'); };
+    utter.onerror = () => { t.classList.remove('show'); };
   };
+
+  // Some browsers load voices asynchronously
+  if (synth) {
+    if (typeof synth.onvoiceschanged !== 'undefined') {
+      synth.onvoiceschanged = ()=>{/* triggers voice availability; pickVoice() will see them on next click */};
+    }
+  }
 })();
 </script>
 
