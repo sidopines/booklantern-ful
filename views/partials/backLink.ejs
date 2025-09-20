@@ -1,47 +1,50 @@
-<!-- views/partials/backLink.ejs - "← Back" pattern with fallback -->
 <%
-  const backText = locals.text || 'Back';
-  const fallbackHref = locals.fallback || '/';
+// Consistent back link with history fallback
+const text = locals.text || 'Back';
+const fallback = locals.fallback || '/';
 %>
 
-<a href="<%= fallbackHref %>" class="back-link" onclick="if(document.referrer && document.referrer !== window.location.href){event.preventDefault(); history.back();}">
-  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+<a 
+  class="back" 
+  href="<%= fallback %>" 
+  onclick="if(document.referrer && document.referrer !== window.location.href) { history.back(); return false; }"
+>
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <polyline points="15,18 9,12 15,6"></polyline>
   </svg>
-  <%= backText %>
+  <span><%= text %></span>
 </a>
 
 <style>
-/* Back Link Styles */
-.back-link {
+/* Back link styles */
+.back {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  text-decoration: none;
+  gap: 6px;
   color: var(--ink-weak);
-  font-weight: 500;
+  text-decoration: none;
   font-size: 14px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-  margin-bottom: 24px;
+  font-weight: 500;
+  padding: 8px 0;
+  transition: color 0.2s ease;
 }
 
-.back-link:hover {
-  color: var(--brand);
-  background: rgba(37, 99, 235, 0.1);
+.back:hover {
+  color: var(--ink);
+  text-decoration: none;
 }
 
-.back-link:focus {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
-.back-link svg {
+.back svg {
   transition: transform 0.2s ease;
 }
 
-.back-link:hover svg {
+.back:hover svg {
   transform: translateX(-2px);
+}
+
+.back:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 </style>

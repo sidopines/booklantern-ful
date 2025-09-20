@@ -1,114 +1,23 @@
-<%
-  // views/register.ejs
-  const pageTitle = "Register | BookLantern";
-  const pageDescription = "Create your free BookLantern account to explore books, videos, and manage your reading.";
-%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/head.ejs', { pageTitle, pageDescription }) %>
-  <style>
-    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --brand:#111; --brandHover:#333; --link:#1256b3; --error:#b42318; --success:#067647; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-    }
-    .wrap { min-height: 100vh; display: flex; flex-direction: column; }
-    .container {
-      max-width: 480px;
-      width: 100%;
-      margin: 2rem auto 3rem;
-      padding: 0 1rem;
-    }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      box-shadow: 0 8px 28px rgba(0,0,0,.06);
-      padding: 1.5rem;
-    }
-    h1 {
-      text-align: center;
-      margin: 0 0 1rem 0;
-      font-size: 1.6rem;
-      line-height: 1.2;
-    }
-    .lead {
-      text-align: center;
-      color: var(--muted);
-      font-size: .95rem;
-      margin-bottom: 1rem;
-    }
-    form { display: flex; flex-direction: column; gap: .85rem; margin-top: .25rem; }
-    label { font-size: .9rem; color: var(--text); }
-    input[type="text"], input[type="email"], input[type="password"] {
-      width: 100%;
-      padding: .7rem .8rem;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: #fff;
-      font-size: 1rem;
-      outline: none;
-    }
-    input:focus { border-color: #c7d2fe; box-shadow: 0 0 0 3px rgba(99,102,241,.15); }
-    .btn {
-      margin-top: .4rem;
-      padding: .85rem 1rem;
-      background: var(--brand);
-      color: #fff;
-      border: 0;
-      border-radius: 10px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .btn:hover { background: var(--brandHover); }
-    .links { text-align: center; margin-top: 1rem; color: var(--muted); font-size: .95rem; }
-    .links a { color: var(--link); text-decoration: none; }
-    .links a:hover { text-decoration: underline; }
-
-    .alert {
-      border-radius: 10px;
-      padding: .75rem .9rem;
-      font-size: .95rem;
-      margin-bottom: .8rem;
-      border: 1px solid;
-    }
-    .alert.error { background: #fee4e2; color: var(--error); border-color: #fca5a5; }
-    .alert.success { background: #ecfdf3; color: var(--success); border-color: #86efac; }
-
-    .back-link {
-      display: inline-block;
-      margin: 0.75rem 0 1rem;
-      color: var(--link);
-      font-size: 0.95rem;
-      text-decoration: none;
-      opacity: .95;
-    }
-    .back-link:hover { text-decoration: underline; }
-
-    footer { text-align: center; color: var(--muted); padding: 1.25rem 1rem 2rem; }
-  </style>
+  <%- include('./partials/head.ejs', {
+    pageTitle: 'Create Account - BookLantern',
+    pageDescription: 'Join BookLantern to track your reading progress and save your favorite books.'
+  }) %>
 </head>
 <body data-page="auth">
   <%- include('./partials/navbar.ejs') %>
 
-  <!-- Auth Scene Background -->
-  <div class="auth-background">
-    <canvas id="auth3d" aria-hidden="true"></canvas>
-    <div id="auth-lottie" hidden></div>
-    <img id="auth-fallback" src="/img/auth-fallback.svg?v=<%= buildId %>" alt="" hidden />
-  </div>
-
-  <div class="wrap">
-    <main class="container">
-      <a href="javascript:history.back()" class="back-link">← Back</a>
-
-      <div class="card">
-        <h1>Create your account</h1>
-        <p class="lead">Join BookLantern to read books, watch videos, and save your progress.</p>
+  <main class="content-section">
+    <div class="container">
+      <%- include('./partials/backLink.ejs', { text: 'Back', fallback: '/' }) %>
+      
+      <div class="auth-card">
+        <div class="auth-header">
+          <h1 class="auth-title">Create your account</h1>
+          <p class="auth-subtitle">Join BookLantern to unlock your reading journey</p>
+        </div>
 
         <% if (typeof error !== 'undefined' && error) { %>
           <div class="alert error"><%= error %></div>
@@ -117,51 +26,143 @@
           <div class="alert success"><%= message %></div>
         <% } %>
 
-        <form action="/register" method="POST" novalidate>
-          <div>
-            <label for="name">Full Name</label>
+        <form action="/register" method="POST" class="auth-form">
+          <!-- carry next destination -->
+          <input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '' %>">
+
+          <div class="form-group">
+            <label for="name" class="form-label">Full name</label>
             <input
               type="text"
               id="name"
               name="name"
-              value="<%= typeof name !== 'undefined' ? name : '' %>"
+              class="form-input"
+              value="<%= typeof formData !== 'undefined' && formData.name ? formData.name : '' %>"
               required
-              autocomplete="name" />
+              autocomplete="name"
+              placeholder="Enter your full name"
+            />
           </div>
 
-          <div>
-            <label for="email">Email Address</label>
+          <div class="form-group">
+            <label for="email" class="form-label">Email address</label>
             <input
               type="email"
               id="email"
               name="email"
-              value="<%= typeof email !== 'undefined' ? email : '' %>"
+              class="form-input"
+              value="<%= typeof formData !== 'undefined' && formData.email ? formData.email : '' %>"
               required
-              autocomplete="email" />
+              autocomplete="email"
+              placeholder="your@email.com"
+            />
           </div>
 
-          <div>
-            <label for="password">Password</label>
+          <div class="form-group">
+            <label for="password" class="form-label">Password</label>
             <input
               type="password"
               id="password"
               name="password"
+              class="form-input"
               required
-              autocomplete="new-password" />
+              autocomplete="new-password"
+              placeholder="Create a secure password"
+              minlength="8"
+            />
+            <small style="color: var(--ink-weak); font-size: 12px; margin-top: 4px; display: block;">
+              At least 8 characters
+            </small>
           </div>
 
-          <button class="btn" type="submit">Create Account</button>
+          <div class="form-group">
+            <label for="confirmPassword" class="form-label">Confirm password</label>
+            <input
+              type="password"
+              id="confirmPassword"
+              name="confirmPassword"
+              class="form-input"
+              required
+              autocomplete="new-password"
+              placeholder="Confirm your password"
+            />
+          </div>
+
+          <button type="submit" class="btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            Create Account
+          </button>
         </form>
 
-        <div class="links">
-          <p>Already have an account? <a href="/login">Login here</a></p>
+        <div class="auth-links">
+          <p>Already have an account? <a href="/login<%= next ? ('?next=' + encodeURIComponent(next)) : '' %>">Sign in here</a></p>
         </div>
       </div>
-    </main>
+    </div>
+  </main>
 
-    <footer>
-      &copy; <%= new Date().getFullYear() %> BookLantern. All rights reserved.
-    </footer>
-  </div>
+  <%- include('./partials/footer.ejs') %>
 </body>
 </html>
+
+<style>
+/* Register page specific styles */
+.auth-form .btn {
+  width: 100%;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.auth-links a {
+  color: var(--brand);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.auth-links a:hover {
+  text-decoration: underline;
+}
+
+.auth-links p {
+  margin: 0;
+}
+
+/* Password validation styling */
+.form-input:invalid {
+  border-color: #dc2626;
+}
+
+.form-input:valid {
+  border-color: #16a34a;
+}
+
+/* Focus states */
+.form-input:focus:invalid {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+</style>
+
+<script>
+// Password confirmation validation
+document.addEventListener('DOMContentLoaded', function() {
+  const password = document.getElementById('password');
+  const confirmPassword = document.getElementById('confirmPassword');
+  
+  function validatePassword() {
+    if (password.value !== confirmPassword.value) {
+      confirmPassword.setCustomValidity('Passwords do not match');
+    } else {
+      confirmPassword.setCustomValidity('');
+    }
+  }
+  
+  password.addEventListener('input', validatePassword);
+  confirmPassword.addEventListener('input', validatePassword);
+});
+</script>

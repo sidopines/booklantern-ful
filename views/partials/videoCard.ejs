@@ -1,188 +1,129 @@
-<!-- views/partials/videoCard.ejs - Video thumbnail + title + CTA -->
 <%
-  // Extract video properties with defaults
-  const title = video.title || video.name || 'Untitled Video';
-  const thumbnail = video.thumbnail || video.thumbnailUrl || '';
-  const videoUrl = video.url || video.videoUrl || '#';
-  const duration = video.duration || '';
-  const description = video.description || '';
-  
-  // Extract video ID for thumbnail if not provided
-  let videoId = '';
-  if (videoUrl && !thumbnail) {
-    const youtubeMatch = videoUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
-    if (youtubeMatch) {
-      videoId = youtubeMatch[1];
-    }
-  }
-  
-  const finalThumbnail = thumbnail || (videoId ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` : '/img/video-fallback.svg');
+// Video card with thumbnail, title, and Watch CTA
+const video = locals.video || {};
+const title = video.title || 'Untitled Video';
+const description = video.description || '';
+const thumbnail = video.thumbnail || '/img/video-fallback.svg';
+const url = video.url || '#';
 %>
 
-<div class="video-card">
-  <a href="<%= videoUrl %>" class="video-card-link" target="_blank" rel="noopener">
-    <div class="video-card-thumbnail">
-      <img 
-        src="<%= finalThumbnail %>" 
-        alt="Thumbnail for <%= title %>"
-        loading="lazy"
-        onerror="this.src='/img/video-fallback.svg'"
-      >
-      <div class="video-card-play">
-        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M8 5v14l11-7z"/>
-        </svg>
-      </div>
-      <% if (duration) { %>
-        <div class="video-card-duration"><%= duration %></div>
-      <% } %>
+<article class="video-card">
+  <div class="video-thumbnail">
+    <% if (thumbnail) { %>
+      <img src="<%= thumbnail %>" alt="<%= title %> thumbnail" loading="lazy">
+    <% } %>
+    <div class="video-overlay">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="5,3 19,12 5,21"></polygon>
+      </svg>
     </div>
+  </div>
+  
+  <div class="video-info">
+    <h3 class="video-title"><%= title %></h3>
+    <% if (description) { %>
+      <p class="video-description"><%= description.substring(0, 100) %><%= description.length > 100 ? '...' : '' %></p>
+    <% } %>
     
-    <div class="video-card-content">
-      <h3 class="video-card-title" title="<%= title %>"><%= title %></h3>
-      <% if (description) { %>
-        <p class="video-card-description" title="<%= description %>"><%= description %></p>
-      <% } %>
-      <div class="video-card-cta">
-        <span class="video-card-button">Watch</span>
-      </div>
-    </div>
-  </a>
-</div>
+    <a href="<%= url %>" class="video-cta">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="5,3 19,12 5,21"></polygon>
+      </svg>
+      Watch
+    </a>
+  </div>
+</article>
 
 <style>
-/* Video Card Styles */
+/* Video card styles */
 .video-card {
   background: var(--surface);
   border-radius: var(--card-radius);
-  box-shadow: var(--shadow);
   overflow: hidden;
-  transition: all 0.3s ease;
-  height: 100%;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
 }
 
 .video-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
 }
 
-.video-card-link {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  text-decoration: none;
-  color: inherit;
-}
-
-.video-card-thumbnail {
+.video-thumbnail {
   position: relative;
+  width: 100%;
   aspect-ratio: 16/9;
+  background: #f0f3f7;
   overflow: hidden;
-  background: var(--bg);
 }
 
-.video-card-thumbnail img {
+.video-thumbnail img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s ease;
 }
 
-.video-card:hover .video-card-thumbnail img {
-  transform: scale(1.05);
-}
-
-.video-card-play {
+.video-overlay {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 48px;
-  height: 48px;
-  background: rgba(37, 99, 235, 0.9);
-  color: white;
+  width: 64px;
+  height: 64px;
+  background: rgba(0, 0, 0, 0.8);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
-  opacity: 0.8;
+  opacity: 0.9;
+  transition: opacity 0.2s ease;
 }
 
-.video-card:hover .video-card-play {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1.1);
-  background: var(--accent);
-}
-
-.video-card-duration {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  background: rgba(11, 18, 32, 0.8);
+.video-overlay svg {
   color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
+  margin-left: 4px; /* Slight visual centering for play icon */
 }
 
-.video-card-content {
+.video-card:hover .video-overlay {
+  opacity: 1;
+  background: rgba(37, 99, 235, 0.9);
+}
+
+.video-info {
   padding: 16px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
 }
 
-.video-card-title {
+.video-title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--ink);
-  margin: 0 0 8px;
   line-height: 1.3;
+  margin: 0 0 8px 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.video-card-description {
+.video-description {
+  color: var(--muted);
   font-size: 14px;
-  color: var(--ink-weak);
-  margin: 0 0 16px;
   line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  margin: 0 0 12px 0;
 }
 
-.video-card-cta {
-  margin-top: auto;
-}
-
-.video-card-button {
+.video-cta {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  background: var(--brand);
-  color: var(--brand-ink);
-  padding: 8px 16px;
-  border-radius: 8px;
+  gap: 6px;
+  color: var(--brand);
   font-weight: 600;
+  text-decoration: none;
   font-size: 14px;
-  transition: all 0.2s ease;
-  width: 100%;
+  transition: color 0.2s ease;
 }
 
-.video-card:hover .video-card-button {
-  background: var(--accent);
-  transform: translateY(-1px);
-}
-
-/* Focus States */
-.video-card-link:focus {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+.video-cta:hover {
+  color: var(--brand-2);
+  text-decoration: none;
 }
 </style>
