@@ -1,3 +1,7 @@
+<%
+// Guard all locals for defensive programming
+const user = (typeof locals.user !== 'undefined') ? locals.user : null;
+%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,7 +18,7 @@
   <!-- Book Carousels -->
   <main>
     <% 
-    // Prepare deduped carousel data
+    // Prepare deduped carousel data - defensive programming
     const trendingBooks = [
       { id: 'pride-prejudice', title: 'Pride and Prejudice', author: 'Jane Austen', cover: '/img/cover-fallback.svg', readUrl: '/read?id=pride-prejudice', source: 'openlibrary' },
       { id: 'republic-plato', title: 'The Republic', author: 'Plato', cover: '/img/cover-fallback.svg', readUrl: '/read?id=republic-plato', source: 'gutenberg' },
@@ -62,7 +66,7 @@
     %>
 
     <% dedupedSections.forEach(function(section) { %>
-      <% if (section.books.length > 0) { %>
+      <% if (section.books && section.books.length > 0) { %>
         <%- include('./partials/bookCarousel.ejs', {
           id: section.id,
           title: section.title,
@@ -77,19 +81,19 @@
         <h2 class="section-title">Why BookLantern?</h2>
         <div class="content-grid">
           <div class="card">
-            <div class="card-icon">📚</div>
+            <div class="empty-icon">📚</div>
             <h3>Millions+ titles</h3>
             <p>Access the largest collection of free books from globally trusted libraries and archives.</p>
           </div>
           
           <div class="card">
-            <div class="card-icon">🌍</div>
+            <div class="empty-icon">🌍</div>
             <h3>From globally trusted libraries</h3>
             <p>Content sourced from the world's most respected public domain and open access collections.</p>
           </div>
           
           <div class="card">
-            <div class="card-icon">✨</div>
+            <div class="empty-icon">✨</div>
             <h3>One clean reader</h3>
             <p>Beautiful, distraction-free reading experience optimized for focus and comprehension.</p>
           </div>
@@ -101,42 +105,3 @@
   <%- include('./partials/footer.ejs') %>
 </body>
 </html>
-
-<style>
-/* Homepage-specific styles */
-.card-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-  text-align: center;
-}
-
-.content-grid .card {
-  text-align: center;
-  padding: 32px 24px;
-}
-
-.content-grid h3 {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--ink);
-  margin: 0 0 12px;
-}
-
-.content-grid p {
-  color: var(--ink-weak);
-  line-height: 1.5;
-  margin: 0;
-}
-
-/* Mobile responsive */
-@media (max-width: 768px) {
-  .content-grid .card {
-    padding: 24px 16px;
-  }
-  
-  .card-icon {
-    font-size: 40px;
-    margin-bottom: 12px;
-  }
-}
-</style>

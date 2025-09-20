@@ -1,13 +1,14 @@
 <%
-// Accessible horizontal book carousel with left/right navigation
-const carouselId = locals.id || 'carousel';
-const title = locals.title || 'Books';
-const items = locals.items || [];
+// Accessible horizontal book carousel with defensive programming
+const carouselId = (typeof locals.id !== 'undefined') ? locals.id : ('carousel-' + Date.now());
+const title = (typeof locals.title !== 'undefined') ? locals.title : 'Books';
+const items = (typeof locals.items !== 'undefined' && Array.isArray(locals.items)) ? locals.items : [];
 
-// Dedupe items by ID, URL, or title
+// Dedupe items by ID, URL, or title - defensive programming
 const seen = new Set();
 const uniqueItems = items.filter(item => {
-  const key = item.id || item.url || item.readUrl || item.title;
+  if (!item) return false;
+  const key = item.id || item.url || item.readUrl || item.title || Math.random();
   if (seen.has(key)) return false;
   seen.add(key);
   return true;
@@ -19,10 +20,10 @@ if (uniqueItems.length === 0) {
 }
 %>
 
-<section class="carousel-section">
+<section class="carousel">
   <div class="container">
     <div class="carousel-header">
-      <h2 class="section-title"><%= title %></h2>
+      <h2 class="section-title" id="<%= carouselId %>-title"><%= title %></h2>
       <div class="carousel-nav">
         <button 
           class="carousel-btn" 
@@ -45,10 +46,12 @@ if (uniqueItems.length === 0) {
       </div>
     </div>
 
-    <div class="carousel" id="<%= carouselId %>">
+    <div class="carousel-container" id="<%= carouselId %>">
       <div class="carousel-track" role="region" aria-labelledby="<%= carouselId %>-title">
         <% uniqueItems.forEach(function(item) { %>
-          <%- include('./bookCard.ejs', { book: item }) %>
+          <div class="carousel-item">
+            <%- include('./bookCard.ejs', { book: item }) %>
+          </div>
         <% }) %>
       </div>
     </div>
@@ -101,72 +104,3 @@ document.addEventListener('DOMContentLoaded', function() {
   updateButtons(); // Initial state
 });
 </script>
-
-<style>
-/* Carousel section styles */
-.carousel-section {
-  margin: 48px 0;
-}
-
-.carousel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-  position: relative;
-}
-
-.carousel-nav {
-  display: flex;
-  gap: 8px;
-}
-
-.carousel-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--surface);
-  border: 1px solid #e5e7eb;
-  color: var(--ink);
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-.carousel-btn:hover:not(:disabled) {
-  background: var(--brand);
-  color: white;
-  border-color: var(--brand);
-}
-
-.carousel-btn:disabled {
-  cursor: not-allowed;
-}
-
-.carousel-track {
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.carousel-track::-webkit-scrollbar {
-  display: none;
-}
-
-/* Mobile adjustments */
-@media (max-width: 768px) {
-  .carousel-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
-  }
-
-  .carousel-nav {
-    align-self: flex-end;
-  }
-
-  .carousel-section {
-    margin: 32px 0;
-  }
-}
-</style>

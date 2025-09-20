@@ -1,3 +1,9 @@
+<%
+// Guard all locals for defensive programming
+const error = (typeof locals.error !== 'undefined') ? locals.error : null;
+const message = (typeof locals.message !== 'undefined') ? locals.message : null;
+const formData = (typeof locals.formData !== 'undefined') ? locals.formData : {};
+%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -21,16 +27,16 @@
   <!-- Contact Form -->
   <main class="content-section">
     <div class="container">
-      <div class="contact-wrapper">
-        <div class="contact-form-section">
-          <% if (typeof error !== 'undefined' && error) { %>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 64px; max-width: 1000px; margin: 0 auto;">
+        <div>
+          <% if (error) { %>
             <div class="alert error"><%= error %></div>
           <% } %>
-          <% if (typeof message !== 'undefined' && message) { %>
+          <% if (message) { %>
             <div class="alert success"><%= message %></div>
           <% } %>
 
-          <form action="/contact" method="POST" class="contact-form">
+          <form action="/contact" method="POST" style="background: var(--surface); padding: 32px; border-radius: var(--card-radius); box-shadow: var(--shadow);">
             <div class="form-group">
               <label for="name" class="form-label">Name</label>
               <input 
@@ -39,7 +45,7 @@
                 name="name" 
                 class="form-input" 
                 required
-                value="<%= typeof formData !== 'undefined' && formData.name ? formData.name : '' %>"
+                value="<%= formData.name || '' %>"
               >
             </div>
 
@@ -51,7 +57,7 @@
                 name="email" 
                 class="form-input" 
                 required
-                value="<%= typeof formData !== 'undefined' && formData.email ? formData.email : '' %>"
+                value="<%= formData.email || '' %>"
               >
             </div>
 
@@ -64,10 +70,10 @@
                 rows="6" 
                 required
                 placeholder="Tell us what's on your mind..."
-              ><%= typeof formData !== 'undefined' && formData.message ? formData.message : '' %></textarea>
+              ><%= formData.message || '' %></textarea>
             </div>
 
-            <button type="submit" class="btn">
+            <button type="submit" class="btn" style="width: 100%; gap: 8px; margin-top: 8px;">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="m22 2-7 20-4-9-9-4z"></path>
                 <path d="M22 2 11 13"></path>
@@ -77,43 +83,43 @@
           </form>
         </div>
 
-        <div class="contact-info-section">
-          <div class="contact-info">
-            <h3>Get in Touch</h3>
-            <p>Have a question, suggestion, or just want to say hello? We're here to help.</p>
+        <div style="padding: 32px 0;">
+          <div>
+            <h3 style="font-size: 28px; font-weight: 600; color: var(--ink); margin: 0 0 16px;">Get in Touch</h3>
+            <p style="color: var(--ink-weak); line-height: 1.6; margin: 0 0 32px; font-size: 16px;">Have a question, suggestion, or just want to say hello? We're here to help.</p>
             
-            <div class="contact-methods">
-              <div class="contact-method">
-                <div class="contact-icon">📧</div>
+            <div style="margin-bottom: 40px;">
+              <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px;">
+                <div style="font-size: 32px; min-width: 48px;">📧</div>
                 <div>
-                  <h4>Email</h4>
-                  <p>We typically respond within 24 hours</p>
+                  <h4 style="font-size: 18px; font-weight: 600; color: var(--ink); margin: 0 0 4px;">Email</h4>
+                  <p style="color: var(--ink-weak); font-size: 14px; margin: 0;">We typically respond within 24 hours</p>
                 </div>
               </div>
               
-              <div class="contact-method">
-                <div class="contact-icon">💬</div>
+              <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px;">
+                <div style="font-size: 32px; min-width: 48px;">💬</div>
                 <div>
-                  <h4>Feedback</h4>
-                  <p>Help us improve BookLantern</p>
+                  <h4 style="font-size: 18px; font-weight: 600; color: var(--ink); margin: 0 0 4px;">Feedback</h4>
+                  <p style="color: var(--ink-weak); font-size: 14px; margin: 0;">Help us improve BookLantern</p>
                 </div>
               </div>
               
-              <div class="contact-method">
-                <div class="contact-icon">📚</div>
+              <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px;">
+                <div style="font-size: 32px; min-width: 48px;">📚</div>
                 <div>
-                  <h4>Suggestions</h4>
-                  <p>Recommend books or features</p>
+                  <h4 style="font-size: 18px; font-weight: 600; color: var(--ink); margin: 0 0 4px;">Suggestions</h4>
+                  <p style="color: var(--ink-weak); font-size: 14px; margin: 0;">Recommend books or features</p>
                 </div>
               </div>
             </div>
             
-            <div class="quick-links">
-              <h4>Quick Links</h4>
-              <ul>
-                <li><a href="/about">About BookLantern</a></li>
-                <li><a href="/read">Browse Books</a></li>
-                <li><a href="/watch">Educational Videos</a></li>
+            <div>
+              <h4 style="font-size: 18px; font-weight: 600; color: var(--ink); margin: 0 0 16px;">Quick Links</h4>
+              <ul style="list-style: none; padding: 0; margin: 0;">
+                <li style="margin-bottom: 8px;"><a href="/about" style="color: var(--ink-weak); text-decoration: none; font-size: 14px; transition: color 0.2s ease;">About BookLantern</a></li>
+                <li style="margin-bottom: 8px;"><a href="/read" style="color: var(--ink-weak); text-decoration: none; font-size: 14px; transition: color 0.2s ease;">Browse Books</a></li>
+                <li style="margin-bottom: 8px;"><a href="/watch" style="color: var(--ink-weak); text-decoration: none; font-size: 14px; transition: color 0.2s ease;">Educational Videos</a></li>
               </ul>
             </div>
           </div>
@@ -127,125 +133,19 @@
 </html>
 
 <style>
-/* Contact page specific styles */
-.contact-wrapper {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 64px;
-  max-width: 1000px;
-  margin: 0 auto;
-}
-
-.contact-form {
-  background: var(--surface);
-  padding: 32px;
-  border-radius: var(--card-radius);
-  box-shadow: var(--shadow);
-}
-
-.contact-info {
-  padding: 32px 0;
-}
-
-.contact-info h3 {
-  font-size: 28px;
-  font-weight: 600;
-  color: var(--ink);
-  margin: 0 0 16px;
-}
-
-.contact-info p {
-  color: var(--ink-weak);
-  line-height: 1.6;
-  margin: 0 0 32px;
-  font-size: 16px;
-}
-
-.contact-methods {
-  margin-bottom: 40px;
-}
-
-.contact-method {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.contact-icon {
-  font-size: 32px;
-  min-width: 48px;
-}
-
-.contact-method h4 {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--ink);
-  margin: 0 0 4px;
-}
-
-.contact-method p {
-  color: var(--ink-weak);
-  font-size: 14px;
-  margin: 0;
-}
-
-.quick-links h4 {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--ink);
-  margin: 0 0 16px;
-}
-
-.quick-links ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.quick-links li {
-  margin-bottom: 8px;
-}
-
-.quick-links a {
-  color: var(--ink-weak);
-  text-decoration: none;
-  font-size: 14px;
-  transition: color 0.2s ease;
-}
-
-.quick-links a:hover {
-  color: var(--brand);
-}
-
-.contact-form .btn {
-  width: 100%;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-/* Mobile responsive */
+/* Mobile responsive for contact page */
 @media (max-width: 768px) {
-  .contact-wrapper {
-    grid-template-columns: 1fr;
-    gap: 32px;
+  .container > div {
+    grid-template-columns: 1fr !important;
+    gap: 32px !important;
   }
   
-  .contact-form {
-    padding: 24px;
+  .container form {
+    padding: 24px !important;
   }
   
-  .contact-info {
-    padding: 0;
-  }
-  
-  .contact-method {
-    margin-bottom: 20px;
-  }
-  
-  .contact-icon {
-    font-size: 28px;
-    min-width: 40px;
+  .container > div > div:last-child {
+    padding: 0 !important;
   }
 }
 </style>
