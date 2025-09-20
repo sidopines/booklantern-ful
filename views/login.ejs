@@ -1,3 +1,11 @@
+<%
+// Guard all locals - prevent crashes
+const error = (typeof locals.error !== 'undefined') ? locals.error : null;
+const message = (typeof locals.message !== 'undefined') ? locals.message : null;
+const messages = (typeof locals.messages !== 'undefined') ? locals.messages : {};
+const next = (typeof locals.next !== 'undefined') ? locals.next : '';
+const email = (typeof locals.email !== 'undefined') ? locals.email : '';
+%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -19,20 +27,28 @@
           <p class="auth-subtitle">Sign in to continue to BookLantern</p>
         </div>
 
-        <% if (typeof next !== 'undefined' && next) { %>
+        <% if (next) { %>
           <div class="alert info">After you sign in, we'll take you back to what you were doing.</div>
         <% } %>
 
-        <% if (typeof error !== 'undefined' && error) { %>
+        <% if (error) { %>
           <div class="alert error"><%= error %></div>
         <% } %>
-        <% if (typeof message !== 'undefined' && message) { %>
+        <% if (message) { %>
           <div class="alert success"><%= message %></div>
+        <% } %>
+        <% if (messages.error) { %>
+          <div class="alert error"><%= messages.error %></div>
+        <% } %>
+        <% if (messages.success) { %>
+          <div class="alert success"><%= messages.success %></div>
         <% } %>
 
         <form action="/login" method="POST" class="auth-form">
           <!-- carry next destination (e.g., clicked book) -->
-          <input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '' %>">
+          <% if (next) { %>
+            <input type="hidden" name="next" value="<%= next %>">
+          <% } %>
 
           <div class="form-group">
             <label for="email" class="form-label">Email address</label>
@@ -41,7 +57,7 @@
               id="email"
               name="email"
               class="form-input"
-              value="<%= typeof email !== 'undefined' ? email : '' %>"
+              value="<%= email %>"
               required
               autocomplete="email"
               placeholder="your@email.com"
@@ -87,36 +103,3 @@
   <%- include('./partials/footer.ejs') %>
 </body>
 </html>
-
-<style>
-/* Auth page specific styles */
-.auth-form {
-  margin: 0;
-}
-
-.auth-form .btn {
-  width: 100%;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.checkbox-label {
-  font-size: 14px;
-  color: var(--ink-weak);
-  cursor: pointer;
-}
-
-.auth-links a {
-  color: var(--brand);
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.auth-links a:hover {
-  text-decoration: underline;
-}
-
-.auth-links p {
-  margin: 0 0 8px;
-}
-</style>

@@ -1,11 +1,13 @@
 <%
-// Book card with cover, source badge, title, author, and CTA
-const book = locals.book || {};
+// Book card with cover, source badge, title, author, and CTA - defensive programming
+const book = (typeof locals.book !== 'undefined') ? locals.book : {};
+const user = (typeof locals.user !== 'undefined') ? locals.user : null;
+
 const title = book.title || 'Untitled';
-const author = book.author || 'Unknown Author';
-const cover = book.cover || '/img/cover-fallback.svg';
+const author = book.author || book.creator || 'Unknown Author';
+const cover = book.cover || book.coverUrl || '';
 const source = book.source || '';
-const readUrl = book.readUrl || book.url || '#';
+const readUrl = book.readUrl || book.url || book.href || '#';
 
 // Source display names
 const sourceNames = {
@@ -14,75 +16,47 @@ const sourceNames = {
   'archive': 'Internet Archive',
   'hathitrust': 'HathiTrust',
   'loc': 'Library of Congress',
-  'wikisource': 'Wikisource'
+  'wikisource': 'Wikisource',
+  'feedbooks': 'FeedBooks'
 };
-const sourceName = sourceNames[source] || source;
+const sourceName = sourceNames[source.toLowerCase()] || source;
 
-// Auth check for read link
+// Auth check for read link - guests redirect to login
 let finalReadUrl = readUrl;
-if (typeof user === 'undefined' || !user) {
+if (!user && readUrl !== '#') {
   finalReadUrl = `/login?next=${encodeURIComponent(readUrl)}`;
 }
 %>
 
-<article class="card hover">
+<article class="everand-card">
   <div class="book-cover">
-    <% if (cover) { %>
-      <img src="<%= cover %>" alt="<%= title %> cover" loading="lazy">
+    <% if (cover && cover !== '/img/cover-fallback.svg') { %>
+      <img src="<%= cover %>" alt="<%= title %> cover" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+      <div class="cover-ph" style="display:none;">
+        <span>📖</span>
+      </div>
+    <% } else { %>
+      <div class="cover-ph">
+        <span>📖</span>
+      </div>
     <% } %>
     <% if (sourceName) { %>
-      <span class="badge"><%= sourceName %></span>
+      <span class="book-source-badge"><%= sourceName %></span>
     <% } %>
   </div>
   
-  <div class="book-info">
-    <h3 class="book-title"><%= title %></h3>
-    <p class="book-author"><%= author %></p>
+  <div class="book-content">
+    <h3 class="book-title" title="<%= title %>"><%= title %></h3>
+    <p class="book-author" title="<%= author %>"><%= author %></p>
     
-    <a href="<%= finalReadUrl %>" class="btn">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-      </svg>
-      Read
-    </a>
+    <div class="book-actions">
+      <a href="<%= finalReadUrl %>" class="btn btn-primary btn-full">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+        </svg>
+        Read
+      </a>
+    </div>
   </div>
 </article>
-
-<style>
-/* Book card specific styles */
-.book-cover {
-  position: relative;
-  aspect-ratio: 3/4;
-  margin-bottom: 12px;
-}
-
-.book-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 12px;
-}
-
-.book-info {
-  padding: 0 4px;
-}
-
-.book-info .btn {
-  width: 100%;
-  margin-top: 12px;
-  height: 40px;
-  gap: 8px;
-}
-
-.book-title {
-  font-size: 16px;
-  margin: 0 0 4px 0;
-  line-height: 1.3;
-}
-
-.book-author {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-}
-</style>

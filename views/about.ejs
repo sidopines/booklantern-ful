@@ -21,37 +21,37 @@
   <!-- Content -->
   <main class="content-section">
     <div class="container">
-      <div class="about-content">
+      <div class="about-content" style="max-width: 800px; margin: 0 auto;">
         <!-- Mission Section -->
-        <section class="content-block">
-          <h2>Our Mission</h2>
-          <p>BookLantern makes millions of books from globally trusted libraries accessible through one simple, clean interface. We believe that knowledge should be free and easily discoverable for everyone, everywhere.</p>
+        <section style="margin-bottom: 64px;">
+          <h2 style="text-align: center; margin-bottom: 24px;">Our Mission</h2>
+          <p style="text-align: center; font-size: 18px; color: var(--ink-weak); line-height: 1.7;">BookLantern makes millions of books from globally trusted libraries accessible through one simple, clean interface. We believe that knowledge should be free and easily discoverable for everyone, everywhere.</p>
         </section>
 
         <!-- Features Grid -->
-        <section class="content-block">
-          <h2>What Makes BookLantern Different</h2>
-          <div class="features-grid">
-            <div class="feature-card">
-              <div class="feature-icon">🔍</div>
+        <section style="margin-bottom: 64px;">
+          <h2 style="text-align: center; margin-bottom: 48px;">What Makes BookLantern Different</h2>
+          <div class="content-grid">
+            <div class="card" style="text-align: center; padding: 32px 24px;">
+              <div class="empty-icon">🔍</div>
               <h3>Universal Search</h3>
               <p>Search across millions of books from multiple libraries and archives with one simple query.</p>
             </div>
             
-            <div class="feature-card">
-              <div class="feature-icon">📖</div>
+            <div class="card" style="text-align: center; padding: 32px 24px;">
+              <div class="empty-icon">📖</div>
               <h3>Clean Reading Experience</h3>
               <p>Distraction-free reader optimized for focus, comprehension, and accessibility.</p>
             </div>
             
-            <div class="feature-card">
-              <div class="feature-icon">🌐</div>
+            <div class="card" style="text-align: center; padding: 32px 24px;">
+              <div class="empty-icon">🌐</div>
               <h3>Trusted Sources</h3>
               <p>Content sourced exclusively from respected public domain and open access collections.</p>
             </div>
             
-            <div class="feature-card">
-              <div class="feature-icon">💡</div>
+            <div class="card" style="text-align: center; padding: 32px 24px;">
+              <div class="empty-icon">💡</div>
               <h3>Always Free</h3>
               <p>No subscriptions, no ads, no tracking. Just books, freely available as they should be.</p>
             </div>
@@ -59,29 +59,29 @@
         </section>
 
         <!-- Promise Section -->
-        <section class="content-block">
-          <h2>Our Promise to Readers</h2>
-          <div class="promise-grid">
-            <div class="promise-item">
-              <h4>Quality</h4>
-              <p>We curate content from the world's most respected libraries and archives.</p>
+        <section style="margin-bottom: 64px;">
+          <h2 style="text-align: center; margin-bottom: 32px;">Our Promise to Readers</h2>
+          <div class="content-grid">
+            <div style="text-align: center; padding: 24px 16px;">
+              <h4 style="font-size: 18px; font-weight: 600; color: var(--ink); margin: 0 0 12px;">Quality</h4>
+              <p style="color: var(--ink-weak); font-size: 16px; line-height: 1.5; margin: 0;">We curate content from the world's most respected libraries and archives.</p>
             </div>
-            <div class="promise-item">
-              <h4>Accessibility</h4>
-              <p>Our platform works for everyone, with full support for screen readers and keyboard navigation.</p>
+            <div style="text-align: center; padding: 24px 16px;">
+              <h4 style="font-size: 18px; font-weight: 600; color: var(--ink); margin: 0 0 12px;">Accessibility</h4>
+              <p style="color: var(--ink-weak); font-size: 16px; line-height: 1.5; margin: 0;">Our platform works for everyone, with full support for screen readers and keyboard navigation.</p>
             </div>
-            <div class="promise-item">
-              <h4>Privacy</h4>
-              <p>We don't track your reading habits or sell your data. Your privacy is paramount.</p>
+            <div style="text-align: center; padding: 24px 16px;">
+              <h4 style="font-size: 18px; font-weight: 600; color: var(--ink); margin: 0 0 12px;">Privacy</h4>
+              <p style="color: var(--ink-weak); font-size: 16px; line-height: 1.5; margin: 0;">We don't track your reading habits or sell your data. Your privacy is paramount.</p>
             </div>
           </div>
         </section>
 
         <!-- CTA Section -->
-        <section class="content-block cta-section">
-          <h2>Start Reading Today</h2>
-          <p>Join thousands of readers who have discovered their next favorite book through BookLantern.</p>
-          <div class="cta-buttons">
+        <section style="text-align: center; padding: 48px 32px; background: linear-gradient(135deg, rgba(37,99,235,.05), rgba(124,58,237,.05)); border-radius: var(--card-radius); margin-top: 64px;">
+          <h2 style="margin: 0 0 16px;">Start Reading Today</h2>
+          <p style="color: var(--ink-weak); margin: 0 0 32px;">Join thousands of readers who have discovered their next favorite book through BookLantern.</p>
+          <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
             <a href="/read" class="btn">Browse Books</a>
             <a href="/watch" class="btn secondary">Watch Videos</a>
           </div>
@@ -93,132 +93,3 @@
   <%- include('./partials/footer.ejs') %>
 </body>
 </html>
-
-<style>
-/* About page specific styles */
-.about-content {
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.content-block {
-  margin-bottom: 64px;
-}
-
-.content-block h2 {
-  font-size: 32px;
-  font-weight: 600;
-  color: var(--ink);
-  margin: 0 0 24px;
-  text-align: center;
-}
-
-.content-block p {
-  color: var(--ink-weak);
-  line-height: 1.7;
-  font-size: 18px;
-  text-align: center;
-  margin: 0 0 16px;
-}
-
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 32px;
-  margin-top: 48px;
-}
-
-.feature-card {
-  text-align: center;
-  padding: 32px 24px;
-  background: var(--surface);
-  border-radius: var(--card-radius);
-  box-shadow: var(--shadow-sm);
-}
-
-.feature-icon {
-  font-size: 48px;
-  margin-bottom: 20px;
-}
-
-.feature-card h3 {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--ink);
-  margin: 0 0 12px;
-}
-
-.feature-card p {
-  color: var(--ink-weak);
-  font-size: 16px;
-  line-height: 1.5;
-  text-align: center;
-  margin: 0;
-}
-
-.promise-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 24px;
-  margin-top: 32px;
-}
-
-.promise-item {
-  text-align: center;
-  padding: 24px 16px;
-}
-
-.promise-item h4 {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--ink);
-  margin: 0 0 12px;
-}
-
-.promise-item p {
-  color: var(--ink-weak);
-  font-size: 16px;
-  line-height: 1.5;
-  margin: 0;
-}
-
-.cta-section {
-  text-align: center;
-  padding: 48px 32px;
-  background: linear-gradient(135deg, rgba(37,99,235,.05), rgba(124,58,237,.05));
-  border-radius: var(--card-radius);
-  margin-top: 64px;
-}
-
-.cta-buttons {
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-  margin-top: 32px;
-}
-
-/* Mobile responsive */
-@media (max-width: 768px) {
-  .features-grid {
-    grid-template-columns: 1fr;
-    gap: 24px;
-  }
-  
-  .feature-card {
-    padding: 24px 20px;
-  }
-  
-  .cta-buttons {
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  .content-block {
-    margin-bottom: 48px;
-  }
-  
-  .content-block h2 {
-    font-size: 28px;
-  }
-}
-</style>

@@ -1,3 +1,8 @@
+<%
+// Guard all locals for defensive programming
+const user = (typeof locals.user !== 'undefined') ? locals.user : null;
+const videos = (typeof locals.videos !== 'undefined' && Array.isArray(locals.videos)) ? locals.videos : [];
+%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -21,7 +26,7 @@
   <!-- Video Grid -->
   <main class="content-section">
     <div class="container">
-      <% if (typeof user !== 'undefined' && user && user.isAdmin) { %>
+      <% if (user && user.isAdmin) { %>
         <div class="admin-panel">
           <a href="/admin/videos" class="btn secondary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -32,18 +37,19 @@
         </div>
       <% } %>
 
-      <% if (typeof videos !== 'undefined' && videos && videos.length > 0) { %>
+      <% if (videos && videos.length > 0) { %>
         <div class="video-grid">
           <% videos.forEach(function(video) {
-               // Extract YouTube ID and prepare video data
-               const m = (video.youtubeUrl||'').match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{11})/);
+               // Extract YouTube ID and prepare video data with defensive programming
+               const videoUrl = video.youtubeUrl || '';
+               const m = videoUrl.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{11})/);
                const ytId = m ? m[1] : '';
                const thumb = video.thumbnail || (ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : '/img/video-fallback.svg');
                const videoData = {
-                 title: video.title,
+                 title: video.title || 'Untitled Video',
                  description: video.description || '',
                  thumbnail: thumb,
-                 url: `/player/${video._id}`
+                 url: video._id ? `/player/${video._id}` : '#'
                };
           %>
             <%- include('./partials/videoCard.ejs', { video: videoData }) %>
@@ -63,70 +69,3 @@
   <%- include('./partials/footer.ejs') %>
 </body>
 </html>
-
-<style>
-/* Watch page specific styles */
-.admin-panel {
-  margin-bottom: 32px;
-  padding: 16px 0;
-  border-bottom: 1px solid #eef0f4;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 80px 24px;
-  max-width: 480px;
-  margin: 0 auto;
-}
-
-.empty-icon {
-  font-size: 64px;
-  margin-bottom: 24px;
-  opacity: 0.8;
-}
-
-.empty-state h3 {
-  font-size: 24px;
-  color: var(--ink);
-  margin: 0 0 12px;
-}
-
-.empty-state p {
-  color: var(--ink-weak);
-  line-height: 1.6;
-  margin: 0 0 24px;
-  font-size: 16px;
-}
-
-/* Video grid improvements */
-.video-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 24px;
-}
-
-@media (max-width: 768px) {
-  .video-grid {
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 20px;
-  }
-  
-  .admin-panel {
-    margin-bottom: 24px;
-  }
-  
-  .empty-state {
-    padding: 60px 16px;
-  }
-  
-  .empty-icon {
-    font-size: 56px;
-  }
-}
-
-@media (max-width: 480px) {
-  .video-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>
