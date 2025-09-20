@@ -1,5 +1,5 @@
 <%
-// Book card with real covers, OL fallback, vibrant placeholders, and Listen - defensive programming
+// Book card with robust cover resolver, OL fallback, vibrant placeholders, and Listen - defensive programming
 const book = (typeof locals.book !== 'undefined') ? locals.book : {};
 const user = (typeof locals.user !== 'undefined') ? locals.user : null;
 
@@ -7,13 +7,33 @@ const title = book.title || 'Untitled';
 const author = book.author || book.creator || '';
 const readUrl = book.readUrl || book.url || book.href || '#';
 
-// Build cover URL with OL fallback
+// Robust cover URL resolver - check many common fields and OL cover_i
 function coverURL(item){
+  // Most common direct fields
   if (item.coverLarge) return item.coverLarge;
-  if (item.cover) return item.cover;
+  if (item.cover_url) return item.cover_url;
+  if (item.coverUrl) return item.coverUrl;
+  if (item.imageLarge) return item.imageLarge;
   if (item.image) return item.image;
+  if (item.cover) return item.cover;
+  if (item.thumbnail) return item.thumbnail;
+  if (item.thumb) return item.thumb;
+
+  // Open Library by id (search API often returns cover_i)
+  if (item.cover_i) return `https://covers.openlibrary.org/b/id/${item.cover_i}-L.jpg`;
+
+  // Open Library by ISBN / OLID
   if (item.isbn) return `https://covers.openlibrary.org/b/isbn/${item.isbn}-L.jpg`;
   if (item.openLibraryId) return `https://covers.openlibrary.org/b/olid/${item.openLibraryId}-L.jpg`;
+
+  // Gutenberg sometimes passes an array of formats; try common keys if present
+  if (item.formats) {
+    const f = item.formats;
+    const tryKeys = ['image/jpeg','image/jpg','image/png','image/*','thumbnail','cover'];
+    for (const k of tryKeys){
+      if (f[k]) return f[k];
+    }
+  }
   return null;
 }
 
@@ -25,7 +45,7 @@ function initials(t){
 }
 
 // Build summary for Listen
-const summary = (book.description || book.snippet || book.subtitle || (title + (author ? (' by ' + author) : ''))).toString().slice(0,300);
+const summary = (book.description || book.snippet || book.subtitle || (title + (author ? (' by ' + author) : ''))).toString().slice(0,320);
 
 // Auth check for read link - guests redirect to login
 let finalReadUrl = readUrl;

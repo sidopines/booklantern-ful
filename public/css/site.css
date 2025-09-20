@@ -365,6 +365,7 @@ p{margin:0 0 16px 0;line-height:var(--line-height)}
 }
 .carousel-track::-webkit-scrollbar{display:none}
 .carousel-track > *{scroll-snap-align:start;min-width:200px;flex:0 0 auto}
+.carousel-track.is-short{justify-content:center}
 .carousel-nav{display:flex;gap:8px}
 .carousel-btn{
   height:36px;
