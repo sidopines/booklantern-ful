@@ -1,25 +1,31 @@
 <%
-// Book card with cover, source badge, title, author, and CTA - defensive programming
+// Book card with real covers, OL fallback, vibrant placeholders, and Listen - defensive programming
 const book = (typeof locals.book !== 'undefined') ? locals.book : {};
 const user = (typeof locals.user !== 'undefined') ? locals.user : null;
 
 const title = book.title || 'Untitled';
-const author = book.author || book.creator || 'Unknown Author';
-const cover = book.cover || book.coverUrl || '';
-const source = book.source || '';
+const author = book.author || book.creator || '';
 const readUrl = book.readUrl || book.url || book.href || '#';
 
-// Source display names
-const sourceNames = {
-  'gutenberg': 'Gutenberg',
-  'openlibrary': 'Open Library', 
-  'archive': 'Internet Archive',
-  'hathitrust': 'HathiTrust',
-  'loc': 'Library of Congress',
-  'wikisource': 'Wikisource',
-  'feedbooks': 'FeedBooks'
-};
-const sourceName = sourceNames[source.toLowerCase()] || source;
+// Build cover URL with OL fallback
+function coverURL(item){
+  if (item.coverLarge) return item.coverLarge;
+  if (item.cover) return item.cover;
+  if (item.image) return item.image;
+  if (item.isbn) return `https://covers.openlibrary.org/b/isbn/${item.isbn}-L.jpg`;
+  if (item.openLibraryId) return `https://covers.openlibrary.org/b/olid/${item.openLibraryId}-L.jpg`;
+  return null;
+}
+
+const cover = coverURL(book);
+
+// Generate initials for placeholder
+function initials(t){ 
+  return (t||'B').split(/\s+/).slice(0,2).map(s=>s[0]).join('').toUpperCase(); 
+}
+
+// Build summary for Listen
+const summary = (book.description || book.snippet || book.subtitle || (title + (author ? (' by ' + author) : ''))).toString().slice(0,300);
 
 // Auth check for read link - guests redirect to login
 let finalReadUrl = readUrl;
@@ -28,35 +34,35 @@ if (!user && readUrl !== '#') {
 }
 %>
 
-<article class="everand-card">
+<article class="card hover" role="listitem" style="min-width:200px">
   <div class="book-cover">
-    <% if (cover && cover !== '/img/cover-fallback.svg') { %>
-      <img src="<%= cover %>" alt="<%= title %> cover" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-      <div class="cover-ph" style="display:none;">
-        <span>📖</span>
-      </div>
+    <% if (cover) { %>
+      <img src="<%= cover %>" alt="Cover: <%= title %>" style="width:100%;height:180px;object-fit:cover;border-radius:12px" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+      <div class="cover-ph" style="display:none" aria-label="Cover placeholder"><%= initials(title) %></div>
     <% } else { %>
-      <div class="cover-ph">
-        <span>📖</span>
-      </div>
-    <% } %>
-    <% if (sourceName) { %>
-      <span class="book-source-badge"><%= sourceName %></span>
+      <div class="cover-ph" aria-label="Cover placeholder"><%= initials(title) %></div>
     <% } %>
   </div>
   
-  <div class="book-content">
-    <h3 class="book-title" title="<%= title %>"><%= title %></h3>
-    <p class="book-author" title="<%= author %>"><%= author %></p>
-    
-    <div class="book-actions">
-      <a href="<%= finalReadUrl %>" class="btn btn-primary btn-full">
+  <div class="stack" style="--gap:6px">
+    <div class="book-title" title="<%= title %>"><%= title %></div>
+    <% if (author) { %><div class="book-author" title="<%= author %>"><%= author %></div><% } %>
+    <div class="card-ctas">
+      <a class="btn" href="<%= finalReadUrl %>">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
           <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
         </svg>
         Read
       </a>
+      <button class="btn secondary" type="button" onclick="BL_listen('<%- summary.replace(/'/g, "\\'").replace(/"/g, '\\"') %>')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="11,5 6,9 2,9 2,15 6,15 11,19 11,5"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+        Listen
+      </button>
     </div>
   </div>
 </article>

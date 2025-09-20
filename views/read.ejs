@@ -109,15 +109,17 @@ function textOf(x){
                dest = '/read/pdf' + qs;
              }
 
-             // Gate visitors to login before reading
-             let finalHref = isDisabled ? '#' : (dest || '#');
-             
-             // Use the bookCard partial with book data
+             // Use the bookCard partial with book data including Listen functionality
              const bookData = {
                title: title,
                author: creator,
-               cover: cover || '/img/cover-fallback.svg',
-               readUrl: user ? finalHref : ('/login?next=' + encodeURIComponent(finalHref)),
+               cover: cover,
+               coverLarge: book.coverLarge,
+               image: book.image,
+               isbn: book.isbn,
+               openLibraryId: book.openLibraryId,
+               readUrl: dest,
+               description: book.description || book.snippet || book.subtitle,
                source: src
              };
              %>

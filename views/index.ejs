@@ -15,32 +15,32 @@ const user = (typeof locals.user !== 'undefined') ? locals.user : null;
   
   <%- include('./partials/hero.ejs') %>
 
-  <!-- Book Carousels -->
+  <!-- Book Carousels with neutral titles and vibrant accents -->
   <main>
     <% 
-    // Prepare deduped carousel data - defensive programming
+    // Prepare deduped carousel data - defensive programming, NO public source names
     const trendingBooks = [
-      { id: 'pride-prejudice', title: 'Pride and Prejudice', author: 'Jane Austen', cover: '/img/cover-fallback.svg', readUrl: '/read?id=pride-prejudice', source: 'openlibrary' },
-      { id: 'republic-plato', title: 'The Republic', author: 'Plato', cover: '/img/cover-fallback.svg', readUrl: '/read?id=republic-plato', source: 'gutenberg' },
-      { id: 'alice-wonderland', title: 'Alice\'s Adventures in Wonderland', author: 'Lewis Carroll', cover: '/img/cover-fallback.svg', readUrl: '/read?id=alice-wonderland', source: 'gutenberg' },
-      { id: 'art-of-war', title: 'The Art of War', author: 'Sun Tzu', cover: '/img/cover-fallback.svg', readUrl: '/read?id=art-of-war', source: 'gutenberg' },
-      { id: 'frankenstein', title: 'Frankenstein', author: 'Mary Shelley', cover: '/img/cover-fallback.svg', readUrl: '/read?id=frankenstein', source: 'gutenberg' },
-      { id: '1984', title: '1984', author: 'George Orwell', cover: '/img/cover-fallback.svg', readUrl: '/read?id=1984', source: 'openlibrary' }
+      { id: 'pride-prejudice', title: 'Pride and Prejudice', author: 'Jane Austen', cover: '/img/cover-fallback.svg', readUrl: '/read?id=pride-prejudice', isbn: '9780141439518' },
+      { id: 'republic-plato', title: 'The Republic', author: 'Plato', cover: '/img/cover-fallback.svg', readUrl: '/read?id=republic-plato', isbn: '9780140449495' },
+      { id: 'alice-wonderland', title: 'Alice\'s Adventures in Wonderland', author: 'Lewis Carroll', cover: '/img/cover-fallback.svg', readUrl: '/read?id=alice-wonderland', isbn: '9780486275437' },
+      { id: 'art-of-war', title: 'The Art of War', author: 'Sun Tzu', cover: '/img/cover-fallback.svg', readUrl: '/read?id=art-of-war', isbn: '9780486425573' },
+      { id: 'frankenstein', title: 'Frankenstein', author: 'Mary Shelley', cover: '/img/cover-fallback.svg', readUrl: '/read?id=frankenstein', isbn: '9780486282114' },
+      { id: '1984', title: '1984', author: 'George Orwell', cover: '/img/cover-fallback.svg', readUrl: '/read?id=1984', isbn: '9780451524935' }
     ];
 
     const philosophyBooks = [
-      { id: 'meditations', title: 'Meditations', author: 'Marcus Aurelius', cover: '/img/cover-fallback.svg', readUrl: '/read?id=meditations', source: 'gutenberg' },
-      { id: 'beyond-good-evil', title: 'Beyond Good and Evil', author: 'Friedrich Nietzsche', cover: '/img/cover-fallback.svg', readUrl: '/read?id=beyond-good-evil', source: 'gutenberg' },
-      { id: 'critique-pure-reason', title: 'The Critique of Pure Reason', author: 'Immanuel Kant', cover: '/img/cover-fallback.svg', readUrl: '/read?id=critique-pure-reason', source: 'gutenberg' },
-      { id: 'social-contract', title: 'The Social Contract', author: 'Jean-Jacques Rousseau', cover: '/img/cover-fallback.svg', readUrl: '/read?id=social-contract', source: 'gutenberg' },
-      { id: 'discourse-method', title: 'Discourse on Method', author: 'René Descartes', cover: '/img/cover-fallback.svg', readUrl: '/read?id=discourse-method', source: 'gutenberg' }
+      { id: 'meditations', title: 'Meditations', author: 'Marcus Aurelius', cover: '/img/cover-fallback.svg', readUrl: '/read?id=meditations', isbn: '9780486298238' },
+      { id: 'beyond-good-evil', title: 'Beyond Good and Evil', author: 'Friedrich Nietzsche', cover: '/img/cover-fallback.svg', readUrl: '/read?id=beyond-good-evil', isbn: '9780486298687' },
+      { id: 'critique-pure-reason', title: 'The Critique of Pure Reason', author: 'Immanuel Kant', cover: '/img/cover-fallback.svg', readUrl: '/read?id=critique-pure-reason', isbn: '9780486432540' },
+      { id: 'social-contract', title: 'The Social Contract', author: 'Jean-Jacques Rousseau', cover: '/img/cover-fallback.svg', readUrl: '/read?id=social-contract', isbn: '9780486426761' },
+      { id: 'discourse-method', title: 'Discourse on Method', author: 'René Descartes', cover: '/img/cover-fallback.svg', readUrl: '/read?id=discourse-method', isbn: '9780486637372' }
     ];
 
     const historyBooks = [
-      { id: 'histories-herodotus', title: 'The Histories', author: 'Herodotus', cover: '/img/cover-fallback.svg', readUrl: '/read?id=histories-herodotus', source: 'gutenberg' },
-      { id: 'american-crisis', title: 'The American Crisis', author: 'Thomas Paine', cover: '/img/cover-fallback.svg', readUrl: '/read?id=american-crisis', source: 'gutenberg' },
-      { id: 'history-england', title: 'A History of England', author: 'Thomas Macaulay', cover: '/img/cover-fallback.svg', readUrl: '/read?id=history-england', source: 'gutenberg' },
-      { id: 'civil-war-caesar', title: 'The Civil War', author: 'Julius Caesar', cover: '/img/cover-fallback.svg', readUrl: '/read?id=civil-war-caesar', source: 'gutenberg' }
+      { id: 'histories-herodotus', title: 'The Histories', author: 'Herodotus', cover: '/img/cover-fallback.svg', readUrl: '/read?id=histories-herodotus', isbn: '9780140449082' },
+      { id: 'american-crisis', title: 'The American Crisis', author: 'Thomas Paine', cover: '/img/cover-fallback.svg', readUrl: '/read?id=american-crisis', isbn: '9780486295633' },
+      { id: 'history-england', title: 'A History of England', author: 'Thomas Macaulay', cover: '/img/cover-fallback.svg', readUrl: '/read?id=history-england', isbn: '9780140432381' },
+      { id: 'civil-war-caesar', title: 'The Civil War', author: 'Julius Caesar', cover: '/img/cover-fallback.svg', readUrl: '/read?id=civil-war-caesar', isbn: '9780140441871' }
     ];
 
     // Dedupe function to prevent cross-section duplicates
@@ -57,9 +57,9 @@ const user = (typeof locals.user !== 'undefined') ? locals.user : null;
     }
 
     const allSections = [
-      { id: 'trending', title: 'Trending on Open Library', books: trendingBooks },
-      { id: 'philosophy', title: 'Philosophy Picks', books: philosophyBooks },
-      { id: 'history', title: 'History Picks', books: historyBooks }
+      { id: 'trending', title: 'Trending Now', books: trendingBooks, sectionClass: 'section--trending' },
+      { id: 'philosophy', title: 'Philosophy Picks', books: philosophyBooks, sectionClass: 'section--philosophy' },
+      { id: 'history', title: 'History Picks', books: historyBooks, sectionClass: 'section--history' }
     ];
 
     const dedupedSections = dedupeBooks(allSections);
@@ -70,7 +70,8 @@ const user = (typeof locals.user !== 'undefined') ? locals.user : null;
         <%- include('./partials/bookCarousel.ejs', {
           id: section.id,
           title: section.title,
-          items: section.books
+          items: section.books,
+          sectionClass: section.sectionClass
         }) %>
       <% } %>
     <% }) %>

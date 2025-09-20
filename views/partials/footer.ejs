@@ -45,6 +45,74 @@
   </div>
 </footer>
 
+<!-- Listen functionality script -->
+<script>
+(function(){
+  const synth = window.speechSynthesis;
+  let utter = null, activeToast = null;
+  
+  function showToast(text){
+    if(!activeToast){
+      activeToast = document.createElement('div');
+      activeToast.className = 'toast';
+      document.body.appendChild(activeToast);
+      activeToast.innerHTML = '<div class="text"></div><div class="actions"><button class="btn">Play</button><button class="btn secondary">Pause</button><button class="btn secondary">Stop</button></div>';
+      
+      const [play, pause, stop] = activeToast.querySelectorAll('button');
+      
+      play.addEventListener('click', () => {
+        if(utter && synth) {
+          if(synth.paused) {
+            synth.resume();
+          } else {
+            synth.speak(utter);
+          }
+        }
+      });
+      
+      pause.addEventListener('click', () => {
+        if(synth && synth.speaking) {
+          synth.pause();
+        }
+      });
+      
+      stop.addEventListener('click', () => {
+        if(synth) {
+          synth.cancel();
+          activeToast.classList.remove('show');
+        }
+      });
+    }
+    
+    activeToast.querySelector('.text').textContent = text;
+    activeToast.classList.add('show');
+  }
+  
+  window.BL_listen = function(summary){
+    if(!('speechSynthesis' in window)) {
+      alert(summary);
+      return;
+    }
+    
+    utter = new SpeechSynthesisUtterance(summary);
+    utter.rate = 1.0;
+    utter.pitch = 1.0;
+    utter.lang = 'en-US';
+    
+    // Auto-hide toast after speech ends
+    utter.onend = function() {
+      if(activeToast) {
+        setTimeout(() => {
+          activeToast.classList.remove('show');
+        }, 2000);
+      }
+    };
+    
+    showToast(summary);
+  };
+})();
+</script>
+
 <style>
 /* Clean footer styles */
 .footer-content {

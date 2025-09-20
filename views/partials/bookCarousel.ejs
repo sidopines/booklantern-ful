@@ -1,8 +1,9 @@
 <%
-// Accessible horizontal book carousel with defensive programming
+// Accessible horizontal book carousel with neutral titles + accent bars - defensive programming
 const carouselId = (typeof locals.id !== 'undefined') ? locals.id : ('carousel-' + Date.now());
 const title = (typeof locals.title !== 'undefined') ? locals.title : 'Books';
 const items = (typeof locals.items !== 'undefined' && Array.isArray(locals.items)) ? locals.items : [];
+const sectionClass = (typeof locals.sectionClass !== 'undefined') ? locals.sectionClass : '';
 
 // Dedupe items by ID, URL, or title - defensive programming
 const seen = new Set();
@@ -20,87 +21,32 @@ if (uniqueItems.length === 0) {
 }
 %>
 
-<section class="carousel">
-  <div class="container">
-    <div class="carousel-header">
-      <h2 class="section-title" id="<%= carouselId %>-title"><%= title %></h2>
-      <div class="carousel-nav">
-        <button 
-          class="carousel-btn" 
-          id="<%= carouselId %>-prev"
-          aria-label="Previous books in <%= title %>"
-        >
+<section class="container carousel <%= sectionClass %>">
+  <div class="stack" style="--gap:12px">
+    <div class="section-head">
+      <div style="display:flex;align-items:center">
+        <span class="bar"></span>
+        <h3 style="margin:0;font-size:var(--h2);font-weight:600"><%= title %></h3>
+      </div>
+      <div class="carousel-nav" aria-hidden="true">
+        <button class="carousel-btn" type="button" onclick="this.closest('.carousel').querySelector('.carousel-track').scrollBy({left:-400,behavior:'smooth'})" aria-label="Previous books">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="15,18 9,12 15,6"></polyline>
           </svg>
         </button>
-        <button 
-          class="carousel-btn" 
-          id="<%= carouselId %>-next"
-          aria-label="Next books in <%= title %>"
-        >
+        <button class="carousel-btn" type="button" onclick="this.closest('.carousel').querySelector('.carousel-track').scrollBy({left:400,behavior:'smooth'})" aria-label="Next books">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="9,18 15,12 9,6"></polyline>
           </svg>
         </button>
       </div>
     </div>
-
-    <div class="carousel-container" id="<%= carouselId %>">
-      <div class="carousel-track" role="region" aria-labelledby="<%= carouselId %>-title">
-        <% uniqueItems.forEach(function(item) { %>
-          <div class="carousel-item">
-            <%- include('./bookCard.ejs', { book: item }) %>
-          </div>
-        <% }) %>
-      </div>
+    <div class="carousel-track" role="list" aria-label="<%= title %>">
+      <% uniqueItems.forEach(function(item) { %>
+        <div class="carousel-item">
+          <%- include('./bookCard.ejs', { book: item }) %>
+        </div>
+      <% }) %>
     </div>
   </div>
 </section>
-
-<script>
-// Accessible carousel navigation for <%= carouselId %>
-document.addEventListener('DOMContentLoaded', function() {
-  const carousel = document.getElementById('<%= carouselId %>');
-  const track = carousel?.querySelector('.carousel-track');
-  const prevBtn = document.getElementById('<%= carouselId %>-prev');
-  const nextBtn = document.getElementById('<%= carouselId %>-next');
-  
-  if (!track || !prevBtn || !nextBtn) return;
-
-  const scrollAmount = 220; // Slightly more than card width
-  
-  function updateButtons() {
-    const isAtStart = track.scrollLeft <= 0;
-    const isAtEnd = track.scrollLeft >= track.scrollWidth - track.clientWidth - 1;
-    
-    prevBtn.disabled = isAtStart;
-    nextBtn.disabled = isAtEnd;
-    
-    prevBtn.style.opacity = isAtStart ? '0.5' : '1';
-    nextBtn.style.opacity = isAtEnd ? '0.5' : '1';
-  }
-
-  prevBtn.addEventListener('click', () => {
-    track.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
-  });
-
-  nextBtn.addEventListener('click', () => {
-    track.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-  });
-
-  // Keyboard navigation
-  track.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      track.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
-    } else if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      track.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-    }
-  });
-
-  track.addEventListener('scroll', updateButtons);
-  updateButtons(); // Initial state
-});
-</script>
