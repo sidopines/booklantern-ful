@@ -1,14 +1,23 @@
 <!-- views/partials/head.ejs -->
 <%
-  const t = (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern';
-  const d = (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Free books & educational videos.';
+  // Build a safe cache-busting query once, even if nothing is passed in.
+  const _buildId =
+    (typeof buildId !== 'undefined' && buildId) ? String(buildId) :
+    (typeof process !== 'undefined' && process?.env?.RENDER_GIT_COMMIT) ? process.env.RENDER_GIT_COMMIT :
+    Date.now();
+
+  const _q = `?v=${_buildId}`;
+
+  // Safe page metadata fallbacks
+  const _title = (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern';
+  const _desc  = (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Discover millions of free books from globally trusted libraries. One search, one clean reader.';
   const baseUrl = process.env.BASE_URL || 'https://booklantern.org';
 %>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title><%= t %></title>
-<meta name="description" content="<%= d %>">
+<title><%= _title %></title>
+<meta name="description" content="<%= _desc %>">
 
 <!-- Favicons / Icons -->
 <link rel="icon" href="/favicon.ico" sizes="any">
@@ -25,15 +34,15 @@
 
 <!-- Social preview -->
 <meta property="og:type" content="website">
-<meta property="og:title" content="<%= t %>">
-<meta property="og:description" content="<%= d %>">
+<meta property="og:title" content="<%= _title %>">
+<meta property="og:description" content="<%= _desc %>">
 <meta property="og:image" content="<%= baseUrl %>/img/social-card.png">
 <meta property="og:url" content="<%= baseUrl %>">
 <meta property="og:site_name" content="BookLantern">
 
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="<%= t %>">
-<meta name="twitter:description" content="<%= d %>">
+<meta name="twitter:title" content="<%= _title %>">
+<meta name="twitter:description" content="<%= _desc %>">
 <meta name="twitter:image" content="<%= baseUrl %>/img/social-card.png">
 
 <!-- Performance & Fonts -->
@@ -41,7 +50,7 @@
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 
 <!-- Core Styles -->
-<link rel="stylesheet" href="/css/site.css?v=<%= Date.now() %>">
+<link rel="stylesheet" href="/css/site.css<%= _q %>">
 
 <!-- Page-specific scripts (loaded via blocks) -->
 <% if (typeof scripts !== 'undefined' && scripts) { %>
@@ -51,10 +60,10 @@
 <% } %>
 
 <!-- Core UI Script -->
-<script defer src="/js/ui.js<%= q %>"></script>
+<script defer src="/js/ui.js<%= _q %>"></script>
 
 <!-- Build ID for cache-busting -->
 <script>
-  window.BL_BUILD_ID = '<%= buildId %>';
+  window.BL_BUILD_ID = '<%= _buildId %>';
   window.BL_ANIM = '<%= typeof locals !== "undefined" && locals.ANIM ? locals.ANIM : "on" %>';
 </script>
