@@ -395,33 +395,14 @@ p{margin:0 0 16px 0;line-height:var(--line-height)}
   color:#fff;
   padding:12px 14px;
   border-radius:12px;
-  box-shadow:var(--shadow);
+  box-shadow:0 8px 30px rgba(16,24,40,.3);
   z-index:9999;
   display:none;
-  max-width:300px;
 }
 .toast.show{display:block}
-.toast .text{
-  font-size:14px;
-  line-height:1.4;
-  margin-bottom:8px;
-  max-height:60px;
-  overflow:hidden;
-}
-.toast .actions{
-  display:flex;
-  gap:8px;
-  margin-top:8px;
-}
-.toast .btn{
-  height:36px;
-  padding:0 10px;
-  font-size:12px;
-}
-.toast .btn.secondary{
-  background:#374151;
-  color:#fff;
-}
+.toast .actions{display:flex;gap:8px;margin-top:8px}
+.toast .btn{height:36px;padding:0 10px}
+.toast .btn.secondary{background:#374151;color:#fff}
 
 /* Footer */
 .footer{border-top:1px solid var(--line);margin-top:40px;padding:32px 0;color:var(--ink-weak)}
@@ -627,6 +608,9 @@ p{margin:0 0 16px 0;line-height:var(--line-height)}
   padding:16px 0;
   border-bottom:1px solid var(--line);
 }
+
+/* Utility classes */
+.hidden{display:none !important}
 
 /* Reveal animation */
 .reveal{opacity:0;animation:fadeIn 0.5s ease forwards}

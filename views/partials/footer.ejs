@@ -45,26 +45,22 @@
   </div>
 </footer>
 
-<!-- Carousel centering script -->
 <script>
+// ---------- Carousel short-row centering ----------
 (function(){
   function markShortTracks(){
     document.querySelectorAll('.carousel-track').forEach(t=>{
-      // Remove previous marking
       t.classList.remove('is-short');
-      // If content doesn't overflow, center items
       if (t.scrollWidth <= t.clientWidth + 1) t.classList.add('is-short');
     });
   }
-  window.addEventListener('load', markShortTracks);
+  window.addEventListener('DOMContentLoaded', markShortTracks);
   window.addEventListener('resize', markShortTracks);
 })();
-</script>
 
-<!-- Improved Listen functionality script -->
-<script>
+// ---------- Listen (event delegation, robust controls) ----------
 (function(){
-  const synth = window.speechSynthesis || null;
+  const synth = ('speechSynthesis' in window) ? window.speechSynthesis : null;
   let utter = null, toast = null;
 
   function ensureToast(){
@@ -72,17 +68,17 @@
     toast = document.createElement('div');
     toast.className = 'toast';
     toast.innerHTML = `
-      <div class="text" style="max-width:320px"></div>
+      <div class="text" style="max-width:360px"></div>
       <div class="actions">
-        <button class="btn" data-act="play">Play</button>
-        <button class="btn secondary" data-act="pause">Pause</button>
-        <button class="btn secondary" data-act="stop">Stop</button>
+        <button class="btn" data-act="play" type="button">Play</button>
+        <button class="btn secondary" data-act="pause" type="button">Pause</button>
+        <button class="btn secondary" data-act="stop" type="button">Stop</button>
       </div>`;
     document.body.appendChild(toast);
 
     toast.querySelector('[data-act="play"]').addEventListener('click', ()=> {
       if (!synth || !utter) return;
-      if (synth.speaking && synth.paused) { synth.resume(); return; }
+      if (synth.paused) { synth.resume(); return; }
       if (!synth.speaking) { synth.speak(utter); }
     });
     toast.querySelector('[data-act="pause"]').addEventListener('click', ()=> {
@@ -92,49 +88,41 @@
       if (synth) synth.cancel();
       toast.classList.remove('show');
     });
-
     return toast;
   }
 
   function pickVoice(){
     if (!synth) return null;
     const voices = synth.getVoices();
-    // Prefer a clear US English voice if available
-    return voices.find(v=>/en[-_]US/i.test(v.lang) && /Female|Male|Google|Natural|Siri|Microsoft/i.test(v.name)) || voices[0] || null;
+    return voices.find(v=>/en[-_]US/i.test(v.lang)) || voices[0] || null;
   }
 
-  // Public hook called by Listen buttons
-  window.BL_listen = function(summary){
-    // Fallback if API not available
+  // Event delegation: works for all present/future Listen buttons
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('[data-bl-listen]');
+    if (!btn) return;
+
+    const summary = btn.getAttribute('data-bl-listen') || 'Preview not available.';
     if (!synth) { alert(summary); return; }
 
-    // Cancel any ongoing speech first
+    // Cancel anything current and create a new utterance
     synth.cancel();
-
-    // Create utterance fresh each time
     utter = new SpeechSynthesisUtterance(summary);
-    utter.rate = 1.0; utter.pitch = 1.0;
     const v = pickVoice(); if (v) utter.voice = v;
+    utter.rate = 1.0; utter.pitch = 1.0;
+    utter.onend = ()=> { if (toast) toast.classList.remove('show'); };
+    utter.onerror = ()=> { if (toast) toast.classList.remove('show'); };
 
-    // Show toast & bind text
     const t = ensureToast();
     t.querySelector('.text').textContent = summary;
     t.classList.add('show');
 
-    // Start speaking immediately on user gesture
-    // (BL_listen is called from a click handler)
+    // Speak immediately (user gesture)
     synth.speak(utter);
+  });
 
-    // Auto-hide on end
-    utter.onend = () => { t.classList.remove('show'); };
-    utter.onerror = () => { t.classList.remove('show'); };
-  };
-
-  // Some browsers load voices asynchronously
-  if (synth) {
-    if (typeof synth.onvoiceschanged !== 'undefined') {
-      synth.onvoiceschanged = ()=>{/* triggers voice availability; pickVoice() will see them on next click */};
-    }
+  if (synth && typeof synth.onvoiceschanged !== 'undefined') {
+    synth.onvoiceschanged = function(){ /* voices ready */ };
   }
 })();
 </script>
