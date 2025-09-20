@@ -1,7 +1,7 @@
-<!-- views/partials/footer.ejs - Tidy footer with Help & Contact, Legal, brief brand paragraph -->
-<footer class="site-footer">
-  <div class="footer-container">
-    <div class="footer-grid">
+<!-- Clean, Everand-inspired footer -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-content">
       <!-- Brand Section -->
       <div class="footer-brand">
         <a href="/" class="footer-logo">
@@ -13,59 +13,49 @@
         </p>
       </div>
 
-      <!-- Help & Contact -->
-      <div class="footer-section">
-        <h3>Help & Contact</h3>
-        <ul class="footer-links">
-          <li><a href="/contact">Contact Us</a></li>
-          <li><a href="/about">About</a></li>
-          <li><a href="/read">Browse Books</a></li>
-          <li><a href="/watch">Educational Videos</a></li>
-        </ul>
-      </div>
+      <!-- Links Grid -->
+      <div class="footer-links">
+        <!-- Help & Contact -->
+        <div class="footer-section">
+          <h4>Help & Contact</h4>
+          <ul>
+            <li><a href="/contact">Contact Us</a></li>
+            <li><a href="/about">About</a></li>
+            <li><a href="/read">Browse Books</a></li>
+            <li><a href="/watch">Educational Videos</a></li>
+          </ul>
+        </div>
 
-      <!-- Legal -->
-      <div class="footer-section">
-        <h3>Legal</h3>
-        <ul class="footer-links">
-          <li><a href="/privacy">Privacy Policy</a></li>
-          <li><a href="/terms">Terms of Service</a></li>
-          <li><a href="/sitemap.xml">Sitemap</a></li>
-        </ul>
+        <!-- Legal -->
+        <div class="footer-section">
+          <h4>Legal</h4>
+          <ul>
+            <li><a href="/privacy">Privacy Policy</a></li>
+            <li><a href="/terms">Terms of Service</a></li>
+            <li><a href="/sitemap.xml">Sitemap</a></li>
+          </ul>
+        </div>
       </div>
     </div>
 
     <!-- Footer Bottom -->
     <div class="footer-bottom">
-      <p>&copy; <%= new Date().getFullYear() %> BookLantern</p>
+      <p>&copy; <%= new Date().getFullYear() %> BookLantern. All rights reserved.</p>
     </div>
   </div>
 </footer>
 
 <style>
-/* Site Footer Styles */
-.site-footer {
-  background: var(--surface);
-  border-top: 1px solid var(--line);
-  margin-top: 80px;
-  padding: 48px 0 24px;
-}
-
-.footer-container {
-  max-width: var(--container);
-  margin: 0 auto;
-  padding: 0 24px;
-}
-
-.footer-grid {
+/* Clean footer styles */
+.footer-content {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr;
   gap: 48px;
   margin-bottom: 32px;
 }
 
 .footer-brand {
-  max-width: 300px;
+  max-width: 320px;
 }
 
 .footer-logo {
@@ -86,36 +76,42 @@
   font-size: 14px;
 }
 
-.footer-section h3 {
+.footer-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+.footer-section h4 {
   font-size: 16px;
   font-weight: 600;
   color: var(--ink);
   margin: 0 0 16px;
 }
 
-.footer-links {
+.footer-section ul {
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-.footer-links li {
+.footer-section li {
   margin-bottom: 8px;
 }
 
-.footer-links a {
+.footer-section a {
   color: var(--ink-weak);
   text-decoration: none;
   font-size: 14px;
   transition: color 0.2s ease;
 }
 
-.footer-links a:hover {
+.footer-section a:hover {
   color: var(--brand);
 }
 
 .footer-bottom {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid #eef0f4;
   padding-top: 24px;
   text-align: center;
 }
@@ -128,9 +124,14 @@
 
 /* Mobile Responsive */
 @media (max-width: 768px) {
-  .footer-grid {
+  .footer-content {
     grid-template-columns: 1fr;
     gap: 32px;
+  }
+  
+  .footer-links {
+    grid-template-columns: 1fr;
+    gap: 24px;
   }
   
   .footer-brand {

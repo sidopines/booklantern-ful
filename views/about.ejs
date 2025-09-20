@@ -2,62 +2,91 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: 'About BookLantern',
-    pageDescription: 'Learn how BookLantern brings together results from globally trusted libraries so you can discover millions of books in one place.'
+    pageTitle: 'About BookLantern - Free Books from Global Libraries',
+    pageDescription: 'Learn about BookLantern\'s mission to provide free access to millions of books from globally trusted libraries.'
   }) %>
 </head>
-<body class="about-page" data-page="about">
+<body data-page="about">
   <%- include('./partials/navbar.ejs') %>
-
-  <!-- About Header -->
-  <div class="about-header">
-    <div class="about-container">
+  
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="container">
       <%- include('./partials/backLink.ejs', { text: 'Back', fallback: '/' }) %>
-      <h1 class="about-title">About BookLantern</h1>
-      <p class="about-description">
-        We bring together millions of free books from globally trusted libraries, 
-        making knowledge accessible to everyone through one simple, beautiful interface.
-      </p>
+      <h1 class="page-title">About BookLantern</h1>
+      <p class="page-subtitle">Connecting readers with the world's largest collection of free books</p>
     </div>
   </div>
+  
+  <!-- Content -->
+  <main class="content-section">
+    <div class="container">
+      <div class="about-content">
+        <!-- Mission Section -->
+        <section class="content-block">
+          <h2>Our Mission</h2>
+          <p>BookLantern makes millions of books from globally trusted libraries accessible through one simple, clean interface. We believe that knowledge should be free and easily discoverable for everyone, everywhere.</p>
+        </section>
 
-  <!-- About Content -->
-  <main class="about-main">
-    <div class="about-container">
-      <!-- Mission Section -->
-      <section class="about-section">
-        <h2>Our Mission</h2>
-        <p>BookLantern exists to democratize access to knowledge. We believe that great books and educational content should be freely available to everyone, regardless of their location or economic circumstances.</p>
-      </section>
+        <!-- Features Grid -->
+        <section class="content-block">
+          <h2>What Makes BookLantern Different</h2>
+          <div class="features-grid">
+            <div class="feature-card">
+              <div class="feature-icon">🔍</div>
+              <h3>Universal Search</h3>
+              <p>Search across millions of books from multiple libraries and archives with one simple query.</p>
+            </div>
+            
+            <div class="feature-card">
+              <div class="feature-icon">📖</div>
+              <h3>Clean Reading Experience</h3>
+              <p>Distraction-free reader optimized for focus, comprehension, and accessibility.</p>
+            </div>
+            
+            <div class="feature-card">
+              <div class="feature-icon">🌐</div>
+              <h3>Trusted Sources</h3>
+              <p>Content sourced exclusively from respected public domain and open access collections.</p>
+            </div>
+            
+            <div class="feature-card">
+              <div class="feature-icon">💡</div>
+              <h3>Always Free</h3>
+              <p>No subscriptions, no ads, no tracking. Just books, freely available as they should be.</p>
+            </div>
+          </div>
+        </section>
 
-      <!-- What Makes Us Different -->
-      <section class="about-section">
-        <h2>What makes BookLantern different</h2>
-        <div class="feature-grid">
-          <div class="feature-item">
-            <h3>Unified Search</h3>
-            <p>Search across millions of books from multiple sources in one place, without jumping between different library websites.</p>
+        <!-- Promise Section -->
+        <section class="content-block">
+          <h2>Our Promise to Readers</h2>
+          <div class="promise-grid">
+            <div class="promise-item">
+              <h4>Quality</h4>
+              <p>We curate content from the world's most respected libraries and archives.</p>
+            </div>
+            <div class="promise-item">
+              <h4>Accessibility</h4>
+              <p>Our platform works for everyone, with full support for screen readers and keyboard navigation.</p>
+            </div>
+            <div class="promise-item">
+              <h4>Privacy</h4>
+              <p>We don't track your reading habits or sell your data. Your privacy is paramount.</p>
+            </div>
           </div>
-          <div class="feature-item">
-            <h3>Clean Reading Experience</h3>
-            <p>Our distraction-free reader is optimized for focus and comprehension, making long-form reading a pleasure.</p>
-          </div>
-          <div class="feature-item">
-            <h3>Trusted Sources</h3>
-            <p>All content comes from respected public domain and open access collections from globally trusted institutions.</p>
-          </div>
-          <div class="feature-item">
-            <h3>No Barriers</h3>
-            <p>Free to use, no subscriptions, no ads interrupting your reading. Just pure access to knowledge.</p>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- Promise Section -->
-      <section class="about-section">
-        <h2>Our Promise to readers</h2>
-        <p>We're committed to keeping BookLantern free, fast, and focused on what matters most: connecting you with the books you want to read. We respect your privacy, never sell your data, and continuously work to improve your reading experience.</p>
-      </section>
+        <!-- CTA Section -->
+        <section class="content-block cta-section">
+          <h2>Start Reading Today</h2>
+          <p>Join thousands of readers who have discovered their next favorite book through BookLantern.</p>
+          <div class="cta-buttons">
+            <a href="/read" class="btn">Browse Books</a>
+            <a href="/watch" class="btn secondary">Watch Videos</a>
+          </div>
+        </section>
+      </div>
     </div>
   </main>
 
@@ -66,221 +95,130 @@
 </html>
 
 <style>
-/* About Page Styles */
-.about-header {
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
-  padding: 32px 0;
-}
-
-.about-container {
-  max-width: var(--container);
+/* About page specific styles */
+.about-content {
+  max-width: 800px;
   margin: 0 auto;
-  padding: 0 24px;
 }
 
-.about-title {
-  font-size: var(--h1);
+.content-block {
+  margin-bottom: 64px;
+}
+
+.content-block h2 {
+  font-size: 32px;
   font-weight: 600;
   color: var(--ink);
-  margin: 16px 0 16px;
+  margin: 0 0 24px;
+  text-align: center;
 }
 
-.about-description {
+.content-block p {
   color: var(--ink-weak);
+  line-height: 1.7;
   font-size: 18px;
-  line-height: 1.6;
-  max-width: 600px;
+  text-align: center;
+  margin: 0 0 16px;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 32px;
+  margin-top: 48px;
+}
+
+.feature-card {
+  text-align: center;
+  padding: 32px 24px;
+  background: var(--surface);
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.feature-icon {
+  font-size: 48px;
+  margin-bottom: 20px;
+}
+
+.feature-card h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 12px;
+}
+
+.feature-card p {
+  color: var(--ink-weak);
+  font-size: 16px;
+  line-height: 1.5;
+  text-align: center;
   margin: 0;
 }
 
-.about-main {
-  padding: 48px 0;
-}
-
-.about-section {
-  margin-bottom: 48px;
-}
-
-.about-section h2 {
-  font-size: var(--h2);
-  font-weight: 600;
-  color: var(--ink);
-  margin-bottom: 24px;
-}
-
-.about-section p {
-  color: var(--ink-weak);
-  line-height: 1.6;
-  font-size: 16px;
-  max-width: 700px;
-}
-
-.feature-grid {
+.promise-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 32px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 24px;
   margin-top: 32px;
 }
 
-.feature-item {
-  background: var(--surface);
-  padding: 24px;
-  border-radius: var(--card-radius);
-  box-shadow: var(--shadow);
+.promise-item {
+  text-align: center;
+  padding: 24px 16px;
 }
 
-.feature-item h3 {
+.promise-item h4 {
   font-size: 18px;
   font-weight: 600;
   color: var(--ink);
   margin: 0 0 12px;
 }
 
-.feature-item p {
+.promise-item p {
   color: var(--ink-weak);
+  font-size: 16px;
   line-height: 1.5;
   margin: 0;
-  font-size: 14px;
 }
 
-/* Mobile Responsive */
+.cta-section {
+  text-align: center;
+  padding: 48px 32px;
+  background: linear-gradient(135deg, rgba(37,99,235,.05), rgba(124,58,237,.05));
+  border-radius: var(--card-radius);
+  margin-top: 64px;
+}
+
+.cta-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+/* Mobile responsive */
 @media (max-width: 768px) {
-  .about-header {
-    padding: 24px 0;
-  }
-  
-  .about-main {
-    padding: 32px 0;
-  }
-  
-  .about-section {
-    margin-bottom: 32px;
-  }
-  
-  .feature-grid {
+  .features-grid {
+    grid-template-columns: 1fr;
     gap: 24px;
   }
   
-  .feature-item {
-    padding: 20px;
+  .feature-card {
+    padding: 24px 20px;
+  }
+  
+  .cta-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .content-block {
+    margin-bottom: 48px;
+  }
+  
+  .content-block h2 {
+    font-size: 28px;
   }
 }
 </style>
-
-  <style>
-    /* Timeline Candles */
-    .timeline-candles {
-      position: fixed;
-      top: 20%;
-      right: 5%;
-      z-index: 1;
-      pointer-events: none;
-    }
-
-    .candle {
-      width: 20px;
-      height: 40px;
-      background: var(--gradient-primary);
-      border-radius: 10px 10px 2px 2px;
-      margin: 10px 0;
-      position: relative;
-      animation: candle-flicker 3s ease-in-out infinite;
-    }
-
-    .candle:nth-child(1) { animation-delay: 0s; }
-    .candle:nth-child(2) { animation-delay: 1s; }
-    .candle:nth-child(3) { animation-delay: 2s; }
-
-    @keyframes candle-flicker {
-      0%, 100% { opacity: 0.8; transform: scale(1); }
-      50% { opacity: 1; transform: scale(1.05); }
-    }
-
-    .about-hero{
-      background: var(--gradient-bg);
-      padding: 64px 0 24px;
-    }
-    .about-hero .inner{max-width:880px;margin:0 auto;text-align:center;padding:24px;}
-    .about-hero h1{font-size:clamp(36px,6vw,56px);letter-spacing:-.02em;margin:0 0 12px;}
-    .about-hero p{max-width:820px;margin:0 auto 16px;color:#556070;font-size:clamp(16px,2vw,20px);}
-    .cta-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;}
-    .section-copy{max-width:820px;color:#556070;line-height:1.6;}
-    .mt-2{margin-top:12px;}
-    .mt-3{margin-top:18px;}
-  </style>
-</head>
-<body>
-  <%- include('./partials/navbar.ejs') %>
-
-  <!-- HERO -->
-  <section class="about-hero">
-    <div class="inner">
-      <h1>About BookLantern</h1>
-      <p>BookLantern brings together results from globally trusted libraries across the web so you can discover millions of books in one place.</p>
-      <div class="cta-row">
-        <a class="btn" href="/read">Browse Books</a>
-        <a class="btn alt" href="/watch">Explore Videos</a>
-      </div>
-    </div>
-  </section>
-
-  <!-- VALUE STRIP -->
-  <section class="value-strip">
-    <div class="container value-inner">
-      <div class="value-item">
-        <div class="vi-title">Millions+ titles</div>
-        <div class="vi-copy">Search an ever-growing catalog brought together for easy discovery.</div>
-      </div>
-      <div class="value-item">
-        <div class="vi-title">From globally trusted libraries</div>
-        <div class="vi-copy">One search that unifies open stacks across the web.</div>
-      </div>
-      <div class="value-item">
-        <div class="vi-title">One clean reader</div>
-        <div class="vi-copy">Distraction-free pagination, bookmarks, and a consistent reading flow.</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- MISSION -->
-  <main class="section">
-    <div class="container">
-      <div class="shelf-header">
-        <h2>Our mission</h2>
-        <div class="hint">Make finding and reading great books effortless</div>
-      </div>
-      <p class="section-copy">
-        BookLantern helps the open book web feel like one great library. We organize results from
-        reputable catalogs, then present them in a simple interface so readers can search once, save
-        favorites, and pick up where they left off—without juggling different sites and accounts.
-      </p>
-
-      <div class="shelf-header mt-3">
-        <h2>What makes BookLantern different</h2>
-        <div class="hint">Clarity, speed, and focus</div>
-      </div>
-      <p class="section-copy">
-        We prioritize reading experience. Pages turn quickly, controls stay out of the way, and your
-        place is remembered across devices. When a title is available to read, we surface it clearly.
-        When it isn’t, we point you to where it lives—no runaround, no clutter.
-      </p>
-
-      <div class="shelf-header mt-3">
-        <h2>Our promise to readers</h2>
-        <div class="hint">Access + delight</div>
-      </div>
-      <p class="section-copy">
-        BookLantern exists to make books easier to reach and more enjoyable to read. We keep the
-        experience calm and consistent, respect availability, and continuously expand the catalog so
-        you can discover more with less effort.
-      </p>
-    </div>
-  </main>
-
-  <%- include('./partials/footer.ejs') %>
-
-  <!-- About Page Scripts -->
-  <script defer src="/js/about.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
-</body>
-</html>

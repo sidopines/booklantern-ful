@@ -1,125 +1,26 @@
-<%
-  // views/login.ejs
-  const pageTitle = "Login | BookLantern";
-  const pageDescription = "Access your BookLantern account to read books, watch content, and manage your favorites.";
-%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/head.ejs', { pageTitle, pageDescription }) %>
-  <style>
-    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --brand:#111; --brandHover:#333; --link:#1256b3; --error:#b42318; --success:#067647; --info:#1d4ed8; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-    }
-    .wrap { min-height: 100vh; display: flex; flex-direction: column; }
-    .container {
-      max-width: 420px;
-      width: 100%;
-      margin: 2rem auto 3rem;
-      padding: 0 1rem;
-    }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      box-shadow: 0 8px 28px rgba(0,0,0,.06);
-      padding: 1.5rem;
-    }
-    h1 {
-      text-align: center;
-      margin: 0 0 1rem 0;
-      font-size: 1.6rem;
-      line-height: 1.2;
-    }
-    .lead {
-      text-align: center;
-      color: var(--muted);
-      font-size: .95rem;
-      margin-bottom: 1rem;
-    }
-    form { display: flex; flex-direction: column; gap: .85rem; margin-top: .25rem; }
-    label { font-size: .9rem; color: var(--text); }
-    input[type="email"], input[type="password"] {
-      width: 100%;
-      padding: .7rem .8rem;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: #fff;
-      font-size: 1rem;
-      outline: none;
-    }
-    input:focus { border-color: #c7d2fe; box-shadow: 0 0 0 3px rgba(99,102,241,.15); }
-    .btn {
-      margin-top: .4rem;
-      padding: .8rem 1rem;
-      background: var(--brand);
-      color: #fff;
-      border: 0;
-      border-radius: 10px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .btn:hover { background: var(--brandHover); }
-    
-    .checkbox-group {
-      margin: 0.5rem 0;
-    }
-    
-    .checkbox-label {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.9rem;
-      cursor: pointer;
-    }
-    
-    .checkbox-label input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
-      margin: 0;
-    }
-    
-    .links { text-align: center; margin-top: 1rem; color: var(--muted); font-size: .95rem; }
-    .links a { color: var(--link); text-decoration: none; }
-    .links a:hover { text-decoration: underline; }
-
-    .alert {
-      border-radius: 10px;
-      padding: .75rem .9rem;
-      font-size: .95rem;
-      margin-bottom: .8rem;
-      border: 1px solid;
-    }
-    .alert.error   { background: #fee4e2; color: var(--error);  border-color: #fca5a5; }
-    .alert.success { background: #ecfdf3; color: var(--success); border-color: #86efac; }
-    .alert.info    { background: #eff6ff; color: var(--info);   border-color: #bfdbfe; }
-
-    footer { text-align: center; color: var(--muted); padding: 1.25rem 1rem 2rem; }
-  </style>
+  <%- include('./partials/head.ejs', {
+    pageTitle: 'Login - BookLantern',
+    pageDescription: 'Sign in to your BookLantern account to access your reading history and favorites.'
+  }) %>
 </head>
 <body data-page="auth">
   <%- include('./partials/navbar.ejs') %>
 
-  <!-- Auth Scene Background -->
-  <div class="auth-background">
-    <canvas id="auth3d" aria-hidden="true"></canvas>
-    <div id="auth-lottie" hidden></div>
-    <img id="auth-fallback" src="/img/auth-fallback.svg?v=<%= buildId %>" alt="" hidden />
-  </div>
-
-  <div class="wrap">
-    <main class="container">
-      <div class="card">
-        <h1>Login</h1>
-        <p class="lead">Welcome back! Sign in to continue.</p>
+  <main class="content-section">
+    <div class="container">
+      <%- include('./partials/backLink.ejs', { text: 'Back', fallback: '/' }) %>
+      
+      <div class="auth-card">
+        <div class="auth-header">
+          <h1 class="auth-title">Welcome back</h1>
+          <p class="auth-subtitle">Sign in to continue to BookLantern</p>
+        </div>
 
         <% if (typeof next !== 'undefined' && next) { %>
-          <div class="alert info">After you sign in, we’ll take you back to what you were doing.</div>
+          <div class="alert info">After you sign in, we'll take you back to what you were doing.</div>
         <% } %>
 
         <% if (typeof error !== 'undefined' && error) { %>
@@ -129,52 +30,93 @@
           <div class="alert success"><%= message %></div>
         <% } %>
 
-        <form action="/login" method="POST" novalidate>
+        <form action="/login" method="POST" class="auth-form">
           <!-- carry next destination (e.g., clicked book) -->
           <input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '' %>">
 
-          <div>
-            <label for="email">Email</label>
+          <div class="form-group">
+            <label for="email" class="form-label">Email address</label>
             <input
               type="email"
               id="email"
               name="email"
+              class="form-input"
               value="<%= typeof email !== 'undefined' ? email : '' %>"
               required
-              autocomplete="email" />
+              autocomplete="email"
+              placeholder="your@email.com"
+            />
           </div>
 
-          <div>
-            <label for="password">Password</label>
+          <div class="form-group">
+            <label for="password" class="form-label">Password</label>
             <input
               type="password"
               id="password"
               name="password"
+              class="form-input"
               required
-              autocomplete="current-password" />
+              autocomplete="current-password"
+              placeholder="Enter your password"
+            />
           </div>
 
           <div class="checkbox-group">
-            <label for="remember" class="checkbox-label">
-              <input type="checkbox" id="remember" name="remember" value="true">
-              <span class="checkmark"></span>
-              Remember me
-            </label>
+            <input type="checkbox" id="remember" name="remember" value="true" class="checkbox">
+            <label for="remember" class="checkbox-label">Remember me</label>
           </div>
 
-          <button class="btn" type="submit">Login</button>
+          <button type="submit" class="btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+              <polyline points="10,17 15,12 10,7"></polyline>
+              <line x1="15" y1="12" x2="3" y2="12"></line>
+            </svg>
+            Sign In
+          </button>
         </form>
 
-        <div class="links">
+        <div class="auth-links">
           <p><a href="/forgot-password">Forgot your password?</a></p>
-          <p>Don’t have an account? <a href="/register<%= next ? ('?next=' + encodeURIComponent(next)) : '' %>">Register here</a></p>
+          <p>Don't have an account? <a href="/register<%= next ? ('?next=' + encodeURIComponent(next)) : '' %>">Create one here</a></p>
         </div>
       </div>
-    </main>
+    </div>
+  </main>
 
-    <footer>
-      &copy; <%= new Date().getFullYear() %> BookLantern. All rights reserved.
-    </footer>
-  </div>
+  <%- include('./partials/footer.ejs') %>
 </body>
 </html>
+
+<style>
+/* Auth page specific styles */
+.auth-form {
+  margin: 0;
+}
+
+.auth-form .btn {
+  width: 100%;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.checkbox-label {
+  font-size: 14px;
+  color: var(--ink-weak);
+  cursor: pointer;
+}
+
+.auth-links a {
+  color: var(--brand);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.auth-links a:hover {
+  text-decoration: underline;
+}
+
+.auth-links p {
+  margin: 0 0 8px;
+}
+</style>
