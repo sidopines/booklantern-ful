@@ -86,12 +86,24 @@ app.use(session({
 
 // ─── 4) GLOBAL VIEW LOCALS ────────────────────────────────────────────────────
 app.use((req, res, next) => {
+  res.locals.loggedIn = !!(req.session.user);
   res.locals.user = req.session.user || null;
   res.locals.pageTitle = 'BookLantern';
   res.locals.pageDescription = 'Free books & educational videos.';
   res.locals.buildId = buildId;
   next();
 });
+
+// ─── 5) HELMET CSP (allow Open Library covers) ─────────────────────────────────
+const helmet = require('helmet');
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      "img-src": ["'self'", "data:", "https://covers.openlibrary.org"],
+    }
+  }
+}));
 
 // ─── 6) ROUTES ────────────────────────────────────────────────────────────────
 // Order matters: mount admin after sessions/locals are set

@@ -13,10 +13,10 @@ const historyBooks = (typeof history !== 'undefined' && history) ? history : [];
   <%- include('./partials/navbar') %>
   <%- include('./partials/hero') %>
 
-  <main>
-    <%- include('./partials/bookCarousel', { title: 'Trending now', items: trendingBooks, sectionClass: 'section--trending' }) %>
-    <%- include('./partials/bookCarousel', { title: 'Philosophy Picks', items: philosophyBooks, sectionClass: 'section--philosophy' }) %>
-    <%- include('./partials/bookCarousel', { title: 'History Picks', items: historyBooks, sectionClass: 'section--history' }) %>
+  <main class="stack" style="--gap:24px">
+    <%- include('./partials/bookCarousel', { title: 'Trending now', items: trending, sectionClass: 'section--trending' }) %>
+    <%- include('./partials/bookCarousel', { title: 'Philosophy Picks', items: philosophy, sectionClass: 'section--philosophy' }) %>
+    <%- include('./partials/bookCarousel', { title: 'History Picks', items: history, sectionClass: 'section--history' }) %>
   </main>
 
   <%- include('./partials/footer') %>
