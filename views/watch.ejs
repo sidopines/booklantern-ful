@@ -1,61 +1,42 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <%- include('./partials/head.ejs', { pageTitle: 'Educational Videos', pageDescription: 'Curated educational content' }) %>
-</head>
+<%- include('./partials/head', {
+  pageTitle: (typeof pageTitle !== 'undefined' ? pageTitle : 'Educational Videos • BookLantern'),
+  pageDescription: 'Curated educational videos and talks.'
+}) %>
 <body>
   <%- include('./partials/navbar') %>
+
   <section class="hero">
-    <div class="container">
-      <a class="back" href="/" onclick="if(document.referrer){history.back();return false;}">← Back</a>
-      <h2 style="margin:6px 0 2px 0">Educational Videos</h2>
-      <div class="muted">Curated educational content from trusted sources.</div>
+    <div class="inner">
+      <h1>Watch</h1>
+      <p>Curated educational videos and talks.</p>
     </div>
   </section>
 
-  <main class="container stack" style="--gap:20px">
-    <% if (videos && videos.length) { %>
-      <div class="grid cols-4">
-        <% videos.forEach(v => { %>
-          <div class="card hover">
-            <% 
-              const url = String(v.href || '');
-              const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/i);
-              const vimeo = url.match(/vimeo\.com\/(\d+)/);
-            %>
-
-            <% if (yt) { %>
-              <div style="position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden">
-                <iframe src="https://www.youtube.com/embed/<%= yt[1] %>" title="<%= v.title %>" frameborder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowfullscreen style="position:absolute;inset:0;width:100%;height:100%"></iframe>
+  <main class="container" style="padding:18px 0 36px">
+    <% if (items && items.length) { %>
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">
+        <% items.forEach(function(v){ %>
+          <article class="card" style="width:auto">
+            <a href="<%= v.url || v.href || '#' %>" target="_blank" rel="noopener">
+              <div class="cover" style="height:190px">
+                <% if (v.thumb || v.thumbnail) { %>
+                  <img src="<%= v.thumb || v.thumbnail %>" alt="<%= v.title || 'Video' %>">
+                <% } else { %>
+                  <div style="font-weight:800;font-size:22px;color:rgba(255,255,255,.35)">Video</div>
+                <% } %>
               </div>
-            <% } else if (vimeo) { %>
-              <div style="position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden">
-                <iframe src="https://player.vimeo.com/video/<%= vimeo[1] %>" frameborder="0" allow="autoplay; fullscreen; picture-in-picture"
-                        allowfullscreen style="position:absolute;inset:0;width:100%;height:100%"></iframe>
+            </a>
+            <div class="meta">
+              <div class="title" title="<%= v.title || '' %>"><%= v.title || 'Untitled' %></div>
+              <div class="actions">
+                <a class="btn secondary" href="<%= v.url || v.href || '#' %>" target="_blank" rel="noopener">Watch</a>
               </div>
-            <% } else { %>
-              <% if (v.thumbnail) { %>
-                <img class="cover-img" src="<%= v.thumbnail %>" alt="">
-              <% } else { %>
-                <div class="cover-ph">VID</div>
-              <% } %>
-            <% } %>
-
-            <div style="margin-top:10px">
-              <div class="book-title"><%= v.title %></div>
-              <div class="muted" style="font-size:12px;word-break:break-all"><%= v.href %></div>
             </div>
-
-            <% if (!yt && !vimeo) { %>
-              <a class="btn" style="margin-top:10px" href="<%= v.href %>" target="_blank" rel="noopener">Watch</a>
-            <% } %>
-          </div>
+          </article>
         <% }) %>
       </div>
     <% } else { %>
-      <div class="card" style="text-align:center">No videos available yet.<br>Use the Admin panel to add some.</div>
+      <div class="muted">No videos yet. Add them in <code>data/videos.json</code> or via your Admin tool.</div>
     <% } %>
   </main>
 
