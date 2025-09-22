@@ -1,24 +1,47 @@
 <%
-  const list = (items || []).filter(Boolean);
+// expects: title, items (array), sectionClass (optional), _loggedIn (optional)
+const list = Array.isArray(items) ? items : [];
 %>
-<% if (list.length) { %>
-<section class="container carousel">
-  <div class="stack" style="--gap:12px">
-    <div class="section-head">
-      <div class="section-left">
-        <span class="section-pill"></span>
-        <h3 style="margin:0"><%= title %></h3>
-      </div>
+<section class="section <%= sectionClass || '' %>">
+  <div class="container">
+    <div class="title">
+      <div><%= title %></div>
       <div class="carousel-nav" aria-hidden="true">
-  <button class="carousel-btn" type="button" data-scroll="prev" aria-label="Scroll left">←</button>
-  <button class="carousel-btn" type="button" data-scroll="next" aria-label="Scroll right">→</button>
-</div>
+        <button class="carousel-btn" type="button" data-scroll="prev" aria-label="Scroll left">←</button>
+        <button class="carousel-btn" type="button" data-scroll="next" aria-label="Scroll right">→</button>
+      </div>
     </div>
-    <div class="carousel-track" role="list" aria-label="<%= title %>">
-      <% list.forEach(it => { %>
-        <%- include('./bookCard', { item: it }) %>
-      <% }) %>
-    </div>
+
+    <% if (!list.length) { %>
+      <div class="muted">Nothing here yet.</div>
+    <% } else { %>
+      <div class="carousel">
+        <div class="carousel-track" role="list" aria-label="<%= title %>">
+          <% list.forEach(it => { %>
+            <div class="card" role="listitem">
+              <div class="cover">
+                <% if (it.cover) { %>
+                  <img src="<%= it.cover %>" alt="Cover: <%= it.title %>">
+                <% } else { %>
+                  <div style="font-weight:800; font-size:28px; color:rgba(255,255,255,.35)">
+                    <%= (it.initials || (it.title || 'BL').slice(0,2)).toUpperCase() %>
+                  </div>
+                <% } %>
+              </div>
+              <div class="meta">
+                <div class="title"><%= it.title || 'Untitled' %></div>
+                <div class="author"><%= it.author || 'Unknown author' %></div>
+                <div class="actions">
+                  <a class="btn secondary" href="<%= it.readUrl || ('/login?next=' + encodeURIComponent('/read?q='+(it.title||''))) %>">Read</a>
+                  <% if (it.snippet) { %>
+                    <button type="button" class="btn secondary" data-bl-listen="<%- it.snippet %>">Listen</button>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+    <% } %>
   </div>
 </section>
-<% } %>
