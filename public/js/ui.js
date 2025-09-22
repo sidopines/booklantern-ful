@@ -1,50 +1,63 @@
-/* ui.js — carousel centering + Listen (TTS) toast */
+/* ui.js — centering, subtle reveal, Listen controls */
 
-/* center short carousels to avoid left-stacked look */
-(function centerCarousels(){
-  document.querySelectorAll('.carousel').forEach(sec=>{
-    const track = sec.querySelector('.carousel-track');
-    if (!track) return;
-    const scrollable = track.scrollWidth > track.clientWidth + 8;
-    if (!scrollable) track.classList.add('is-short');
+/* Center carousels when short */
+(function(){
+  function markShortTracks(){
+    document.querySelectorAll('.carousel-track').forEach(t=>{
+      t.classList.remove('is-short');
+      if (t.scrollWidth <= t.clientWidth + 1) t.classList.add('is-short');
+    });
+  }
+  window.addEventListener('DOMContentLoaded', markShortTracks);
+  window.addEventListener('resize', markShortTracks);
+})();
+
+/* Reveal-on-load (cards fade-in) */
+(function(){
+  const els = document.querySelectorAll('.card.hover');
+  els.forEach((el,i)=>{
+    el.style.opacity='0'; el.style.transform='translateY(6px)';
+    setTimeout(()=>{ el.style.transition='opacity .35s ease, transform .35s ease';
+      el.style.opacity='1'; el.style.transform='translateY(0)'; }, 40 + i*30);
   });
 })();
 
-/* Listen (TTS) */
-(function listenInit(){
-  const toastId = 'bl-listen-toast';
+/* Listen via toast */
+(function(){
+  if (!('speechSynthesis' in window)) return;
+  const synth = window.speechSynthesis;
+  let utter=null, toast=null;
+
   function ensureToast(){
-    let el = document.getElementById(toastId);
-    if (el) return el;
-    el = document.createElement('div');
-    el.id = toastId;
-    el.className = 'toast';
-    el.innerHTML = `
-      <div style="font-weight:700;margin-bottom:6px">Listen preview</div>
-      <div id="bl-listen-now" class="muted" style="margin-bottom:10px;max-width:360px"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn secondary" id="blplay" type="button">Play</button>
-        <button class="btn secondary" id="blpause" type="button">Pause</button>
-        <button class="btn secondary" id="blstop" type="button">Stop</button>
+    if (toast) return toast;
+    toast = document.createElement('div');
+    toast.className='toast';
+    toast.innerHTML = `
+      <div style="font-weight:900;margin-bottom:6px">Listen preview</div>
+      <div class="muted" id="bl-text" style="max-width:340px"></div>
+      <div class="actions">
+        <button class="btn secondary" id="bl-play" type="button">Play</button>
+        <button class="btn ghost" id="bl-pause" type="button">Pause</button>
+        <button class="btn ghost" id="bl-stop" type="button">Stop</button>
       </div>`;
-    document.body.appendChild(el);
-    document.getElementById('blplay').onclick=()=>speechSynthesis.resume();
-    document.getElementById('blpause').onclick=()=>speechSynthesis.pause();
-    document.getElementById('blstop').onclick=()=>speechSynthesis.cancel();
-    return el;
+    document.body.appendChild(toast);
+    document.getElementById('bl-play').onclick=()=>{ if(!utter) return; if(synth.paused) synth.resume(); else if(!synth.speaking) synth.speak(utter); };
+    document.getElementById('bl-pause').onclick=()=>{ if(synth.speaking && !synth.paused) synth.pause(); };
+    document.getElementById('bl-stop').onclick=()=>{ synth.cancel(); toast.classList.remove('show'); };
+    return toast;
   }
 
-  document.addEventListener('click', (e)=>{
-    const btn = e.target.closest('[data-bl-listen]');
-    if (!btn) return;
-    const text = btn.getAttribute('data-bl-listen') || btn.getAttribute('data-text') || '';
-    if (!window.speechSynthesis) { alert('Speech not supported on this browser.'); return; }
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text || 'No description available.');
-    u.rate = 1; u.pitch = 1;
-    speechSynthesis.speak(u);
-    const el = ensureToast();
-    document.getElementById('bl-listen-now').textContent = text.slice(0, 160);
-    el.style.display='block';
+  function pickVoice(){ const v=synth.getVoices(); return v.find(x=>/en[-_]US/i.test(x.lang))||v[0]||null; }
+
+  document.addEventListener('click',(e)=>{
+    const btn=e.target.closest('[data-bl-listen]'); if(!btn) return;
+    const text = btn.getAttribute('data-bl-listen') || 'Preview not available.';
+    synth.cancel();
+    utter = new SpeechSynthesisUtterance(text);
+    const v=pickVoice(); if(v) utter.voice=v;
+    utter.onend=()=>toast && toast.classList.remove('show');
+    utter.onerror=()=>toast && toast.classList.remove('show');
+    const t=ensureToast(); document.getElementById('bl-text').textContent=text.slice(0,200); t.classList.add('show');
+    synth.speak(utter);
   });
 })();
