@@ -1,109 +1,50 @@
-<!-- views/admin/videos.ejs -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('../partials/head.ejs', {
-    pageTitle: pageTitle || 'Admin • Videos',
-    pageDescription: pageDescription || 'Manage educational videos'
-  }) %>
-  <style>
-    :root { --bg:#f6f7fb; --card:#fff; --border:#e5e7eb; --muted:#667085; --ink:#111; --brand:#111; --brandH:#333; --danger:#b42318; }
-    body{ margin:0; background:var(--bg); color:var(--ink); font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
-    main{ max-width:1100px; margin:2rem auto 3rem; padding:0 1rem; }
-    .grid{ display:grid; grid-template-columns: 360px 1fr; gap:18px; }
-    @media (max-width:1000px){ .grid{ grid-template-columns:1fr; } }
-    .card{ background:var(--card); border:1px solid var(--border); border-radius:14px; box-shadow:0 8px 28px rgba(0,0,0,.06); padding:14px; }
-    h1{ margin:0 0 1rem 0; font-size:clamp(1.6rem,2.5vw,2rem); }
-
-    form label{ display:block; font-size:.9rem; margin:.4rem 0 .2rem; }
-    input, select, textarea{ width:100%; padding:.65rem .75rem; border:1px solid var(--border); border-radius:10px; background:#fff; }
-    textarea{ min-height:84px; }
-    .btn{ padding:.65rem 1rem; border-radius:10px; border:1px solid var(--border); background:var(--brand); color:#fff; font-weight:600; cursor:pointer; }
-    .btn:hover{ background:var(--brandH); }
-    .btn-danger{ background:var(--danger); color:#fff; border-color:#fca5a5; }
-    .muted{ color:var(--muted); }
-
-    .list{ display:flex; flex-direction:column; gap:10px; }
-    .item{ display:flex; gap:12px; align-items:center; padding:10px; border:1px solid var(--border); border-radius:12px; background:#fff; }
-    .thumb{ width:88px; height:56px; background:#eef2f7; border-radius:8px; overflow:hidden; flex:0 0 auto; display:flex; align-items:center; justify-content:center; font-size:12px; color:#999; }
-    .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
-    .meta{ flex:1 1 auto; min-width:0; }
-    .title{ font-weight:700; margin-bottom:2px; }
-    .line{ font-size:.9rem; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .actions{ flex:0 0 auto; display:flex; gap:8px; align-items:center; }
-  </style>
+  <%- include('../partials/head.ejs', { pageTitle: 'Admin · Videos', pageDescription: 'Manage Watch videos' }) %>
 </head>
 <body>
-  <%- include('../partials/navbar.ejs') %>
-  <main>
-    <a href="/admin" style="text-decoration:none;color:#1256b3;display:inline-block;margin-bottom:10px">← Admin</a>
-    <h1>Videos</h1>
+  <%- include('../partials/navbar') %>
 
-    <% if (err) { %><div class="card" style="border-color:#fca5a5;color:#b42318;margin-bottom:10px">⚠ <%= err %></div><% } %>
-    <% if (ok)  { %><div class="card" style="border-color:#86efac;color:#067647;margin-bottom:10px">✓ Saved.</div><% } %>
+  <main class="container stack" style="--gap:24px">
+    <a class="back" href="/" onclick="if(document.referrer){history.back();return false;}">← Back</a>
+    <h1>Admin · Videos</h1>
 
-    <div class="grid">
-      <section class="card">
-        <h2 style="margin:0 0 .6rem 0;font-size:1.1rem">Add New Video</h2>
-        <form action="/admin/videos" method="POST">
-          <label>Video title</label>
-          <input type="text" name="title" placeholder="Video title" required>
+    <div class="card">
+      <h3 style="margin-top:0">Add a video</h3>
+      <form method="post" action="/admin/videos/create" class="stack" style="--gap:8px">
+        <input class="input" type="text" name="title" placeholder="Title" required>
+        <input class="input" type="url" name="href" placeholder="Video URL (YouTube/Vimeo/etc.)" required>
+        <input class="input" type="url" name="thumbnail" placeholder="Thumbnail URL (optional)">
+        <button class="btn" type="submit">Add</button>
+      </form>
+    </div>
 
-          <label>Genre</label>
-          <select name="genre">
-            <option value="">No genre</option>
-            <% (genres||[]).forEach(function(g){ %>
-              <option value="<%= g._id %>"><%= g.name %></option>
-            <% }) %>
-          </select>
-
-          <label>YouTube URL (watch/share/shorts/embed)</label>
-          <input type="url" name="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." required>
-
-          <label>Thumbnail URL (optional)</label>
-          <input type="url" name="thumbnail" placeholder="https://...jpg (optional)">
-
-          <label>Description (optional)</label>
-          <textarea name="description" placeholder="Short description (optional)"></textarea>
-
-          <div style="margin-top:10px"><button class="btn" type="submit">Add Video</button></div>
-          <p class="muted" style="margin-top:8px;font-size:.9rem">Tip: any YouTube link works; the site extracts the ID for thumbnails & embeds (watch, share, shorts, embed).</p>
-        </form>
-      </section>
-
-      <section class="card">
-        <h2 style="margin:0 0 .6rem 0;font-size:1.1rem">Existing Videos</h2>
-        <% if (!videos || !videos.length) { %>
-          <p class="muted">No videos yet.</p>
-        <% } else { %>
-          <div class="list">
-            <% videos.forEach(function(v){ 
-                 const m = (v.youtubeUrl||'').match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{11})/);
-                 const ytId = m ? m[1] : '';
-                 const thumb = v.thumbnail || (ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : '');
-            %>
-              <div class="item">
-                <div class="thumb">
-                  <% if (thumb) { %><img src="<%= thumb %>" alt=""><% } else { %>No thumb<% } %>
-                </div>
-                <div class="meta">
-                  <div class="title"><%= v.title %></div>
-                  <div class="line">
-                    <% if (v.genre && v.genre.name) { %>Genre: <%= v.genre.name %> · <% } %>
-                    <%= v.youtubeUrl %>
-                  </div>
-                </div>
-                <div class="actions">
-                  <form action="/admin/videos/<%= v._id %>/delete" method="POST">
-                    <button class="btn btn-danger" type="submit">Delete</button>
-                  </form>
-                </div>
-              </div>
-            <% }) %>
+    <div class="grid cols-4">
+      <% if (rows && rows.length) { %>
+        <% rows.forEach(v => { %>
+          <div class="card hover">
+            <div style="position:relative">
+              <% if (v.thumbnail) { %>
+                <img class="cover-img" src="<%= v.thumbnail %>" alt="">
+              <% } else { %>
+                <div class="cover-ph">VID</div>
+              <% } %>
+            </div>
+            <div style="margin-top:10px">
+              <div class="book-title"><%= v.title %></div>
+              <div class="muted" style="font-size:12px;word-break:break-all"><%= v.href %></div>
+            </div>
+            <form method="post" action="/admin/videos/<%= v._id %>/delete" style="margin-top:10px">
+              <button class="btn secondary" type="submit" onclick="return confirm('Delete this video?')">Delete</button>
+              <a class="btn" style="margin-left:8px" href="<%= v.href %>" target="_blank" rel="noopener">Open</a>
+            </form>
           </div>
-        <% } %>
-      </section>
+        <% }) %>
+      <% } else { %>
+        <div class="card">No videos yet.</div>
+      <% } %>
     </div>
   </main>
-</body>
-</html>
+
+  <%- include('../partials/footer') %>
