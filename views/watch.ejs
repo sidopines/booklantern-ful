@@ -1,33 +1,28 @@
-<%
-const loggedIn = (typeof user !== 'undefined' && user) ? true : false;
-const videos = (typeof videoData !== 'undefined' && videoData) ? videoData : [];
-%>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <%- include('./partials/head') %>
-</head>
+<%- include('./partials/head', { pageTitle: 'Educational Videos' }) %>
 <body>
   <%- include('./partials/navbar') %>
-  
-  <div class="container" style="padding-top:16px">
-    <%- include('./partials/backLink') %>
-  </div>
+  <section class="hero">
+    <div class="container stack" style="--gap:8px">
+      <%- include('./partials/backLink') %>
+      <h1>Educational Videos</h1>
+      <div class="muted">Curated educational content from trusted sources.</div>
+    </div>
+  </section>
 
   <main class="container stack" style="--gap:16px">
-    <h1>Educational Videos</h1>
     <% if (videos && videos.length) { %>
       <section class="grid cols-4" role="list">
         <% videos.forEach(v => { %>
           <article class="card hover" role="listitem">
             <% if (v.thumbnail) { %>
-              <img class="cover-img" src="<%= v.thumbnail %>" alt="Thumbnail: <%= v.title %>" loading="lazy" onerror="this.style.display='none'">
+              <img class="cover-img" src="<%= v.thumbnail %>" alt="Thumbnail: <%= v.title %>" loading="lazy"
+                   onerror="this.style.display='none'">
             <% } else { %>
               <div class="cover-ph">▶︎</div>
             <% } %>
             <div class="stack" style="--gap:6px">
               <div class="book-title"><%= v.title %></div>
-              <div class="card-ctas">
+              <div class="stack" style="flex-direction:row;gap:8px">
                 <a class="btn" href="<%= v.href %>" target="_blank" rel="noopener">Watch</a>
               </div>
             </div>
@@ -42,5 +37,3 @@ const videos = (typeof videoData !== 'undefined' && videoData) ? videoData : [];
   </main>
 
   <%- include('./partials/footer') %>
-</body>
-</html>
