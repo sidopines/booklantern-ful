@@ -1,11 +1,12 @@
 <%
-  const list = (items && items.length) ? items : [];
-  const sectionClass = typeof sectionClass !== 'undefined' ? sectionClass : '';
-  const _title = typeof title !== 'undefined' ? title : 'Books';
+  // Guard inputs and avoid TDZ by using new local names
+  const list = (typeof items !== 'undefined' && Array.isArray(items) && items.length) ? items : [];
+  const sectionClassSafe = (typeof sectionClass !== 'undefined' && sectionClass) ? sectionClass : '';
+  const titleSafe = (typeof title !== 'undefined' && title) ? title : 'Books';
 %>
-<section class="carousel <%= sectionClass %>">
+<section class="carousel <%= sectionClassSafe %>">
   <div class="carousel-head">
-    <h2><%= _title %></h2>
+    <h2><%= titleSafe %></h2>
     <div class="carousel-controls">
       <button class="carousel-btn prev" type="button" aria-label="Previous">‹</button>
       <button class="carousel-btn next" type="button" aria-label="Next">›</button>
@@ -15,7 +16,7 @@
   <% if (!list.length) { %>
     <div class="muted">Nothing here yet.</div>
   <% } else { %>
-    <div class="carousel-track" role="list" aria-label="<%= _title %>">
+    <div class="carousel-track" role="list" aria-label="<%= titleSafe %>">
       <% list.forEach(function(it){ %>
         <%- include('./bookCard', { item: it }) %>
       <% }) %>
