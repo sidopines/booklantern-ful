@@ -1,27 +1,32 @@
-<%- include('./partials/head', { pageTitle: 'Explore Free Books' }) %>
+<%- include('./partials/head', {
+  pageTitle: (typeof pageTitle !== 'undefined' ? pageTitle : 'Explore Free Books'),
+  pageDescription: 'Search millions of books from globally trusted libraries. Clean reading experience.'
+}) %>
 <body>
   <%- include('./partials/navbar') %>
+
+  <!-- Reuse the same hero but keep the query in the input -->
   <section class="hero">
-    <div class="container stack" style="--gap:8px">
-      <%- include('./partials/backLink') %>
-      <h1>Explore Free Books</h1>
-      <div class="muted">Millions of books from globally trusted libraries. One search, one clean reader.</div>
-      <form action="/read" method="get" class="stack" style="flex-direction:row;gap:8px;margin-top:6px">
-        <input class="input" name="q" placeholder="Search millions of books..." value="<%= (typeof q !== 'undefined') ? q : '' %>" />
+    <div class="inner">
+      <h1>Largest Online Hub of Free Books</h1>
+      <p>Millions of books from globally trusted libraries. One search, one clean reader.</p>
+
+      <form class="searchbar" action="/read" method="get">
+        <input class="input" name="q" type="search" placeholder="Search millions of books…" aria-label="Search books" value="<%= typeof q !== 'undefined' ? q : '' %>">
         <button class="btn" type="submit">Search</button>
       </form>
     </div>
   </section>
 
-  <main class="container stack" style="--gap:16px">
+  <main class="container" style="padding:18px 0 28px">
     <% if (items && items.length) { %>
-      <section class="grid cols-4" role="list">
-        <% items.forEach(item => { %>
-          <%- include('./partials/bookCard', { item }) %>
+      <div style="display:flex;flex-wrap:wrap;gap:12px">
+        <% items.forEach(function(it){ %>
+          <%- include('./partials/bookCard', { item: it }) %>
         <% }) %>
-      </section>
+      </div>
     <% } else { %>
-      <div class="card" style="max-width:640px;margin:0 auto;text-align:center">Start by searching above.</div>
+      <div class="muted" style="margin-top:10px">Start by searching above.</div>
     <% } %>
   </main>
 
