@@ -1,95 +1,75 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/head.ejs', {
-    pageTitle: 'About BookLantern - Free Books from Global Libraries',
-    pageDescription: 'Learn about BookLantern\'s mission to provide free access to millions of books from globally trusted libraries.'
-  }) %>
+  <%- include('./partials/head') %>
 </head>
-<body data-page="about">
-  <%- include('./partials/navbar.ejs') %>
+<body>
+  <%- include('./partials/navbar') %>
   
-  <!-- Page Header -->
-  <div class="page-header">
-    <div class="container">
-      <%- include('./partials/backLink.ejs', { text: 'Back', fallback: '/' }) %>
-      <h1 class="page-title">About BookLantern</h1>
-      <p class="page-subtitle">Connecting readers with the world's largest collection of free books</p>
-    </div>
+  <div class="container" style="padding-top:16px">
+    <%- include('./partials/backLink') %>
   </div>
   
-  <!-- Content -->
-  <main class="content-section">
-    <div class="container">
-      <div class="about-content" style="max-width: 800px; margin: 0 auto;">
-        <!-- Mission Section -->
-        <section style="margin-bottom: 64px;">
-          <h2 style="text-align: center; margin-bottom: 24px;">Our Mission</h2>
-          <p style="text-align: center; font-size: 18px; color: var(--ink-weak); line-height: 1.7;">BookLantern makes millions of books from globally trusted libraries accessible through one simple, clean interface. We believe that knowledge should be free and easily discoverable for everyone, everywhere.</p>
-        </section>
+  <main class="container" style="padding:40px 0;max-width:800px">
+    <div class="stack" style="--gap:40px">
+      <div class="stack" style="--gap:16px;text-align:center">
+        <h1>About BookLantern</h1>
+        <p class="muted" style="font-size:18px">Connecting readers with the world's largest collection of free books</p>
+      </div>
 
-        <!-- Features Grid -->
-        <section style="margin-bottom: 64px;">
-          <h2 style="text-align: center; margin-bottom: 48px;">What Makes BookLantern Different</h2>
-          <div class="content-grid">
-            <div class="card" style="text-align: center; padding: 32px 24px;">
-              <div class="empty-icon">🔍</div>
+      <div class="card" style="padding:32px;text-align:center">
+        <h2 style="margin-bottom:16px">Our Mission</h2>
+        <p style="font-size:18px" class="muted">BookLantern makes millions of books from globally trusted libraries accessible through one simple, clean interface. We believe that knowledge should be free and easily discoverable for everyone, everywhere.</p>
+      </div>
+
+      <div class="stack" style="--gap:24px">
+        <h2 style="text-align:center">What Makes BookLantern Different</h2>
+        <div class="grid cols-4">
+          <div class="card" style="text-align:center">
+            <div class="stack" style="--gap:12px">
+              <div style="font-size:32px">🔍</div>
               <h3>Universal Search</h3>
-              <p>Search across millions of books from multiple libraries and archives with one simple query.</p>
+              <p class="muted">Search across millions of books from multiple libraries and archives with one simple query.</p>
             </div>
-            
-            <div class="card" style="text-align: center; padding: 32px 24px;">
-              <div class="empty-icon">📖</div>
-              <h3>Clean Reading Experience</h3>
-              <p>Distraction-free reader optimized for focus, comprehension, and accessibility.</p>
+          </div>
+          
+          <div class="card" style="text-align:center">
+            <div class="stack" style="--gap:12px">
+              <div style="font-size:32px">📖</div>
+              <h3>Clean Reading</h3>
+              <p class="muted">Distraction-free reader optimized for focus and comprehension.</p>
             </div>
-            
-            <div class="card" style="text-align: center; padding: 32px 24px;">
-              <div class="empty-icon">🌐</div>
+          </div>
+          
+          <div class="card" style="text-align:center">
+            <div class="stack" style="--gap:12px">
+              <div style="font-size:32px">🌐</div>
               <h3>Trusted Sources</h3>
-              <p>Content sourced exclusively from respected public domain and open access collections.</p>
+              <p class="muted">Content from respected public domain and open access collections.</p>
             </div>
-            
-            <div class="card" style="text-align: center; padding: 32px 24px;">
-              <div class="empty-icon">💡</div>
+          </div>
+          
+          <div class="card" style="text-align:center">
+            <div class="stack" style="--gap:12px">
+              <div style="font-size:32px">💡</div>
               <h3>Always Free</h3>
-              <p>No subscriptions, no ads, no tracking. Just books, freely available as they should be.</p>
+              <p class="muted">No subscriptions, no ads, no tracking. Just books.</p>
             </div>
           </div>
-        </section>
+        </div>
+      </div>
 
-        <!-- Promise Section -->
-        <section style="margin-bottom: 64px;">
-          <h2 style="text-align: center; margin-bottom: 32px;">Our Promise to Readers</h2>
-          <div class="content-grid">
-            <div style="text-align: center; padding: 24px 16px;">
-              <h4 style="font-size: 18px; font-weight: 600; color: var(--ink); margin: 0 0 12px;">Quality</h4>
-              <p style="color: var(--ink-weak); font-size: 16px; line-height: 1.5; margin: 0;">We curate content from the world's most respected libraries and archives.</p>
-            </div>
-            <div style="text-align: center; padding: 24px 16px;">
-              <h4 style="font-size: 18px; font-weight: 600; color: var(--ink); margin: 0 0 12px;">Accessibility</h4>
-              <p style="color: var(--ink-weak); font-size: 16px; line-height: 1.5; margin: 0;">Our platform works for everyone, with full support for screen readers and keyboard navigation.</p>
-            </div>
-            <div style="text-align: center; padding: 24px 16px;">
-              <h4 style="font-size: 18px; font-weight: 600; color: var(--ink); margin: 0 0 12px;">Privacy</h4>
-              <p style="color: var(--ink-weak); font-size: 16px; line-height: 1.5; margin: 0;">We don't track your reading habits or sell your data. Your privacy is paramount.</p>
-            </div>
-          </div>
-        </section>
-
-        <!-- CTA Section -->
-        <section style="text-align: center; padding: 48px 32px; background: linear-gradient(135deg, rgba(37,99,235,.05), rgba(124,58,237,.05)); border-radius: var(--card-radius); margin-top: 64px;">
-          <h2 style="margin: 0 0 16px;">Start Reading Today</h2>
-          <p style="color: var(--ink-weak); margin: 0 0 32px;">Join thousands of readers who have discovered their next favorite book through BookLantern.</p>
-          <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
-            <a href="/read" class="btn">Browse Books</a>
-            <a href="/watch" class="btn secondary">Watch Videos</a>
-          </div>
-        </section>
+      <div class="card" style="padding:32px;text-align:center">
+        <h2 style="margin-bottom:24px">Start Reading Today</h2>
+        <p class="muted" style="margin-bottom:24px">Join thousands of readers discovering their next favorite book.</p>
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+          <a href="/read" class="btn">Browse Books</a>
+          <a href="/watch" class="btn secondary">Watch Videos</a>
+        </div>
       </div>
     </div>
   </main>
 
-  <%- include('./partials/footer.ejs') %>
+  <%- include('./partials/footer') %>
 </body>
 </html>

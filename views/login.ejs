@@ -1,105 +1,69 @@
 <%
-// Guard all locals - prevent crashes
-const error = (typeof locals.error !== 'undefined') ? locals.error : null;
-const message = (typeof locals.message !== 'undefined') ? locals.message : null;
-const messages = (typeof locals.messages !== 'undefined') ? locals.messages : {};
-const next = (typeof locals.next !== 'undefined') ? locals.next : '';
-const email = (typeof locals.email !== 'undefined') ? locals.email : '';
+const msgs = (typeof messages !== 'undefined') ? messages : {};
+const next = (typeof nextUrl !== 'undefined') ? nextUrl : '';
+const error = (typeof loginError !== 'undefined') ? loginError : '';
+const csrfToken = (typeof _csrf !== 'undefined') ? _csrf : '';
 %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/head.ejs', {
-    pageTitle: 'Login - BookLantern',
-    pageDescription: 'Sign in to your BookLantern account to access your reading history and favorites.'
-  }) %>
+  <%- include('./partials/head') %>
 </head>
-<body data-page="auth">
-  <%- include('./partials/navbar.ejs') %>
+<body>
+  <%- include('./partials/navbar') %>
 
-  <main class="content-section">
-    <div class="container">
-      <%- include('./partials/backLink.ejs', { text: 'Back', fallback: '/' }) %>
-      
-      <div class="auth-card">
-        <div class="auth-header">
-          <h1 class="auth-title">Welcome back</h1>
-          <p class="auth-subtitle">Sign in to continue to BookLantern</p>
+  <div class="container" style="padding-top:16px">
+    <%- include('./partials/backLink') %>
+  </div>
+
+  <main class="container" style="padding:40px 0;max-width:420px">
+    <div class="card" style="padding:32px">
+      <div class="stack" style="--gap:24px">
+        <div class="stack" style="--gap:8px;text-align:center">
+          <h1>Welcome back</h1>
+          <p class="muted">Sign in to continue to BookLantern</p>
         </div>
 
-        <% if (next) { %>
-          <div class="alert info">After you sign in, we'll take you back to what you were doing.</div>
-        <% } %>
-
         <% if (error) { %>
-          <div class="alert error"><%= error %></div>
+          <div style="background:var(--rose);color:#fff;padding:12px;border-radius:8px;font-size:14px"><%= error %></div>
         <% } %>
-        <% if (message) { %>
-          <div class="alert success"><%= message %></div>
+        <% if (msgs.error) { %>
+          <div style="background:var(--rose);color:#fff;padding:12px;border-radius:8px;font-size:14px"><%= msgs.error %></div>
         <% } %>
-        <% if (messages.error) { %>
-          <div class="alert error"><%= messages.error %></div>
-        <% } %>
-        <% if (messages.success) { %>
-          <div class="alert success"><%= messages.success %></div>
+        <% if (msgs.success) { %>
+          <div style="background:var(--green);color:#fff;padding:12px;border-radius:8px;font-size:14px"><%= msgs.success %></div>
         <% } %>
 
-        <form action="/login" method="POST" class="auth-form">
-          <!-- carry next destination (e.g., clicked book) -->
-          <% if (next) { %>
-            <input type="hidden" name="next" value="<%= next %>">
-          <% } %>
-
-          <div class="form-group">
-            <label for="email" class="form-label">Email address</label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              class="form-input"
-              value="<%= email %>"
-              required
-              autocomplete="email"
-              placeholder="your@email.com"
-            />
+        <form class="stack" style="--gap:16px" action="/auth/login" method="post">
+          <% if (csrfToken) { %><input type="hidden" name="_csrf" value="<%= csrfToken %>"><% } %>
+          <% if (next) { %><input type="hidden" name="next" value="<%= next %>"><% } %>
+          
+          <div class="stack" style="--gap:6px">
+            <label for="email">Email</label>
+            <input class="input" type="email" name="email" id="email" required>
           </div>
-
-          <div class="form-group">
-            <label for="password" class="form-label">Password</label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              class="form-input"
-              required
-              autocomplete="current-password"
-              placeholder="Enter your password"
-            />
+          
+          <div class="stack" style="--gap:6px">
+            <label for="password">Password</label>
+            <input class="input" type="password" name="password" id="password" required>
           </div>
-
-          <div class="checkbox-group">
-            <input type="checkbox" id="remember" name="remember" value="true" class="checkbox">
-            <label for="remember" class="checkbox-label">Remember me</label>
+          
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" id="remember" name="remember">
+            <label for="remember" style="font-size:14px">Remember me</label>
           </div>
-
-          <button type="submit" class="btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
-              <polyline points="10,17 15,12 10,7"></polyline>
-              <line x1="15" y1="12" x2="3" y2="12"></line>
-            </svg>
-            Sign In
-          </button>
+          
+          <button class="btn" type="submit" style="width:100%">Sign In</button>
         </form>
 
-        <div class="auth-links">
-          <p><a href="/forgot-password">Forgot your password?</a></p>
-          <p>Don't have an account? <a href="/register<%= next ? ('?next=' + encodeURIComponent(next)) : '' %>">Create one here</a></p>
+        <div style="text-align:center;font-size:14px" class="muted">
+          <p><a href="/forgot-password">Forgot password?</a></p>
+          <p>Don't have an account? <a href="/register<%= next ? ('?next=' + encodeURIComponent(next)) : '' %>">Sign up</a></p>
         </div>
       </div>
     </div>
   </main>
 
-  <%- include('./partials/footer.ejs') %>
+  <%- include('./partials/footer') %>
 </body>
 </html>

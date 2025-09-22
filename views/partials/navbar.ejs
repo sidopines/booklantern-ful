@@ -1,101 +1,11 @@
-<!-- Unified Global Navbar -->
 <nav class="navbar">
-  <div class="container">
-    <div class="navbar-inner">
-      <!-- Left: Brand -->
-      <div class="nav-left">
-        <a href="/" class="brand">
-          <img src="/img/brand.svg" alt="BookLantern">
-          <span>BookLantern</span>
-        </a>
-      </div>
-
-      <!-- Center: Navigation Links -->
-      <div class="nav-menu">
-        <a href="/read" class="nav-link">Read</a>
-        <a href="/watch" class="nav-link">Watch</a>
-        <a href="/about" class="nav-link">About</a>
-        <a href="/contact" class="nav-link">Contact</a>
-      </div>
-
-      <!-- Right: Auth -->
-      <div class="nav-auth">
-        <% if (typeof user !== 'undefined' && user) { %>
-          <a href="/dashboard" class="nav-link">Account</a>
-          <a href="/logout" class="btn ghost">Logout</a>
-        <% } else { %>
-          <a href="/login" class="nav-link">Login</a>
-          <a href="/register" class="btn">Register</a>
-        <% } %>
-      </div>
-
-      <!-- Mobile Toggle -->
-      <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation">
-        <span></span>
-        <span></span>
-        <span></span>
-      </button>
+  <div class="container navbar-inner">
+    <div class="nav-left">
+      <a class="brand" href="/"><img src="/img/brand.svg" alt=""><span>BookLantern</span></a>
+      <a href="/read">Read</a><a href="/watch">Watch</a><a href="/about">About</a><a href="/contact">Contact</a>
+    </div>
+    <div class="nav-right">
+      <% if (loggedIn) { %><a href="/account">Account</a><% } else { %><a href="/login">Login</a><a class="btn secondary" href="/register">Register</a><% } %>
     </div>
   </div>
-
-  <!-- Mobile Menu -->
-  <div class="nav-mobile" id="nav-mobile">
-    <a href="/read">Read</a>
-    <a href="/watch">Watch</a>
-    <a href="/about">About</a>
-    <a href="/contact">Contact</a>
-    <% if (typeof user !== 'undefined' && user) { %>
-      <a href="/dashboard">Account</a>
-      <a href="/logout">Logout</a>
-    <% } else { %>
-      <a href="/login">Login</a>
-      <a href="/register">Register</a>
-    <% } %>
-  </div>
 </nav>
-
-<script>
-// Mobile navigation toggle
-document.addEventListener('DOMContentLoaded', function() {
-  const toggle = document.getElementById('nav-toggle');
-  const mobile = document.getElementById('nav-mobile');
-  
-  if (toggle && mobile) {
-    toggle.addEventListener('click', function() {
-      mobile.classList.toggle('open');
-      
-      // Animate hamburger
-      toggle.classList.toggle('active');
-    });
-
-    // Close on outside click
-    document.addEventListener('click', function(e) {
-      if (!toggle.contains(e.target) && !mobile.contains(e.target)) {
-        mobile.classList.remove('open');
-        toggle.classList.remove('active');
-      }
-    });
-
-    // Close on escape
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') {
-        mobile.classList.remove('open');
-        toggle.classList.remove('active');
-      }
-    });
-  }
-});
-</script>
-
-<style>
-/* Additional mobile toggle animation */
-.nav-toggle.active span:nth-child(1) {
-  transform: rotate(45deg) translate(5px, 5px);
-}
-.nav-toggle.active span:nth-child(2) {
-  opacity: 0;
-}
-.nav-toggle.active span:nth-child(3) {
-  transform: rotate(-45deg) translate(7px, -6px);
-}
-</style>

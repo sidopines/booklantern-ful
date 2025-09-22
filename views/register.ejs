@@ -1,152 +1,73 @@
 <%
-// Guard all locals - prevent crashes
-const error = (typeof locals.error !== 'undefined') ? locals.error : null;
-const message = (typeof locals.message !== 'undefined') ? locals.message : null;
-const messages = (typeof locals.messages !== 'undefined') ? locals.messages : {};
-const csrfToken = (typeof locals.csrfToken !== 'undefined') ? locals.csrfToken : '';
-const next = (typeof locals.next !== 'undefined') ? locals.next : '';
-const formData = (typeof locals.formData !== 'undefined') ? locals.formData : {};
+const msgs = (typeof messages !== 'undefined') ? messages : {};
+const next = (typeof nextUrl !== 'undefined') ? nextUrl : '';
+const error = (typeof registerError !== 'undefined') ? registerError : '';
+const csrfToken = (typeof _csrf !== 'undefined') ? _csrf : '';
 %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/head.ejs', {
-    pageTitle: 'Create Account - BookLantern',
-    pageDescription: 'Join BookLantern to track your reading progress and save your favorite books.'
-  }) %>
+  <%- include('./partials/head') %>
 </head>
-<body data-page="auth">
-  <%- include('./partials/navbar.ejs') %>
+<body>
+  <%- include('./partials/navbar') %>
 
-  <main class="content-section">
-    <div class="container">
-      <%- include('./partials/backLink.ejs', { text: 'Back', fallback: '/' }) %>
-      
-      <div class="auth-card">
-        <div class="auth-header">
-          <h1 class="auth-title">Create your account</h1>
-          <p class="auth-subtitle">Join BookLantern to unlock your reading journey</p>
+  <div class="container" style="padding-top:16px">
+    <%- include('./partials/backLink') %>
+  </div>
+
+  <main class="container" style="padding:40px 0;max-width:420px">
+    <div class="card" style="padding:32px">
+      <div class="stack" style="--gap:24px">
+        <div class="stack" style="--gap:8px;text-align:center">
+          <h1>Create Account</h1>
+          <p class="muted">Join BookLantern to unlock your reading journey</p>
         </div>
 
         <% if (error) { %>
-          <div class="alert error"><%= error %></div>
+          <div style="background:var(--rose);color:#fff;padding:12px;border-radius:8px;font-size:14px"><%= error %></div>
         <% } %>
-        <% if (message) { %>
-          <div class="alert success"><%= message %></div>
+        <% if (msgs.error) { %>
+          <div style="background:var(--rose);color:#fff;padding:12px;border-radius:8px;font-size:14px"><%= msgs.error %></div>
         <% } %>
-        <% if (messages.error) { %>
-          <div class="alert error"><%= messages.error %></div>
-        <% } %>
-        <% if (messages.success) { %>
-          <div class="alert success"><%= messages.success %></div>
+        <% if (msgs.success) { %>
+          <div style="background:var(--green);color:#fff;padding:12px;border-radius:8px;font-size:14px"><%= msgs.success %></div>
         <% } %>
 
-        <form action="/register" method="POST" class="auth-form">
-          <!-- carry next destination -->
-          <% if (next) { %>
-            <input type="hidden" name="next" value="<%= next %>">
-          <% } %>
+        <form class="stack" style="--gap:16px" action="/auth/register" method="post">
+          <% if (csrfToken) { %><input type="hidden" name="_csrf" value="<%= csrfToken %>"><% } %>
+          <% if (next) { %><input type="hidden" name="next" value="<%= next %>"><% } %>
           
-          <!-- CSRF token if available -->
-          <% if (csrfToken) { %>
-            <input type="hidden" name="_token" value="<%= csrfToken %>">
-          <% } %>
-
-          <div class="form-group">
-            <label for="name" class="form-label">Full name</label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              class="form-input"
-              value="<%= formData.name || '' %>"
-              required
-              autocomplete="name"
-              placeholder="Enter your full name"
-            />
+          <div class="stack" style="--gap:6px">
+            <label for="name">Full Name</label>
+            <input class="input" type="text" name="name" id="name" required>
           </div>
-
-          <div class="form-group">
-            <label for="email" class="form-label">Email address</label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              class="form-input"
-              value="<%= formData.email || '' %>"
-              required
-              autocomplete="email"
-              placeholder="your@email.com"
-            />
+          
+          <div class="stack" style="--gap:6px">
+            <label for="email">Email</label>
+            <input class="input" type="email" name="email" id="email" required>
           </div>
-
-          <div class="form-group">
-            <label for="password" class="form-label">Password</label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              class="form-input"
-              required
-              autocomplete="new-password"
-              placeholder="Create a secure password"
-              minlength="8"
-            />
-            <small style="color: var(--ink-weak); font-size: 12px; margin-top: 4px; display: block;">
-              At least 8 characters
-            </small>
+          
+          <div class="stack" style="--gap:6px">
+            <label for="password">Password</label>
+            <input class="input" type="password" name="password" id="password" required>
           </div>
-
-          <div class="form-group">
-            <label for="confirmPassword" class="form-label">Confirm password</label>
-            <input
-              type="password"
-              id="confirmPassword"
-              name="confirmPassword"
-              class="form-input"
-              required
-              autocomplete="new-password"
-              placeholder="Confirm your password"
-            />
+          
+          <div class="stack" style="--gap:6px">
+            <label for="confirmPassword">Confirm Password</label>
+            <input class="input" type="password" name="confirmPassword" id="confirmPassword" required>
           </div>
-
-          <button type="submit" class="btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-            </svg>
-            Create Account
-          </button>
+          
+          <button class="btn" type="submit" style="width:100%">Create Account</button>
         </form>
 
-        <div class="auth-links">
-          <p>Already have an account? <a href="/login<%= next ? ('?next=' + encodeURIComponent(next)) : '' %>">Sign in here</a></p>
+        <div style="text-align:center;font-size:14px" class="muted">
+          <p>Already have an account? <a href="/login<%= next ? ('?next=' + encodeURIComponent(next)) : '' %>">Sign in</a></p>
         </div>
       </div>
     </div>
   </main>
 
-  <%- include('./partials/footer.ejs') %>
+  <%- include('./partials/footer') %>
 </body>
 </html>
-
-<script>
-// Password confirmation validation
-document.addEventListener('DOMContentLoaded', function() {
-  const password = document.getElementById('password');
-  const confirmPassword = document.getElementById('confirmPassword');
-  
-  function validatePassword() {
-    if (password.value !== confirmPassword.value) {
-      confirmPassword.setCustomValidity('Passwords do not match');
-    } else {
-      confirmPassword.setCustomValidity('');
-    }
-  }
-  
-  password.addEventListener('input', validatePassword);
-  confirmPassword.addEventListener('input', validatePassword);
-});
-</script>

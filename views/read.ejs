@@ -1,141 +1,67 @@
 <%
-// Guard all locals
-const pageTitle = (typeof locals.pageTitle !== 'undefined') ? locals.pageTitle : 'Explore Free Books';
-const pageDescription = (typeof locals.pageDescription !== 'undefined') ? locals.pageDescription : 'Search and read books in a clean, unified reader.';
-const query = (typeof locals.query !== 'undefined') ? locals.query : '';
-const books = (typeof locals.books !== 'undefined') ? locals.books : [];
-const user = (typeof locals.user !== 'undefined') ? locals.user : null;
-
-function textOf(x){ 
-  if (!x) return ''; 
-  if (Array.isArray(x)) return x.join(', '); 
-  if (typeof x === 'object') return (x.name||x.title||x.text||''); 
-  return String(x); 
-}
+const loggedIn = (typeof user !== 'undefined' && user) ? true : false;
+const query = (typeof q !== 'undefined' && q) ? q : '';
+const books = (typeof results !== 'undefined' && results) ? results : [];
 %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/head.ejs', { pageTitle, pageDescription }) %>
+  <%- include('./partials/head') %>
 </head>
-<body data-page="read">
-  <%- include('./partials/navbar.ejs') %>
-
-  <!-- Back Link -->
-  <div class="container" style="padding-top: 16px;">
-    <%- include('./partials/backLink.ejs', { text: 'Back', fallback: '/' }) %>
+<body>
+  <%- include('./partials/navbar') %>
+  
+  <div class="container" style="padding-top:16px">
+    <%- include('./partials/backLink') %>
   </div>
 
-  <!-- Clean Search Hero - NO giant icons -->
-  <div class="hero">
-    <div class="container">
-      <div class="hero-content">
-        <% if (query && query.trim() !== '') { %>
-          <h1>Search Results</h1>
-          <p>Found <%= books.length %> books for "<%= query %>"</p>
-        <% } else { %>
-          <h1>Explore Free Books</h1>
-          <p>Search millions of books from globally trusted libraries. One search, one clean reader.</p>
-        <% } %>
-        
-        <!-- Single search form - NO icons -->
-        <form class="search" action="/read" method="GET">
-          <input 
-            type="text" 
-            name="query" 
-            class="input" 
-            placeholder="Search by title, author, topic..." 
-            value="<%= query %>" 
-            aria-label="Search books"
-          >
-          <button type="submit" class="btn">Search</button>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- Main Content -->
-  <main class="content-section">
-    <div class="container">
-      <% if (!books || books.length === 0) { %>
-        <% if (query && query.trim() !== '') { %>
-          <div class="empty-state">
-            <div class="empty-icon">📚</div>
-            <h3>No exact matches found</h3>
-            <p>Try fewer words or different spelling. You can also browse without searching.</p>
-            <a href="/read" class="btn">Browse All Books</a>
-          </div>
-        <% } else { %>
-          <div class="empty-state">
-            <div class="empty-icon">🔍</div>
-            <h3>Start exploring</h3>
-            <p>Search for books by title, author, or topic to get started.</p>
-          </div>
-        <% } %>
+  <section class="hero">
+    <div class="container stack" style="--gap:16px">
+      <% if (query) { %>
+        <h1>Search Results</h1>
+        <p class="muted">Found <%= books.length %> books for "<%= query %>"</p>
       <% } else { %>
-        <div class="results-grid">
-        <% books.forEach(function(book){ 
-             const src   = String(book.source || '').toLowerCase();
-             const id    = book.identifier || book._id || '';
-             const title = textOf(book.title) || 'Untitled';
-             const creator = textOf(book.creator || book.author || '');
-             const cover = book.cover || '';
-             const gid   = book.gutenId || book.gid || (String(id).startsWith('gutenberg:') ? String(id).split(':')[1] : null);
-             const wsLang  = book.wsLang || '';
-             const wsTitle = book.wsTitle || '';
-
-             // Decide destination based on book structure
-             let dest = '#';
-             let isDisabled = false;
-             
-             if (book.href && book.openInline === true) {
-               // New structure: use href for on-site reading
-               dest = book.href;
-             } else if (book.readerUrl) {
-               // Legacy structure: use readerUrl
-               dest = book.readerUrl;
-             } else if (src === 'gutenberg' && gid) {
-               // Force EPUB mode so the reader opens ePub.js
-               const qs = '?mode=epub'
-                 + (title ? ('&title=' + encodeURIComponent(title)) : '')
-                 + (creator ? ('&author=' + encodeURIComponent(creator)) : '');
-               dest = `/read/gutenberg/${encodeURIComponent(gid)}/reader${qs}`;
-             } else if (src === 'wikisource' && wsLang && wsTitle) {
-               dest = `/read/wikisource/${encodeURIComponent(wsLang)}/${encodeURIComponent(wsTitle)}/reader`;
-             } else if (book.pdfUrl) {
-               // Our PDF viewer page
-               const qs = '?src=' + encodeURIComponent(book.pdfUrl) 
-                 + (title ? ('&title=' + encodeURIComponent(title)) : '');
-               dest = '/read/pdf' + qs;
-             }
-
-             // Use the bookCard partial with book data including Listen functionality
-             const bookData = {
-               title: title,
-               author: creator,
-               cover: cover,
-               coverLarge: book.coverLarge,
-               image: book.image,
-               isbn: book.isbn,
-               openLibraryId: book.openLibraryId,
-               readUrl: dest,
-               description: book.description || book.snippet || book.subtitle,
-               source: src
-             };
-             %>
-          <%- include('./partials/bookCard.ejs', { book: bookData }) %>
-        <% }) %>
-        </div>
+        <h1>Explore Free Books</h1>
+        <p class="muted">Millions of books from globally trusted libraries. One search, one clean reader.</p>
       <% } %>
-
-      <% if (books && books.length > 0) { %>
-        <div class="empty-state">
-          <p>💡 Tip: BookLantern connects you with millions of books from globally trusted libraries.</p>
-        </div>
-      <% } %>
+      <form class="search" action="/read" method="get" role="search">
+        <input class="input" type="search" name="q" placeholder="Search millions of books…" value="<%= query %>">
+        <button class="btn" type="submit">Search</button>
+      </form>
     </div>
+  </section>
+
+  <main class="container" style="padding:40px 0">
+    <% if (books && books.length) { %>
+      <div class="grid cols-4">
+        <% books.forEach(book => { 
+          const item = {
+            title: book.title || 'Untitled',
+            author: book.author || book.creator || '',
+            cover: book.cover,
+            coverLarge: book.coverLarge,
+            image: book.image,
+            isbn: book.isbn,
+            openLibraryId: book.openLibraryId,
+            href: book.href || book.readerUrl || '#',
+            description: book.description || book.snippet
+          };
+        %>
+          <%- include('./partials/bookCard', { item, loggedIn }) %>
+        <% }) %>
+      </div>
+    <% } else { %>
+      <div class="card" style="text-align:center;padding:40px">
+        <% if (query) { %>
+          <h3>No results found</h3>
+          <p class="muted">Try a different search term or browse all books.</p>
+        <% } else { %>
+          <p class="muted">Start by searching above.</p>
+        <% } %>
+      </div>
+    <% } %>
   </main>
 
-  <%- include('./partials/footer.ejs') %>
+  <%- include('./partials/footer') %>
 </body>
 </html>

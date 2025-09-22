@@ -1,52 +1,18 @@
-<%
-// Accessible horizontal book carousel with neutral titles + accent bars - defensive programming
-const carouselId = (typeof locals.id !== 'undefined') ? locals.id : ('carousel-' + Date.now());
-const title = (typeof locals.title !== 'undefined') ? locals.title : 'Books';
-const items = (typeof locals.items !== 'undefined' && Array.isArray(locals.items)) ? locals.items : [];
-const sectionClass = (typeof locals.sectionClass !== 'undefined') ? locals.sectionClass : '';
-
-// Dedupe items by ID, URL, or title - defensive programming
-const seen = new Set();
-const uniqueItems = items.filter(item => {
-  if (!item) return false;
-  const key = item.id || item.url || item.readUrl || item.title || Math.random();
-  if (seen.has(key)) return false;
-  seen.add(key);
-  return true;
-});
-
-// Only render if we have items
-if (uniqueItems.length === 0) {
-  return;
-}
-%>
-
-<section class="container carousel <%= sectionClass %>">
+<% const list=(items||[]).filter(Boolean); if(list.length){ %>
+<section class="container carousel <%= sectionClass||'' %>">
   <div class="stack" style="--gap:12px">
     <div class="section-head">
-      <div style="display:flex;align-items:center">
-        <span class="bar"></span>
-        <h3 style="margin:0;font-size:var(--h2);font-weight:600"><%= title %></h3>
-      </div>
+      <div style="display:flex;align-items:center"><span class="bar"></span><h3><%= title %></h3></div>
       <div class="carousel-nav" aria-hidden="true">
-        <button class="carousel-btn" type="button" onclick="this.closest('.carousel').querySelector('.carousel-track').scrollBy({left:-400,behavior:'smooth'})" aria-label="Previous books">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="15,18 9,12 15,6"></polyline>
-          </svg>
-        </button>
-        <button class="carousel-btn" type="button" onclick="this.closest('.carousel').querySelector('.carousel-track').scrollBy({left:400,behavior:'smooth'})" aria-label="Next books">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="9,18 15,12 9,6"></polyline>
-          </svg>
-        </button>
+        <button class="carousel-btn" type="button" onclick="this.closest('.carousel').querySelector('.carousel-track').scrollBy({left:-400,behavior:'smooth'})">←</button>
+        <button class="carousel-btn" type="button" onclick="this.closest('.carousel').querySelector('.carousel-track').scrollBy({left:400,behavior:'smooth'})">→</button>
       </div>
     </div>
     <div class="carousel-track" role="list" aria-label="<%= title %>">
-      <% uniqueItems.forEach(function(item) { %>
-        <div class="carousel-item">
-          <%- include('./bookCard.ejs', { book: item }) %>
-        </div>
+      <% list.forEach(it => { %>
+        <%- include('bookCard', { item: it, loggedIn }) %>
       <% }) %>
     </div>
   </div>
 </section>
+<% } %>

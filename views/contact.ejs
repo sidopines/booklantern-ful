@@ -1,151 +1,71 @@
 <%
-// Guard all locals for defensive programming
-const error = (typeof locals.error !== 'undefined') ? locals.error : null;
-const message = (typeof locals.message !== 'undefined') ? locals.message : null;
-const formData = (typeof locals.formData !== 'undefined') ? locals.formData : {};
+const msgs = (typeof messages !== 'undefined') ? messages : {};
+const error = (typeof contactError !== 'undefined') ? contactError : '';
+const success = (typeof contactSuccess !== 'undefined') ? contactSuccess : '';
+const csrfToken = (typeof _csrf !== 'undefined') ? _csrf : '';
 %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/head.ejs', {
-    pageTitle: 'Contact Us - BookLantern',
-    pageDescription: 'Get in touch with the BookLantern team. We\'d love to hear from you.'
-  }) %>
+  <%- include('./partials/head') %>
 </head>
-<body data-page="contact">
-  <%- include('./partials/navbar.ejs') %>
+<body>
+  <%- include('./partials/navbar') %>
   
-  <!-- Page Header -->
-  <div class="page-header">
-    <div class="container">
-      <%- include('./partials/backLink.ejs', { text: 'Back', fallback: '/' }) %>
-      <h1 class="page-title">Contact Us</h1>
-      <p class="page-subtitle">We'd love to hear from you</p>
-    </div>
+  <div class="container" style="padding-top:16px">
+    <%- include('./partials/backLink') %>
   </div>
-  
-  <!-- Contact Form -->
-  <main class="content-section">
-    <div class="container">
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 64px; max-width: 1000px; margin: 0 auto;">
-        <div>
-          <% if (error) { %>
-            <div class="alert error"><%= error %></div>
-          <% } %>
-          <% if (message) { %>
-            <div class="alert success"><%= message %></div>
-          <% } %>
 
-          <form action="/contact" method="POST" style="background: var(--surface); padding: 32px; border-radius: var(--card-radius); box-shadow: var(--shadow);">
-            <div class="form-group">
-              <label for="name" class="form-label">Name</label>
-              <input 
-                type="text" 
-                id="name" 
-                name="name" 
-                class="form-input" 
-                required
-                value="<%= formData.name || '' %>"
-              >
-            </div>
+  <main class="container" style="padding:40px 0;max-width:600px">
+    <div class="stack" style="--gap:32px">
+      <div class="stack" style="--gap:8px;text-align:center">
+        <h1>Contact Us</h1>
+        <p class="muted">We'd love to hear from you</p>
+      </div>
 
-            <div class="form-group">
-              <label for="email" class="form-label">Email</label>
-              <input 
-                type="email" 
-                id="email" 
-                name="email" 
-                class="form-input" 
-                required
-                value="<%= formData.email || '' %>"
-              >
-            </div>
+      <div class="card" style="padding:32px">
+        <% if (error) { %>
+          <div style="background:var(--rose);color:#fff;padding:12px;border-radius:8px;font-size:14px;margin-bottom:24px"><%= error %></div>
+        <% } %>
+        <% if (success) { %>
+          <div style="background:var(--green);color:#fff;padding:12px;border-radius:8px;font-size:14px;margin-bottom:24px"><%= success %></div>
+        <% } %>
+        <% if (msgs.error) { %>
+          <div style="background:var(--rose);color:#fff;padding:12px;border-radius:8px;font-size:14px;margin-bottom:24px"><%= msgs.error %></div>
+        <% } %>
+        <% if (msgs.success) { %>
+          <div style="background:var(--green);color:#fff;padding:12px;border-radius:8px;font-size:14px;margin-bottom:24px"><%= msgs.success %></div>
+        <% } %>
 
-            <div class="form-group">
-              <label for="message" class="form-label">Message</label>
-              <textarea 
-                id="message" 
-                name="message" 
-                class="textarea" 
-                rows="6" 
-                required
-                placeholder="Tell us what's on your mind..."
-              ><%= formData.message || '' %></textarea>
-            </div>
-
-            <button type="submit" class="btn" style="width: 100%; gap: 8px; margin-top: 8px;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="m22 2-7 20-4-9-9-4z"></path>
-                <path d="M22 2 11 13"></path>
-              </svg>
-              Send Message
-            </button>
-          </form>
-        </div>
-
-        <div style="padding: 32px 0;">
-          <div>
-            <h3 style="font-size: 28px; font-weight: 600; color: var(--ink); margin: 0 0 16px;">Get in Touch</h3>
-            <p style="color: var(--ink-weak); line-height: 1.6; margin: 0 0 32px; font-size: 16px;">Have a question, suggestion, or just want to say hello? We're here to help.</p>
-            
-            <div style="margin-bottom: 40px;">
-              <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px;">
-                <div style="font-size: 32px; min-width: 48px;">📧</div>
-                <div>
-                  <h4 style="font-size: 18px; font-weight: 600; color: var(--ink); margin: 0 0 4px;">Email</h4>
-                  <p style="color: var(--ink-weak); font-size: 14px; margin: 0;">We typically respond within 24 hours</p>
-                </div>
-              </div>
-              
-              <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px;">
-                <div style="font-size: 32px; min-width: 48px;">💬</div>
-                <div>
-                  <h4 style="font-size: 18px; font-weight: 600; color: var(--ink); margin: 0 0 4px;">Feedback</h4>
-                  <p style="color: var(--ink-weak); font-size: 14px; margin: 0;">Help us improve BookLantern</p>
-                </div>
-              </div>
-              
-              <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px;">
-                <div style="font-size: 32px; min-width: 48px;">📚</div>
-                <div>
-                  <h4 style="font-size: 18px; font-weight: 600; color: var(--ink); margin: 0 0 4px;">Suggestions</h4>
-                  <p style="color: var(--ink-weak); font-size: 14px; margin: 0;">Recommend books or features</p>
-                </div>
-              </div>
-            </div>
-            
-            <div>
-              <h4 style="font-size: 18px; font-weight: 600; color: var(--ink); margin: 0 0 16px;">Quick Links</h4>
-              <ul style="list-style: none; padding: 0; margin: 0;">
-                <li style="margin-bottom: 8px;"><a href="/about" style="color: var(--ink-weak); text-decoration: none; font-size: 14px; transition: color 0.2s ease;">About BookLantern</a></li>
-                <li style="margin-bottom: 8px;"><a href="/read" style="color: var(--ink-weak); text-decoration: none; font-size: 14px; transition: color 0.2s ease;">Browse Books</a></li>
-                <li style="margin-bottom: 8px;"><a href="/watch" style="color: var(--ink-weak); text-decoration: none; font-size: 14px; transition: color 0.2s ease;">Educational Videos</a></li>
-              </ul>
-            </div>
+        <form class="stack" style="--gap:16px" action="/contact" method="post">
+          <% if (csrfToken) { %><input type="hidden" name="_csrf" value="<%= csrfToken %>"><% } %>
+          
+          <div class="stack" style="--gap:6px">
+            <label for="name">Name</label>
+            <input class="input" type="text" name="name" id="name" required>
           </div>
-        </div>
+          
+          <div class="stack" style="--gap:6px">
+            <label for="email">Email</label>
+            <input class="input" type="email" name="email" id="email" required>
+          </div>
+          
+          <div class="stack" style="--gap:6px">
+            <label for="subject">Subject</label>
+            <input class="input" type="text" name="subject" id="subject" required>
+          </div>
+          
+          <div class="stack" style="--gap:6px">
+            <label for="message">Message</label>
+            <textarea class="textarea" name="message" id="message" rows="6" required></textarea>
+          </div>
+          
+          <button class="btn" type="submit" style="width:100%">Send Message</button>
+        </form>
       </div>
     </div>
   </main>
 
-  <%- include('./partials/footer.ejs') %>
+  <%- include('./partials/footer') %>
 </body>
 </html>
-
-<style>
-/* Mobile responsive for contact page */
-@media (max-width: 768px) {
-  .container > div {
-    grid-template-columns: 1fr !important;
-    gap: 32px !important;
-  }
-  
-  .container form {
-    padding: 24px !important;
-  }
-  
-  .container > div > div:last-child {
-    padding: 0 !important;
-  }
-}
-</style>
