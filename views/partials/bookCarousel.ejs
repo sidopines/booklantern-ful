@@ -1,4 +1,13 @@
-<% const list=(items||[]).filter(Boolean); if(list.length){ %>
+<%
+  const _loggedIn =
+    (typeof loggedIn !== 'undefined' && !!loggedIn) ||
+    (typeof user !== 'undefined' && !!user) ||
+    (typeof currentUser !== 'undefined' && !!currentUser) ||
+    false;
+
+  const list = (items || []).filter(Boolean);
+  if (list.length) {
+%>
 <section class="container carousel <%= sectionClass||'' %>">
   <div class="stack" style="--gap:12px">
     <div class="section-head">
@@ -10,7 +19,7 @@
     </div>
     <div class="carousel-track" role="list" aria-label="<%= title %>">
       <% list.forEach(it => { %>
-        <%- include('bookCard', { item: it, loggedIn }) %>
+        <%- include('partials/bookCard', { item: it, loggedIn: _loggedIn }) %>
       <% }) %>
     </div>
   </div>

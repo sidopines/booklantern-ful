@@ -3,7 +3,14 @@ const title = video.title || 'Untitled Video';
 const description = video.description || '';
 const thumbnail = video.thumbnail || '';
 const url = video.url || video.href || '#';
-const gate = loggedIn ? url : `/login?next=${encodeURIComponent(url)}`;
+%>
+<%
+const _loggedIn =
+  (typeof loggedIn !== 'undefined' && !!loggedIn) ||
+  (typeof user !== 'undefined' && !!user) ||
+  (typeof currentUser !== 'undefined' && !!currentUser) ||
+  false;
+const gate = _loggedIn ? url : `/login?next=${encodeURIComponent(url)}`;
 %>
 <article class="card hover" role="listitem" style="min-width:200px">
   <div class="book-cover">

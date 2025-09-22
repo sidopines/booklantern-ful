@@ -1,11 +1,27 @@
+<%
+  // Derive a safe auth flag from any available local
+  const _loggedIn =
+    (typeof loggedIn !== 'undefined' && !!loggedIn) ||
+    (typeof user !== 'undefined' && !!user) ||
+    (typeof currentUser !== 'undefined' && !!currentUser) ||
+    false;
+%>
 <nav class="navbar">
   <div class="container navbar-inner">
     <div class="nav-left">
       <a class="brand" href="/"><img src="/img/brand.svg" alt=""><span>BookLantern</span></a>
-      <a href="/read">Read</a><a href="/watch">Watch</a><a href="/about">About</a><a href="/contact">Contact</a>
+      <a href="/read">Read</a>
+      <a href="/watch">Watch</a>
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
     </div>
     <div class="nav-right">
-      <% if (loggedIn) { %><a href="/account">Account</a><% } else { %><a href="/login">Login</a><a class="btn secondary" href="/register">Register</a><% } %>
+      <% if (_loggedIn) { %>
+        <a href="/account">Account</a>
+      <% } else { %>
+        <a href="/login">Login</a>
+        <a class="btn secondary" href="/register">Register</a>
+      <% } %>
     </div>
   </div>
 </nav>

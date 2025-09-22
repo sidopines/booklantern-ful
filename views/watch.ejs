@@ -24,7 +24,7 @@ const videos = (typeof videoData !== 'undefined' && videoData) ? videoData : [];
       <% if (videos && videos.length) { %>
         <div class="grid cols-4">
           <% videos.forEach(video => { %>
-            <%- include('./partials/videoCard', { video, loggedIn }) %>
+            <%- include('./partials/videoCard', { video }) %>
           <% }) %>
         </div>
       <% } else { %>
