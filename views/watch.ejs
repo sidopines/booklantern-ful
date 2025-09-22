@@ -1,43 +1,47 @@
-<%- include('./partials/head', {
-  pageTitle: (typeof pageTitle !== 'undefined' ? pageTitle : 'Educational Videos • BookLantern'),
-  pageDescription: 'Curated educational videos and talks.'
-}) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', {
+    pageTitle: 'Watch • BookLantern',
+    pageDescription: 'Educational videos and talks.'
+  }) %>
+</head>
 <body>
   <%- include('./partials/navbar') %>
 
-  <section class="hero">
-    <div class="inner">
+  <main>
+    <section class="hero">
       <h1>Watch</h1>
-      <p>Curated educational videos and talks.</p>
-    </div>
-  </section>
+      <p class="sub">Curated educational videos and talks.</p>
+    </section>
 
-  <main class="container" style="padding:18px 0 36px">
-    <% if (items && items.length) { %>
-      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">
-        <% items.forEach(function(v){ %>
-          <article class="card" style="width:auto">
-            <a href="<%= v.url || v.href || '#' %>" target="_blank" rel="noopener">
-              <div class="cover" style="height:190px">
-                <% if (v.thumb || v.thumbnail) { %>
-                  <img src="<%= v.thumb || v.thumbnail %>" alt="<%= v.title || 'Video' %>">
-                <% } else { %>
-                  <div style="font-weight:800;font-size:22px;color:rgba(255,255,255,.35)">Video</div>
-                <% } %>
-              </div>
-            </a>
+    <% const list = Array.isArray(videos) ? videos : []; %>
+    <% if (list.length) { %>
+      <div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;">
+        <% list.forEach(v => { %>
+          <article class="card">
+            <div class="cover">
+              <% if (v.thumbnail) { %>
+                <img src="<%= v.thumbnail %>" alt="<%= v.title %>" loading="lazy" referrerpolicy="no-referrer">
+              <% } else { %>
+                <div class="cover-ph" style="height:140px"></div>
+              <% } %>
+            </div>
             <div class="meta">
-              <div class="title" title="<%= v.title || '' %>"><%= v.title || 'Untitled' %></div>
-              <div class="actions">
-                <a class="btn secondary" href="<%= v.url || v.href || '#' %>" target="_blank" rel="noopener">Watch</a>
-              </div>
+              <h3 class="title"><%= v.title %></h3>
+              <p class="author"><%= v.source || 'Video' %></p>
+            </div>
+            <div class="actions">
+              <a class="btn primary" href="<%= v.url %>" target="_blank" rel="noopener">Watch</a>
             </div>
           </article>
         <% }) %>
       </div>
     <% } else { %>
-      <div class="muted">No videos yet. Add them in <code>data/videos.json</code> or via your Admin tool.</div>
+      <div class="card empty">No videos yet.</div>
     <% } %>
   </main>
 
   <%- include('./partials/footer') %>
+</body>
+</html>
