@@ -3,18 +3,21 @@
     (typeof loggedIn !== 'undefined' && !!loggedIn) ||
     (typeof user !== 'undefined' && !!user) || false;
 %>
-<nav class="navbar">
-  <div class="container navbar-inner">
-    <div class="nav-left">
-      <a class="brand" href="/"><img src="/public/img/brand.svg" alt=""><span>BookLantern</span></a>
+<nav class="navbar" style="position:sticky;top:0;z-index:40;background:rgba(18,22,33,.85);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,.06)">
+  <div class="container" style="display:flex;align-items:center;justify-content:space-between;height:60px">
+    <div style="display:flex;align-items:center;gap:16px">
+      <a href="/" style="display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.02em">
+        <img src="/public/img/brand.svg" alt="" width="20" height="20">
+        <span>BookLantern</span>
+      </a>
       <a href="/read">Read</a>
       <a href="/watch">Watch</a>
       <a href="/about">About</a>
       <a href="/contact">Contact</a>
     </div>
-    <div class="nav-right">
+    <div style="display:flex;align-items:center;gap:10px">
       <% if (_loggedIn) { %>
-        <a class="badge" href="/account">Account</a>
+        <a class="btn secondary" href="/account">Account</a>
       <% } else { %>
         <a class="btn ghost" href="/login">Login</a>
         <a class="btn secondary" href="/register">Register</a>
