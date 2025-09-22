@@ -3,29 +3,30 @@
   const title = it.title || 'Untitled';
   const author = it.author || '';
   const cover = it.cover || null;
-  const desc = it.description || `${title} by ${author}`;
+  const desc  = it.description || (title + (author?(' by '+author):''));
   const href  = it.href || '#';
 
   const _loggedIn =
     (typeof loggedIn !== 'undefined' && !!loggedIn) ||
-    (typeof user !== 'undefined' && !!user) ||
-    false;
+    (typeof user !== 'undefined' && !!user) || false;
   const gate = _loggedIn ? href : `/login?next=${encodeURIComponent(href)}`;
 %>
-<article class="card hover" role="listitem" style="width:220px">
-  <% if (cover) { %>
-    <img class="cover-img" src="<%= cover %>" alt="Cover: <%= title %>" loading="lazy"
-         onerror="this.style.display='none'; this.nextElementSibling?.classList.remove('hidden');">
-    <div class="cover-ph hidden"></div>
-  <% } else { %>
-    <div class="cover-ph"><%= (title[0]||'B') %><%= (author[0]||'L') %></div>
-  <% } %>
+<article class="card hover" role="listitem" style="min-width:220px">
+  <div class="book-cover">
+    <% if (cover) { %>
+      <img class="cover-img" src="<%= cover %>" alt="Cover: <%= title %>" loading="lazy"
+           onerror="this.style.display='none'; this.nextElementSibling?.classList.remove('hidden');">
+      <div class="cover-ph hidden"><%= (title[0]||'B')+(author[0]||'L') %></div>
+    <% } else { %>
+      <div class="cover-ph"><%= (title[0]||'B')+(author[0]||'L') %></div>
+    <% } %>
+  </div>
   <div class="stack" style="--gap:6px">
     <div class="book-title" title="<%= title %>"><%= title %></div>
-    <div class="muted"><%= author %></div>
-    <div class="stack" style="flex-direction:row;gap:8px">
+    <% if (author) { %><div class="book-author"><%= author %></div><% } %>
+    <div class="card-ctas">
       <a class="btn" href="<%= gate %>">Read</a>
-      <button class="btn secondary" type="button" data-bl-listen="<%= (desc||'') %>">Listen</button>
+      <button class="btn secondary" type="button" data-bl-listen="<%- desc.replace(/"/g,'&quot;') %>">Listen</button>
     </div>
   </div>
 </article>
