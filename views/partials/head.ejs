@@ -1,15 +1,11 @@
-<%
-  const _buildId =
-    (typeof buildId !== 'undefined' && buildId) ? String(buildId) :
-    (typeof process !== 'undefined' && process?.env?.RENDER_GIT_COMMIT) ? process.env.RENDER_GIT_COMMIT :
-    Date.now();
-  const _q = `?v=${_buildId}`;
-  const _title = (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern';
-  const _desc  = (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription :
-    'Discover millions of free books from globally trusted libraries. One search, one clean reader.';
-%>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title><%= _title %></title>
-<meta name="description" content="<%= _desc %>">
-<link rel="stylesheet" href="/css/site.css<%= _q %>">
-<script defer src="/js/ui.js<%= _q %>"></script>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%= typeof pageTitle !== 'undefined' ? pageTitle : 'BookLantern' %></title>
+  <meta name="description" content="<%= typeof pageDescription !== 'undefined' ? pageDescription : 'Discover millions of free books.' %>">
+
+  <link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>">
+  <script defer src="/public/js/ui.js?v=<%= buildId %>"></script>
+</head>
