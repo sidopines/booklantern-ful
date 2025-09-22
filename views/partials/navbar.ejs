@@ -1,21 +1,24 @@
 <%
   const _loggedIn =
     (typeof loggedIn !== 'undefined' && !!loggedIn) ||
-    (typeof user !== 'undefined' && !!user) ||
-    false;
+    (typeof user !== 'undefined' && !!user) || false;
 %>
 <nav class="navbar">
   <div class="container navbar-inner">
     <div class="nav-left">
-      <a class="brand" href="/"><img src="/public/img/brand.svg" alt="" width="18" height="18"><span>BookLantern</span></a>
+      <a class="brand" href="/"><img src="/public/img/brand.svg" alt=""><span>BookLantern</span></a>
       <a href="/read">Read</a>
       <a href="/watch">Watch</a>
       <a href="/about">About</a>
       <a href="/contact">Contact</a>
-      <% if (isAdmin) { %><a href="/admin/videos">Admin</a><% } %>
     </div>
     <div class="nav-right">
-      <% if (loggedIn) { %><a href="/account">Account</a><% } else { %><a href="/login">Login</a><a class="btn secondary" href="/register">Register</a><% } %>
+      <% if (_loggedIn) { %>
+        <a class="badge" href="/account">Account</a>
+      <% } else { %>
+        <a class="btn ghost" href="/login">Login</a>
+        <a class="btn secondary" href="/register">Register</a>
+      <% } %>
     </div>
   </div>
 </nav>
