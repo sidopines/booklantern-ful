@@ -1,69 +1,21 @@
-<%
-const msgs = (typeof messages !== 'undefined') ? messages : {};
-const next = (typeof nextUrl !== 'undefined') ? nextUrl : '';
-const error = (typeof loginError !== 'undefined') ? loginError : '';
-const csrfToken = (typeof _csrf !== 'undefined') ? _csrf : '';
-%>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <%- include('./partials/head') %>
-</head>
+<%- include('./partials/head', { pageTitle: 'Login — BookLantern' }) %>
 <body>
   <%- include('./partials/navbar') %>
 
-  <div class="container" style="padding-top:16px">
-    <%- include('./partials/backLink') %>
-  </div>
-
-  <main class="container" style="padding:40px 0;max-width:420px">
-    <div class="card" style="padding:32px">
-      <div class="stack" style="--gap:24px">
-        <div class="stack" style="--gap:8px;text-align:center">
-          <h1>Welcome back</h1>
-          <p class="muted">Sign in to continue to BookLantern</p>
-        </div>
-
-        <% if (error) { %>
-          <div style="background:var(--rose);color:#fff;padding:12px;border-radius:8px;font-size:14px"><%= error %></div>
-        <% } %>
-        <% if (msgs.error) { %>
-          <div style="background:var(--rose);color:#fff;padding:12px;border-radius:8px;font-size:14px"><%= msgs.error %></div>
-        <% } %>
-        <% if (msgs.success) { %>
-          <div style="background:var(--green);color:#fff;padding:12px;border-radius:8px;font-size:14px"><%= msgs.success %></div>
-        <% } %>
-
-        <form class="stack" style="--gap:16px" action="/auth/login" method="post">
-          <% if (csrfToken) { %><input type="hidden" name="_csrf" value="<%= csrfToken %>"><% } %>
-          <% if (next) { %><input type="hidden" name="next" value="<%= next %>"><% } %>
-          
-          <div class="stack" style="--gap:6px">
-            <label for="email">Email</label>
-            <input class="input" type="email" name="email" id="email" required>
-          </div>
-          
-          <div class="stack" style="--gap:6px">
-            <label for="password">Password</label>
-            <input class="input" type="password" name="password" id="password" required>
-          </div>
-          
-          <div style="display:flex;align-items:center;gap:8px">
-            <input type="checkbox" id="remember" name="remember">
-            <label for="remember" style="font-size:14px">Remember me</label>
-          </div>
-          
-          <button class="btn" type="submit" style="width:100%">Sign In</button>
-        </form>
-
-        <div style="text-align:center;font-size:14px" class="muted">
-          <p><a href="/forgot-password">Forgot password?</a></p>
-          <p>Don't have an account? <a href="/register<%= next ? ('?next=' + encodeURIComponent(next)) : '' %>">Sign up</a></p>
-        </div>
-      </div>
+  <main class="container stack" style="--gap:20px; padding:48px 0">
+    <div class="card stack" style="--gap:12px; max-width:480px; margin:0 auto">
+      <h1 style="margin:0">Welcome back</h1>
+      <p class="muted" style="margin:0">Sign in to continue reading</p>
+      <form class="stack" style="--gap:10px" method="post" action="/login">
+        <input class="input" name="email" type="email" placeholder="Email address" required>
+        <input class="input" name="password" type="password" placeholder="Password" required>
+        <label style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" name="remember"> <span class="muted">Remember me</span>
+        </label>
+        <button class="btn" type="submit">Login</button>
+      </form>
+      <a class="back" href="/register">Need an account? Register</a>
     </div>
   </main>
 
   <%- include('./partials/footer') %>
-</body>
-</html>
