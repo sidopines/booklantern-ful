@@ -1,11 +1,11 @@
 <section class="hero">
-  <div class="container stack" style="--gap:8px">
+  <div class="container inner stack" style="--gap:16px">
     <h1>Welcome to the largest hub of free books</h1>
-    <div class="muted">Millions of books from globally trusted libraries. One search, one clean reader.</div>
-    <form action="/read" method="get" class="stack" style="flex-direction:row;gap:8px;margin-top:6px">
-      <input class="input" name="q" placeholder="Search millions of books..." />
+    <p class="muted">Millions of books from globally trusted libraries. One search, one clean reader.</p>
+    <form class="search" action="/read" method="get" role="search" aria-label="Search books">
+      <input class="input" type="search" name="q" placeholder="Search millions of books…">
       <button class="btn" type="submit">Search</button>
     </form>
-    <div class="badges">✓ No ads &nbsp; • &nbsp; ✓ Free forever &nbsp; • &nbsp; ✓ Clean reading experience</div>
+    <div class="muted" style="font-size:12px">✓ No ads &nbsp;•&nbsp; ✓ Free forever &nbsp;•&nbsp; ✓ Clean reading experience</div>
   </div>
 </section>
