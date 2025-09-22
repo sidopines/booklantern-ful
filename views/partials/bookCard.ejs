@@ -1,31 +1,41 @@
 <%
-  const itemSafe = item || {};
-  const title = itemSafe.title || 'Untitled';
-  const author = itemSafe.author || itemSafe.authors || '';
-  const url = itemSafe.openUrl || itemSafe.url || '#';
-  const cover = itemSafe.cover || itemSafe.coverUrl || itemSafe.image || '';
-  const initials = (title || '')
-    .split(/\s+/).filter(Boolean).slice(0,2).map(s=>s[0].toUpperCase()).join('');
+  // Safe defaults
+  const it = item || {};
+  const title = it.title || 'Untitled';
+  const author = it.author || it.authors || 'Unknown';
+  const openLibraryId = it.openLibraryId || it.key || '';
+  // Prefer explicit coverUrl; else build from coverId/photoId; else placeholder
+  let coverUrl = it.coverUrl || '';
+  if (!coverUrl && it.coverId) coverUrl = `https://covers.openlibrary.org/b/id/${it.coverId}-M.jpg`;
+  if (!coverUrl && it.olid)      coverUrl = `https://covers.openlibrary.org/b/olid/${it.olid}-M.jpg`;
+  if (!coverUrl && it.isbn)      coverUrl = `https://covers.openlibrary.org/b/isbn/${it.isbn}-M.jpg`;
+
+  const readHref = it.readHref || it.url || (openLibraryId ? `https://openlibrary.org${openLibraryId}` : '#');
+  const listenText = it.listenText || `${title} by ${author}`;
 %>
-<article class="card book-card">
-  <a href="<%= url %>" target="_blank" rel="noopener">
-    <div class="cover">
-      <% if (cover) { %>
-        <img src="<%= cover %>" alt="Cover: <%= title %>">
-      <% } else { %>
-        <div class="cover-ph"><%= initials || 'BK' %></div>
-      <% } %>
-    </div>
-  </a>
+
+<article class="card book" role="listitem">
+  <div class="cover">
+    <% if (coverUrl) { %>
+      <img src="<%= coverUrl %>" alt="Cover: <%= title %>" loading="lazy" referrerpolicy="no-referrer">
+    <% } else { %>
+      <div class="cover-ph" aria-hidden="true">
+        <span class="cover-initials"><%= (title || 'U').slice(0,2).toUpperCase() %></span>
+      </div>
+    <% } %>
+  </div>
+
   <div class="meta">
-    <div class="title" title="<%= title %>"><%= title %></div>
-    <% if (author) { %><div class="author muted"><%= author %></div><% } %>
-    <div class="actions">
-      <a class="btn" href="<%= url %>" target="_blank" rel="noopener">Read</a>
-      <button class="btn secondary listen-btn"
-        type="button"
-        data-title="<%- title.replace(/"/g,'&quot;') %>"
-        data-author="<%- (author||'').toString().replace(/"/g,'&quot;') %>">Listen</button>
-    </div>
+    <h3 class="title" title="<%= title %>"><%= title %></h3>
+    <p class="author"><%= author %></p>
+  </div>
+
+  <div class="actions">
+    <a class="btn primary" href="<%= readHref %>" target="_blank" rel="noopener">Read</a>
+    <button class="btn ghost listen-btn"
+      type="button"
+      data-listen="<%- listenText.replace(/"/g,'&quot;') %>">
+      Listen
+    </button>
   </div>
 </article>
