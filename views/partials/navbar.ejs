@@ -12,14 +12,10 @@
       <a href="/watch">Watch</a>
       <a href="/about">About</a>
       <a href="/contact">Contact</a>
+      <% if (isAdmin) { %><a href="/admin/videos">Admin</a><% } %>
     </div>
     <div class="nav-right">
-      <% if (_loggedIn) { %>
-        <a href="/account">Account</a>
-      <% } else { %>
-        <a href="/login">Login</a>
-        <a class="btn secondary" href="/register">Register</a>
-      <% } %>
+      <% if (loggedIn) { %><a href="/account">Account</a><% } else { %><a href="/login">Login</a><a class="btn secondary" href="/register">Register</a><% } %>
     </div>
   </div>
 </nav>
