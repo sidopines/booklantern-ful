@@ -1,31 +1,13 @@
-<%
-const loggedIn = (typeof user !== 'undefined' && user) ? true : false;
-const query = (typeof q !== 'undefined' && q) ? q : '';
-const books = (typeof results !== 'undefined' && results) ? results : [];
-%>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <%- include('./partials/head') %>
-</head>
+<%- include('./partials/head', { pageTitle: 'Explore Free Books' }) %>
 <body>
   <%- include('./partials/navbar') %>
-  
-  <div class="container" style="padding-top:16px">
-    <%- include('./partials/backLink') %>
-  </div>
-
   <section class="hero">
-    <div class="container stack" style="--gap:16px">
-      <% if (query) { %>
-        <h1>Search Results</h1>
-        <p class="muted">Found <%= books.length %> books for "<%= query %>"</p>
-      <% } else { %>
-        <h1>Explore Free Books</h1>
-        <p class="muted">Millions of books from globally trusted libraries. One search, one clean reader.</p>
-      <% } %>
-      <form class="search" action="/read" method="get" role="search">
-        <input class="input" type="search" name="q" placeholder="Search millions of books…" value="<%= query %>">
+    <div class="container stack" style="--gap:8px">
+      <%- include('./partials/backLink') %>
+      <h1>Explore Free Books</h1>
+      <div class="muted">Millions of books from globally trusted libraries. One search, one clean reader.</div>
+      <form action="/read" method="get" class="stack" style="flex-direction:row;gap:8px;margin-top:6px">
+        <input class="input" name="q" placeholder="Search millions of books..." value="<%= (typeof q !== 'undefined') ? q : '' %>" />
         <button class="btn" type="submit">Search</button>
       </form>
     </div>
@@ -44,5 +26,3 @@ const books = (typeof results !== 'undefined' && results) ? results : [];
   </main>
 
   <%- include('./partials/footer') %>
-</body>
-</html>
