@@ -1,18 +1,12 @@
-<%- include('./partials/head', { pageTitle: 'BookLantern - Free Books' }) %>
+<%- include('./partials/head', {
+  pageTitle: 'BookLantern — Free Books from Global Libraries',
+  pageDescription: 'Search and read millions of free books. Clean reader, vibrant covers, quick Listen previews.'
+}) %>
 <body>
   <%- include('./partials/navbar') %>
   <%- include('./partials/hero') %>
 
-  <% if ((!trending || !trending.length) && (!philosophy || !philosophy.length) && (!history || !history.length)) { %>
-    <div class="container grid cols-4" style="margin-top:16px">
-      <div class="card" style="height:260px"></div>
-      <div class="card" style="height:260px"></div>
-      <div class="card" style="height:260px"></div>
-      <div class="card" style="height:260px"></div>
-    </div>
-  <% } %>
-
-  <main class="stack" style="--gap:24px">
+  <main>
     <%- include('./partials/bookCarousel', { title: 'Trending now', items: trending, sectionClass: 'section--trending' }) %>
     <%- include('./partials/bookCarousel', { title: 'Philosophy Picks', items: philosophy, sectionClass: 'section--philosophy' }) %>
     <%- include('./partials/bookCarousel', { title: 'History Picks', items: history, sectionClass: 'section--history' }) %>
