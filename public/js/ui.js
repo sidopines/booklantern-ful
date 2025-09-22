@@ -61,3 +61,20 @@
     synth.speak(utter);
   });
 })();
+
+/* Carousel arrow delegation */
+(function(){
+  function track(btn){
+    const shell = btn.closest('.carousel');
+    return shell ? shell.querySelector('.carousel-track') : null;
+  }
+  document.addEventListener('click', (e)=>{
+    const btn = e.target.closest('button[data-scroll]');
+    if(!btn) return;
+    const t = track(btn);
+    if(!t) return;
+    const dir = btn.getAttribute('data-scroll');
+    const delta = (dir === 'prev' ? -420 : 420);
+    t.scrollBy({ left: delta, behavior: 'smooth' });
+  });
+})();
