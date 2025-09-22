@@ -1,8 +1,9 @@
-/* server.js — minimal app shell with CSP + shelves/search + watch fallback */
+/* server.js — UI-only shell with CSP, random shelves, resilient watch */
 
 const express = require('express');
 const path = require('path');
 const helmet = require('helmet');
+const fs = require('fs');
 
 const fetchJsonRetry = require('./lib/fetchJsonRetry');
 const normalizeBooks = require('./lib/normalizeBooks');
@@ -19,12 +20,12 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 app.use('/public', express.static(path.join(__dirname, 'public'), { maxAge: '7d' }));
 
-/* CSP: allow OL covers + data: */
+/* CSP: allow ALL https images so covers & thumbs load everywhere */
 app.use(helmet({
   contentSecurityPolicy: {
     useDefaults: true,
     directives: {
-      "img-src": ["'self'", "data:", "https://covers.openlibrary.org"],
+      "img-src": ["'self'", "data:", "https:"]
     }
   }
 }));
@@ -34,44 +35,52 @@ app.use((req, res, next) => {
   res.locals.loggedIn = !!(req.user);
   res.locals.user = req.user || null;
   res.locals.buildId = process.env.RENDER_GIT_COMMIT || Date.now().toString();
-  next();
-});
-
-/* back-link helper in locals (optional) */
-app.use((req, res, next) => {
   res.locals.referrer = req.get('referer') || '/';
   next();
 });
 
-/* HOME — shelves */
+/* util: random sample */
+function sample(arr = [], n = 10) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, n);
+}
+
+/* HOME — shelves with variety from multiple subjects */
 app.get('/', async (req, res) => {
   try {
-    const key = 'home:shelves:v1.3';
+    const key = 'home:shelves:v2.randomized';
     let data = cache.get(key);
     if (!data) {
-      const urls = [
-        'https://openlibrary.org/subjects/classics.json?limit=12',
-        'https://openlibrary.org/subjects/philosophy.json?limit=12',
-        'https://openlibrary.org/subjects/history.json?limit=12'
+      const subjects = [
+        'classics', 'fiction', 'philosophy', 'history', 'science', 'biography'
       ];
-      const [classics, philosophy, history] = await Promise.all(
-        urls.map(u => fetchJsonRetry(u, { tries: 2, timeout: 8500 }))
-      );
+      const urls = subjects.map(s => `https://openlibrary.org/subjects/${s}.json?limit=50`);
+      const jsons = await Promise.all(urls.map(u => fetchJsonRetry(u, { tries: 2, timeout: 9000 })));
+      const by = {};
+      subjects.forEach((s, i) => (by[s] = (jsons[i].works || [])));
+
       data = {
-        trending: normalizeBooks((classics.works || []).slice(0, 10)),
-        philosophy: normalizeBooks((philosophy.works || []).slice(0, 10)),
-        history: normalizeBooks((history.works || []).slice(0, 10)),
+        // build “Trending” from a mix so it doesn’t feel like one source
+        trending: normalizeBooks(sample(
+          [...by.classics, ...by.fiction, ...by.science, ...by.biography], 12
+        )),
+        philosophy: normalizeBooks(sample(by.philosophy, 12)),
+        history: normalizeBooks(sample(by.history, 12)),
       };
-      cache.set(key, data, 60 * 60 * 1000);
+      cache.set(key, data, 60 * 60 * 1000); // 1h
     }
     res.render('index', data);
   } catch (e) {
     console.error('home shelves failed; using fallback', e.message);
-    const sample = normalizePlain(fallbackBooks);
+    const sampleList = normalizePlain(fallbackBooks);
     res.render('index', {
-      trending: sample.slice(0, 6),
-      philosophy: sample.slice(6, 10),
-      history: sample.slice(10, 12)
+      trending: sample(sampleList, 8),
+      philosophy: sample(sampleList, 8),
+      history: sample(sampleList, 8)
     });
   }
 });
@@ -80,14 +89,11 @@ app.get('/', async (req, res) => {
 app.get('/read', async (req, res) => {
   const q = (req.query.q || '').trim();
   if (!q) return res.render('read', { items: [] });
-
   const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=24`;
   try {
-    const json = await fetchJsonRetry(url, { tries: 2, timeout: 8500 });
+    const json = await fetchJsonRetry(url, { tries: 2, timeout: 9000 });
     const items = normalizeBooks(json.docs || []);
     if (items.length) return res.render('read', { items });
-
-    // fall back to local sample search
     const lower = q.toLowerCase();
     const local = normalizePlain(fallbackBooks)
       .filter(x => (x.title || '').toLowerCase().includes(lower) || (x.author || '').toLowerCase().includes(lower));
@@ -101,22 +107,29 @@ app.get('/read', async (req, res) => {
   }
 });
 
-/* WATCH — DB/route data if present → else fallback */
+/* WATCH — YOUR videos first (data/videos.json), then fallback */
 app.get('/watch', async (req, res) => {
   try {
-    let videos = res.locals.videos || req.videos || null;
+    let videos = null;
 
-    // If you have a Video model, you can enable this block safely:
+    // 1) your curated file (create data/videos.json anytime)
+    const customPath = path.join(__dirname, 'data', 'videos.json');
+    if (fs.existsSync(customPath)) {
+      try { videos = JSON.parse(fs.readFileSync(customPath, 'utf8')); }
+      catch (e) { console.warn('videos.json parse error', e.message); }
+    }
+
+    // 2) if none present, optional DB hook (left disabled but safe)
     // if (!videos && global.Video && typeof Video.find === 'function') {
-    //   videos = await Video.find({ published: { $ne: false } }).sort({ createdAt: -1 }).limit(24).lean();
-    //   videos = (videos || []).map(v => ({
-    //     title: v.title || 'Untitled',
-    //     thumbnail: v.thumbnail || v.thumb || null,
-    //     href: v.url || v.href || '#'
-    //   }));
+    //   const rows = await Video.find({ published: { $ne: false } }).sort({ createdAt: -1 }).limit(24).lean();
+    //   videos = (rows || []).map(v => ({ title: v.title, thumbnail: v.thumbnail, href: v.url }));
     // }
 
-    if (!videos || !videos.length) videos = fallbackVideos;
+    // 3) fallback list
+    if (!videos || !Array.isArray(videos) || videos.length === 0) {
+      videos = fallbackVideos;
+    }
+
     res.render('watch', { videos });
   } catch (e) {
     console.error('watch route error', e);
