@@ -1,23 +1,22 @@
 <%
-  const _loggedIn =
-    (typeof loggedIn !== 'undefined' && !!loggedIn) ||
-    (typeof user !== 'undefined' && !!user) ||
-    false;
   const list = (items || []).filter(Boolean);
 %>
 <% if (list.length) { %>
-<section class="container carousel <%= sectionClass || '' %>">
+<section class="container carousel">
   <div class="stack" style="--gap:12px">
     <div class="section-head">
-      <div style="display:flex;align-items:center"><span class="bar"></span><h3 style="margin:0"><%= title %></h3></div>
-      <div class="carousel-nav" aria-hidden="true" style="display:flex;gap:6px">
-        <button class="btn secondary" type="button" onclick="this.closest('.carousel').querySelector('.carousel-track').scrollBy({left:-400,behavior:'smooth'})">←</button>
-        <button class="btn secondary" type="button" onclick="this.closest('.carousel').querySelector('.carousel-track').scrollBy({left:400,behavior:'smooth'})">→</button>
+      <div class="section-left">
+        <span class="section-pill"></span>
+        <h3 style="margin:0"><%= title %></h3>
+      </div>
+      <div class="carousel-nav" aria-hidden="true">
+        <button class="carousel-btn" type="button" onclick="this.closest('.carousel').querySelector('.carousel-track').scrollBy({left:-420,behavior:'smooth'})">←</button>
+        <button class="carousel-btn" type="button" onclick="this.closest('.carousel').querySelector('.carousel-track').scrollBy({left:420,behavior:'smooth'})">→</button>
       </div>
     </div>
     <div class="carousel-track" role="list" aria-label="<%= title %>">
       <% list.forEach(it => { %>
-        <%- include('./bookCard', { item: it, loggedIn: _loggedIn }) %>
+        <%- include('./bookCard', { item: it }) %>
       <% }) %>
     </div>
   </div>
