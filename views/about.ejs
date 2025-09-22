@@ -1,56 +1,47 @@
-<%- include('./partials/head', {
-  pageTitle: 'About • BookLantern',
-  pageDescription: 'Connecting readers with the world’s largest collection of free books.'
-}) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', {
+    pageTitle: 'About • BookLantern',
+    pageDescription: 'What BookLantern is and why it exists.'
+  }) %>
+</head>
 <body>
   <%- include('./partials/navbar') %>
 
-  <main class="container" style="padding:28px 0 44px">
-    <a href="/" class="muted" style="font-size:14px">← Back</a>
-
-    <section class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">About BookLantern</h1>
-      <p class="muted" style="margin:0">Connecting readers with the world’s largest collection of free books.</p>
+  <main>
+    <section class="hero">
+      <h1>About BookLantern</h1>
+      <p class="sub">Connecting readers with the world’s largest collection of free books.</p>
     </section>
 
-    <section class="card" style="margin-top:16px">
-      <h3 style="margin:0 0 8px 0">Our Mission</h3>
-      <p style="margin:0">
-        BookLantern makes millions of books from globally trusted libraries accessible through one simple,
-        clean interface. We believe that knowledge should be free and easily discoverable for everyone, everywhere.
-      </p>
-    </section>
-
-    <section class="card" style="margin-top:16px">
-      <h3 style="margin:0 0 12px 0">What Makes BookLantern Different</h3>
-      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
-        <article class="card" style="background:var(--surface-2)">
-          <strong>Universal Search</strong>
-          <p class="muted">Search millions of books from multiple libraries and archives with one simple query.</p>
-        </article>
-        <article class="card" style="background:var(--surface-2)">
-          <strong>Clean Reading</strong>
-          <p class="muted">Distraction-free reader optimized for focus and comprehension.</p>
-        </article>
-        <article class="card" style="background:var(--surface-2)">
-          <strong>Trusted Sources</strong>
-          <p class="muted">Content from respected public-domain and open-access collections.</p>
-        </article>
-        <article class="card" style="background:var(--surface-2)">
-          <strong>Always Free</strong>
-          <p class="muted">No ads, no tracking, just books.</p>
-        </article>
+    <section style="max-width:720px">
+      <div class="card">
+        <h2>Our Mission</h2>
+        <p>BookLantern makes millions of books from globally trusted libraries accessible through one simple, clean interface. We believe that knowledge should be free and easily discoverable for everyone, everywhere.</p>
       </div>
-    </section>
 
-    <section class="card" style="margin-top:16px;text-align:center">
-      <h3 style="margin:0 0 6px 0">Start Reading Today</h3>
-      <p class="muted" style="margin:0 0 10px 0">Join thousands of readers discovering their next favorite book.</p>
-      <div style="display:flex;gap:10px;justify-content:center">
-        <a class="btn" href="/read">Browse Books</a>
-        <a class="btn secondary" href="/watch">Watch Videos</a>
+      <div class="card">
+        <h2>What Makes BookLantern Different</h2>
+        <ul style="margin:0;padding-left:18px;line-height:1.6">
+          <li><b>Universal Search:</b> Search across millions of books from multiple libraries and archives with one simple query.</li>
+          <li><b>Clean Reading:</b> Distraction-free reader optimized for focus and comprehension.</li>
+          <li><b>Trusted Sources:</b> Content from respected public domain and open access collections.</li>
+          <li><b>Always Free:</b> No subscriptions, no ads—just books.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Start Reading Today</h2>
+        <p>Join thousands of readers discovering their next favorite book.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <a class="btn primary" href="/#browse">Browse Books</a>
+          <a class="btn ghost" href="/watch">Watch Videos</a>
+        </div>
       </div>
     </section>
   </main>
 
   <%- include('./partials/footer') %>
+</body>
+</html>
