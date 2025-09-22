@@ -1,15 +1,52 @@
-<%- include('./partials/head', {
-  pageTitle: 'BookLantern — Free Books from Global Libraries',
-  pageDescription: 'Search and read millions of free books. Clean reader, vibrant covers, quick Listen previews.'
-}) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', {
+    pageTitle: 'BookLantern • Largest Online Hub of Free Books',
+    pageDescription: 'Millions of books from globally trusted libraries. One search, one clean reader.'
+  }) %>
+</head>
 <body>
   <%- include('./partials/navbar') %>
-  <%- include('./partials/hero') %>
 
   <main>
-    <%- include('./partials/bookCarousel', { title: 'Trending now', items: trending, sectionClass: 'section--trending' }) %>
-    <%- include('./partials/bookCarousel', { title: 'Philosophy Picks', items: philosophy, sectionClass: 'section--philosophy' }) %>
-    <%- include('./partials/bookCarousel', { title: 'History Picks', items: history, sectionClass: 'section--history' }) %>
+    <!-- HERO -->
+    <section class="hero" id="browse">
+      <h1>Largest Online Hub of Free Books</h1>
+      <p class="sub">Millions of books from globally trusted libraries. One search, one clean reader.</p>
+
+      <form class="search" action="/read" method="get" role="search" aria-label="Search books">
+        <input type="text" name="q" placeholder="Search millions of books…" autocomplete="off">
+        <button class="btn primary" type="submit">Search</button>
+      </form>
+
+      <div style="display:flex;gap:18px;margin-top:10px;color:#b7bfd2;font-size:12px">
+        <span>✓ No ads</span>
+        <span>✓ Free forever</span>
+        <span>✓ Clean reading experience</span>
+      </div>
+    </section>
+
+    <!-- CAROUSELS -->
+    <%- include('./partials/bookCarousel', {
+      title: 'Trending now',
+      items: (typeof trending !== 'undefined' ? trending : []),
+      sectionClass: 'section--trending'
+    }) %>
+
+    <%- include('./partials/bookCarousel', {
+      title: 'Philosophy Picks',
+      items: (typeof philosophy !== 'undefined' ? philosophy : []),
+      sectionClass: 'section--philosophy'
+    }) %>
+
+    <%- include('./partials/bookCarousel', {
+      title: 'History Picks',
+      items: (typeof history !== 'undefined' ? history : []),
+      sectionClass: 'section--history'
+    }) %>
   </main>
 
   <%- include('./partials/footer') %>
+</body>
+</html>
