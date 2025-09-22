@@ -1,25 +1,28 @@
 <%
-  // Guard inputs and avoid TDZ by using new local names
-  const list = (typeof items !== 'undefined' && Array.isArray(items) && items.length) ? items : [];
-  const sectionClassSafe = (typeof sectionClass !== 'undefined' && sectionClass) ? sectionClass : '';
-  const titleSafe = (typeof title !== 'undefined' && title) ? title : 'Books';
+  const list = (typeof items !== 'undefined' && items && items.length) ? items : [];
+  const secClass = (typeof sectionClass !== 'undefined' ? sectionClass : '');
+  const heading = (typeof title !== 'undefined' ? title : 'Books');
+  const uid = `c${Math.random().toString(36).slice(2)}`;
 %>
-<section class="carousel <%= sectionClassSafe %>">
+
+<section class="carousel <%= secClass %>" aria-label="<%= heading %>">
   <div class="carousel-head">
-    <h2><%= titleSafe %></h2>
-    <div class="carousel-controls">
-      <button class="carousel-btn prev" type="button" aria-label="Previous">‹</button>
-      <button class="carousel-btn next" type="button" aria-label="Next">›</button>
+    <h2 class="carousel-title"><%= heading %></h2>
+    <div class="carousel-controls" aria-hidden="<%= list.length <= 1 ? 'true' : 'false' %>">
+      <button class="icon-btn prev" type="button" data-target="<%= uid %>" aria-label="Scroll left">‹</button>
+      <button class="icon-btn next" type="button" data-target="<%= uid %>" aria-label="Scroll right">›</button>
     </div>
   </div>
 
-  <% if (!list.length) { %>
-    <div class="muted">Nothing here yet.</div>
-  <% } else { %>
-    <div class="carousel-track" role="list" aria-label="<%= titleSafe %>">
-      <% list.forEach(function(it){ %>
-        <%- include('./bookCard', { item: it }) %>
-      <% }) %>
+  <div class="carousel-viewport">
+    <div class="carousel-track" id="<%= uid %>" role="list">
+      <% if (!list.length) { %>
+        <div class="card empty" role="note">Nothing to show yet.</div>
+      <% } else { %>
+        <% list.forEach(it => { %>
+          <%- include('./bookCard', { item: it }) %>
+        <% }) %>
+      <% } %>
     </div>
-  <% } %>
+  </div>
 </section>
