@@ -19,7 +19,7 @@
     </div>
     <div class="carousel-track" role="list" aria-label="<%= title %>">
       <% list.forEach(it => { %>
-        <%- include('partials/bookCard', { item: it, loggedIn: _loggedIn }) %>
+        <%- include('./bookCard', { item: it, loggedIn: _loggedIn }) %>
       <% }) %>
     </div>
   </div>
