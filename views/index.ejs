@@ -1,21 +1,14 @@
-<%
-const loggedIn = (typeof user !== 'undefined' && user) ? true : false;
-const trendingBooks = (typeof trending !== 'undefined' && trending) ? trending : [];
-const philosophyBooks = (typeof philosophy !== 'undefined' && philosophy) ? philosophy : [];
-const historyBooks = (typeof history !== 'undefined' && history) ? history : [];
-%>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <%- include('./partials/head') %>
-</head>
+<%- include('./partials/head', { pageTitle: 'BookLantern - Free Books' }) %>
 <body>
   <%- include('./partials/navbar') %>
   <%- include('./partials/hero') %>
 
   <% if ((!trending || !trending.length) && (!philosophy || !philosophy.length) && (!history || !history.length)) { %>
-    <div class="container grid cols-4">
-      <div class="skel card"></div><div class="skel card"></div><div class="skel card"></div><div class="skel card"></div>
+    <div class="container grid cols-4" style="margin-top:16px">
+      <div class="card" style="height:260px"></div>
+      <div class="card" style="height:260px"></div>
+      <div class="card" style="height:260px"></div>
+      <div class="card" style="height:260px"></div>
     </div>
   <% } %>
 
@@ -26,5 +19,3 @@ const historyBooks = (typeof history !== 'undefined' && history) ? history : [];
   </main>
 
   <%- include('./partials/footer') %>
-</body>
-</html>
