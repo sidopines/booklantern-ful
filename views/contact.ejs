@@ -1,71 +1,22 @@
-<%
-const msgs = (typeof messages !== 'undefined') ? messages : {};
-const error = (typeof contactError !== 'undefined') ? contactError : '';
-const success = (typeof contactSuccess !== 'undefined') ? contactSuccess : '';
-const csrfToken = (typeof _csrf !== 'undefined') ? _csrf : '';
-%>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <%- include('./partials/head') %>
-</head>
+<%- include('./partials/head', { pageTitle: 'Contact — BookLantern' }) %>
 <body>
   <%- include('./partials/navbar') %>
-  
-  <div class="container" style="padding-top:16px">
-    <%- include('./partials/backLink') %>
-  </div>
 
-  <main class="container" style="padding:40px 0;max-width:600px">
-    <div class="stack" style="--gap:32px">
-      <div class="stack" style="--gap:8px;text-align:center">
-        <h1>Contact Us</h1>
-        <p class="muted">We'd love to hear from you</p>
-      </div>
-
-      <div class="card" style="padding:32px">
-        <% if (error) { %>
-          <div style="background:var(--rose);color:#fff;padding:12px;border-radius:8px;font-size:14px;margin-bottom:24px"><%= error %></div>
-        <% } %>
-        <% if (success) { %>
-          <div style="background:var(--green);color:#fff;padding:12px;border-radius:8px;font-size:14px;margin-bottom:24px"><%= success %></div>
-        <% } %>
-        <% if (msgs.error) { %>
-          <div style="background:var(--rose);color:#fff;padding:12px;border-radius:8px;font-size:14px;margin-bottom:24px"><%= msgs.error %></div>
-        <% } %>
-        <% if (msgs.success) { %>
-          <div style="background:var(--green);color:#fff;padding:12px;border-radius:8px;font-size:14px;margin-bottom:24px"><%= msgs.success %></div>
-        <% } %>
-
-        <form class="stack" style="--gap:16px" action="/contact" method="post">
-          <% if (csrfToken) { %><input type="hidden" name="_csrf" value="<%= csrfToken %>"><% } %>
-          
-          <div class="stack" style="--gap:6px">
-            <label for="name">Name</label>
-            <input class="input" type="text" name="name" id="name" required>
-          </div>
-          
-          <div class="stack" style="--gap:6px">
-            <label for="email">Email</label>
-            <input class="input" type="email" name="email" id="email" required>
-          </div>
-          
-          <div class="stack" style="--gap:6px">
-            <label for="subject">Subject</label>
-            <input class="input" type="text" name="subject" id="subject" required>
-          </div>
-          
-          <div class="stack" style="--gap:6px">
-            <label for="message">Message</label>
-            <textarea class="textarea" name="message" id="message" rows="6" required></textarea>
-          </div>
-          
-          <button class="btn" type="submit" style="width:100%">Send Message</button>
-        </form>
-      </div>
+  <section class="hero">
+    <div class="container inner stack" style="--gap:10px">
+      <%- include('./partials/backLink') %>
+      <h1>Contact us</h1>
+      <p class="muted">Questions, ideas, or feedback? We’d love to hear from you.</p>
     </div>
+  </section>
+
+  <main class="container stack" style="--gap:20px">
+    <form class="card stack" style="--gap:12px;max-width:720px;margin:0 auto">
+      <input class="input" name="name" placeholder="Your name">
+      <input class="input" name="email" placeholder="Email address">
+      <textarea class="textarea" name="message" placeholder="How can we help?"></textarea>
+      <button class="btn" type="submit">Send</button>
+    </form>
   </main>
 
   <%- include('./partials/footer') %>
-</body>
-</html>
