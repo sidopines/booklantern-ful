@@ -259,26 +259,34 @@ async function searchArchive(q, rows = 30) {
 }
 
 /* ------------------------- /read ------------------------- */
+const fetchJsonRetry = require('../lib/fetchJsonRetry');
+const normalizePlain = require('../lib/normalizeBooks').fromPlain;
+const fallbackBooks = require('../data/fallbackBooks.json');
+
 router.get('/read', async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
-    
-    if (!q) {
-      return res.render('read', { items: [] });
-    }
+    if (!q) return res.render('read', { items: [] });
 
+    const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=24`;
     try {
-      const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=24`;
-      const json = await fetchJson(url);
+      const json = await fetchJsonRetry(url, { tries: 2, timeout: 8000 });
       const items = normalizeBooks(json.docs || []);
-      res.render('read', { items });
+      if (items.length) return res.render('read', { items });
+      const lower = q.toLowerCase();
+      const local = normalizePlain(fallbackBooks)
+        .filter(x => (x.title || '').toLowerCase().includes(lower) || (x.author || '').toLowerCase().includes(lower));
+      return res.render('read', { items: local });
     } catch (e) {
-      console.error('read search failed', e);
-      res.render('read', { items: [] });
+      console.error('read search failed; using fallback', e.message);
+      const lower = q.toLowerCase();
+      const local = normalizePlain(fallbackBooks)
+        .filter(x => (x.title || '').toLowerCase().includes(lower) || (x.author || '').toLowerCase().includes(lower));
+      return res.render('read', { items: local });
     }
   } catch (err) {
     console.error('Read search error:', err);
-    res.render('read', { items: [] });
+    return res.render('read', { items: [] });
   }
 });
 

@@ -2,9 +2,11 @@
 const express = require('express');
 const router = express.Router();
 
-const fetchJson = require('../lib/fetchJson');
+const fetchJsonRetry = require('../lib/fetchJsonRetry');
 const cache = require('../lib/cache');
 const normalizeBooks = require('../lib/normalizeBooks');
+const normalizePlain = require('../lib/normalizeBooks').fromPlain;
+const fallbackBooks = require('../data/fallbackBooks.json');
 
 // If you have local, admin-curated books, we can feature those too:
 let Book = null;
@@ -214,36 +216,43 @@ function curatedShelves() {
  * ROUTES
  * =======================*/
 
-// Home: server-side shelves with Open Library data
+// Home: server-side shelves with retry, cache, and fallback
 router.get('/', async (req, res) => {
   try {
-    // cache key
-    const key = 'home:shelves:v1';
+    const key = 'home:shelves:v1.1';
     let data = cache.get(key);
     if (!data) {
-      // Three curated subjects (feel free to change)
       const urls = [
         'https://openlibrary.org/subjects/classics.json?limit=12',
         'https://openlibrary.org/subjects/philosophy.json?limit=12',
         'https://openlibrary.org/subjects/history.json?limit=12'
       ];
-      const [classics, philosophy, history] = await Promise.all(urls.map(u => fetchJson(u)));
+      const [classics, philosophy, history] = await Promise.all(
+        urls.map(u => fetchJsonRetry(u, { tries: 2, timeout: 8000 }))
+      );
       data = {
         trending: normalizeBooks((classics.works || []).slice(0, 10)),
         philosophy: normalizeBooks((philosophy.works || []).slice(0, 10)),
         history: normalizeBooks((history.works || []).slice(0, 10)),
       };
-      cache.set(key, data, 60 * 60 * 1000); // 1 hour
+      cache.set(key, data, 60 * 60 * 1000);
     }
-    res.render('index', {
-      trending: data.trending,
-      philosophy: data.philosophy,
-      history: data.history
-    });
+    return res.render('index', data);
   } catch (e) {
-    console.error('home shelves failed', e);
-    res.render('index', { trending: [], philosophy: [], history: [] });
+    console.error('home shelves failed; using fallback', e.message);
+    const sample = normalizePlain(fallbackBooks);
+    return res.render('index', {
+      trending: sample.slice(0, 6),
+      philosophy: sample.slice(6, 10),
+      history: sample.slice(10, 12)
+    });
   }
+});
+
+// Debug/health endpoints
+router.get('/health', (req, res) => res.json({ ok: true, ts: Date.now() }));
+router.get('/debug/covers', (req, res) => {
+  res.render('read', { items: normalizePlain(fallbackBooks) });
 });
 
 router.get('/about', (req, res) => {

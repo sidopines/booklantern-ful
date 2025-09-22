@@ -13,6 +13,12 @@ const historyBooks = (typeof history !== 'undefined' && history) ? history : [];
   <%- include('./partials/navbar') %>
   <%- include('./partials/hero') %>
 
+  <% if ((!trending || !trending.length) && (!philosophy || !philosophy.length) && (!history || !history.length)) { %>
+    <div class="container grid cols-4">
+      <div class="skel card"></div><div class="skel card"></div><div class="skel card"></div><div class="skel card"></div>
+    </div>
+  <% } %>
+
   <main class="stack" style="--gap:24px">
     <%- include('./partials/bookCarousel', { title: 'Trending now', items: trending, sectionClass: 'section--trending' }) %>
     <%- include('./partials/bookCarousel', { title: 'Philosophy Picks', items: philosophy, sectionClass: 'section--philosophy' }) %>

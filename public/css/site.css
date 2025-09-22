@@ -84,3 +84,8 @@ a:hover{text-decoration:underline} button{cursor:pointer;border:0}
 
 /* Utility */
 .hidden{display:none}
+
+/* Skeletons */
+.skel{background:linear-gradient(90deg,#eef1f6 25%,#f6f8fb 37%,#eef1f6 63%);background-size:400% 100%;animation:shimmer 1.2s infinite}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+.skel.card{height:260px;border-radius:16px}
