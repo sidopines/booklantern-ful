@@ -1,19 +1,44 @@
-<%- include('./partials/head', { pageTitle: 'Register — BookLantern' }) %>
+<%- include('./partials/head', {
+  pageTitle: 'Register • BookLantern',
+  pageDescription: 'Create your BookLantern account.'
+}) %>
 <body>
   <%- include('./partials/navbar') %>
 
-  <main class="container stack" style="--gap:20px; padding:48px 0">
-    <div class="card stack" style="--gap:12px; max-width:520px; margin:0 auto">
-      <h1 style="margin:0">Create your account</h1>
-      <p class="muted" style="margin:0">Join BookLantern to start reading</p>
+  <main class="container" style="min-height:60vh; display:flex; align-items:center; justify-content:center">
+    <div class="card" style="width: 480px; background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px">
+      <h2 style="margin:0 0 6px 0; font-weight:800; letter-spacing:-.01em">Create your account</h2>
+      <p class="muted" style="margin:0 0 16px 0">Join BookLantern to start reading.</p>
+
+      <% const msgs = (typeof messages !== 'undefined' && messages) ? messages : {}; %>
+      <% if (msgs.error) { %>
+        <div style="background:rgba(255,93,115,.12); border:1px solid rgba(255,93,115,.35); color:#ffd1d8; padding:10px 12px; border-radius:10px; margin-bottom:12px">
+          <%= msgs.error %>
+        </div>
+      <% } %>
+
       <form class="stack" style="--gap:10px" method="post" action="/register">
-        <input class="input" name="name" placeholder="Full name" required>
-        <input class="input" name="email" type="email" placeholder="Email address" required>
-        <input class="input" name="password" type="password" placeholder="Password" required>
-        <input class="input" name="confirmPassword" type="password" placeholder="Confirm password" required>
-        <button class="btn" type="submit">Register</button>
+        <input type="hidden" name="_csrf" value="<%= (typeof csrfToken !== 'undefined' ? csrfToken : '') %>">
+        <label class="muted" for="name">Full name</label>
+        <input class="input" id="name" name="name" required placeholder="Your name" style="background:var(--surface-2); border-radius:10px">
+
+        <label class="muted" for="email">Email</label>
+        <input class="input" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com" style="background:var(--surface-2); border-radius:10px">
+
+        <label class="muted" for="password">Password</label>
+        <input class="input" id="password" name="password" type="password" required autocomplete="new-password" placeholder="••••••••" style="background:var(--surface-2); border-radius:10px">
+
+        <label class="muted" for="confirmPassword">Confirm password</label>
+        <input class="input" id="confirmPassword" name="confirmPassword" type="password" required autocomplete="new-password" placeholder="••••••••" style="background:var(--surface-2); border-radius:10px">
+
+        <div style="display:flex; gap:10px; align-items:center; justify-content:flex-end; margin-top:6px">
+          <button class="btn" type="submit">Register</button>
+        </div>
       </form>
-      <a class="back" href="/login">Already have an account? Login</a>
+
+      <div style="margin-top:12px" class="muted">
+        Already have an account? <a href="/login">Login</a>
+      </div>
     </div>
   </main>
 
