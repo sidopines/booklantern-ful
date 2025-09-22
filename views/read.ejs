@@ -47,7 +47,7 @@ const books = (typeof results !== 'undefined' && results) ? results : [];
             description: book.description || book.snippet
           };
         %>
-          <%- include('./partials/bookCard', { item, loggedIn }) %>
+          <%- include('./partials/bookCard', { item }) %>
         <% }) %>
       </div>
     <% } else { %>

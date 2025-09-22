@@ -17,8 +17,16 @@ function coverURL(it){
 const title = item.title || 'Untitled';
 const author = item.author || '';
 const cover = coverURL(item);
-const href  = item.href || '#';
-const gate  = loggedIn ? href : `/login?next=${encodeURIComponent(href)}`;
+%>
+<%
+  const _loggedIn =
+    (typeof loggedIn !== 'undefined' && !!loggedIn) ||
+    (typeof user !== 'undefined' && !!user) ||
+    (typeof currentUser !== 'undefined' && !!currentUser) ||
+    false;
+
+  const href  = item.href || '#';
+  const gate  = _loggedIn ? href : `/login?next=${encodeURIComponent(href)}`;
 const summary = (item.description || item.snippet || (title + (author?(' by '+author):''))).toString().slice(0,320);
 function initials(t){ return (t||'B').split(/\s+/).slice(0,2).map(s=>s[0]).join('').toUpperCase(); }
 %>
