@@ -2,19 +2,17 @@
   const _loggedIn =
     (typeof loggedIn !== 'undefined' && !!loggedIn) ||
     (typeof user !== 'undefined' && !!user) ||
-    (typeof currentUser !== 'undefined' && !!currentUser) ||
     false;
-
   const list = (items || []).filter(Boolean);
-  if (list.length) {
 %>
-<section class="container carousel <%= sectionClass||'' %>">
+<% if (list.length) { %>
+<section class="container carousel <%= sectionClass || '' %>">
   <div class="stack" style="--gap:12px">
     <div class="section-head">
-      <div style="display:flex;align-items:center"><span class="bar"></span><h3><%= title %></h3></div>
-      <div class="carousel-nav" aria-hidden="true">
-        <button class="carousel-btn" type="button" onclick="this.closest('.carousel').querySelector('.carousel-track').scrollBy({left:-400,behavior:'smooth'})">←</button>
-        <button class="carousel-btn" type="button" onclick="this.closest('.carousel').querySelector('.carousel-track').scrollBy({left:400,behavior:'smooth'})">→</button>
+      <div style="display:flex;align-items:center"><span class="bar"></span><h3 style="margin:0"><%= title %></h3></div>
+      <div class="carousel-nav" aria-hidden="true" style="display:flex;gap:6px">
+        <button class="btn secondary" type="button" onclick="this.closest('.carousel').querySelector('.carousel-track').scrollBy({left:-400,behavior:'smooth'})">←</button>
+        <button class="btn secondary" type="button" onclick="this.closest('.carousel').querySelector('.carousel-track').scrollBy({left:400,behavior:'smooth'})">→</button>
       </div>
     </div>
     <div class="carousel-track" role="list" aria-label="<%= title %>">
