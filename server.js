@@ -116,24 +116,38 @@ app.use('/', bookRoutes);        // /read, /read/book/:identifier, Gutenberg rea
 app.use('/', metaRoutes);        // <-- NEW: /sitemap.xml, /robots.txt
 
 // Public watch + player
+const fallbackVideos = require('./data/fallbackVideos.json');
 app.get('/watch', async (req, res) => {
   try {
-    const genreFilter = req.query.genre || '';
-    const genres = await Genre.find({});
-    const videos = genreFilter
-      ? await Video.find({ genre: genreFilter }).populate('genre').sort({ createdAt: -1 })
-      : await Video.find({}).populate('genre').sort({ createdAt: -1 });
+    // Priority 1: upstream-provided
+    let videos = res.locals.videos || req.videos || null;
 
-    res.render('watch', {
-      genres,
-      videos,
-      genreFilter,
-      pageTitle: 'Watch Educational Videos',
-      pageDescription: 'Stream free educational videos.'
-    });
-  } catch (err) {
-    console.error('Error loading watch:', err);
-    res.status(500).send('Internal Server Error');
+    // Priority 2: DB if available
+    if (!videos && global.Video && typeof Video.find === 'function') {
+      try {
+        videos = await Video.find({ published: { $ne: false } })
+          .sort({ createdAt: -1 })
+          .limit(24)
+          .lean();
+        videos = (videos || []).map(v => ({
+          title: v.title || 'Untitled',
+          thumbnail: v.thumbnail || v.thumb || null,
+          href: v.url || v.href || (v._id ? `/player/${v._id}` : '#')
+        }));
+      } catch (_) {
+        videos = null;
+      }
+    }
+
+    // Priority 3: fallback JSON
+    if (!videos || videos.length === 0) {
+      videos = fallbackVideos;
+    }
+
+    return res.render('watch', { videos });
+  } catch (e) {
+    console.error('watch route error', e);
+    return res.render('watch', { videos: fallbackVideos });
   }
 });
 
