@@ -14,27 +14,32 @@ const videos = (typeof videoData !== 'undefined' && videoData) ? videoData : [];
     <%- include('./partials/backLink') %>
   </div>
 
-  <div class="container" style="padding:40px 0">
-    <div class="stack" style="--gap:24px">
-      <div class="stack" style="--gap:8px">
-        <h1>Educational Videos</h1>
-        <p class="muted">Curated educational content from trusted sources.</p>
+  <main class="container stack" style="--gap:16px">
+    <h1>Educational Videos</h1>
+    <% if (videos && videos.length) { %>
+      <section class="grid cols-4" role="list">
+        <% videos.forEach(v => { %>
+          <article class="card hover" role="listitem">
+            <% if (v.thumbnail) { %>
+              <img class="cover-img" src="<%= v.thumbnail %>" alt="Thumbnail: <%= v.title %>" loading="lazy" onerror="this.style.display='none'">
+            <% } else { %>
+              <div class="cover-ph">▶︎</div>
+            <% } %>
+            <div class="stack" style="--gap:6px">
+              <div class="book-title"><%= v.title %></div>
+              <div class="card-ctas">
+                <a class="btn" href="<%= v.href %>" target="_blank" rel="noopener">Watch</a>
+              </div>
+            </div>
+          </article>
+        <% }) %>
+      </section>
+    <% } else { %>
+      <div class="card" style="max-width:640px;margin:0 auto;text-align:center">
+        No videos available yet<br><span class="muted">Check back soon for educational content.</span>
       </div>
-
-      <% if (videos && videos.length) { %>
-        <div class="grid cols-4">
-          <% videos.forEach(video => { %>
-            <%- include('./partials/videoCard', { video }) %>
-          <% }) %>
-        </div>
-      <% } else { %>
-        <div class="card" style="text-align:center;padding:40px">
-          <h3>No videos available yet</h3>
-          <p class="muted">Check back soon for educational content.</p>
-        </div>
-      <% } %>
-    </div>
-  </div>
+    <% } %>
+  </main>
 
   <%- include('./partials/footer') %>
 </body>
