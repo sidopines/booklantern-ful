@@ -31,34 +31,15 @@ const books = (typeof results !== 'undefined' && results) ? results : [];
     </div>
   </section>
 
-  <main class="container" style="padding:40px 0">
-    <% if (books && books.length) { %>
-      <div class="grid cols-4">
-        <% books.forEach(book => { 
-          const item = {
-            title: book.title || 'Untitled',
-            author: book.author || book.creator || '',
-            cover: book.cover,
-            coverLarge: book.coverLarge,
-            image: book.image,
-            isbn: book.isbn,
-            openLibraryId: book.openLibraryId,
-            href: book.href || book.readerUrl || '#',
-            description: book.description || book.snippet
-          };
-        %>
+  <main class="container stack" style="--gap:16px">
+    <% if (items && items.length) { %>
+      <section class="grid cols-4" role="list">
+        <% items.forEach(item => { %>
           <%- include('./partials/bookCard', { item }) %>
         <% }) %>
-      </div>
+      </section>
     <% } else { %>
-      <div class="card" style="text-align:center;padding:40px">
-        <% if (query) { %>
-          <h3>No results found</h3>
-          <p class="muted">Try a different search term or browse all books.</p>
-        <% } else { %>
-          <p class="muted">Start by searching above.</p>
-        <% } %>
-      </div>
+      <div class="card" style="max-width:640px;margin:0 auto;text-align:center">Start by searching above.</div>
     <% } %>
   </main>
 

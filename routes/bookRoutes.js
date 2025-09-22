@@ -7,6 +7,9 @@ const path = require('path');
 const { createReadStream } = require('fs');
 const fetch = require('node-fetch');
 
+const fetchJson = require('../lib/fetchJson');
+const normalizeBooks = require('../lib/normalizeBooks');
+
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 BookLantern/1.0';
 
 /* ---------------- Gutenberg Cache Management ---------------- */
@@ -258,170 +261,24 @@ async function searchArchive(q, rows = 30) {
 /* ------------------------- /read ------------------------- */
 router.get('/read', async (req, res) => {
   try {
-    const query = (req.query.query || '').trim();
-    const format = req.query.format || 'html';
-    const limit = parseInt(req.query.limit) || (format === 'json' ? 24 : 0);
-    const sources = req.query.sources ? req.query.sources.split(',') : null;
+    const q = (req.query.q || '').trim();
     
-    if (!query) {
-      if (format === 'json') {
-        return res.json([]);
-      }
-      return res.render('read', {
-        pageTitle: 'Explore Free Books',
-        pageDescription: 'Search and read free, public-domain books.',
-        books: [],
-        query
-      });
+    if (!q) {
+      return res.render('read', { items: [] });
     }
 
-    // Search sources based on filter
-    let gb = [], ws = [], ia = [], ol = [], fb = [], ht = [], loc = [], fw = [];
-    
-    // Only search Gutenberg if enabled and requested (exclude if sources filter excludes it)
-    if (config.GUTEN_ENABLED && (!sources || sources.includes('gutenberg') || sources.includes('gb'))) {
-      try {
-        gb = await searchGutenberg(query, 32);
-      } catch (e) {
-        console.error('Gutenberg search failed:', e.message);
-      }
+    try {
+      const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=24`;
+      const json = await fetchJson(url);
+      const items = normalizeBooks(json.docs || []);
+      res.render('read', { items });
+    } catch (e) {
+      console.error('read search failed', e);
+      res.render('read', { items: [] });
     }
-    
-    // Wikisource
-    if (!sources || sources.includes('wikisource') || sources.includes('ws')) {
-      try {
-        ws = await searchWikisource(query, 16, 'en');
-      } catch (e) {
-        console.error('Wikisource search failed:', e.message);
-      }
-    }
-    
-    // Archive.org / Internet Archive
-    if (!sources || sources.includes('ia') || sources.includes('archive')) {
-      try {
-        ia = await searchArchive(query, 24);
-      } catch (e) {
-        console.error('Archive.org search failed:', e.message);
-      }
-    }
-    
-    // Open Library
-    if (!sources || sources.includes('ol') || sources.includes('openlibrary')) {
-      try {
-        ol = await searchOpenLibrary(query, 40);
-      } catch (e) {
-        console.error('Open Library search failed:', e.message);
-      }
-    }
-    
-    // Feature-flagged connectors
-    if (config.CONNECTOR_FEEDBOOKS && (!sources || sources.includes('feedbooks') || sources.includes('fb'))) {
-      try {
-        fb = await searchFeedbooksPD(query, 20);
-      } catch (e) {
-        console.error('Feedbooks search failed:', e.message);
-      }
-    }
-    
-    if (config.CONNECTOR_HATHI && (!sources || sources.includes('hathi') || sources.includes('ht'))) {
-      try {
-        ht = await searchHathiFullView(query, 20);
-      } catch (e) {
-        console.error('HathiTrust search failed:', e.message);
-      }
-    }
-    
-    // Library of Congress
-    if (!sources || sources.includes('loc') || sources.includes('congress')) {
-      try {
-        loc = await searchLOC(query, 20);
-      } catch (e) {
-        console.error('Library of Congress search failed:', e.message);
-      }
-    }
-    
-    if (config.CONNECTOR_FREEWEB && (!sources || sources.includes('freeweb') || sources.includes('fw'))) {
-      try {
-        fw = await searchFreeWeb(query, 20);
-      } catch (e) {
-        console.error('FreeWeb search failed:', e.message);
-      }
-    }
-
-    // Compile results based on what was searched
-    const allSources = [];
-    if (ol.length > 0) allSources.push(ol);
-    if (ia.length > 0) allSources.push(ia);
-    if (loc.length > 0) allSources.push(loc);
-    if (gb.length > 0) allSources.push(gb);
-    if (fb.length > 0) allSources.push(fb);
-    if (ht.length > 0) allSources.push(ht);
-    if (fw.length > 0) allSources.push(fw);
-    if (ws.length > 0) allSources.push(ws);
-    
-    const merged = deDupe(allSources.flat());
-    
-    // Apply relevance filtering and sorting
-    const tokens = tokenize(query);
-    let sortedResults = sortResults(merged, tokens);
-    
-    // For JSON format, if we get too few results, be more permissive
-    if (format === 'json' && sortedResults.length < 12 && merged.length > 0) {
-      // Use basic filtering only - just require title and href
-      sortedResults = merged.filter(item => 
-        item.title && 
-        item.title.trim().length > 0 && 
-        (item.href || item.readerUrl)
-      ).slice(0, 24);
-    }
-    
-    // Apply limit if specified
-    const finalResults = limit > 0 ? sortedResults.slice(0, limit) : sortedResults;
-    
-    // Log search results with the requested format
-    const gutenbergCount = gb.length;
-    const feedbooksCount = fb.length;
-    const hathiCount = ht.length;
-    const freewebCount = fw.length;
-    console.log('SEARCH "%s" — counts: gutenberg=%d, archive=%d, openlibrary=%d, feedbooks=%d, hathitrust=%d, loc=%d, freeweb=%d, merged=%d, relevant=%d, final=%d',
-      query, gutenbergCount, ia.length, ol.length, feedbooksCount, hathiCount, loc.length, freewebCount, merged.length, sortedResults.length, finalResults.length);
-
-    // Return JSON if requested
-    if (format === 'json') {
-      console.log(`[JSON] Merged: ${merged.length}, Final: ${finalResults.length}`);
-      if (merged.length > 0 && finalResults.length === 0) {
-        console.log('[JSON] Sample merged item:', JSON.stringify(merged[0], null, 2));
-      }
-      
-      const jsonResults = finalResults.map(book => ({
-        id: book.identifier || book.id,
-        title: book.title || 'Untitled',
-        author: book.creator || book.author || 'Unknown Author',
-        cover: book.cover || '/img/cover-fallback.svg',
-        source: book.source || 'unknown',
-        href: book.href || book.readerUrl || '#'
-      }));
-      return res.json(jsonResults);
-    }
-
-    res.render('read', {
-      pageTitle: `Search • ${query}`,
-      pageDescription: `Results for "${query}"`,
-      books: finalResults,
-      query
-    });
   } catch (err) {
     console.error('Read search error:', err);
-    if (req.query.format === 'json') {
-      return res.status(500).json({ error: 'Search failed' });
-    }
-    res.status(500).render('read', {
-      pageTitle: 'Explore Free Books',
-      pageDescription: 'Search and read free, public-domain books.',
-      books: [],
-      query: req.query.query || '',
-      error: 'Something went wrong. Please try again.'
-    });
+    res.render('read', { items: [] });
   }
 });
 

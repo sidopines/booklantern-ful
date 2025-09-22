@@ -2,6 +2,10 @@
 const express = require('express');
 const router = express.Router();
 
+const fetchJson = require('../lib/fetchJson');
+const cache = require('../lib/cache');
+const normalizeBooks = require('../lib/normalizeBooks');
+
 // If you have local, admin-curated books, we can feature those too:
 let Book = null;
 try {
@@ -210,37 +214,35 @@ function curatedShelves() {
  * ROUTES
  * =======================*/
 
-// Home: now renders with server-side Featured list for instant paint
+// Home: server-side shelves with Open Library data
 router.get('/', async (req, res) => {
   try {
-    const featuredSSR = await featuredCache.get(async () => {
-      // Prefer local admin-curated books if present
-      if (Book) {
-        try {
-          const localBooks = await Book.find({}).sort({ createdAt: -1 }).limit(12).lean();
-          if (localBooks && localBooks.length) {
-            return localBooks.map(cardFromLocalBook);
-          }
-        } catch (e) {
-          console.error('home: local Book fetch failed:', e.message);
-        }
-      }
-      // Fallback to static curated list (no network, instant)
-      return curatedFeatured();
-    });
-
+    // cache key
+    const key = 'home:shelves:v1';
+    let data = cache.get(key);
+    if (!data) {
+      // Three curated subjects (feel free to change)
+      const urls = [
+        'https://openlibrary.org/subjects/classics.json?limit=12',
+        'https://openlibrary.org/subjects/philosophy.json?limit=12',
+        'https://openlibrary.org/subjects/history.json?limit=12'
+      ];
+      const [classics, philosophy, history] = await Promise.all(urls.map(u => fetchJson(u)));
+      data = {
+        trending: normalizeBooks((classics.works || []).slice(0, 10)),
+        philosophy: normalizeBooks((philosophy.works || []).slice(0, 10)),
+        history: normalizeBooks((history.works || []).slice(0, 10)),
+      };
+      cache.set(key, data, 60 * 60 * 1000); // 1 hour
+    }
     res.render('index', {
-      pageTitle: 'Home',
-      pageDescription: 'Discover free books and knowledge on BookLantern.',
-      featuredSSR
+      trending: data.trending,
+      philosophy: data.philosophy,
+      history: data.history
     });
   } catch (e) {
-    console.error('home error:', e);
-    // Render without featuredSSR (client will hydrate from /api/featured-books)
-    res.render('index', {
-      pageTitle: 'Home',
-      pageDescription: 'Discover free books and knowledge on BookLantern.'
-    });
+    console.error('home shelves failed', e);
+    res.render('index', { trending: [], philosophy: [], history: [] });
   }
 });
 
