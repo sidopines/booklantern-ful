@@ -1,42 +1,27 @@
 <%
-// Video card with thumbnail, title, and Watch CTA - defensive programming
-const video = (typeof locals.video !== 'undefined') ? locals.video : {};
 const title = video.title || 'Untitled Video';
 const description = video.description || '';
-const thumbnail = video.thumbnail || '/img/video-fallback.svg';
-const url = video.url || '#';
+const thumbnail = video.thumbnail || '';
+const url = video.url || video.href || '#';
+const gate = loggedIn ? url : `/login?next=${encodeURIComponent(url)}`;
 %>
-
-<article class="video-card">
-  <div class="video-thumbnail">
-    <% if (thumbnail && thumbnail !== '/img/video-fallback.svg') { %>
-      <img src="<%= thumbnail %>" alt="<%= title %> thumbnail" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-      <div class="cover-ph" style="display:none;">
-        <span>🎥</span>
-      </div>
+<article class="card hover" role="listitem" style="min-width:200px">
+  <div class="book-cover">
+    <% if (thumbnail) { %>
+      <img class="cover-img" src="<%= thumbnail %>" alt="<%= title %>" loading="lazy" referrerpolicy="no-referrer"
+           onerror="this.style.display='none'; this.nextElementSibling?.classList.remove('hidden');">
+      <div class="cover-ph hidden">🎥</div>
     <% } else { %>
-      <div class="cover-ph">
-        <span>🎥</span>
-      </div>
+      <div class="cover-ph">🎥</div>
     <% } %>
-    <div class="video-overlay">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polygon points="5,3 19,12 5,21"></polygon>
-      </svg>
-    </div>
   </div>
-  
-  <div class="video-info">
-    <h3 class="video-title"><%= title %></h3>
+  <div class="stack" style="--gap:6px">
+    <div class="book-title"><%= title %></div>
     <% if (description) { %>
-      <p class="video-description"><%= description.substring(0, 100) %><%= description.length > 100 ? '...' : '' %></p>
+      <div class="book-author"><%= description.slice(0,80) %><%= description.length > 80 ? '...' : '' %></div>
     <% } %>
-    
-    <a href="<%= url %>" class="video-cta">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polygon points="5,3 19,12 5,21"></polygon>
-      </svg>
-      Watch
-    </a>
+    <div class="card-ctas">
+      <a class="btn" href="<%= gate %>">Watch</a>
+    </div>
   </div>
 </article>

@@ -1,71 +1,41 @@
 <%
-// Guard all locals for defensive programming
-const user = (typeof locals.user !== 'undefined') ? locals.user : null;
-const videos = (typeof locals.videos !== 'undefined' && Array.isArray(locals.videos)) ? locals.videos : [];
+const loggedIn = (typeof user !== 'undefined' && user) ? true : false;
+const videos = (typeof videoData !== 'undefined' && videoData) ? videoData : [];
 %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/head.ejs', {
-    pageTitle: 'Watch Educational Videos - BookLantern',
-    pageDescription: 'Stream free educational videos from trusted sources.'
-  }) %>
+  <%- include('./partials/head') %>
 </head>
-<body data-page="watch">
-  <%- include('./partials/navbar.ejs') %>
+<body>
+  <%- include('./partials/navbar') %>
   
-  <!-- Page Header -->
-  <div class="page-header">
-    <div class="container">
-      <%- include('./partials/backLink.ejs', { text: 'Back', fallback: '/' }) %>
-      <h1 class="page-title">Educational Videos</h1>
-      <p class="page-subtitle">Explore curated educational content from trusted sources.</p>
-    </div>
+  <div class="container" style="padding-top:16px">
+    <%- include('./partials/backLink') %>
   </div>
-  
-  <!-- Video Grid -->
-  <main class="content-section">
-    <div class="container">
-      <% if (user && user.isAdmin) { %>
-        <div class="admin-panel">
-          <a href="/admin/videos" class="btn secondary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
-            </svg>
-            Manage Videos
-          </a>
-        </div>
-      <% } %>
 
-      <% if (videos && videos.length > 0) { %>
-        <div class="video-grid">
-          <% videos.forEach(function(video) {
-               // Extract YouTube ID and prepare video data with defensive programming
-               const videoUrl = video.youtubeUrl || '';
-               const m = videoUrl.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{11})/);
-               const ytId = m ? m[1] : '';
-               const thumb = video.thumbnail || (ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : '/img/video-fallback.svg');
-               const videoData = {
-                 title: video.title || 'Untitled Video',
-                 description: video.description || '',
-                 thumbnail: thumb,
-                 url: video._id ? `/player/${video._id}` : '#'
-               };
-          %>
-            <%- include('./partials/videoCard.ejs', { video: videoData }) %>
+  <div class="container" style="padding:40px 0">
+    <div class="stack" style="--gap:24px">
+      <div class="stack" style="--gap:8px">
+        <h1>Educational Videos</h1>
+        <p class="muted">Curated educational content from trusted sources.</p>
+      </div>
+
+      <% if (videos && videos.length) { %>
+        <div class="grid cols-4">
+          <% videos.forEach(video => { %>
+            <%- include('./partials/videoCard', { video, loggedIn }) %>
           <% }) %>
         </div>
       <% } else { %>
-        <div class="empty-state">
-          <div class="empty-icon">📹</div>
+        <div class="card" style="text-align:center;padding:40px">
           <h3>No videos available yet</h3>
-          <p>Check back soon for educational content, or contact us if you'd like to suggest videos.</p>
-          <a href="/contact" class="btn">Suggest Content</a>
+          <p class="muted">Check back soon for educational content.</p>
         </div>
       <% } %>
     </div>
-  </main>
+  </div>
 
-  <%- include('./partials/footer.ejs') %>
+  <%- include('./partials/footer') %>
 </body>
 </html>
