@@ -1,60 +1,42 @@
 (() => {
-  // ----- Carousel arrows -----
-  const tracks = document.querySelectorAll('.shelf');
-  tracks.forEach(shelf => {
+  // Carousel arrows
+  document.querySelectorAll('.shelf').forEach(shelf => {
     const track = shelf.querySelector('.shelf-track');
     const prev  = shelf.querySelector('.prev');
     const next  = shelf.querySelector('.next');
     if (!track || !prev || !next) return;
-
     const step = () => Math.ceil(track.clientWidth * 0.9);
     prev.addEventListener('click', () => track.scrollBy({ left: -step(), behavior: 'smooth' }));
     next.addEventListener('click', () => track.scrollBy({ left:  step(), behavior: 'smooth' }));
   });
 
-  // ----- Listen (Web Speech API) -----
+  // Listen (SpeechSynthesis)
   let speaking = false;
-  let utterance = null;
+  let current  = null;
 
   function speak(text){
-    if (!('speechSynthesis' in window)) {
-      alert('Listening is not supported on this browser.');
-      return;
-    }
+    if (!('speechSynthesis' in window)) { alert('Listening is not supported on this browser.'); return; }
     window.speechSynthesis.cancel();
-    utterance = new SpeechSynthesisUtterance(text);
-    // Choose a neutral voice if available
+    current = new SpeechSynthesisUtterance(text);
     const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v => /en[-_](US|GB)/i.test(v.lang) && v.name.toLowerCase().includes('female'))
+    const preferred = voices.find(v => /en[-_](US|GB)/i.test(v.lang) && /female/i.test(v.name))
                     || voices.find(v => /en[-_](US|GB)/i.test(v.lang));
-    if (preferred) utterance.voice = preferred;
-    utterance.rate = 1.02;
-    utterance.pitch = 1.0;
-
-    speaking = true;
-    utterance.onend = () => { speaking = false; };
-    window.speechSynthesis.speak(utterance);
+    if (preferred) current.voice = preferred;
+    current.rate = 1.02; current.pitch = 1.0;
+    speaking = true; current.onend = () => speaking = false;
+    window.speechSynthesis.speak(current);
   }
 
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('.btn-listen');
     if (!btn) return;
     e.preventDefault();
-
-    const title  = btn.getAttribute('data-title') || 'Untitled';
+    const title  = btn.getAttribute('data-title')  || 'Untitled';
     const author = btn.getAttribute('data-author') || '';
-    const line   = author ? `${title}, by ${author}.` : `${title}.`;
-    const preview = `Preview. ${line}`;
-    if (speaking) {
-      window.speechSynthesis.cancel();
-      speaking = false;
-    } else {
-      speak(preview);
-    }
+    const preview = `Preview. ${title}${author ? ', by ' + author : ''}.`;
+    if (speaking) { window.speechSynthesis.cancel(); speaking = false; }
+    else { speak(preview); }
   });
 
-  // Ensure voices are loaded on some browsers
-  if ('speechSynthesis' in window) {
-    window.speechSynthesis.onvoiceschanged = () => {};
-  }
+  if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = () => {};
 })();
