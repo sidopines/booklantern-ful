@@ -2,55 +2,66 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: 'Register • BookLantern',
-    pageDescription: 'Create your BookLantern account.'
+    pageTitle: 'Create your account — BookLantern',
+    pageDescription: 'Join the largest hub of free books.'
   }) %>
 </head>
 <body>
   <%- include('./partials/navbar.ejs') %>
 
-  <main class="container page-pad auth-wrap">
-    <a href="/" onclick="if(document.referrer){history.back();return false;}" class="btn btn-secondary" style="margin-bottom:16px;">← Back</a>
-
-    <section class="auth-card card">
-      <h1 class="page-title" style="margin-bottom:8px;">Create account</h1>
+  <header class="hero hero--compact">
+    <div class="container hero-inner">
+      <h1>Create your account</h1>
       <p class="page-sub">Join the largest hub of free books.</p>
+    </div>
+  </header>
 
-      <%
-        const msgs = (typeof messages !== 'undefined' && messages) ? messages : {};
-        const err = msgs.error || error;
-        const ok  = msgs.success || success;
-      %>
-      <% if (ok)  { %><div class="alert success"><%= ok %></div><% } %>
-      <% if (err) { %><div class="alert error"><%= err %></div><% } %>
+  <main class="container page-pad">
+    <a class="back" href="/" onclick="if(document.referrer){history.back();return false;}">← Back</a>
 
-      <form action="/register" method="post" class="form">
-        <input type="hidden" name="_csrf" value="<%= (typeof csrfToken !== 'undefined' ? csrfToken : '') %>">
+    <% 
+      // Defensive guards for locals so EJS never throws
+      const _msgs     = (typeof messages  !== 'undefined' && messages)  ? messages  : {};
+      const _successL = (typeof success   !== 'undefined' && success)   ? success   : null;
+      const _errorL   = (typeof error     !== 'undefined' && error)     ? error     : null;
+      const ok        = _successL || _msgs.success || null;
+      const err       = _errorL   || _msgs.error   || null;
+      const _csrf     = (typeof csrfToken !== 'undefined' && csrfToken) ? csrfToken : '';
+    %>
 
-        <label class="field">
-          <span>Name</span>
-          <input type="text" name="name" placeholder="Your name" required>
-        </label>
+    <% if (ok) { %>
+      <div class="alert success"><%= ok %></div>
+    <% } %>
+    <% if (err) { %>
+      <div class="alert error"><%= err %></div>
+    <% } %>
 
-        <label class="field">
-          <span>Email</span>
-          <input type="email" name="email" placeholder="you@example.com" required>
-        </label>
+    <section class="auth-wrap">
+      <form class="card auth" action="/register" method="post" novalidate>
+        <% if (_csrf) { %><input type="hidden" name="_csrf" value="<%= _csrf %>"><% } %>
 
-        <label class="field">
-          <span>Password</span>
-          <input type="password" name="password" placeholder="Choose a strong password" required minlength="8">
-        </label>
-
-        <label class="field">
-          <span>Confirm password</span>
-          <input type="password" name="confirmPassword" placeholder="Repeat password" required minlength="8">
-        </label>
-
-        <div class="actions">
-          <button class="btn btn-primary" type="submit">Register</button>
-          <a class="btn btn-secondary" href="/login">I already have an account</a>
+        <div class="field">
+          <label for="name">Your Name</label>
+          <input id="name" name="name" type="text" placeholder="Your name" required>
         </div>
+
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" placeholder="Your password" autocomplete="new-password" required>
+        </div>
+
+        <div class="field">
+          <label for="confirmPassword">Confirm Password</label>
+          <input id="confirmPassword" name="confirmPassword" type="password" placeholder="Confirm password" autocomplete="new-password" required>
+        </div>
+
+        <button class="btn btn-primary" type="submit">Create account</button>
+        <p class="muted" style="margin-top:12px">Already have an account? <a href="/login">Log in</a></p>
       </form>
     </section>
   </main>
