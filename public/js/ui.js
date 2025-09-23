@@ -1,76 +1,60 @@
-/* UI bootstrap: carousels + "Listen" buttons using Web Speech API */
-(function () {
-  document.addEventListener('DOMContentLoaded', () => {
-    initCarousels();
-    initListenButtons();
-    stickFooterToBottom();
+(() => {
+  // ----- Carousel arrows -----
+  const tracks = document.querySelectorAll('.shelf');
+  tracks.forEach(shelf => {
+    const track = shelf.querySelector('.shelf-track');
+    const prev  = shelf.querySelector('.prev');
+    const next  = shelf.querySelector('.next');
+    if (!track || !prev || !next) return;
+
+    const step = () => Math.ceil(track.clientWidth * 0.9);
+    prev.addEventListener('click', () => track.scrollBy({ left: -step(), behavior: 'smooth' }));
+    next.addEventListener('click', () => track.scrollBy({ left:  step(), behavior: 'smooth' }));
   });
 
-  function initCarousels() {
-    const prevs = document.querySelectorAll('.carousel .prev');
-    const nexts = document.querySelectorAll('.carousel .next');
+  // ----- Listen (Web Speech API) -----
+  let speaking = false;
+  let utterance = null;
 
-    function scrollTrack(id, dir) {
-      const track = document.getElementById(id);
-      if (!track) return;
-      const card = track.querySelector('.card');
-      const step = card ? card.getBoundingClientRect().width + 16 : 320;
-      track.scrollBy({ left: dir * step, behavior: 'smooth' });
+  function speak(text){
+    if (!('speechSynthesis' in window)) {
+      alert('Listening is not supported on this browser.');
+      return;
     }
+    window.speechSynthesis.cancel();
+    utterance = new SpeechSynthesisUtterance(text);
+    // Choose a neutral voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => /en[-_](US|GB)/i.test(v.lang) && v.name.toLowerCase().includes('female'))
+                    || voices.find(v => /en[-_](US|GB)/i.test(v.lang));
+    if (preferred) utterance.voice = preferred;
+    utterance.rate = 1.02;
+    utterance.pitch = 1.0;
 
-    prevs.forEach(btn => {
-      btn.addEventListener('click', () => scrollTrack(btn.dataset.target, -1));
-    });
-    nexts.forEach(btn => {
-      btn.addEventListener('click', () => scrollTrack(btn.dataset.target, 1));
-    });
-
-    // Enable horizontal wheel/trackpad scroll
-    document.querySelectorAll('.carousel-track').forEach(track => {
-      track.addEventListener('wheel', (e) => {
-        if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) return;
-        e.preventDefault();
-        track.scrollLeft += e.deltaX;
-      }, { passive: false });
-    });
+    speaking = true;
+    utterance.onend = () => { speaking = false; };
+    window.speechSynthesis.speak(utterance);
   }
 
-  function initListenButtons() {
-    const support = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
-    const buttons = document.querySelectorAll('.listen-btn');
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-listen');
+    if (!btn) return;
+    e.preventDefault();
 
-    buttons.forEach(btn => {
-      if (!support) {
-        btn.disabled = true;
-        btn.title = 'Listening not supported in this browser';
-        return;
-      }
-      btn.addEventListener('click', () => {
-        const text = btn.getAttribute('data-listen') || '';
-        if (!text) return;
-        // Stop any previous speech first
-        window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        // A friendlier default voice/rate than the “scary” default
-        u.rate = 0.95;
-        u.pitch = 1.05;
-        u.volume = 1;
-        window.speechSynthesis.speak(u);
-      });
-    });
-  }
+    const title  = btn.getAttribute('data-title') || 'Untitled';
+    const author = btn.getAttribute('data-author') || '';
+    const line   = author ? `${title}, by ${author}.` : `${title}.`;
+    const preview = `Preview. ${line}`;
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      speaking = false;
+    } else {
+      speak(preview);
+    }
+  });
 
-  function stickFooterToBottom() {
-    const footer = document.querySelector('footer.site-footer');
-    const main = document.querySelector('main');
-    if (!footer || !main) return;
-    const setMinHeight = () => {
-      const vh = window.innerHeight;
-      const headerH = (document.querySelector('header')?.offsetHeight) || 0;
-      const footerH = footer.offsetHeight;
-      main.style.minHeight = Math.max(0, vh - headerH - footerH) + 'px';
-    };
-    setMinHeight();
-    window.addEventListener('resize', setMinHeight);
+  // Ensure voices are loaded on some browsers
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.onvoiceschanged = () => {};
   }
 })();
