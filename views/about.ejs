@@ -1,43 +1,36 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <%- include('./partials/head', {
-    pageTitle: 'About • BookLantern',
-    pageDescription: 'What BookLantern is and why it exists.'
-  }) %>
-</head>
+<%- include('./partials/head', { pageTitle: 'About — BookLantern' }) %>
 <body>
   <%- include('./partials/navbar') %>
 
-  <main>
-    <section class="hero">
+  <main class="container page-pad">
+    <header class="panel" style="margin-bottom:16px;">
       <h1>About BookLantern</h1>
-      <p class="sub">Connecting readers with the world’s largest collection of free books.</p>
-    </section>
+      <p>Connecting readers with the world’s largest collection of free books.</p>
+    </header>
 
-    <section style="max-width:720px">
-      <div class="card">
+    <section class="grid-2">
+      <article class="panel">
         <h2>Our Mission</h2>
         <p>BookLantern makes millions of books from globally trusted libraries accessible through one simple, clean interface. We believe that knowledge should be free and easily discoverable for everyone, everywhere.</p>
-      </div>
+      </article>
 
-      <div class="card">
+      <article class="panel">
         <h2>What Makes BookLantern Different</h2>
-        <ul style="margin:0;padding-left:18px;line-height:1.6">
-          <li><b>Universal Search:</b> Search across millions of books from multiple libraries and archives with one simple query.</li>
-          <li><b>Clean Reading:</b> Distraction-free reader optimized for focus and comprehension.</li>
-          <li><b>Trusted Sources:</b> Content from respected public domain and open access collections.</li>
-          <li><b>Always Free:</b> No subscriptions, no ads—just books.</li>
+        <ul>
+          <li><strong>Universal Search:</strong> search across millions of books from multiple libraries and archives with one query.</li>
+          <li><strong>Clean Reading:</strong> distraction-free reader optimized for focus and comprehension.</li>
+          <li><strong>Trusted Sources:</strong> respected public domain and open access collections.</li>
+          <li><strong>Always Free:</strong> no subscriptions, no ads—just books.</li>
         </ul>
-      </div>
+      </article>
+    </section>
 
-      <div class="card">
-        <h2>Start Reading Today</h2>
-        <p>Join thousands of readers discovering their next favorite book.</p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <a class="btn primary" href="/#browse">Browse Books</a>
-          <a class="btn ghost" href="/watch">Watch Videos</a>
-        </div>
+    <section class="panel" style="margin-top:16px;">
+      <h2>Start Reading Today</h2>
+      <p>Join thousands of readers discovering their next favorite book.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="/read">Browse Books</a>
+        <a class="btn btn-secondary" href="/watch">Watch Videos</a>
       </div>
     </section>
   </main>
