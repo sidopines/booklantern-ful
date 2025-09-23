@@ -1,28 +1,25 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <%- include('./partials/head', {
-    pageTitle: 'Contact • BookLantern',
-    pageDescription: 'Contact the BookLantern team.'
-  }) %>
-</head>
+<%- include('./partials/head', { pageTitle: 'Contact — BookLantern' }) %>
 <body>
   <%- include('./partials/navbar') %>
 
-  <main>
-    <section class="hero">
-      <h1>Contact Us</h1>
-      <p class="sub">We’d love to hear from you. Questions, feedback, or ideas—send us a note.</p>
-    </section>
+  <main class="container page-pad">
+    <h1 class="page-title">Contact Us</h1>
 
-    <section style="max-width:420px">
-      <form class="form" method="post" action="/contact">
-        <input class="input" type="text" name="name" placeholder="Your name" required>
-        <input class="input" type="email" name="email" placeholder="you@example.com" required>
-        <textarea name="message" placeholder="Write your message…" required></textarea>
-        <button class="btn primary" type="submit">Send Message</button>
-      </form>
-    </section>
+    <form class="panel" method="post" action="/contact">
+      <label>Your Name
+        <input name="name" type="text" placeholder="Your name">
+      </label>
+
+      <label>Your Email
+        <input name="email" type="email" placeholder="you@example.com">
+      </label>
+
+      <label>Your Message
+        <textarea name="message" rows="5" placeholder="Write your message…"></textarea>
+      </label>
+
+      <button class="btn btn-primary" type="submit">Send Message</button>
+    </form>
   </main>
 
   <%- include('./partials/footer') %>
