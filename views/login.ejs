@@ -2,50 +2,67 @@
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: 'Login • BookLantern',
-    pageDescription: 'Sign in to BookLantern.'
+    pageTitle: 'Log in — BookLantern',
+    pageDescription: 'Access your BookLantern account.'
   }) %>
 </head>
 <body>
   <%- include('./partials/navbar.ejs') %>
 
-  <main class="container page-pad auth-wrap">
-    <a href="/" onclick="if(document.referrer){history.back();return false;}" class="btn btn-secondary" style="margin-bottom:16px;">← Back</a>
+  <header class="hero hero--compact">
+    <div class="container hero-inner">
+      <h1>Welcome back</h1>
+      <p class="page-sub">Log in to continue reading.</p>
+    </div>
+  </header>
 
-    <section class="auth-card card">
-      <h1 class="page-title" style="margin-bottom:8px;">Login</h1>
-      <p class="page-sub">Welcome back.</p>
+  <main class="container page-pad">
+    <a class="back" href="/" onclick="if(document.referrer){history.back();return false;}">← Back</a>
 
-      <%
-        const msgs = (typeof messages !== 'undefined' && messages) ? messages : {};
-        const err = msgs.error || error;
-        const ok  = msgs.success || success;
-      %>
-      <% if (ok) { %><div class="alert success"><%= ok %></div><% } %>
-      <% if (err) { %><div class="alert error"><%= err %></div><% } %>
+    <% 
+      // Defensive guards for locals
+      const _msgs     = (typeof messages  !== 'undefined' && messages)  ? messages  : {};
+      const _successL = (typeof success   !== 'undefined' && success)   ? success   : null;
+      const _errorL   = (typeof error     !== 'undefined' && error)     ? error     : null;
+      const ok        = _successL || _msgs.success || null;
+      const err       = _errorL   || _msgs.error   || null;
+      const _csrf     = (typeof csrfToken !== 'undefined' && csrfToken) ? csrfToken : '';
+      const nextUrl   = (typeof next !== 'undefined' && next) ? next : '';
+    %>
 
-      <form action="/login" method="post" class="form">
-        <input type="hidden" name="_csrf" value="<%= (typeof csrfToken !== 'undefined' ? csrfToken : '') %>">
+    <% if (ok) { %>
+      <div class="alert success"><%= ok %></div>
+    <% } %>
+    <% if (err) { %>
+      <div class="alert error"><%= err %></div>
+    <% } %>
 
-        <label class="field">
-          <span>Email</span>
-          <input type="email" name="email" placeholder="you@example.com" required>
-        </label>
+    <section class="auth-wrap">
+      <!-- Change action to /auth/login if that’s your route; this template won’t crash either way -->
+      <form class="card auth" action="/login" method="post" novalidate>
+        <% if (_csrf) { %><input type="hidden" name="_csrf" value="<%= _csrf %>"><% } %>
+        <% if (nextUrl) { %><input type="hidden" name="next" value="<%= nextUrl %>"><% } %>
 
-        <label class="field">
-          <span>Password</span>
-          <input type="password" name="password" placeholder="••••••••" required>
-        </label>
-
-        <label class="checkbox">
-          <input type="checkbox" name="remember" value="1">
-          <span>Remember me</span>
-        </label>
-
-        <div class="actions">
-          <button class="btn btn-primary" type="submit">Login</button>
-          <a class="btn btn-secondary" href="/register">Create account</a>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required>
         </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" placeholder="Your password" autocomplete="current-password" required>
+        </div>
+
+        <div class="check-row">
+          <label class="checkbox">
+            <input type="checkbox" name="remember" value="1">
+            <span>Remember me</span>
+          </label>
+          <a class="muted" href="/forgot">Forgot password?</a>
+        </div>
+
+        <button class="btn btn-primary" type="submit">Log in</button>
+        <p class="muted" style="margin-top:12px">New here? <a href="/register">Create an account</a></p>
       </form>
     </section>
   </main>
