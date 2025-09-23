@@ -9,33 +9,34 @@
 <body>
   <%- include('./partials/navbar.ejs') %>
 
-  <!-- Brighter hero (inline gradient tweak) -->
-  <header class="hero" style="--hero-a: rgba(98, 110, 255, 0.28); --hero-b: rgba(196, 120, 255, 0.24);">
+  <!-- Hero -->
+  <header class="hero">
     <div class="container hero-inner">
-      <h1 class="page-title">Largest Online Hub of Free Books</h1>
-      <p class="page-sub">Millions of books from globally trusted libraries. One search, one clean reader.</p>
+      <h1>Largest Online Hub of Free Books</h1>
+      <p>Millions of books from globally trusted libraries. One search, one clean reader.</p>
 
-      <form action="/read" method="get" class="searchbar">
-        <input type="text" name="q" placeholder="Search millions of books…" aria-label="Search books">
+      <form class="search" action="/read" method="get" role="search" aria-label="Search books">
+        <input name="q" type="search" placeholder="Search millions of books…" aria-label="Search books">
         <button class="btn btn-primary" type="submit">Search</button>
       </form>
 
-      <div class="hero-bullets">
-        <span>✔︎ No ads</span>
-        <span>✔︎ Free forever</span>
-        <span>✔︎ Clean reading experience</span>
-      </div>
+      <ul class="ticks">
+        <li>✓ No ads</li>
+        <li>✓ Free forever</li>
+        <li>✓ Clean reading experience</li>
+      </ul>
     </div>
   </header>
 
+  <!-- Shelves -->
   <main class="container page-pad">
-    <% const T = Array.isArray(trending) ? trending : []; %>
+    <% const T = Array.isArray(trending)   ? trending   : []; %>
     <% const P = Array.isArray(philosophy) ? philosophy : []; %>
-    <% const H = Array.isArray(history) ? history : []; %>
+    <% const H = Array.isArray(history)    ? history    : []; %>
 
-    <%- include('./partials/bookCarousel', { title: 'Trending now', items: T, sectionClass: 'section--trending' }) %>
-    <%- include('./partials/bookCarousel', { title: 'Philosophy Picks', items: P, sectionClass: 'section--philosophy' }) %>
-    <%- include('./partials/bookCarousel', { title: 'History Picks', items: H, sectionClass: 'section--history' }) %>
+    <%- include('./partials/bookCarousel.ejs', { title: 'Trending now',     items: T, sectionClass: 'section--trending' }) %>
+    <%- include('./partials/bookCarousel.ejs', { title: 'Philosophy Picks', items: P, sectionClass: 'section--philosophy' }) %>
+    <%- include('./partials/bookCarousel.ejs', { title: 'History Picks',    items: H, sectionClass: 'section--history' }) %>
   </main>
 
   <%- include('./partials/footer.ejs') %>
