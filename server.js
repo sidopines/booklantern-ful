@@ -1,212 +1,200 @@
-/* server.js — BookLantern (minimal dependencies) */
-const path = require('path');
-const fs = require('fs');
+require('dotenv').config();
 const express = require('express');
-
+const path = require('path');
+const mongoose = require('mongoose');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
+const bodyParser = require('body-parser');
+const csrf = require('csurf');
+const bcrypt = require('bcrypt');
+const User = require('./models/User'); // make sure you have this Mongoose model
 const app = express();
-const PORT = process.env.PORT || 10000;
 
-/* ---------- View engine & static ---------- */
+// ===== Database connection =====
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => console.log('✅ MongoDB connected'))
+  .catch(err => console.error('MongoDB error', err));
+
+// ===== Middleware =====
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-app.use('/public', express.static(path.join(__dirname, 'public'), {
-  maxAge: '1h',
-  etag: true,
-  index: false
-}));
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
 
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'supersecret',
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({
+      mongoUrl: process.env.MONGO_URI,
+      collectionName: 'sessions'
+    })
+  })
+);
 
-/* ---------- Very lenient CSP for images (covers) ---------- */
+const csrfProtection = csrf();
+app.use(csrfProtection);
+
+// attach locals (so views always have these defined)
 app.use((req, res, next) => {
-  res.setHeader(
-    'Content-Security-Policy',
-    "default-src 'self'; img-src * data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src *; frame-ancestors 'self';"
-  );
+  res.locals.messages = {};
+  res.locals.success = null;
+  res.locals.error = null;
+  res.locals.csrfToken = req.csrfToken();
+  res.locals.user = req.session.user || null;
   next();
 });
 
-/* ---------- Res.locals defaults ---------- */
-app.use((req, res, next) => {
-  res.locals.buildId = process.env.BUILD_ID || Date.now().toString(36);
-  res.locals.loggedIn = false; // Wire in auth middleware later if needed
-  next();
-});
+// ===== ROUTES =====
 
-/* ---------- Helpers ---------- */
-const OL = {
-  subject: (name, limit = 24) =>
-    `https://openlibrary.org/subjects/${encodeURIComponent(name)}.json?limit=${limit}`,
-  coverById: (coverId) =>
-    coverId ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg` : ''
-};
-
-function normalizeBooks(docs = []) {
-  return docs.map(d => {
-    const title = d.title || d.title_suggest || 'Untitled';
-    const author =
-      (Array.isArray(d.authors) && d.authors[0]?.name) ||
-      (Array.isArray(d.author_name) && d.author_name[0]) ||
-      d.author || 'Unknown';
-    const cover =
-      (d.cover && (d.cover.large || d.cover.medium || d.cover.small)) ||
-      (d.cover_i && OL.coverById(d.cover_i)) ||
-      (d.edition_key && OL.coverById(d.edition_key[0])) ||
-      d.coverUrl || '';
-    const url =
-      (d.key && `https://openlibrary.org${d.key}`) ||
-      d.url || d.href || '';
-    return {
-      title,
-      author,
-      cover: cover ? String(cover).replace(/^http:/, 'https:') : '',
-      href: url
-    };
+// homepage
+app.get('/', (req, res) => {
+  res.render('index', {
+    trending: [], // TODO: fetch books
+    philosophy: [],
+    history: []
   });
-}
+});
 
-function fallbackBooks() {
-  return [
-    { title: 'Pride and Prejudice', author: 'Jane Austen', cover: 'https://covers.openlibrary.org/b/id/8225636-M.jpg', href: 'https://openlibrary.org/works/OL14964254W' },
-    { title: 'Moby-Dick', author: 'Herman Melville', cover: 'https://covers.openlibrary.org/b/id/7222246-M.jpg', href: 'https://openlibrary.org/works/OL45883W' },
-    { title: 'Meditations', author: 'Marcus Aurelius', cover: 'https://covers.openlibrary.org/b/id/11153253-M.jpg', href: 'https://openlibrary.org/works/OL82563W' },
-    { title: 'The Republic', author: 'Plato', cover: 'https://covers.openlibrary.org/b/id/240726-M.jpg', href: 'https://openlibrary.org/works/OL37210W' }
-  ];
-}
+// about
+app.get('/about', (req, res) => {
+  res.render('about');
+});
 
-async function fetchJson(url, { timeoutMs = 4000 } = {}) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+// contact
+app.get('/contact', (req, res) => {
+  res.render('contact');
+});
+
+// ===== AUTH ROUTES =====
+
+// login GET
+app.get('/login', (req, res) => {
+  res.render('login', {
+    messages: req.session.messages || {},
+    success: req.session.success || null,
+    error: req.session.error || null,
+    csrfToken: req.csrfToken(),
+    next: req.query.next || ''
+  });
+  req.session.messages = {};
+  req.session.success = null;
+  req.session.error = null;
+});
+
+// login POST
+app.post('/login', async (req, res) => {
+  const { email, password, next } = req.body;
   try {
-    const r = await fetch(url, { signal: ctrl.signal });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return await r.json();
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/* ---------- In-memory cache for homepage ---------- */
-const cache = {
-  shelves: null,
-  ts: 0,
-  maxAgeMs: 60 * 60 * 1000 // 1 hour
-};
-
-async function getShelves() {
-  const now = Date.now();
-  if (cache.shelves && now - cache.ts < cache.maxAgeMs) return cache.shelves;
-
-  try {
-    const [trRaw, phRaw, hiRaw] = await Promise.all([
-      fetchJson(OL.subject('trending', 24)).catch(() => null),
-      fetchJson(OL.subject('philosophy', 24)).catch(() => null),
-      fetchJson(OL.subject('history', 24)).catch(() => null)
-    ]);
-
-    const trending = normalizeBooks(trRaw?.works || trRaw?.docs || []);
-    const philosophy = normalizeBooks(phRaw?.works || phRaw?.docs || []);
-    const history = normalizeBooks(hiRaw?.works || hiRaw?.docs || []);
-
-    const shelves = {
-      trending: trending.length ? trending : fallbackBooks(),
-      philosophy: philosophy.length ? philosophy : fallbackBooks(),
-      history: history.length ? history : fallbackBooks()
+    const user = await User.findOne({ email });
+    if (!user) {
+      req.session.error = 'Invalid credentials';
+      return res.redirect('/login');
+    }
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      req.session.error = 'Invalid credentials';
+      return res.redirect('/login');
+    }
+    req.session.user = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      isAdmin: user.isAdmin || false
     };
-
-    cache.shelves = shelves;
-    cache.ts = now;
-    return shelves;
-  } catch {
-    const fb = fallbackBooks();
-    const shelves = { trending: fb, philosophy: fb, history: fb };
-    cache.shelves = shelves;
-    cache.ts = now;
-    return shelves;
+    req.session.success = 'Welcome back!';
+    if (next) return res.redirect(next);
+    return res.redirect('/dashboard');
+  } catch (err) {
+    console.error('Login error', err);
+    req.session.error = 'Something went wrong';
+    res.redirect('/login');
   }
-}
+});
 
-/* ---------- Routes ---------- */
+// register GET
+app.get('/register', (req, res) => {
+  res.render('register', {
+    messages: req.session.messages || {},
+    success: req.session.success || null,
+    error: req.session.error || null,
+    csrfToken: req.csrfToken()
+  });
+  req.session.messages = {};
+  req.session.success = null;
+  req.session.error = null;
+});
 
-// Home
-app.get('/', async (req, res, next) => {
+// register POST
+app.post('/register', async (req, res) => {
+  const { name, email, password, confirmPassword } = req.body;
   try {
-    const shelves = await getShelves();
-    res.render('index', {
-      trending: shelves.trending,
-      philosophy: shelves.philosophy,
-      history: shelves.history
+    if (!name || !email || !password || !confirmPassword) {
+      req.session.error = 'All fields are required';
+      return res.redirect('/register');
+    }
+    if (password !== confirmPassword) {
+      req.session.error = 'Passwords do not match';
+      return res.redirect('/register');
+    }
+    const existing = await User.findOne({ email });
+    if (existing) {
+      req.session.error = 'Email already registered';
+      return res.redirect('/register');
+    }
+    const hashed = await bcrypt.hash(password, 10);
+    const user = new User({
+      name,
+      email,
+      password: hashed,
+      isAdmin: false
     });
+    await user.save();
+    req.session.success = 'Account created successfully. Please log in.';
+    res.redirect('/login');
   } catch (err) {
-    next(err);
+    console.error('Register error', err);
+    req.session.error = 'Something went wrong';
+    res.redirect('/register');
   }
 });
 
-// Read (search)
-app.get('/read', async (req, res, next) => {
-  try {
-    const q = (req.query.q || '').toString().trim();
-    let results = [];
-    if (q) {
-      const url = `https://openlibrary.org/search.json?limit=24&q=${encodeURIComponent(q)}`;
-      const data = await fetchJson(url).catch(() => null);
-      results = normalizeBooks(data?.docs || []);
-    }
-    res.render('read', { q, results });
-  } catch (err) {
-    next(err);
+// logout
+app.get('/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.redirect('/');
+  });
+});
+
+// ===== Dashboard =====
+app.get('/dashboard', (req, res) => {
+  if (!req.session.user) {
+    req.session.error = 'Please log in first';
+    return res.redirect('/login');
   }
+  res.render('dashboard', { user: req.session.user });
 });
 
-// Watch
-app.get('/watch', (req, res) => {
-  const file = path.join(__dirname, 'data', 'videos.json');
-  let videos = [];
-  if (fs.existsSync(file)) {
-    try {
-      const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
-      if (Array.isArray(raw)) videos = raw;
-      else if (raw && Array.isArray(raw.videos)) videos = raw.videos;
-    } catch {
-      videos = [];
-    }
-  }
-  res.render('watch', { videos });
-});
+// ===== Error Handling =====
 
-// About / Contact
-app.get('/about', (req, res) => res.render('about'));
-app.get('/contact', (req, res) => res.render('contact'));
-app.post('/contact', (req, res) => {
-  res.render('contact', { messages: { success: 'Thanks! We received your message.' } });
-});
-
-// Auth stubs
-app.get('/login', (req, res) => res.render('login'));
-app.get('/register', (req, res) => res.render('register'));
-app.post('/login', (req, res) => {
-  res.render('login', { messages: { error: 'Auth not wired yet.' } });
-});
-app.post('/register', (req, res) => {
-  res.render('register', { messages: { error: 'Registration not wired yet.' } });
-});
-
-// Health
-app.get('/health', (req, res) => res.type('text').send('OK'));
-
-/* ---------- 404 + error handling ---------- */
+// 404
 app.use((req, res) => {
   res.status(404).render('404');
 });
 
+// generic error handler
 app.use((err, req, res, next) => {
-  console.error('🔥 Error:', err);
-  res.status(500).render('error', { message: err.message || 'Internal server error.' });
+  console.error('🔥 Unhandled error', err);
+  res.status(500).render('error', { error: err });
 });
 
-/* ---------- Start ---------- */
+// ===== Server =====
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
