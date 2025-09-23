@@ -1,422 +1,217 @@
-/**
- * BookLantern — server.js (full, final)
- * Frontend-focused Express app with EJS views
- * - Safe locals for templates
- * - Build cache-busting
- * - Strong CSP for covers/fonts/scripts
- * - Open Library fetch with retry + 1h cache
- * - Optional local fallback for Homepage shelves
- * - Search route (/read)
- * - Watch route reading optional data/videos.json
- * - Login shim (prevents "Cannot POST /login")
- */
-
+/* server.js — BookLantern (minimal dependencies) */
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
-const compression = require('compression');
-const helmet = require('helmet');
-const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
 
 const app = express();
-
-/* ---------------------------- Basic configuration --------------------------- */
-
 const PORT = process.env.PORT || 10000;
-const NODE_ENV = process.env.NODE_ENV || 'production';
-const BUILD_ID = process.env.BUILD_ID || Date.now().toString(36);
 
-/* --------------------------------- Middleware ------------------------------- */
+/* ---------- View engine & static ---------- */
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
-app.disable('x-powered-by');
-app.use(compression());
+app.use('/public', express.static(path.join(__dirname, 'public'), {
+  maxAge: '1h',
+  etag: true,
+  index: false
+}));
 
-// Body parsing for forms / JSON (do NOT remove; login/register or admin forms may rely on this)
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Views and static
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
-app.use('/public', express.static(path.join(__dirname, 'public'), { maxAge: '7d', etag: true }));
-
-/* ------------------------------------ CSP ---------------------------------- */
-/**
- * Allow:
- *  - Only self for HTML/JS by default
- *  - Google Fonts (styles + font files)
- *  - Open Library cover images
- *  - YouTube thumbnails (for watch page) and iframes
- */
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      useDefaults: true,
-      directives: {
-        "default-src": ["'self'"],
-        "script-src": [
-          "'self'",
-          // allow EJS-inlined small scripts if any
-          "'unsafe-inline'",
-        ],
-        "style-src": [
-          "'self'",
-          "'unsafe-inline'",
-          "https://fonts.googleapis.com",
-        ],
-        "font-src": ["'self'", "https://fonts.gstatic.com", "data:"],
-        "img-src": [
-          "'self'",
-          "data:",
-          "blob:",
-          "https://covers.openlibrary.org",
-          "https://i.ytimg.com",
-          "https://img.youtube.com",
-          // add any other cover hosts if needed
-        ],
-        "media-src": ["'self'", "blob:"],
-        "connect-src": [
-          "'self'",
-          "https://openlibrary.org",
-        ],
-        "frame-src": [
-          "'self'",
-          "https://www.youtube.com",
-          "https://youtube.com",
-          "https://youtu.be",
-        ],
-        "object-src": ["'none'"],
-        "upgrade-insecure-requests": null,
-      },
-    },
-    crossOriginEmbedderPolicy: false,
-  })
-);
-
-/* ------------------------------- Safe locals -------------------------------- */
-
+/* ---------- Very lenient CSP for images (covers) ---------- */
 app.use((req, res, next) => {
-  res.locals.buildId = BUILD_ID;
-
-  // Safe auth indicator (don’t assume a session)
-  // If your auth middleware sets req.user, this will show "Account" in navbar.
-  res.locals.loggedIn = !!(req.user && (req.user.id || req.user._id));
-
-  // Title/description defaults (overridable per render)
-  res.locals.pageTitle = 'BookLantern';
-  res.locals.pageDescription = 'Discover millions of free books from globally trusted libraries.';
-
+  // Allow images from anywhere + data: URIs
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; img-src * data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src *; frame-ancestors 'self';"
+  );
   next();
 });
 
-/* --------------------------- Fetch helpers + cache -------------------------- */
+/* ---------- Res.locals defaults ---------- */
+app.use((req, res, next) => {
+  res.locals.buildId = process.env.BUILD_ID || Date.now().toString(36);
+  res.locals.loggedIn = false; // if you wire auth later, set this via middleware
+  next();
+});
 
-const ONE_HOUR = 1000 * 60 * 60;
-const cache = new Map(); // key -> { expires, data }
+/* ---------- Helpers ---------- */
+const OL = {
+  subject: (name, limit = 24) =>
+    `https://openlibrary.org/subjects/${encodeURIComponent(name)}.json?limit=${limit}`,
+  coverById: (coverId) =>
+    coverId ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg` : ''
+};
 
-function setCache(key, data, ttlMs = ONE_HOUR) {
-  cache.set(key, { data, expires: Date.now() + ttlMs });
+function normalizeBooks(docs = []) {
+  return docs.map(d => {
+    const title = d.title || d.title_suggest || 'Untitled';
+    const author =
+      (Array.isArray(d.authors) && d.authors[0]?.name) ||
+      (Array.isArray(d.author_name) && d.author_name[0]) ||
+      d.author || 'Unknown';
+    const cover =
+      (d.cover && (d.cover.large || d.cover.medium || d.cover.small)) ||
+      (d.cover_i && OL.coverById(d.cover_i)) ||
+      (d.edition_key && OL.coverById(d.edition_key[0])) ||
+      d.coverUrl || '';
+    const url =
+      (d.key && `https://openlibrary.org${d.key}`) ||
+      d.url || d.href || '';
+    return {
+      title,
+      author,
+      cover: cover ? String(cover).replace(/^http:/, 'https:') : '',
+      href: url
+    };
+  });
 }
-function getCache(key) {
-  const hit = cache.get(key);
-  if (!hit) return null;
-  if (Date.now() > hit.expires) {
-    cache.delete(key);
-    return null;
+
+function fallbackBooks() {
+  // Simple static fallback to avoid empty homepage if OL is down
+  return [
+    { title: 'Pride and Prejudice', author: 'Jane Austen', cover: 'https://covers.openlibrary.org/b/id/8225636-M.jpg', href: 'https://openlibrary.org/works/OL14964254W' },
+    { title: 'Moby-Dick', author: 'Herman Melville', cover: 'https://covers.openlibrary.org/b/id/7222246-M.jpg', href: 'https://openlibrary.org/works/OL45883W' },
+    { title: 'Meditations', author: 'Marcus Aurelius', cover: 'https://covers.openlibrary.org/b/id/11153253-M.jpg', href: 'https://openlibrary.org/works/OL82563W' },
+    { title: 'The Republic', author: 'Plato', cover: 'https://covers.openlibrary.org/b/id/240726-M.jpg', href: 'https://openlibrary.org/works/OL37210W' }
+  ];
+}
+
+async function fetchJson(url, { timeoutMs = 4000 } = {}) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  } finally {
+    clearTimeout(timer);
   }
-  return hit.data;
 }
 
-async function retryFetchJson(url, opts = {}, retries = 2) {
-  let err;
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const r = await fetch(url, { timeout: 12000, ...opts });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return await r.json();
-    } catch (e) {
-      err = e;
-      await new Promise((res) => setTimeout(res, 600 * (i + 1)));
-    }
-  }
-  throw err;
-}
+/* ---------- In-memory cache for homepage ---------- */
+const cache = {
+  shelves: null,
+  ts: 0,
+  maxAgeMs: 60 * 60 * 1000 // 1 hour
+};
 
-/* ------------------------------- Normalizers -------------------------------- */
-
-function olCover(cover_i) {
-  return cover_i ? `https://covers.openlibrary.org/b/id/${cover_i}-L.jpg` : null;
-}
-
-function normalizeOL(doc) {
-  const title = doc.title || 'Untitled';
-  const author =
-    (Array.isArray(doc.author_name) && doc.author_name[0]) ||
-    doc.author_name ||
-    'Unknown author';
-  const cover =
-    olCover(doc.cover_i) ||
-    (doc.isbn && doc.isbn.length ? `https://covers.openlibrary.org/b/isbn/${doc.isbn[0]}-L.jpg` : null);
-  // small snippet—first sentence or subject for the Listen preview
-  const snippet =
-    (Array.isArray(doc.first_sentence) && doc.first_sentence[0]) ||
-    (doc.subtitle ? String(doc.subtitle) : '') ||
-    (Array.isArray(doc.subject) && doc.subject[0]) ||
-    '';
-  const initials = title.slice(0, 2).toUpperCase();
-  const readUrl = doc.key ? `https://openlibrary.org${doc.key}` : null;
-
-  return { title, author, cover, readUrl, initials, snippet };
-}
-
-function shuffle(a) {
-  const arr = a.slice();
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = (Math.random() * (i + 1)) | 0;
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
-/* --------------------------- Local fallback catalog -------------------------- */
-
-function readFallbackCatalog() {
-  const fp = path.join(__dirname, 'data', 'fallbackCatalog.json');
-  if (fs.existsSync(fp)) {
-    try {
-      const raw = JSON.parse(fs.readFileSync(fp, 'utf8'));
-      if (raw && typeof raw === 'object') return raw;
-    } catch (_) {}
-  }
-  return {
-    trending: [
-      { title: 'Alice’s Adventures in Wonderland', author: 'Lewis Carroll' },
-      { title: 'The Picture of Dorian Gray', author: 'Oscar Wilde' },
-      { title: 'A Christmas Carol', author: 'Charles Dickens' },
-      { title: 'Emma', author: 'Jane Austen' },
-      { title: 'Frankenstein', author: 'Mary Shelley' },
-    ],
-    philosophy: [
-      { title: 'The Art of War', author: 'Sun Tzu' },
-      { title: 'The Prince', author: 'Niccolò Machiavelli' },
-      { title: 'Through the Looking-Glass', author: 'Lewis Carroll' },
-      { title: 'Candide', author: 'Voltaire' },
-      { title: 'Utopia', author: 'Thomas More' },
-    ],
-    history: [
-      { title: 'Pride and Prejudice', author: 'Jane Austen' },
-      { title: 'Bible', author: 'Various' },
-      { title: 'The Histories', author: 'Herodotus' },
-      { title: 'A History of England', author: 'Charles Dickens' },
-      { title: 'A Christmas Carol', author: 'Charles Dickens' },
-    ],
-  };
-}
-
-/* ------------------------------ Shelves (Home) ------------------------------ */
-
-async function getShelfFromOL(query, limit = 10) {
-  const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=${limit}`;
-  const j = await retryFetchJson(url);
-  const docs = Array.isArray(j.docs) ? j.docs : [];
-  return docs.map(normalizeOL);
-}
-
-async function buildHomeShelves() {
-  // Try cache first
-  const cached = getCache('homeShelves');
-  if (cached) return cached;
-
-  let trending = [];
-  let philosophy = [];
-  let history = [];
+async function getShelves() {
+  const now = Date.now();
+  if (cache.shelves && now - cache.ts < cache.maxAgeMs) return cache.shelves;
 
   try {
-    // Use loose topical queries; shuffle to add variety every deploy/hour
-    const [a, b, c] = await Promise.all([
-      getShelfFromOL('classic literature OR public domain', 12),
-      getShelfFromOL('philosophy OR ethics OR metaphysics', 12),
-      getShelfFromOL('history OR biography', 12),
+    const [trRaw, phRaw, hiRaw] = await Promise.all([
+      fetchJson(OL.subject('trending', 24)).catch(() => null),
+      fetchJson(OL.subject('philosophy', 24)).catch(() => null),
+      fetchJson(OL.subject('history', 24)).catch(() => null)
     ]);
-    trending = shuffle(a).slice(0, 10);
-    philosophy = shuffle(b).slice(0, 10);
-    history = shuffle(c).slice(0, 10);
-  } catch (e) {
-    console.error('Open Library fetch failed, using fallback catalog:', e.message);
-    const fallback = readFallbackCatalog();
-    const project = (arr) =>
-      arr.map((it) => ({
-        title: it.title,
-        author: it.author || 'Unknown author',
-        cover: null,
-        readUrl: null,
-        initials: (it.title || 'BL').slice(0, 2).toUpperCase(),
-        snippet: '',
-      }));
-    trending = project(fallback.trending || []);
-    philosophy = project(fallback.philosophy || []);
-    history = project(fallback.history || []);
-  }
 
-  const data = { trending, philosophy, history };
-  setCache('homeShelves', data, ONE_HOUR);
-  return data;
+    const trending = normalizeBooks(trRaw?.works || trRaw?.docs || []);
+    const philosophy = normalizeBooks(phRaw?.works || phRaw?.docs || []);
+    const history = normalizeBooks(hiRaw?.works || hiRaw?.docs || []);
+
+    const shelves = {
+      trending: trending.length ? trending : fallbackBooks(),
+      philosophy: philosophy.length ? philosophy : fallbackBooks(),
+      history: history.length ? history : fallbackBooks()
+    };
+
+    cache.shelves = shelves;
+    cache.ts = now;
+    return shelves;
+  } catch {
+    const fb = fallbackBooks();
+    const shelves = { trending: fb, philosophy: fb, history: fb };
+    cache.shelves = shelves;
+    cache.ts = now;
+    return shelves;
+  }
 }
 
-/* ---------------------------------- Routes --------------------------------- */
+/* ---------- Routes ---------- */
 
-// Navbar brand + pages rely on these EJS files existing:
-//   - views/index.ejs
-//   - views/read.ejs
-//   - views/watch.ejs
-//   - views/about.ejs
-//   - views/contact.ejs
-//   - views/login.ejs
-//   - views/register.ejs
-// Partials are in views/partials/* (head, navbar, hero, bookCarousel, footer)
-
+// Home
 app.get('/', async (req, res, next) => {
   try {
-    const { trending, philosophy, history } = await buildHomeShelves();
-    return res.render('index', {
-      pageTitle: 'BookLantern – Free Books from Global Libraries',
-      trending,
-      philosophy,
-      history,
+    const shelves = await getShelves();
+    res.render('index', {
+      trending: shelves.trending,
+      philosophy: shelves.philosophy,
+      history: shelves.history
     });
-  } catch (e) {
-    next(e);
+  } catch (err) {
+    next(err);
   }
 });
 
+// Read (search)
 app.get('/read', async (req, res, next) => {
   try {
-    const q = (req.query.q || '').trim();
-    if (!q) {
-      return res.render('read', {
-        pageTitle: 'Explore Free Books',
-        q: '',
-        items: [],
-      });
+    const q = (req.query.q || '').toString().trim();
+    let results = [];
+    if (q) {
+      const url = `https://openlibrary.org/search.json?limit=24&q=${encodeURIComponent(q)}`;
+      const data = await fetchJson(url).catch(() => null);
+      results = normalizeBooks(data?.docs || []);
     }
-    const key = `read:${q}`;
-    const cached = getCache(key);
-    if (cached) {
-      return res.render('read', {
-        pageTitle: `Search • ${q} • BookLantern`,
-        q,
-        items: cached,
-      });
-    }
-
-    const j = await retryFetchJson(
-      `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=30`
-    );
-    const docs = Array.isArray(j.docs) ? j.docs : [];
-    const items = docs.map(normalizeOL);
-    setCache(key, items, ONE_HOUR / 2);
-    return res.render('read', {
-      pageTitle: `Search • ${q} • BookLantern`,
-      q,
-      items,
-    });
-  } catch (e) {
-    next(e);
+    res.render('read', { q, results });
+  } catch (err) {
+    next(err);
   }
 });
 
-/* ---------------------------- Watch (videos list) --------------------------- */
-/**
- * We support a simple JSON file at data/videos.json:
- *   [{ "title": "...", "thumb": "...", "url": "https://youtu.be/..." }, ...]
- * If it’s missing, we render an empty state (your admin can repopulate separately).
- */
-function loadVideosList() {
-  const fp = path.join(__dirname, 'data', 'videos.json');
-  if (fs.existsSync(fp)) {
-    try {
-      const arr = JSON.parse(fs.readFileSync(fp, 'utf8'));
-      if (Array.isArray(arr)) return arr;
-    } catch (e) {
-      console.error('Invalid data/videos.json:', e.message);
-    }
-  }
-  return [];
-}
-
+// Watch (optional JSON source)
 app.get('/watch', (req, res) => {
-  const items = loadVideosList();
-  res.render('watch', {
-    pageTitle: 'Educational Videos • BookLantern',
-    items,
-  });
-});
-
-/* ----------------------------- Informational pages -------------------------- */
-
-app.get('/about', (req, res) => {
-  res.render('about', { pageTitle: 'About • BookLantern' });
-});
-
-app.get('/contact', (req, res) => {
-  res.render('contact', { pageTitle: 'Contact • BookLantern' });
-});
-
-/* ----------------------------- Auth UI pages only --------------------------- */
-
-app.get('/login', (req, res) => {
-  res.render('login', {
-    pageTitle: 'Login • BookLantern',
-    messages: {}, // keep safe default
-  });
-});
-
-app.get('/register', (req, res) => {
-  res.render('register', {
-    pageTitle: 'Register • BookLantern',
-    messages: {},
-  });
-});
-
-/* ------------------------------ Mount your auth ----------------------------- */
-/**
- * If you already have real auth routes (sessions/JWT etc.), mount them here:
- *   const authRoutes = require('./routes/auth');
- *   app.use('/auth', authRoutes);
- *
- * Our login shim below only ensures POST /login doesn't 404 if your form points to it.
- */
-
-/* ------------------------------- Login shim -------------------------------- */
-try {
-  const loginShim = require('./routes/loginShim');
-  app.use(loginShim);
-} catch (e) {
-  // If file not present, it’s fine.
-}
-
-/* --------------------------------- Errors ---------------------------------- */
-
-app.use((req, res) => {
-  res.status(404);
-  // Render your 404 page if you have one, else a simple message
-  res.send('Not Found');
-});
-
-app.use((err, req, res, next) => {
-  console.error('🔥 Unhandled error:', err);
-  res.status(500);
-  try {
-    res.render('error', {
-      pageTitle: 'Error • BookLantern',
-      message: 'Something went wrong.',
-    });
-  } catch {
-    res.send('Internal Server Error');
+  const file = path.join(__dirname, 'data', 'videos.json');
+  let videos = [];
+  if (fs.existsSync(file)) {
+    try {
+      const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (Array.isArray(raw)) videos = raw;
+      else if (raw && Array.isArray(raw.videos)) videos = raw.videos;
+    } catch {
+      videos = [];
+    }
   }
+  res.render('watch', { videos });
 });
 
-/* --------------------------------- Launch ---------------------------------- */
+// About / Contact
+app.get('/about', (req, res) => res.render('about'));
+app.get('/contact', (req, res) => res.render('contact'));
+app.post('/contact', (req, res) => {
+  // You can send an email, store DB, etc. For now show a success banner.
+  res.render('contact', { messages: { success: 'Thanks! We received your message.' } });
+});
+
+// Auth bridges to avoid "Cannot POST /login"
+app.get('/login', (req, res) => res.render('login'));
+app.get('/register', (req, res) => res.render('register'));
+app.post('/login', (req, res) => {
+  // Bridge to your existing auth or show a friendly message
+  // Example: res.redirect(307, '/auth/login');
+  res.render('login', { messages: { error: 'Auth not wired yet. Please use Admin tool or connect auth.' } });
+});
+app.post('/register', (req, res) => {
+  // Example: res.redirect(307, '/auth/register');
+  res.render('register', { messages: { error: 'Registration not wired yet. Please use Admin tool or connect auth.' } });
+});
+
+// Health
+app.get('/health', (req, res) => res.type('text').send('OK'));
+
+// 404
+app.use((req, res) => {
+  res.status(404).render('error', { message: 'Page not found.' });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error('🔥 Error:', err);
+  res.status(500).render('error', { message: err.message || 'Internal server error.' });
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
