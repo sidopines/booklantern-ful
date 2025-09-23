@@ -1,9 +1,11 @@
 <%
   const it = item || {};
-  const title = it.title || 'Untitled';
+  const title  = it.title || 'Untitled';
   const author = it.author || it.authors || 'Unknown';
-  const cover = it.cover || it.coverUrl || it.image || '';
-  const href  = it.href  || it.url   || '#';
+  const raw    = it.cover || it.coverUrl || it.image || '';
+  // Force https so mixed-content doesn’t block covers
+  const cover  = raw ? String(raw).replace(/^http:/, 'https:') : '';
+  const href   = it.href || it.url || '#';
 %>
 
 <li class="card book-card" role="listitem">
