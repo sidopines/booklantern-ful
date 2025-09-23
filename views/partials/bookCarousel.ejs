@@ -1,28 +1,25 @@
 <%
-  const list = (typeof items !== 'undefined' && items && items.length) ? items : [];
-  const secClass = (typeof sectionClass !== 'undefined' ? sectionClass : '');
-  const heading = (typeof title !== 'undefined' ? title : 'Books');
-  const uid = `c${Math.random().toString(36).slice(2)}`;
+  const list         = (items && items.length) ? items : [];
+  const _sectionClass = (typeof sectionClass !== 'undefined') ? sectionClass : '';
+  const _title       = (typeof title !== 'undefined') ? title : 'Books';
 %>
 
-<section class="carousel <%= secClass %>" aria-label="<%= heading %>">
-  <div class="carousel-head">
-    <h2 class="carousel-title"><%= heading %></h2>
-    <div class="carousel-controls" aria-hidden="<%= list.length <= 1 ? 'true' : 'false' %>">
-      <button class="icon-btn prev" type="button" data-target="<%= uid %>" aria-label="Scroll left">‹</button>
-      <button class="icon-btn next" type="button" data-target="<%= uid %>" aria-label="Scroll right">›</button>
+<section class="shelf <%= _sectionClass %>">
+  <div class="shelf-head">
+    <h2 class="shelf-title"><%= _title %></h2>
+    <div class="shelf-ctrl">
+      <button class="icon-btn prev" aria-label="Scroll left" data-dir="-1">‹</button>
+      <button class="icon-btn next" aria-label="Scroll right" data-dir="1">›</button>
     </div>
   </div>
 
-  <div class="carousel-viewport">
-    <div class="carousel-track" id="<%= uid %>" role="list">
-      <% if (!list.length) { %>
-        <div class="card empty" role="note">Nothing to show yet.</div>
-      <% } else { %>
-        <% list.forEach(it => { %>
-          <%- include('./bookCard', { item: it }) %>
-        <% }) %>
-      <% } %>
-    </div>
+  <div class="shelf-track" role="list">
+    <% list.forEach(it => { %>
+      <%- include('./bookCard', { item: it }) %>
+    <% }) %>
   </div>
+
+  <% if (!list.length) { %>
+    <div class="empty">Nothing here yet.</div>
+  <% } %>
 </section>
