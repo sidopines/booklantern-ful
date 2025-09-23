@@ -1,35 +1,50 @@
 <%
   const it = item || {};
-  const title  = it.title || 'Untitled';
-  const author = it.author || it.authors || 'Unknown';
-  const raw    = it.cover || it.coverUrl || it.image || '';
-  // Force https so mixed-content doesn’t block covers
-  const cover  = raw ? String(raw).replace(/^http:/, 'https:') : '';
-  const href   = it.href || it.url || '#';
+
+  const title   = (it.title || '').toString() || 'Untitled';
+  const author  = (it.author || it.authors || '').toString();
+  const primary =
+    it.readUrl || it.url || it.href || it.openlibrary_url || it.sourceUrl || '';
+
+  // Sensible fallback if we still don't have a URL: route user to /read?q=Title Author
+  const safeQuery = encodeURIComponent([title, author].filter(Boolean).join(' '));
+  const href = primary ? String(primary) : `/read?q=${safeQuery}`;
+
+  // Cover handling — normalize to https; if host blocks, JS swaps to a proxy.
+  const rawCover = it.cover || it.coverUrl || it.image || it.thumbnail || '';
+  const norm = rawCover ? String(rawCover).replace(/^http:/, 'https:') : '';
 %>
 
 <li class="card book-card" role="listitem">
   <a class="cover-wrap" href="<%= href %>" aria-label="Read <%= title %>">
-    <% if (cover) { %>
-      <img class="cover" src="<%= cover %>" alt="Cover: <%= title %>">
+    <% if (norm) { %>
+      <img
+        class="cover"
+        src="<%= norm %>"
+        alt="Cover: <%= title %>"
+        loading="lazy"
+        onerror="window.blCoverFallback && window.blCoverFallback(this)"
+      >
     <% } else { %>
       <div class="cover ph">
-        <span class="ph-initials"><%= (title || 'BL').trim().slice(0,2).toUpperCase() %></span>
+        <span class="ph-initials"><%= title.trim().slice(0,2).toUpperCase() || 'BL' %></span>
       </div>
     <% } %>
   </a>
 
   <div class="meta">
     <div class="title" title="<%= title %>"><%= title %></div>
-    <div class="author"><%= author %></div>
+    <div class="author"><%= author || 'Unknown' %></div>
   </div>
 
   <div class="actions">
     <a class="btn btn-primary" href="<%= href %>">Read</a>
-    <button class="btn btn-secondary btn-listen"
-            type="button"
-            data-title="<%= title %>"
-            data-author="<%= (typeof author === 'string' ? author : '') %>">
+    <button
+      class="btn btn-secondary btn-listen"
+      type="button"
+      data-title="<%= title %>"
+      data-author="<%= author %>"
+    >
       Listen
     </button>
   </div>
