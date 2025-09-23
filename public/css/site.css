@@ -13,7 +13,7 @@ html, body { height: 100%; }
   --brand: #4b7eff;
   --brand-2:#7aa3ff;
 
-  --nav-bg:#ffffff;   /* white navbar */
+  --nav-bg:#ffffff;
   --nav-ink:#0b1020;
 
   --radius: 14px;
@@ -36,7 +36,7 @@ body{
 .page-pad{ padding-block: 32px 80px; }
 
 /* NAVBAR */
-.navbar{ position: sticky; top:0; z-index:50; background:var(--nav-bg); color:var(--nav-ink); border-bottom:1px solid rgba(0,0,0,.06); }
+.navbar{ position: sticky; top:0; z-index:100; background:var(--nav-bg); color:var(--nav-ink); border-bottom:1px solid rgba(0,0,0,.06); }
 .nav{ display:flex; align-items:center; justify-content:space-between; padding:12px 0; }
 .nav .left, .nav .right{ display:flex; align-items:center; gap:16px; }
 .brand{ display:flex; align-items:center; gap:10px; color:var(--nav-ink); font-weight:800; text-decoration:none; letter-spacing:.2px; }
@@ -58,21 +58,23 @@ body{
 .btn-primary{ background:var(--brand); color:#fff; box-shadow:0 6px 16px rgba(75,126,255,.35); }
 .btn-primary:hover{ filter:brightness(1.05); }
 .btn-secondary{ background:var(--surface-2); color:var(--ink); }
-.icon-btn{ width:32px; height:32px; border-radius:8px; border:0; background:var(--surface-2); color:var(--ink); cursor:pointer; }
+.icon-btn{ width:32px; height:32px; border-radius:8px; border:0; background:var(--surface-2); color:var(--ink); cursor:pointer; z-index:5; position:relative; }
 .icon-btn:hover{ filter:brightness(1.06); }
 
 /* SHELVES */
 .shelf{ margin:28px 0 14px; }
 .shelf-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
 .shelf-title{ margin:0; font-size:18px; letter-spacing:.2px; color:var(--ink); }
+.shelf-ctrl{ display:flex; gap:6px; }
 .shelf-track{ display:grid; grid-auto-flow:column; grid-auto-columns:180px; gap:14px; overflow-x:auto; padding-bottom:6px; scroll-snap-type:x mandatory; }
+.shelf-track a{ pointer-events:auto; } /* ensure anchors are clickable */
 .shelf-track::-webkit-scrollbar{ height:8px; }
 .shelf-track::-webkit-scrollbar-thumb{ background: rgba(255,255,255,.12); border-radius:8px; }
 
 /* CARDS */
 .card{ background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
 .book-card{ list-style:none; scroll-snap-align:start; display:flex; flex-direction:column; min-height:270px; }
-.cover-wrap{ display:block; aspect-ratio:3/4; background:var(--surface-2); }
+.cover-wrap{ display:block; aspect-ratio:3/4; background:var(--surface-2); cursor:pointer; }
 .cover{ width:100%; height:100%; object-fit:cover; display:block; }
 .cover.ph{ display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #2b3352, #3a4670); }
 .ph-initials{ font-weight:800; font-size:28px; color:#dfe7ff; letter-spacing:.5px; }
