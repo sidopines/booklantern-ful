@@ -1,37 +1,74 @@
-<%- include('./partials/head', { pageTitle: 'Watch — BookLantern' }) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head.ejs', {
+    pageTitle: 'Watch • BookLantern',
+    pageDescription: 'Curated educational videos and talks.'
+  }) %>
+</head>
 <body>
-  <%- include('./partials/navbar') %>
+  <%- include('./partials/navbar.ejs') %>
+
+  <header class="hero">
+    <div class="container hero-inner">
+      <a href="/" onclick="if(document.referrer){history.back();return false;}" class="btn btn-secondary" style="margin-bottom:14px;">← Back</a>
+      <h1 class="page-title">Watch</h1>
+      <p class="page-sub">Curated educational videos and talks.</p>
+    </div>
+  </header>
 
   <main class="container page-pad">
-    <h1 class="page-title">Watch</h1>
-    <p class="page-sub">Curated educational videos and talks.</p>
+    <% const list = Array.isArray(videos) ? videos : []; %>
 
-    <% if (Array.isArray(videos) && videos.length) { %>
+    <% if (!list.length) { %>
+      <section class="panel" style="text-align:center;">
+        <strong>No videos yet.</strong>
+        <div style="margin-top:8px;">Add them via your Admin tool or by creating <code>data/videos.json</code>.</div>
+      </section>
+    <% } else { %>
+
+      <!-- Netflix-style responsive grid -->
       <section class="video-grid">
-        <% videos.forEach(v => { %>
-          <article class="card video-card">
-            <a href="<%= v.url %>" target="_blank" rel="noopener" class="thumb">
-              <% if (v.thumbnail) { %>
-                <img src="<%= String(v.thumbnail).replace(/^http:/, 'https:') %>" alt="<%= v.title %> thumbnail">
+        <% list.forEach(v => { 
+             const id = (v && v._id) || (v && v.id) || '';
+             const title = (v && v.title) || 'Untitled';
+             const by = (v && v.channel) || (v && v.author) || '';
+             const url = (v && v.url) || '#';
+             const provider = (v && v.provider) || '';
+             const thumbExplicit = (v && v.thumbnail) || (v && v.thumb) || '';
+             let thumb = thumbExplicit;
+
+             // YouTube thumbnail inference
+             const ytMatch = url && url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+             if (!thumb && provider.toLowerCase() === 'youtube' && ytMatch) {
+               thumb = `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`;
+             }
+        %>
+          <article class="video-card">
+            <a class="video-thumb" href="<%= url %>" target="_blank" rel="noopener">
+              <% if (thumb) { %>
+                <img src="<%= thumb %>" alt="Thumbnail: <%= title %>">
               <% } else { %>
-                <div class="cover ph"><span class="ph-initials">▶</span></div>
+                <div class="video-ph" aria-hidden="true"></div>
               <% } %>
+              <div class="video-overlay">
+                <!-- simple play glyph -->
+                <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+              </div>
             </a>
-            <div class="meta">
-              <div class="title" title="<%= v.title %>"><%= v.title %></div>
-              <div class="author"><%= v.source || '' %></div>
-            </div>
-            <div class="actions">
-              <a class="btn btn-primary" href="<%= v.url %>" target="_blank" rel="noopener">Watch</a>
+            <div class="video-meta">
+              <h3 class="video-title"><%= title %></h3>
+              <% if (by) { %><div class="video-by"><%= by %></div><% } %>
+              <div class="video-actions">
+                <a class="btn btn-primary" href="<%= url %>" target="_blank" rel="noopener">Watch</a>
+              </div>
             </div>
           </article>
         <% }) %>
       </section>
-    <% } else { %>
-      <div class="panel">No videos yet. Check back soon.</div>
     <% } %>
   </main>
 
-  <%- include('./partials/footer') %>
+  <%- include('./partials/footer.ejs') %>
 </body>
 </html>
