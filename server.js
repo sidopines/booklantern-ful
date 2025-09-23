@@ -21,7 +21,6 @@ app.use(express.json());
 
 /* ---------- Very lenient CSP for images (covers) ---------- */
 app.use((req, res, next) => {
-  // Allow images from anywhere + data: URIs
   res.setHeader(
     'Content-Security-Policy',
     "default-src 'self'; img-src * data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src *; frame-ancestors 'self';"
@@ -32,7 +31,7 @@ app.use((req, res, next) => {
 /* ---------- Res.locals defaults ---------- */
 app.use((req, res, next) => {
   res.locals.buildId = process.env.BUILD_ID || Date.now().toString(36);
-  res.locals.loggedIn = false; // if you wire auth later, set this via middleware
+  res.locals.loggedIn = false; // Wire in auth middleware later if needed
   next();
 });
 
@@ -69,7 +68,6 @@ function normalizeBooks(docs = []) {
 }
 
 function fallbackBooks() {
-  // Simple static fallback to avoid empty homepage if OL is down
   return [
     { title: 'Pride and Prejudice', author: 'Jane Austen', cover: 'https://covers.openlibrary.org/b/id/8225636-M.jpg', href: 'https://openlibrary.org/works/OL14964254W' },
     { title: 'Moby-Dick', author: 'Herman Melville', cover: 'https://covers.openlibrary.org/b/id/7222246-M.jpg', href: 'https://openlibrary.org/works/OL45883W' },
@@ -162,7 +160,7 @@ app.get('/read', async (req, res, next) => {
   }
 });
 
-// Watch (optional JSON source)
+// Watch
 app.get('/watch', (req, res) => {
   const file = path.join(__dirname, 'data', 'videos.json');
   let videos = [];
@@ -182,37 +180,33 @@ app.get('/watch', (req, res) => {
 app.get('/about', (req, res) => res.render('about'));
 app.get('/contact', (req, res) => res.render('contact'));
 app.post('/contact', (req, res) => {
-  // You can send an email, store DB, etc. For now show a success banner.
   res.render('contact', { messages: { success: 'Thanks! We received your message.' } });
 });
 
-// Auth bridges to avoid "Cannot POST /login"
+// Auth stubs
 app.get('/login', (req, res) => res.render('login'));
 app.get('/register', (req, res) => res.render('register'));
 app.post('/login', (req, res) => {
-  // Bridge to your existing auth or show a friendly message
-  // Example: res.redirect(307, '/auth/login');
-  res.render('login', { messages: { error: 'Auth not wired yet. Please use Admin tool or connect auth.' } });
+  res.render('login', { messages: { error: 'Auth not wired yet.' } });
 });
 app.post('/register', (req, res) => {
-  // Example: res.redirect(307, '/auth/register');
-  res.render('register', { messages: { error: 'Registration not wired yet. Please use Admin tool or connect auth.' } });
+  res.render('register', { messages: { error: 'Registration not wired yet.' } });
 });
 
 // Health
 app.get('/health', (req, res) => res.type('text').send('OK'));
 
-// 404
+/* ---------- 404 + error handling ---------- */
 app.use((req, res) => {
-  res.status(404).render('error', { message: 'Page not found.' });
+  res.status(404).render('404');
 });
 
-// Error handler
 app.use((err, req, res, next) => {
   console.error('🔥 Error:', err);
   res.status(500).render('error', { message: err.message || 'Internal server error.' });
 });
 
+/* ---------- Start ---------- */
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
