@@ -1,23 +1,31 @@
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
-const userSchema = new mongoose.Schema(
+const UserSchema = new mongoose.Schema(
   {
-    name: { type: String, trim: true },
+    name: { type: String, trim: true, default: '' },
     email: {
       type: String,
       required: true,
-      unique: true, // only ONE unique index
-      lowercase: true,
       trim: true,
+      lowercase: true,
+      unique: true    // <-- define it once
+      // DO NOT add "index: true" here and DO NOT add a separate schema.index() below
     },
-    password: { type: String, required: true },
-    role: { type: String, enum: ['admin', 'subscriber'], default: 'subscriber' },
-    createdAt: { type: Date, default: Date.now }
+    passwordHash: { type: String, required: true },
+    role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    archived: { type: Boolean, default: false }
   },
-  { collection: 'users' }
+  { timestamps: true }
 );
 
-// Explicit unique index definition (only once)
-userSchema.index({ email: 1 }, { unique: true });
+// Password helpers
+UserSchema.methods.setPassword = async function (password) {
+  const salt = await bcrypt.genSalt(10);
+  this.passwordHash = await bcrypt.hash(password, salt);
+};
+UserSchema.methods.validatePassword = function (password) {
+  return bcrypt.compare(password, this.passwordHash);
+};
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.model('User', UserSchema);
