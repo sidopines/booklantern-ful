@@ -1,40 +1,55 @@
-<%- include('./partials/head', { pageTitle: 'About — BookLantern' }) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head.ejs', {
+    pageTitle: 'About • BookLantern',
+    pageDescription: 'Connecting readers with the world’s largest collection of free books.'
+  }) %>
+</head>
 <body>
-  <%- include('./partials/navbar') %>
+  <%- include('./partials/navbar.ejs') %>
+
+  <header class="hero">
+    <div class="container hero-inner">
+      <a href="/" onclick="if(document.referrer){history.back();return false;}" class="btn btn-secondary" style="margin-bottom:14px;">← Back</a>
+      <h1 class="page-title">About BookLantern</h1>
+      <p class="page-sub">Connecting readers with the world’s largest collection of free books.</p>
+    </div>
+  </header>
 
   <main class="container page-pad">
-    <header class="panel" style="margin-bottom:16px;">
-      <h1>About BookLantern</h1>
-      <p>Connecting readers with the world’s largest collection of free books.</p>
-    </header>
-
-    <section class="grid-2">
-      <article class="panel">
-        <h2>Our Mission</h2>
-        <p>BookLantern makes millions of books from globally trusted libraries accessible through one simple, clean interface. We believe that knowledge should be free and easily discoverable for everyone, everywhere.</p>
-      </article>
-
-      <article class="panel">
-        <h2>What Makes BookLantern Different</h2>
-        <ul>
-          <li><strong>Universal Search:</strong> search across millions of books from multiple libraries and archives with one query.</li>
-          <li><strong>Clean Reading:</strong> distraction-free reader optimized for focus and comprehension.</li>
-          <li><strong>Trusted Sources:</strong> respected public domain and open access collections.</li>
-          <li><strong>Always Free:</strong> no subscriptions, no ads—just books.</li>
-        </ul>
-      </article>
+    <!-- Mission -->
+    <section class="panel" style="margin-bottom:18px;">
+      <h2 style="margin:0 0 10px;">Our Mission</h2>
+      <p style="margin:0;">
+        BookLantern makes millions of books from globally trusted libraries accessible through one
+        simple, clean interface. We believe that knowledge should be free and easily discoverable
+        for everyone, everywhere.
+      </p>
     </section>
 
-    <section class="panel" style="margin-top:16px;">
-      <h2>Start Reading Today</h2>
-      <p>Join thousands of readers discovering their next favorite book.</p>
-      <div class="actions">
+    <!-- Difference -->
+    <section class="panel" style="margin-bottom:18px;">
+      <h2 style="margin:0 0 10px;">What Makes BookLantern Different</h2>
+      <ul style="margin:0; padding-left:18px; line-height:1.7;">
+        <li><strong>Universal Search:</strong> Search across millions of books from multiple libraries and archives with one simple query.</li>
+        <li><strong>Clean Reading:</strong> Distraction-free reader optimized for focus and comprehension.</li>
+        <li><strong>Trusted Sources:</strong> Content from respected public domain and open-access collections.</li>
+        <li><strong>Always Free:</strong> No subscriptions, no ads—just books.</li>
+      </ul>
+    </section>
+
+    <!-- CTA -->
+    <section class="panel">
+      <h2 style="margin:0 0 8px;">Start Reading Today</h2>
+      <p style="margin:0 0 12px;">Join thousands of readers discovering their next favorite book.</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
         <a class="btn btn-primary" href="/read">Browse Books</a>
         <a class="btn btn-secondary" href="/watch">Watch Videos</a>
       </div>
     </section>
   </main>
 
-  <%- include('./partials/footer') %>
+  <%- include('./partials/footer.ejs') %>
 </body>
 </html>
