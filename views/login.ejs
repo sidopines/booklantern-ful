@@ -1,51 +1,55 @@
-<%- include('./partials/head', {
-  pageTitle: 'Login • BookLantern',
-  pageDescription: 'Sign in to your BookLantern account.'
-}) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head.ejs', {
+    pageTitle: 'Login • BookLantern',
+    pageDescription: 'Sign in to BookLantern.'
+  }) %>
+</head>
 <body>
-  <%- include('./partials/navbar') %>
+  <%- include('./partials/navbar.ejs') %>
 
-  <main class="container" style="min-height:60vh; display:flex; align-items:center; justify-content:center">
-    <div class="card" style="width: 420px; background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px">
-      <h2 style="margin:0 0 6px 0; font-weight:800; letter-spacing:-.01em">Welcome back</h2>
-      <p class="muted" style="margin:0 0 16px 0">Sign in to continue reading.</p>
+  <main class="container page-pad auth-wrap">
+    <a href="/" onclick="if(document.referrer){history.back();return false;}" class="btn btn-secondary" style="margin-bottom:16px;">← Back</a>
 
-      <% const msgs = (typeof messages !== 'undefined' && messages) ? messages : {}; %>
-      <% if (msgs.error) { %>
-        <div style="background:rgba(255,93,115,.12); border:1px solid rgba(255,93,115,.35); color:#ffd1d8; padding:10px 12px; border-radius:10px; margin-bottom:12px">
-          <%= msgs.error %>
-        </div>
-      <% } %>
+    <section class="auth-card card">
+      <h1 class="page-title" style="margin-bottom:8px;">Login</h1>
+      <p class="page-sub">Welcome back.</p>
 
-      <!-- Adjust action to match your backend:
-           - If using auth routes: action="/auth/login"
-           - If using shim: action="/login"
-      -->
-      <form class="stack" style="--gap:10px" method="post" action="/login">
+      <%
+        const msgs = (typeof messages !== 'undefined' && messages) ? messages : {};
+        const err = msgs.error || error;
+        const ok  = msgs.success || success;
+      %>
+      <% if (ok) { %><div class="alert success"><%= ok %></div><% } %>
+      <% if (err) { %><div class="alert error"><%= err %></div><% } %>
+
+      <form action="/login" method="post" class="form">
         <input type="hidden" name="_csrf" value="<%= (typeof csrfToken !== 'undefined' ? csrfToken : '') %>">
 
-        <label class="muted" for="email">Email</label>
-        <input class="input" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com" style="background:var(--surface-2); border-radius:10px">
+        <label class="field">
+          <span>Email</span>
+          <input type="email" name="email" placeholder="you@example.com" required>
+        </label>
 
-        <label class="muted" for="password">Password</label>
-        <input class="input" id="password" name="password" type="password" required autocomplete="current-password" placeholder="••••••••" style="background:var(--surface-2); border-radius:10px">
+        <label class="field">
+          <span>Password</span>
+          <input type="password" name="password" placeholder="••••••••" required>
+        </label>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px">
-            <input type="checkbox" name="remember" value="1"> Remember me
-          </label>
-          <a href="/forgot" class="muted" style="font-size:14px">Forgot password?</a>
-        </div>
+        <label class="checkbox">
+          <input type="checkbox" name="remember" value="1">
+          <span>Remember me</span>
+        </label>
 
-        <div style="display:flex; gap:10px; align-items:center; justify-content:flex-end; margin-top:12px">
-          <button class="btn" type="submit">Login</button>
+        <div class="actions">
+          <button class="btn btn-primary" type="submit">Login</button>
+          <a class="btn btn-secondary" href="/register">Create account</a>
         </div>
       </form>
-
-      <div style="margin-top:12px" class="muted">
-        New here? <a href="/register">Create an account</a>
-      </div>
-    </div>
+    </section>
   </main>
 
-  <%- include('./partials/footer') %>
+  <%- include('./partials/footer.ejs') %>
+</body>
+</html>
