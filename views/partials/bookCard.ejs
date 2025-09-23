@@ -1,51 +1,57 @@
 <%
+  // Safe item access
   const it = item || {};
 
-  const title   = (it.title || '').toString() || 'Untitled';
-  const author  = (it.author || it.authors || '').toString();
-  const primary =
+  // Title/author
+  const title  = (it.title  || 'Untitled').toString();
+  const author = (it.author || it.authors || 'Unknown').toString();
+
+  // Primary link (prefer explicit read/url/href; otherwise fallback to internal search)
+  const primaryUrl =
     it.readUrl || it.url || it.href || it.openlibrary_url || it.sourceUrl || '';
-
-  // Sensible fallback if we still don't have a URL: route user to /read?q=Title Author
   const safeQuery = encodeURIComponent([title, author].filter(Boolean).join(' '));
-  const href = primary ? String(primary) : `/read?q=${safeQuery}`;
+  const href = primaryUrl ? String(primaryUrl) : `/read?q=${safeQuery}`;
 
-  // Cover handling — normalize to https; if host blocks, JS swaps to a proxy.
+  // Cover: normalize to https; let ui.js handle onerror proxy fallback
   const rawCover = it.cover || it.coverUrl || it.image || it.thumbnail || '';
-  const norm = rawCover ? String(rawCover).replace(/^http:/, 'https:') : '';
+  const cover = rawCover ? String(rawCover).replace(/^http:/, 'https:') : '';
+
+  // Button labels (customizable if you ever pass them in)
+  const readLabel   = (it.readLabel   || 'Read').toString();
+  const listenLabel = (it.listenLabel || 'Listen').toString();
 %>
 
 <li class="card book-card" role="listitem">
+  <!-- Entire cover is a link -->
   <a class="cover-wrap" href="<%= href %>" aria-label="Read <%= title %>">
-    <% if (norm) { %>
+    <% if (cover) { %>
       <img
         class="cover"
-        src="<%= norm %>"
+        src="<%= cover %>"
         alt="Cover: <%= title %>"
         loading="lazy"
+        referrerpolicy="no-referrer"
         onerror="window.blCoverFallback && window.blCoverFallback(this)"
       >
     <% } else { %>
-      <div class="cover ph">
-        <span class="ph-initials"><%= title.trim().slice(0,2).toUpperCase() || 'BL' %></span>
+      <div class="cover ph" aria-hidden="true">
+        <span class="ph-initials"><%= (title.trim().slice(0,2) || 'BL').toUpperCase() %></span>
       </div>
     <% } %>
   </a>
 
   <div class="meta">
     <div class="title" title="<%= title %>"><%= title %></div>
-    <div class="author"><%= author || 'Unknown' %></div>
+    <div class="author"><%= author %></div>
   </div>
 
   <div class="actions">
-    <a class="btn btn-primary" href="<%= href %>">Read</a>
+    <a class="btn btn-primary" href="<%= href %>"><%= readLabel %></a>
     <button
       class="btn btn-secondary btn-listen"
       type="button"
-      data-title="<%= title %>"
-      data-author="<%= author %>"
-    >
-      Listen
-    </button>
+      data-title="<%- title.replace(/"/g,'&quot;') %>"
+      data-author="<%- author.replace(/"/g,'&quot;') %>"
+    ><%= listenLabel %></button>
   </div>
 </li>
