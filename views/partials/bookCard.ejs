@@ -1,41 +1,34 @@
 <%
-  // Safe defaults
   const it = item || {};
   const title = it.title || 'Untitled';
   const author = it.author || it.authors || 'Unknown';
-  const openLibraryId = it.openLibraryId || it.key || '';
-  // Prefer explicit coverUrl; else build from coverId/photoId; else placeholder
-  let coverUrl = it.coverUrl || '';
-  if (!coverUrl && it.coverId) coverUrl = `https://covers.openlibrary.org/b/id/${it.coverId}-M.jpg`;
-  if (!coverUrl && it.olid)      coverUrl = `https://covers.openlibrary.org/b/olid/${it.olid}-M.jpg`;
-  if (!coverUrl && it.isbn)      coverUrl = `https://covers.openlibrary.org/b/isbn/${it.isbn}-M.jpg`;
-
-  const readHref = it.readHref || it.url || (openLibraryId ? `https://openlibrary.org${openLibraryId}` : '#');
-  const listenText = it.listenText || `${title} by ${author}`;
+  const cover = it.cover || it.coverUrl || it.image || '';
+  const href  = it.href  || it.url   || '#';
 %>
 
-<article class="card book" role="listitem">
-  <div class="cover">
-    <% if (coverUrl) { %>
-      <img src="<%= coverUrl %>" alt="Cover: <%= title %>" loading="lazy" referrerpolicy="no-referrer">
+<li class="card book-card" role="listitem">
+  <a class="cover-wrap" href="<%= href %>" aria-label="Read <%= title %>">
+    <% if (cover) { %>
+      <img class="cover" src="<%= cover %>" alt="Cover: <%= title %>">
     <% } else { %>
-      <div class="cover-ph" aria-hidden="true">
-        <span class="cover-initials"><%= (title || 'U').slice(0,2).toUpperCase() %></span>
+      <div class="cover ph">
+        <span class="ph-initials"><%= (title || 'BL').trim().slice(0,2).toUpperCase() %></span>
       </div>
     <% } %>
-  </div>
+  </a>
 
   <div class="meta">
-    <h3 class="title" title="<%= title %>"><%= title %></h3>
-    <p class="author"><%= author %></p>
+    <div class="title" title="<%= title %>"><%= title %></div>
+    <div class="author"><%= author %></div>
   </div>
 
   <div class="actions">
-    <a class="btn primary" href="<%= readHref %>" target="_blank" rel="noopener">Read</a>
-    <button class="btn ghost listen-btn"
-      type="button"
-      data-listen="<%- listenText.replace(/"/g,'&quot;') %>">
+    <a class="btn btn-primary" href="<%= href %>">Read</a>
+    <button class="btn btn-secondary btn-listen"
+            type="button"
+            data-title="<%= title %>"
+            data-author="<%= (typeof author === 'string' ? author : '') %>">
       Listen
     </button>
   </div>
-</article>
+</li>
