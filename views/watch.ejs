@@ -1,44 +1,34 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <%- include('./partials/head', {
-    pageTitle: 'Watch • BookLantern',
-    pageDescription: 'Educational videos and talks.'
-  }) %>
-</head>
+<%- include('./partials/head', { pageTitle: 'Watch — BookLantern' }) %>
 <body>
   <%- include('./partials/navbar') %>
 
-  <main>
-    <section class="hero">
-      <h1>Watch</h1>
-      <p class="sub">Curated educational videos and talks.</p>
-    </section>
+  <main class="container page-pad">
+    <h1 class="page-title">Watch</h1>
+    <p class="page-sub">Curated educational videos and talks.</p>
 
-    <% const list = Array.isArray(videos) ? videos : []; %>
-    <% if (list.length) { %>
-      <div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;">
-        <% list.forEach(v => { %>
-          <article class="card">
-            <div class="cover">
+    <% if (Array.isArray(videos) && videos.length) { %>
+      <section class="video-grid">
+        <% videos.forEach(v => { %>
+          <article class="card video-card">
+            <a href="<%= v.url %>" target="_blank" rel="noopener" class="thumb">
               <% if (v.thumbnail) { %>
-                <img src="<%= v.thumbnail %>" alt="<%= v.title %>" loading="lazy" referrerpolicy="no-referrer">
+                <img src="<%= String(v.thumbnail).replace(/^http:/, 'https:') %>" alt="<%= v.title %> thumbnail">
               <% } else { %>
-                <div class="cover-ph" style="height:140px"></div>
+                <div class="cover ph"><span class="ph-initials">▶</span></div>
               <% } %>
-            </div>
+            </a>
             <div class="meta">
-              <h3 class="title"><%= v.title %></h3>
-              <p class="author"><%= v.source || 'Video' %></p>
+              <div class="title" title="<%= v.title %>"><%= v.title %></div>
+              <div class="author"><%= v.source || '' %></div>
             </div>
             <div class="actions">
-              <a class="btn primary" href="<%= v.url %>" target="_blank" rel="noopener">Watch</a>
+              <a class="btn btn-primary" href="<%= v.url %>" target="_blank" rel="noopener">Watch</a>
             </div>
           </article>
         <% }) %>
-      </div>
+      </section>
     <% } else { %>
-      <div class="card empty">No videos yet.</div>
+      <div class="panel">No videos yet. Check back soon.</div>
     <% } %>
   </main>
 
