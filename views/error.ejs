@@ -1,15 +1,17 @@
-<%- include('./partials/head', { pageTitle: 'Something went wrong — BookLantern' }) %>
+<%- include('./partials/head', { pageTitle: 'Error - BookLantern' }) %>
 <body>
   <%- include('./partials/navbar') %>
-  <main class="container page-pad">
-    <div class="panel">
-      <h1>Something went wrong</h1>
-      <p>We couldn’t complete your request. Please try again.</p>
-      <% if (typeof message !== 'undefined') { %>
-        <pre style="white-space:pre-wrap;color:#b7c0d6"><%= message %></pre>
-      <% } %>
+
+  <main class="stack center" style="--gap:32px; padding:40px 16px; text-align:center;">
+    <h1 style="font-size:2rem; font-weight:700; color:var(--ink);">Something went wrong</h1>
+    <p style="max-width:600px; margin:0 auto; color:var(--ink-2);">
+      <%= typeof message !== 'undefined' ? message : 'An unexpected error occurred. Please try again later.' %>
+    </p>
+    <div>
+      <a class="btn primary" href="/">← Back to Home</a>
     </div>
   </main>
+
   <%- include('./partials/footer') %>
 </body>
 </html>
