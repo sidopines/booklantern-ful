@@ -1,33 +1,49 @@
-<%- include('./partials/head', {
-  pageTitle: (typeof pageTitle !== 'undefined' ? pageTitle : 'Explore Free Books'),
-  pageDescription: 'Search millions of books from globally trusted libraries. Clean reading experience.'
-}) %>
+<%- include('./partials/head', { pageTitle: 'Read - BookLantern' }) %>
 <body>
   <%- include('./partials/navbar') %>
+  <main class="stack" style="--gap:32px; padding:24px;">
+    <%- include('./partials/backLink') %>
 
-  <!-- Reuse the same hero but keep the query in the input -->
-  <section class="hero">
-    <div class="inner">
-      <h1>Largest Online Hub of Free Books</h1>
-      <p>Millions of books from globally trusted libraries. One search, one clean reader.</p>
-
-      <form class="searchbar" action="/read" method="get">
-        <input class="input" name="q" type="search" placeholder="Search millions of books…" aria-label="Search books" value="<%= typeof q !== 'undefined' ? q : '' %>">
-        <button class="btn" type="submit">Search</button>
+    <!-- Hero -->
+    <section class="hero">
+      <h1 class="headline">Search & Discover</h1>
+      <form action="/read" method="get" class="hero-search">
+        <input type="text" name="q" value="<%= q || '' %>" placeholder="Search millions of free books..." aria-label="Search books">
+        <button type="submit" class="btn primary">Search</button>
       </form>
-    </div>
-  </section>
+    </section>
 
-  <main class="container" style="padding:18px 0 28px">
-    <% if (items && items.length) { %>
-      <div style="display:flex;flex-wrap:wrap;gap:12px">
-        <% items.forEach(function(it){ %>
-          <%- include('./partials/bookCard', { item: it }) %>
+    <!-- Results -->
+    <% if (q && results && results.length) { %>
+      <section class="grid">
+        <% results.forEach(item => { %>
+          <article class="book-card">
+            <a class="cover-wrap" href="<%= item.href %>" target="_blank" aria-label="Read <%= item.title %>">
+              <% if (item.cover) { %>
+                <img src="<%= item.cover %>" alt="Cover of <%= item.title %>" loading="lazy" onerror="blCoverFallback(this)">
+              <% } else { %>
+                <div class="cover ph"><span class="ph-initials"><%= (item.title || 'BL').slice(0,2).toUpperCase() %></span></div>
+              <% } %>
+            </a>
+            <div class="meta">
+              <h3 class="title"><a href="<%= item.href %>" target="_blank"><%= item.title %></a></h3>
+              <p class="author"><%= item.author %></p>
+            </div>
+            <div class="actions">
+              <a class="btn primary" href="<%= item.href %>" target="_blank">Read</a>
+              <button class="btn secondary btn-listen"
+                      data-title="<%= item.title %>"
+                      data-author="<%= item.author %>">Listen</button>
+            </div>
+          </article>
         <% }) %>
-      </div>
+      </section>
+    <% } else if (q) { %>
+      <div class="card">No results found for “<%= q %>”. Try another search.</div>
     <% } else { %>
-      <div class="muted" style="margin-top:10px">Start by searching above.</div>
+      <div class="card">Start by searching above.</div>
     <% } %>
   </main>
-
   <%- include('./partials/footer') %>
+</body>
+</html>
