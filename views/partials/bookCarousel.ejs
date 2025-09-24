@@ -1,32 +1,28 @@
 <%
-  // Defensive guards
   const list = Array.isArray(items) ? items : [];
-  const sc = (typeof sectionClass !== 'undefined' && sectionClass) ? sectionClass : '';
-  const _title = (typeof title !== 'undefined' && title) ? title : 'Books';
-  const _loggedIn = (typeof loggedIn !== 'undefined') ? loggedIn : false;
-
-  // Deterministic id from title for a11y / controls (spaces -> dashes)
-  const uid = ('sec-' + _title).replace(/\s+/g, '-').replace(/[^a-zA-Z0-9\-]/g, '').toLowerCase();
+  const klass = typeof sectionClass !== 'undefined' ? sectionClass : '';
+  const _title = typeof title !== 'undefined' ? title : 'Books';
+  const uid = 'track_' + Math.random().toString(36).slice(2, 9);
 %>
 
-<section class="shelf <%= sc %>" aria-labelledby="<%= uid %>-label">
-  <div class="shelf-head">
-    <h2 id="<%= uid %>-label" class="shelf-title"><%= _title %></h2>
-
-    <!-- Prev/Next controls (JS hooks in /public/js/ui.js) -->
-    <div class="shelf-controls" role="group" aria-label="<%= _title %> navigation">
-      <button class="carousel-btn prev" data-target="#<%= uid %>" aria-label="Scroll <%= _title %> left">‹</button>
-      <button class="carousel-btn next" data-target="#<%= uid %>" aria-label="Scroll <%= _title %> right">›</button>
-    </div>
-  </div>
-
-  <div id="<%= uid %>" class="carousel-track" role="list" aria-label="<%= _title %>">
-    <% if (!list.length) { %>
-      <div class="card empty" role="listitem">Nothing here yet.</div>
-    <% } else { %>
-      <% list.forEach(function(it){ %>
-        <%- include('./bookCard', { item: it, loggedIn: _loggedIn }) %>
-      <% }) %>
+<section class="carousel <%= klass %>">
+  <div class="row" style="align-items:center;justify-content:space-between;margin-bottom:10px;">
+    <h2><%= _title %></h2>
+    <% if (list.length > 0) { %>
+      <div class="arrows">
+        <button type="button" class="carousel-btn prev" aria-label="Previous" data-target="#<%= uid %>">‹</button>
+        <button type="button" class="carousel-btn next" aria-label="Next" data-target="#<%= uid %>">›</button>
+      </div>
     <% } %>
   </div>
+
+  <% if (list.length) { %>
+    <div id="<%= uid %>" class="carousel-track" role="list" aria-label="<%= _title %>">
+      <% list.forEach(it => { %>
+        <%- include('./bookCard.ejs', { item: it }) %>
+      <% }) %>
+    </div>
+  <% } else { %>
+    <div class="card">Nothing here yet.</div>
+  <% } %>
 </section>
