@@ -1,0 +1,30 @@
+<%- include('./partials/head', { pageTitle: (video ? video.title : 'Watch') + ' - BookLantern' }) %>
+<body>
+  <%- include('./partials/navbar') %>
+
+  <main class="stack" style="--gap:16px; max-width:1000px; margin:30px auto;">
+    <% if (!video) { %>
+      <div class="card" style="padding:16px;">Video not found.</div>
+    <% } else { %>
+      <h1 style="margin:0;"><%= video.title %></h1>
+      <div class="card" style="padding:10px;">
+        <div style="position:relative; padding-top:56.25%; border-radius:12px; overflow:hidden;">
+          <iframe
+            src="https://www.youtube.com/embed/<%= video.videoId %>"
+            title="<%= video.title %>"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen
+            style="position:absolute; inset:0; width:100%; height:100%;"
+          ></iframe>
+        </div>
+      </div>
+      <% if (video.description) { %>
+        <div class="card" style="padding:16px;"><%= video.description %></div>
+      <% } %>
+    <% } %>
+  </main>
+
+  <%- include('./partials/footer') %>
+</body>
+</html>
