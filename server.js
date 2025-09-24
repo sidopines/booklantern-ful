@@ -1,11 +1,8 @@
-/** server.js — resilient boot with optional Mongo
- *  - If MONGODB_URI is set: use MongoStore + Mongoose (auth enabled)
- *  - If missing: fall back to MemoryStore and skip Mongoose (auth disabled)
- */
-
+/** server.js — resilient boot with optional Mongo + admin video manager */
 require('dotenv').config();
 
 const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const helmet = require('helmet');
 const compression = require('compression');
@@ -19,28 +16,20 @@ const fetch = global.fetch || ((...args) => import('node-fetch').then(m => m.def
 
 const app = express();
 
-// ---------------------------
-// Environment & flags
-// ---------------------------
+// ---------- Env ----------
 const PORT = process.env.PORT || 10000;
-const NODE_ENV = process.env.NODE_ENV || 'development';
+const NODE_ENV = process.env.NODE_ENV || 'production';
 const PROD = NODE_ENV === 'production';
-
 const MONGODB_URI = process.env.MONGODB_URI || '';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-change-me';
-
-// Build id for cache-busting
+const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me';
 const buildId = process.env.BUILD_ID || Date.now().toString(36);
 
-// ---------------------------
-// View engine
-// ---------------------------
+// ---------- Views & static ----------
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+app.use('/public', express.static(path.join(__dirname, 'public'), { maxAge: PROD ? '7d' : 0 }));
 
-// ---------------------------
-// Middleware (security, logs, static)
-// ---------------------------
+// ---------- Middleware ----------
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -50,376 +39,196 @@ app.use(
         "script-src": ["'self'"],
         "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         "font-src": ["'self'", "https://fonts.gstatic.com"],
-        "img-src": [
-          "'self'",
-          "data:",
-          "https://covers.openlibrary.org",
-          "https://*.*.amazonaws.com",
-          "https://i.ytimg.com",
-          "https://img.youtube.com",
-          "https://images.unsplash.com",
-          "https://*.googleusercontent.com"
-        ],
+        "img-src": ["'self'", "data:", "https://covers.openlibrary.org", "https://i.ytimg.com", "https://img.youtube.com", "https://images.unsplash.com"],
         "connect-src": ["'self'", "https://openlibrary.org", "https://covers.openlibrary.org"],
-        "frame-src": ["'self'", "https://www.youtube.com", "https://player.vimeo.com"],
-        "upgrade-insecure-requests": []
+        "frame-src": ["'self'", "https://www.youtube.com", "https://player.vimeo.com"]
       }
     },
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" }
   })
 );
-
 app.use(compression());
 app.use(morgan(PROD ? 'combined' : 'dev'));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cookieParser());
 
-// ---------------------------
-// Sessions (Mongo if available; else memory)
-// ---------------------------
+// ---------- Sessions ----------
 let sessionStore;
 if (MONGODB_URI) {
   try {
-    sessionStore = MongoStore.create({
-      mongoUrl: MONGODB_URI,
-      collectionName: 'sessions',
-      ttl: 60 * 60 * 24 * 14 // 14 days
-    });
-    // eslint-disable-next-line no-console
+    sessionStore = MongoStore.create({ mongoUrl: MONGODB_URI, collectionName: 'sessions', ttl: 60 * 60 * 24 * 14 });
     console.log('🗄️  Session store: MongoStore');
   } catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn('⚠️  Failed to init MongoStore; falling back to MemoryStore:', e.message);
+    console.warn('⚠️  Failed to init MongoStore; using MemoryStore:', e.message);
   }
 } else {
-  // eslint-disable-next-line no-console
-  console.warn('⚠️  MONGODB_URI not set; using MemoryStore (sessions reset on restart).');
+  console.warn('⚠️  MONGODB_URI missing; using MemoryStore.');
 }
+app.use(session({
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  store: sessionStore,
+  cookie: { httpOnly: true, sameSite: 'lax', secure: PROD }
+}));
 
-app.use(
-  session({
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: PROD
-    },
-    store: sessionStore // undefined ⇒ MemoryStore
-  })
-);
-
-// ---------------------------
-// CSRF (after session)
-// ---------------------------
+// ---------- CSRF & locals ----------
 const csrfProtection = csrf({ cookie: false });
 app.use((req, res, next) => {
-  // Safe locals for all views
   res.locals.buildId = buildId;
-  res.locals.loggedIn = !!req.session.userId;
+  res.locals.loggedIn = !!req.session.user;
   res.locals.user = req.session.user || null;
   next();
 });
 
-// ---------------------------
-// Static assets
-// ---------------------------
-app.use('/public', express.static(path.join(__dirname, 'public'), { maxAge: PROD ? '7d' : 0 }));
-
-// ---------------------------
-/** Optional Mongoose boot — only if MONGODB_URI present
- *  Auth routes will be disabled if DB is not available.
- */
+// ---------- Optional Mongoose/User (if available) ----------
 let mongoose, User, dbReady = false;
-
 (async () => {
   if (!MONGODB_URI) return;
-
   try {
     mongoose = require('mongoose');
     await mongoose.connect(MONGODB_URI);
-    // eslint-disable-next-line no-console
     console.log('✅ Connected to MongoDB');
-
-    // Lazy-require your model after mongoose exists
-    User = require('./models/User');
+    User = require('./models/User'); // must expose user.isAdmin boolean
     dbReady = true;
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error('❌ MongoDB connection failed; continuing without auth:', err.message);
   }
 })();
 
-// ---------------------------
-// Open Library helpers + cache
-// ---------------------------
-const cache = new NodeCache({ stdTTL: 60 * 60 }); // 1 hour
-
-const pick = (v, fallback = '') => (v === undefined || v === null ? fallback : v);
-
-function normalizeOpenLibraryDoc(doc) {
+// ---------- Open Library helpers ----------
+const cache = new NodeCache({ stdTTL: 3600 });
+function pick(v, f=''){ return (v===undefined||v===null)?f:v; }
+function normalizeOL(doc){
   const title = pick(doc.title);
   const author = (doc.author_name && doc.author_name[0]) || '';
   const key = doc.key || '';
-  let openLibraryId = '';
-  if (doc.lending_identifier) openLibraryId = doc.lending_identifier;
-  else if (doc.cover_edition_key) openLibraryId = doc.cover_edition_key;
-  else if (doc.edition_key && doc.edition_key.length) openLibraryId = doc.edition_key[0];
-
-  // Cover URL
+  let openLibraryId = doc.cover_edition_key || (doc.edition_key && doc.edition_key[0]) || '';
   let cover = '';
   if (doc.cover_i) cover = `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`;
   else if (openLibraryId) cover = `https://covers.openlibrary.org/b/olid/${openLibraryId}-L.jpg`;
-
-  return {
-    id: key || openLibraryId || title,
-    title,
-    author,
-    openLibraryId,
-    cover
-  };
+  return { id: key||openLibraryId||title, title, author, href: key ? `https://openlibrary.org${key}` : '', cover };
 }
-
-async function searchOpenLibrary(q, limit = 30) {
+async function searchOL(q, limit=36){
   const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=${limit}`;
-  const res = await fetch(url, { headers: { 'user-agent': 'BookLantern/1.0' } });
-  if (!res.ok) throw new Error(`OL ${res.status}`);
-  const json = await res.json();
-  return (json.docs || []).map(normalizeOpenLibraryDoc);
+  const r = await fetch(url, { headers: { 'user-agent': 'BookLantern/1.0' } });
+  if (!r.ok) throw new Error(`OL ${r.status}`);
+  const j = await r.json();
+  return (j.docs||[]).map(normalizeOL);
 }
-
-async function seededShelf(queries, per = 10) {
-  const results = await Promise.all(queries.map(q => searchOpenLibrary(q, per)));
-  // Merge; drop empties; slice to per
-  const flat = results.flat().filter(Boolean);
-  const seen = new Set();
-  const uniq = [];
-  for (const it of flat) {
-    const key = it.id || `${it.title}|${it.author}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      uniq.push(it);
-    }
-    if (uniq.length >= per) break;
+async function seededShelf(queries, per=12){
+  const rs = await Promise.all(queries.map(q=>searchOL(q, per)));
+  const flat = rs.flat().filter(Boolean);
+  const seen = new Set(); const out=[];
+  for (const it of flat){
+    const k = it.id || `${it.title}|${it.author}`;
+    if (!seen.has(k)){ seen.add(k); out.push(it); }
+    if (out.length>=per) break;
   }
-  return uniq;
+  return out;
 }
 
-// ---------------------------
-// Routes (public pages)
-// ---------------------------
-app.get('/', csrfProtection, async (req, res, next) => {
-  try {
-    const cached = cache.get('home_shelves');
-    let payload = cached;
-    if (!payload) {
-      const [trending, philosophy, history] = await Promise.all([
-        seededShelf(['classic literature', 'children classics', 'popular public domain'], 12),
-        seededShelf(['philosophy', 'ethics', 'political philosophy'], 12),
-        seededShelf(['world history', 'ancient history', 'biography'], 12)
+// ---------- Routes ----------
+app.get('/', csrfProtection, async (req,res,next)=>{
+  try{
+    let payload = cache.get('home');
+    if(!payload){
+      const [tr,ph,hi] = await Promise.all([
+        seededShelf(['classic literature','popular public domain'],12),
+        seededShelf(['philosophy','ethics','political philosophy'],12),
+        seededShelf(['world history','ancient history','biography'],12)
       ]);
-      payload = { trending, philosophy, history };
-      cache.set('home_shelves', payload);
+      payload = { trending: tr, philosophy: ph, history: hi };
+      cache.set('home', payload);
     }
-
-    return res.render('index', {
-      buildId,
-      csrfToken: req.csrfToken(),
-      trending: payload.trending,
-      philosophy: payload.philosophy,
-      history: payload.history,
-      pageTitle: 'BookLantern',
-      pageDescription: 'Largest Online Hub of Free Books'
-    });
-  } catch (err) {
-    return next(err);
-  }
+    res.render('index', { trending: payload.trending, philosophy: payload.philosophy, history: payload.history, csrfToken: req.csrfToken() });
+  }catch(err){ next(err); }
 });
 
-app.get('/read', csrfProtection, async (req, res, next) => {
-  try {
-    const q = (req.query.q || '').trim();
+app.get('/read', csrfProtection, async (req,res,next)=>{
+  try{
+    const q = (req.query.q||'').trim();
     let results = [];
-    if (q) {
-      const cacheKey = `read:${q.toLowerCase()}`;
-      results = cache.get(cacheKey) || await searchOpenLibrary(q, 40);
-      cache.set(cacheKey, results);
+    if (q){
+      const key = `read:${q.toLowerCase()}`;
+      results = cache.get(key) || await searchOL(q, 36);
+      cache.set(key, results);
     }
-    return res.render('read', {
-      buildId,
-      csrfToken: req.csrfToken(),
-      q,
-      results,
-      pageTitle: 'Explore Free Books',
-      pageDescription: 'Search millions of books from globally trusted libraries.'
-    });
-  } catch (err) {
-    return next(err);
-  }
+    res.render('read', { q, results, csrfToken: req.csrfToken() });
+  }catch(err){ next(err); }
 });
 
-app.get('/watch', csrfProtection, (req, res) => {
-  // Render whatever videos.json you have (or empty state)
+// Watch page (reads data/videos.json)
+app.get('/watch', csrfProtection, (req,res)=>{
+  const f = path.join(__dirname,'data','videos.json');
   let videos = [];
-  try {
-    videos = require('./data/videos.json');
-  } catch (_) { /* optional */ }
-  return res.render('watch', {
-    buildId,
-    csrfToken: req.csrfToken(),
-    videos,
-    pageTitle: 'Watch',
-    pageDescription: 'Educational videos and talks.'
-  });
-});
-
-app.get('/about', csrfProtection, (req, res) =>
-  res.render('about', {
-    buildId,
-    csrfToken: req.csrfToken(),
-    pageTitle: 'About',
-    pageDescription: 'About BookLantern'
-  })
-);
-
-app.get('/contact', csrfProtection, (req, res) =>
-  res.render('contact', {
-    buildId,
-    csrfToken: req.csrfToken(),
-    pageTitle: 'Contact',
-    pageDescription: 'Contact BookLantern'
-  })
-);
-
-// ---------------------------
-// Auth pages (degrade gracefully if DB missing)
-// ---------------------------
-app.get('/login', csrfProtection, (req, res) => {
-  res.render('login', {
-    buildId,
-    csrfToken: req.csrfToken(),
-    messages: {},
-    authDisabled: !dbReady, // view can show a notice
-    pageTitle: 'Login'
-  });
-});
-
-app.get('/register', csrfProtection, (req, res) => {
-  res.render('register', {
-    buildId,
-    csrfToken: req.csrfToken(),
-    messages: {},
-    authDisabled: !dbReady,
-    pageTitle: 'Register'
-  });
-});
-
-// POST login/register only when DB is ready; otherwise 403 with friendly message
-app.post('/login', csrfProtection, async (req, res) => {
-  if (!dbReady) {
-    return res.status(403).render('login', {
-      buildId,
-      csrfToken: req.csrfToken(),
-      messages: { error: 'Login is temporarily unavailable. Set MONGODB_URI to enable auth.' },
-      authDisabled: true
-    });
+  if (fs.existsSync(f)){
+    try { const raw = JSON.parse(fs.readFileSync(f,'utf8')); videos = Array.isArray(raw)? raw : (raw.videos||[]); }
+    catch { videos = []; }
   }
-  try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email: (email || '').trim().toLowerCase() });
-    if (!user) {
-      return res.status(400).render('login', {
-        buildId, csrfToken: req.csrfToken(),
-        messages: { error: 'Invalid email or password.' }
-      });
-    }
-    const ok = await user.comparePassword(password || '');
-    if (!ok) {
-      return res.status(400).render('login', {
-        buildId, csrfToken: req.csrfToken(),
-        messages: { error: 'Invalid email or password.' }
-      });
-    }
-    req.session.userId = user._id.toString();
-    req.session.user = { id: user._id.toString(), email: user.email };
-    return res.redirect('/');
-  } catch (err) {
-    return res.status(500).render('login', {
-      buildId, csrfToken: req.csrfToken(),
-      messages: { error: 'Something went wrong. Please try again.' }
-    });
+  res.render('watch', { videos, csrfToken: req.csrfToken() });
+});
+
+// --- Admin guard ---
+function requireAdmin(req,res,next){
+  if (req.session.user && req.session.user.isAdmin) return next();
+  return res.status(403).render('error', { message: 'Admins only.' });
+}
+
+// Admin UI to manage Watch videos
+app.get('/admin/videos', csrfProtection, requireAdmin, (req,res)=>{
+  const f = path.join(__dirname,'data','videos.json');
+  let videos = [];
+  if (fs.existsSync(f)){
+    try { const raw = JSON.parse(fs.readFileSync(f,'utf8')); videos = Array.isArray(raw)? raw : (raw.videos||[]); }
+    catch { videos = []; }
   }
+  res.render('admin/videos', { videos, csrfToken: req.csrfToken(), messages: {} });
 });
 
-app.post('/register', csrfProtection, async (req, res) => {
-  if (!dbReady) {
-    return res.status(403).render('register', {
-      buildId,
-      csrfToken: req.csrfToken(),
-      messages: { error: 'Registration is temporarily unavailable. Set MONGODB_URI to enable auth.' },
-      authDisabled: true
-    });
+app.post('/admin/videos', csrfProtection, requireAdmin, (req,res)=>{
+  const { title, url, channel, thumbnail } = req.body;
+  if (!title || !url){
+    return res.render('admin/videos', { videos: [], csrfToken: req.csrfToken(), messages: { error: 'Title and URL are required.' }});
   }
-  try {
-    const { name, email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).render('register', {
-        buildId, csrfToken: req.csrfToken(),
-        messages: { error: 'Email and password are required.' }
-      });
-    }
-    const exists = await User.findOne({ email: email.toLowerCase() });
-    if (exists) {
-      return res.status(400).render('register', {
-        buildId, csrfToken: req.csrfToken(),
-        messages: { error: 'An account with that email already exists.' }
-      });
-    }
-    const user = new User({ name: name || '', email: email.toLowerCase(), password });
-    await user.save();
-    req.session.userId = user._id.toString();
-    req.session.user = { id: user._id.toString(), email: user.email };
-    return res.redirect('/');
-  } catch (err) {
-    return res.status(500).render('register', {
-      buildId, csrfToken: req.csrfToken(),
-      messages: { error: 'Something went wrong. Please try again.' }
-    });
+  const dir = path.join(__dirname,'data');
+  const file = path.join(dir,'videos.json');
+  let list = [];
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive:true });
+  if (fs.existsSync(file)){
+    try { const raw = JSON.parse(fs.readFileSync(file,'utf8')); list = Array.isArray(raw)? raw : (raw.videos||[]); } catch {}
   }
+  list.push({ title, url, channel: channel||'', thumbnail: thumbnail||'' });
+  fs.writeFileSync(file, JSON.stringify(list, null, 2), 'utf8');
+  res.render('admin/videos', { videos: list, csrfToken: req.csrfToken(), messages: { success: 'Video added.' }});
 });
 
-app.post('/logout', csrfProtection, (req, res) => {
-  req.session.destroy(() => res.redirect('/'));
+app.post('/admin/videos/delete', csrfProtection, requireAdmin, (req,res)=>{
+  const idx = Number(req.body.index);
+  const file = path.join(__dirname,'data','videos.json');
+  let list = [];
+  if (fs.existsSync(file)){
+    try { const raw = JSON.parse(fs.readFileSync(file,'utf8')); list = Array.isArray(raw)? raw : (raw.videos||[]); } catch {}
+  }
+  if (!isNaN(idx) && idx>=0 && idx<list.length){
+    list.splice(idx,1);
+    fs.writeFileSync(file, JSON.stringify(list, null, 2), 'utf8');
+  }
+  res.render('admin/videos', { videos: list, csrfToken: req.csrfToken(), messages: { success: 'Video deleted.' }});
 });
 
-// ---------------------------
-// 404 / Error handlers
-// ---------------------------
-app.use((req, res) => {
-  res.status(404).render('404', {
-    buildId,
-    pageTitle: 'Page not found',
-    pageDescription: 'The page you were looking for does not exist.'
-  });
-});
+// About / Contact simple routes (unchanged)
+app.get('/about', csrfProtection, (req,res)=> res.render('about', { csrfToken: req.csrfToken() }));
+app.get('/contact', csrfProtection, (req,res)=> res.render('contact', { csrfToken: req.csrfToken() }));
 
-app.use((err, req, res, next) => {
-  // eslint-disable-next-line no-console
-  console.error('🔥 Unhandled error:', err);
-  res.status(500).render('error', {
-    buildId,
-    message: 'Something went wrong',
-    details: `${err.message || err}`
-  });
-});
+// Login/Register (stubs if no auth wired)
+app.get('/login', csrfProtection, (req,res)=> res.render('login', { csrfToken: req.csrfToken(), messages: {} }));
+app.get('/register', csrfProtection, (req,res)=> res.render('register', { csrfToken: req.csrfToken(), messages: {} }));
 
-// ---------------------------
-// Listen
-// ---------------------------
-app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+// 404 / errors
+app.use((req,res)=> res.status(404).render('404', { buildId }));
+app.use((err,req,res,next)=> { console.error('🔥 Error:', err); res.status(500).render('error', { message: err.message||'Internal error' }); });
+
+app.listen(PORT, ()=> console.log(`🚀 Server running on port ${PORT}`));
