@@ -1,25 +1,24 @@
 <%
-  const t = item && item.title ? item.title : 'Untitled';
-  const a = item && item.author ? item.author : 'Unknown';
-  const href = item && item.href ? item.href : `/read?q=${encodeURIComponent(t + ' ' + a)}`;
-  const cover = (item && item.cover) ? String(item.cover).replace(/^http:/, 'https:') : '';
+// expects item = { id, provider, title, author, cover, initials }
+const readHref = `/read/${encodeURIComponent(item.provider)}/${encodeURIComponent(item.id)}`;
+const hasCover = item.cover && item.cover.startsWith('http');
 %>
-<article class="book-card">
-  <a class="cover-wrap" href="<%= href %>" target="_blank" aria-label="Read <%= t %>">
-    <% if (cover) { %>
-      <img src="<%= cover %>" alt="Cover of <%= t %>" loading="lazy" onerror="blCoverFallback(this)">
+<article class="book-card" role="listitem">
+  <a class="cover-wrap" href="<%= readHref %>" aria-label="Read <%= item.title %>">
+    <% if (hasCover) { %>
+      <img src="<%= item.cover %>" alt="Cover: <%= item.title %>">
     <% } else { %>
-      <div class="cover ph"><span class="ph-initials"><%= (t||'BL').slice(0,2).toUpperCase() %></span></div>
+      <div class="cover ph"><span class="ph-initials"><%= item.initials || 'BK' %></span></div>
     <% } %>
   </a>
 
   <div class="meta">
-    <h3 class="title"><a href="<%= href %>" target="_blank"><%= t %></a></h3>
-    <p class="author"><%= a %></p>
+    <div class="title"><%= item.title %></div>
+    <div class="author"><%= item.author || '' %></div>
   </div>
 
   <div class="actions">
-    <a class="btn primary" href="<%= href %>" target="_blank">Read</a>
-    <button class="btn secondary btn-listen" data-title="<%= t %>" data-author="<%= a %>">Listen</button>
+    <a class="btn primary" href="<%= readHref %>">Read</a>
+    <a class="btn secondary" href="<%= readHref %>#listen" aria-label="Listen to <%= item.title %>">Listen</a>
   </div>
 </article>
