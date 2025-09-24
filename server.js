@@ -19,7 +19,6 @@ const { v4: uuidv4 } = require('uuid');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// IMPORTANT for Render/Heroku behind proxy so secure cookies work
 app.set('trust proxy', 1);
 
 const MONGODB_URI =
@@ -31,9 +30,9 @@ const MONGODB_URI =
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me';
 const NODE_ENV = process.env.NODE_ENV || 'production';
 
-const cache = new NodeCache({ stdTTL: 3600, checkperiod: 120 }); // 1h
+const cache = new NodeCache({ stdTTL: 3600, checkperiod: 120 });
 
-// ---------- Mongo (optional) ----------
+// ---------- Mongo ----------
 let mongoOk = false;
 if (MONGODB_URI) {
   mongoose
@@ -49,14 +48,12 @@ if (MONGODB_URI) {
   console.log('ℹ️  No MONGODB_URI provided — auth features disabled.');
 }
 
-// Lazy-load User model if exists
+// Lazy-load User model if available
 let User = null;
-if (mongoOk) {
-  try {
-    User = require('./models/User');
-  } catch (e) {
-    console.log('ℹ️  User model not found; login/register will be limited.');
-  }
+try {
+  User = require('./models/User');
+} catch (e) {
+  console.log('ℹ️  User model not found; login/register will be unavailable.');
 }
 
 // ---------- Views / static ----------
@@ -104,7 +101,7 @@ if (MONGODB_URI) {
       cookie: {
         httpOnly: true,
         sameSite: 'lax',
-        secure: NODE_ENV === 'production', // requires trust proxy
+        secure: NODE_ENV === 'production',
         maxAge: 1000 * 60 * 60 * 24 * 7,
       },
       store: MongoStore.create({ mongoUrl: MONGODB_URI }),
@@ -112,7 +109,7 @@ if (MONGODB_URI) {
   );
 }
 
-// ---------- CSRF (when sessions available) ----------
+// ---------- CSRF ----------
 if (MONGODB_URI) {
   app.use(csrf());
 }
@@ -122,9 +119,7 @@ const buildId = process.env.BUILD_ID || uuidv4().slice(0, 8);
 app.use((req, res, next) => {
   res.locals.buildId = buildId;
   res.locals.loggedIn = !!(req.session && req.session.userId);
-  // ADD: safe referrer for the back link partial
   res.locals.referrer = req.get('referer') || '/';
-  // if csurf is enabled, expose token for all views; guard if not present
   try {
     if (req.csrfToken) res.locals.csrfToken = req.csrfToken();
   } catch (_) {
@@ -211,9 +206,12 @@ async function getShelves() {
   return shelves;
 }
 
-// ---------- Auth helper ----------
+// ---------- Auth gate ----------
 function requireLogin(req, res, next) {
-  if (!MONGODB_URI) return next(); // auth disabled
+  if (!mongoOk || !User) {
+    // Auth is unavailable -> force login page with message
+    return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}&unavailable=1`);
+  }
   if (req.session && req.session.userId) return next();
   return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
 }
@@ -337,23 +335,35 @@ app.get('/proxy', async (req, res) => {
 
 // ---------- Auth pages ----------
 app.get('/login', (req, res) => {
+  const unavailable =
+    (!mongoOk || !User) ? 'Login is temporarily unavailable (server auth not configured).' : '';
   res.render('login', {
     pageTitle: 'Login',
-    messages: req.query.csrf ? { error: 'Session expired. Please try again.' } : {},
+    messages: unavailable ? { error: unavailable } : {},
     next: req.query.next || '/',
   });
 });
 
 app.post('/login', async (req, res) => {
-  if (!mongoOk || !User) return res.redirect(req.body.next || '/');
-  const { email, password } = req.body || {};
+  const { email, password, next: nextUrl } = req.body || {};
+  const next = nextUrl || '/';
+
+  // If auth not available, show an explicit error (don’t redirect silently)
+  if (!mongoOk || !User) {
+    return res.status(503).render('login', {
+      pageTitle: 'Login',
+      messages: { error: 'Login is temporarily unavailable (server auth not configured).' },
+      next,
+    });
+  }
+
   try {
     const user = await User.findOne({ email: (email || '').toLowerCase().trim() });
     if (!user) {
       return res.status(400).render('login', {
         pageTitle: 'Login',
         messages: { error: 'Invalid email or password.' },
-        next: req.body.next || '/',
+        next,
       });
     }
     const okPw = await user.comparePassword(password || '');
@@ -361,30 +371,40 @@ app.post('/login', async (req, res) => {
       return res.status(400).render('login', {
         pageTitle: 'Login',
         messages: { error: 'Invalid email or password.' },
-        next: req.body.next || '/',
+        next,
       });
     }
     req.session.userId = String(user._id);
-    return res.redirect(req.body.next || '/');
+    return res.redirect(next);
   } catch (e) {
+    console.error('Login error:', e);
     return res.status(500).render('login', {
       pageTitle: 'Login',
       messages: { error: 'Something went wrong. Please try again.' },
-      next: req.body.next || '/',
+      next,
     });
   }
 });
 
 app.get('/register', (req, res) => {
+  const unavailable =
+    (!mongoOk || !User) ? 'Register is temporarily unavailable (server auth not configured).' : '';
   res.render('register', {
     pageTitle: 'Register',
-    messages: {},
+    messages: unavailable ? { error: unavailable } : {},
   });
 });
 
 app.post('/register', async (req, res) => {
-  if (!mongoOk || !User) return res.redirect('/');
   const { name, email, password } = req.body || {};
+
+  if (!mongoOk || !User) {
+    return res.status(503).render('register', {
+      pageTitle: 'Register',
+      messages: { error: 'Register is temporarily unavailable (server auth not configured).' },
+    });
+  }
+
   try {
     const exists = await User.findOne({ email: (email || '').toLowerCase().trim() });
     if (exists) {
@@ -401,6 +421,7 @@ app.post('/register', async (req, res) => {
     req.session.userId = String(user._id);
     return res.redirect('/');
   } catch (e) {
+    console.error('Register error:', e);
     return res.status(500).render('register', {
       pageTitle: 'Register',
       messages: { error: 'Something went wrong. Please try again.' },
@@ -413,7 +434,7 @@ app.post('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/'));
 });
 
-// ---------- CSRF error handler FIRST ----------
+// ---------- CSRF error handler ----------
 app.use((err, req, res, next) => {
   if (err && err.code === 'EBADCSRFTOKEN') {
     if (req.session) {
@@ -441,12 +462,10 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ---------- Start ----------
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
 
-// ---------- tiny util ----------
 function escapeHtml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;/g').replace(/>/g, '&gt;');
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
