@@ -122,6 +122,8 @@ const buildId = process.env.BUILD_ID || uuidv4().slice(0, 8);
 app.use((req, res, next) => {
   res.locals.buildId = buildId;
   res.locals.loggedIn = !!(req.session && req.session.userId);
+  // ADD: safe referrer for the back link partial
+  res.locals.referrer = req.get('referer') || '/';
   // if csurf is enabled, expose token for all views; guard if not present
   try {
     if (req.csrfToken) res.locals.csrfToken = req.csrfToken();
@@ -335,7 +337,6 @@ app.get('/proxy', async (req, res) => {
 
 // ---------- Auth pages ----------
 app.get('/login', (req, res) => {
-  // res.locals.csrfToken is already set (when csurf enabled)
   res.render('login', {
     pageTitle: 'Login',
     messages: req.query.csrf ? { error: 'Session expired. Please try again.' } : {},
@@ -415,9 +416,7 @@ app.post('/logout', (req, res) => {
 // ---------- CSRF error handler FIRST ----------
 app.use((err, req, res, next) => {
   if (err && err.code === 'EBADCSRFTOKEN') {
-    // Session likely rotated/expired. Redirect to login to mint fresh token.
     if (req.session) {
-      // destroy old session to be safe
       req.session.destroy(() => res.redirect('/login?csrf=1'));
     } else {
       res.redirect('/login?csrf=1');
@@ -449,5 +448,5 @@ app.listen(PORT, () => {
 
 // ---------- tiny util ----------
 function escapeHtml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;/g').replace(/>/g, '&gt;');
 }
