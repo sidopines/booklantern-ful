@@ -1,24 +1,44 @@
+<!-- views/partials/bookCard.ejs -->
 <%
-// expects item = { id, provider, title, author, cover, initials }
-const readHref = `/read/${encodeURIComponent(item.provider)}/${encodeURIComponent(item.id)}`;
-const hasCover = item.cover && item.cover.startsWith('http');
+  // Defensive locals
+  const it = (typeof item !== 'undefined' && item) ? item : {};
+  const provider = it.provider || 'pg';
+  const id = String(it.id || '').trim();
+  const title = it.title || 'Untitled';
+  const author = it.author || '';
+  const coverUrl = it.coverUrl || '';
+  const initials = it.initials || (title ? title[0] : 'B');
+  const logged = (typeof loggedIn !== 'undefined' && loggedIn);
+  const readHref = `/read/${provider}/${encodeURIComponent(id)}`;
+  const gateHref = logged ? readHref : `/login?next=${encodeURIComponent(readHref)}`;
 %>
-<article class="book-card" role="listitem">
-  <a class="cover-wrap" href="<%= readHref %>" aria-label="Read <%= item.title %>">
-    <% if (hasCover) { %>
-      <img src="<%= item.cover %>" alt="Cover: <%= item.title %>">
+
+<article class="book-card">
+  <a class="cover" href="<%= gateHref %>" aria-label="Read: <%= title %>">
+    <% if (coverUrl) { %>
+      <img src="<%= coverUrl %>" alt="<%= title %> cover">
     <% } else { %>
-      <div class="cover ph"><span class="ph-initials"><%= item.initials || 'BK' %></span></div>
+      <div class="cover ph" aria-hidden="true"
+           style="display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fff37a,#fff04d);color:#0b0b0b;font-weight:800;font-size:28px;">
+        <%= initials %>
+      </div>
     <% } %>
   </a>
 
   <div class="meta">
-    <div class="title"><%= item.title %></div>
-    <div class="author"><%= item.author || '' %></div>
-  </div>
+    <div class="title"><%= title %></div>
+    <% if (author) { %><div class="author"><%= author %></div><% } %>
 
-  <div class="actions">
-    <a class="btn primary" href="<%= readHref %>">Read</a>
-    <a class="btn secondary" href="<%= readHref %>#listen" aria-label="Listen to <%= item.title %>">Listen</a>
+    <div class="actions">
+      <a class="btn small secondary" href="<%= gateHref %>">Read</a>
+
+      <!-- Listen preview (1–2 lines) uses ui.js audioTTS; guests can still preview -->
+      <button class="btn small"
+              data-action="listen"
+              data-title="<%- title.replace(/"/g,'&quot;') %>"
+              data-author="<%- (author||'').replace(/"/g,'&quot;') %>">
+        Listen
+      </button>
+    </div>
   </div>
 </article>
