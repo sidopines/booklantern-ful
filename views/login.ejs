@@ -5,35 +5,27 @@
 
   <main class="stack" style="--gap:20px; max-width:520px; margin:40px auto;">
     <h1>Login</h1>
-
-    <% if (messages && messages.error) { %>
-      <div class="card" style="border-left:4px solid #ef4444; background:#1a0e10;">
-        <p><strong>Error:</strong> <%= messages.error %></p>
-      </div>
+    <% const msgs = (typeof messages !== 'undefined' && messages) ? messages : {}; %>
+    <% if (msgs.error) { %>
+      <div class="alert error"><%= msgs.error %></div>
     <% } %>
 
-    <form method="POST" action="/login" class="card stack" style="--gap:12px; padding:20px;">
-      <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+    <form method="POST" action="/login" class="card stack" style="--gap:12px; padding:16px;">
+      <input type="hidden" name="_csrf" value="<%= csrfToken || '' %>">
       <input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '/' %>">
 
-      <label class="stack" style="--gap:6px;">
+      <label class="stack">
         <span>Email</span>
-        <input class="input" type="email" name="email" required placeholder="you@example.com">
+        <input type="email" name="email" required autocomplete="email" placeholder="you@example.com">
       </label>
 
-      <label class="stack" style="--gap:6px;">
+      <label class="stack">
         <span>Password</span>
-        <input class="input" type="password" name="password" required placeholder="••••••••">
-      </label>
-
-      <label style="display:flex; align-items:center; gap:8px;">
-        <input type="checkbox" name="remember" value="1"> <span>Remember me</span>
+        <input type="password" name="password" required autocomplete="current-password" placeholder="••••••••">
       </label>
 
       <button class="btn primary" type="submit">Login</button>
     </form>
-
-    <p>New here? <a href="/register">Create an account</a></p>
   </main>
 
   <%- include('./partials/footer') %>
