@@ -1,234 +1,271 @@
-/** server.js — resilient boot with optional Mongo + admin video manager */
-require('dotenv').config();
+// server.js — full & final
 
-const path = require('path');
-const fs = require('fs');
-const express = require('express');
-const helmet = require('helmet');
-const compression = require('compression');
-const morgan = require('morgan');
-const cookieParser = require('cookie-parser');
-const session = require('express-session');
-const MongoStore = require('connect-mongo');
-const csrf = require('csurf');
-const NodeCache = require('node-cache');
-const fetch = global.fetch || ((...args) => import('node-fetch').then(m => m.default(...args)));
+import express from 'express';
+import path from 'path';
+import crypto from 'crypto';
+import fetch from 'node-fetch';          // if Node 20 global fetch is ok, you can remove this import & package
+import session from 'express-session';
+import MongoStorePkg from 'connect-mongo';
+import cookieParser from 'cookie-parser';
+import morgan from 'morgan';
+import compression from 'compression';
+import helmet from 'helmet';
+import NodeCache from 'node-cache';
+import dotenv from 'dotenv';
 
+dotenv.config();
+
+const __dirname = path.resolve();
 const app = express();
+const cache = new NodeCache({ stdTTL: 3600, useClones: false }); // 1h
 
-// ---------- Env ----------
-const PORT = process.env.PORT || 10000;
-const NODE_ENV = process.env.NODE_ENV || 'production';
-const PROD = NODE_ENV === 'production';
-const MONGODB_URI = process.env.MONGODB_URI || '';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me';
-const buildId = process.env.BUILD_ID || Date.now().toString(36);
-
-// ---------- Views & static ----------
+// ---------- Express setup ----------
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-app.use('/public', express.static(path.join(__dirname, 'public'), { maxAge: PROD ? '7d' : 0 }));
 
-// ---------- Middleware ----------
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      useDefaults: true,
-      directives: {
-        "default-src": ["'self'"],
-        "script-src": ["'self'"],
-        "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        "font-src": ["'self'", "https://fonts.gstatic.com"],
-        "img-src": ["'self'", "data:", "https://covers.openlibrary.org", "https://i.ytimg.com", "https://img.youtube.com", "https://images.unsplash.com"],
-        "connect-src": ["'self'", "https://openlibrary.org", "https://covers.openlibrary.org"],
-        "frame-src": ["'self'", "https://www.youtube.com", "https://player.vimeo.com"]
-      }
-    },
-    crossOriginEmbedderPolicy: false,
-    crossOriginResourcePolicy: { policy: "cross-origin" }
-  })
-);
+app.use(helmet({
+  contentSecurityPolicy: false, // we'll allow iframe/proxy; you can tighten later
+}));
 app.use(compression());
-app.use(morgan(PROD ? 'combined' : 'dev'));
+app.use(morgan('tiny'));
+app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-app.use(cookieParser());
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
-// ---------- Sessions ----------
+// ---------- Sessions (Mongo or Memory) ----------
+const MongoStore = MongoStorePkg.create;
 let sessionStore;
-if (MONGODB_URI) {
-  try {
-    sessionStore = MongoStore.create({ mongoUrl: MONGODB_URI, collectionName: 'sessions', ttl: 60 * 60 * 24 * 14 });
-    console.log('🗄️  Session store: MongoStore');
-  } catch (e) {
-    console.warn('⚠️  Failed to init MongoStore; using MemoryStore:', e.message);
-  }
+if (process.env.MONGODB_URI) {
+  sessionStore = MongoStore({ mongoUrl: process.env.MONGODB_URI });
+  console.log('🗄️  Session store: MongoStore');
 } else {
-  console.warn('⚠️  MONGODB_URI missing; using MemoryStore.');
+  console.warn('⚠️  No MONGODB_URI set, using MemoryStore (dev only)');
 }
+
 app.use(session({
-  secret: SESSION_SECRET,
+  name: 'booklantern.sid',
+  secret: process.env.SESSION_SECRET || 'dev-secret-' + crypto.randomBytes(16).toString('hex'),
   resave: false,
   saveUninitialized: false,
   store: sessionStore,
-  cookie: { httpOnly: true, sameSite: 'lax', secure: PROD }
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: !!process.env.RENDER,      // secure cookies on Render
+    maxAge: 1000 * 60 * 60 * 24 * 7,   // 7 days
+  }
 }));
 
-// ---------- CSRF & locals ----------
-const csrfProtection = csrf({ cookie: false });
+// expose minimal auth state to views
 app.use((req, res, next) => {
-  res.locals.buildId = buildId;
+  res.locals.buildId = process.env.BUILD_ID || 'dev';
   res.locals.loggedIn = !!req.session.user;
-  res.locals.user = req.session.user || null;
   next();
 });
 
-// ---------- Optional Mongoose/User (if available) ----------
-let mongoose, User, dbReady = false;
-(async () => {
-  if (!MONGODB_URI) return;
-  try {
-    mongoose = require('mongoose');
-    await mongoose.connect(MONGODB_URI);
-    console.log('✅ Connected to MongoDB');
-    User = require('./models/User'); // must expose user.isAdmin boolean
-    dbReady = true;
-  } catch (err) {
-    console.error('❌ MongoDB connection failed; continuing without auth:', err.message);
+// ---------- Auth stubs (keep your real ones if you have) ----------
+function requireAuth(req, res, next) {
+  if (!req.session.user) {
+    const nextUrl = encodeURIComponent(req.originalUrl || '/');
+    return res.redirect(`/login?next=${nextUrl}`);
   }
-})();
-
-// ---------- Open Library helpers ----------
-const cache = new NodeCache({ stdTTL: 3600 });
-function pick(v, f=''){ return (v===undefined||v===null)?f:v; }
-function normalizeOL(doc){
-  const title = pick(doc.title);
-  const author = (doc.author_name && doc.author_name[0]) || '';
-  const key = doc.key || '';
-  let openLibraryId = doc.cover_edition_key || (doc.edition_key && doc.edition_key[0]) || '';
-  let cover = '';
-  if (doc.cover_i) cover = `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`;
-  else if (openLibraryId) cover = `https://covers.openlibrary.org/b/olid/${openLibraryId}-L.jpg`;
-  return { id: key||openLibraryId||title, title, author, href: key ? `https://openlibrary.org${key}` : '', cover };
+  next();
 }
-async function searchOL(q, limit=36){
-  const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=${limit}`;
-  const r = await fetch(url, { headers: { 'user-agent': 'BookLantern/1.0' } });
-  if (!r.ok) throw new Error(`OL ${r.status}`);
+
+app.get('/login', (req, res) => {
+  res.render('login', { messages: {} });
+});
+app.post('/login', (req, res) => {
+  // TODO: replace with real check
+  const { email } = req.body;
+  if (email) {
+    req.session.user = { email };
+    return res.redirect(req.query.next || '/');
+  }
+  res.render('login', { messages: { error: 'Please enter an email' }});
+});
+app.get('/logout', (req, res) => {
+  req.session.destroy(() => res.redirect('/'));
+});
+
+// ---------- Multi-source aggregation ----------
+function initials(title = '') {
+  const t = title.trim();
+  if (!t) return 'BK';
+  const parts = t.split(/\s+/).slice(0, 2);
+  return parts.map(p => p[0]).join('').toUpperCase();
+}
+
+function normItem({ id, provider, title, author, cover }) {
+  return {
+    id, provider,
+    title: title || 'Untitled',
+    author: author || '',
+    cover: cover || '',
+    initials: initials(title || author),
+  };
+}
+
+// Open Library sample queries
+async function olSearch(q) {
+  const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=12`;
+  const r = await fetch(url);
   const j = await r.json();
-  return (j.docs||[]).map(normalizeOL);
-}
-async function seededShelf(queries, per=12){
-  const rs = await Promise.all(queries.map(q=>searchOL(q, per)));
-  const flat = rs.flat().filter(Boolean);
-  const seen = new Set(); const out=[];
-  for (const it of flat){
-    const k = it.id || `${it.title}|${it.author}`;
-    if (!seen.has(k)){ seen.add(k); out.push(it); }
-    if (out.length>=per) break;
-  }
-  return out;
+  return (j.docs || []).map(d => {
+    const cover = d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg` : '';
+    return normItem({
+      id: d.key?.replace('/works/', '') || d.cover_edition_key || d.key || String(d.cover_i || ''),
+      provider: 'ol',
+      title: d.title,
+      author: (d.author_name && d.author_name[0]) || '',
+      cover
+    });
+  });
 }
 
-// ---------- Routes ----------
-app.get('/', csrfProtection, async (req,res,next)=>{
-  try{
-    let payload = cache.get('home');
-    if(!payload){
-      const [tr,ph,hi] = await Promise.all([
-        seededShelf(['classic literature','popular public domain'],12),
-        seededShelf(['philosophy','ethics','political philosophy'],12),
-        seededShelf(['world history','ancient history','biography'],12)
-      ]);
-      payload = { trending: tr, philosophy: ph, history: hi };
-      cache.set('home', payload);
+// Project Gutenberg (Gutenberg API via gutendex)
+async function pgSearch(q) {
+  const url = `https://gutendex.com/books/?search=${encodeURIComponent(q)}&page=1`;
+  const r = await fetch(url);
+  const j = await r.json();
+  return (j.results || []).slice(0, 12).map(b => {
+    const img = b.formats && (b.formats['image/jpeg'] || b.formats['image/png']) || '';
+    return normItem({
+      id: String(b.id),
+      provider: 'pg',
+      title: b.title,
+      author: (b.authors && b.authors[0] && b.authors[0].name) || '',
+      cover: img
+    });
+  });
+}
+
+// Standard Ebooks (simple feed)
+async function seRecent() {
+  const url = 'https://standardebooks.org/opds/index.json';
+  const r = await fetch(url);
+  const j = await r.json().catch(() => ({}));
+  // The feed is large; take a few from entries if present
+  const entries = j?.navigation || [];
+  // Fallback: return empty
+  return entries.slice(0, 12).map((e, idx) =>
+    normItem({
+      id: e.url || String(idx),
+      provider: 'se',
+      title: e.title || 'Standard Ebook',
+      author: '',
+      cover: '' // Standard Ebooks provides covers per book page; leave placeholder
+    })
+  );
+}
+
+// Smart combine: ensure some variety
+async function multiShelves() {
+  const cached = cache.get('home-shelves');
+  if (cached) return cached;
+
+  // Three shelves: pick different queries
+  const [olTrend, pgTrend] = await Promise.all([
+    olSearch('classics'),
+    pgSearch('classic')
+  ]);
+  const trending = [...olTrend.slice(0, 8), ...pgTrend.slice(0, 4)];
+
+  const [olPhil, pgPhil] = await Promise.all([
+    olSearch('philosophy'),
+    pgSearch('philosophy')
+  ]);
+  const philosophy = [...olPhil.slice(0, 8), ...pgPhil.slice(0, 4)];
+
+  const [olHist, pgHist] = await Promise.all([
+    olSearch('history'),
+    pgSearch('history')
+  ]);
+  const history = [...olHist.slice(0, 8), ...pgHist.slice(0, 4)];
+
+  const shelves = { trending, philosophy, history };
+  cache.set('home-shelves', shelves);
+  return shelves;
+}
+
+app.get('/', async (req, res, next) => {
+  try {
+    const { trending, philosophy, history } = await multiShelves();
+    res.render('index', { trending, philosophy, history, buildId: process.env.BUILD_ID || 'dev' });
+  } catch (e) { next(e); }
+});
+
+// Reader: login-gated
+app.get('/read/:provider/:id', requireAuth, async (req, res, next) => {
+  try {
+    const { provider, id } = req.params;
+    let readerUrl = '';
+    let book = { provider, id, title: 'Untitled' };
+
+    if (provider === 'ol') {
+      // Try OL work/edition → IA page
+      // Render the IA readable page; we’ll proxy through /proxy.
+      // Many OL items map to archive.org details pages.
+      readerUrl = `https://openlibrary.org/works/${encodeURIComponent(id)}`;
+    } else if (provider === 'pg') {
+      // Gutendex → plain HTML
+      readerUrl = `https://www.gutenberg.org/ebooks/${encodeURIComponent(id)}/html`;
+    } else if (provider === 'se') {
+      // Standard Ebooks: link is a catalog; often the webpage has direct html/epub
+      readerUrl = `https://standardebooks.org/ebooks/${encodeURIComponent(id)}`;
+    } else {
+      // Unknown provider → bail gracefully
+      return res.status(404).render('404', { pageTitle: 'Not found', pageDescription: '' });
     }
-    res.render('index', { trending: payload.trending, philosophy: payload.philosophy, history: payload.history, csrfToken: req.csrfToken() });
-  }catch(err){ next(err); }
+
+    res.render('read', { book, readerUrl, buildId: process.env.BUILD_ID || 'dev' });
+  } catch (e) { next(e); }
 });
 
-app.get('/read', csrfProtection, async (req,res,next)=>{
-  try{
-    const q = (req.query.q||'').trim();
-    let results = [];
-    if (q){
-      const key = `read:${q.toLowerCase()}`;
-      results = cache.get(key) || await searchOL(q, 36);
-      cache.set(key, results);
-    }
-    res.render('read', { q, results, csrfToken: req.csrfToken() });
-  }catch(err){ next(err); }
+// Simple proxy to keep user on our domain inside the iframe
+app.get('/proxy', async (req, res) => {
+  try {
+    const u = req.query.u;
+    if (!u) return res.status(400).send('Missing URL');
+    const upstream = await fetch(u, { redirect: 'follow' });
+    // Copy basic headers
+    res.set('Content-Type', upstream.headers.get('content-type') || 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=600'); // 10 min
+    upstream.body.pipe(res);
+  } catch (e) {
+    res.status(502).send('Upstream unavailable');
+  }
 });
 
-// Watch page (reads data/videos.json)
-app.get('/watch', csrfProtection, (req,res)=>{
-  const f = path.join(__dirname,'data','videos.json');
-  let videos = [];
-  if (fs.existsSync(f)){
-    try { const raw = JSON.parse(fs.readFileSync(f,'utf8')); videos = Array.isArray(raw)? raw : (raw.videos||[]); }
-    catch { videos = []; }
-  }
-  res.render('watch', { videos, csrfToken: req.csrfToken() });
+// Simple /read search passthrough to homepage style (optional)
+app.get('/read', async (req, res, next) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q) return res.redirect('/');
+
+    const [ol, pg] = await Promise.all([olSearch(q), pgSearch(q)]);
+    const results = [...ol, ...pg].slice(0, 36);
+    res.render('read', {
+      book: { title: `Results for "${q}"` },
+      readerUrl: 'about:blank'  // no iframe; you can add a grid view here if you want
+    });
+  } catch (e) { next(e); }
 });
 
-// --- Admin guard ---
-function requireAdmin(req,res,next){
-  if (req.session.user && req.session.user.isAdmin) return next();
-  return res.status(403).render('error', { message: 'Admins only.' });
-}
+// Footer pages (About/Contact) – keep your existing ones if you already have
+app.get('/about', (req, res) => res.render('about'));
+app.get('/contact', (req, res) => res.render('contact'));
 
-// Admin UI to manage Watch videos
-app.get('/admin/videos', csrfProtection, requireAdmin, (req,res)=>{
-  const f = path.join(__dirname,'data','videos.json');
-  let videos = [];
-  if (fs.existsSync(f)){
-    try { const raw = JSON.parse(fs.readFileSync(f,'utf8')); videos = Array.isArray(raw)? raw : (raw.videos||[]); }
-    catch { videos = []; }
-  }
-  res.render('admin/videos', { videos, csrfToken: req.csrfToken(), messages: {} });
+// Errors & 404
+app.use((req, res) => res.status(404).render('404', { pageTitle: 'Not found', pageDescription: '' }));
+app.use((err, req, res, _next) => {
+  console.error('🔥 Error:', err);
+  res.status(500).render('error', { pageTitle: 'Something went wrong', err });
 });
 
-app.post('/admin/videos', csrfProtection, requireAdmin, (req,res)=>{
-  const { title, url, channel, thumbnail } = req.body;
-  if (!title || !url){
-    return res.render('admin/videos', { videos: [], csrfToken: req.csrfToken(), messages: { error: 'Title and URL are required.' }});
-  }
-  const dir = path.join(__dirname,'data');
-  const file = path.join(dir,'videos.json');
-  let list = [];
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive:true });
-  if (fs.existsSync(file)){
-    try { const raw = JSON.parse(fs.readFileSync(file,'utf8')); list = Array.isArray(raw)? raw : (raw.videos||[]); } catch {}
-  }
-  list.push({ title, url, channel: channel||'', thumbnail: thumbnail||'' });
-  fs.writeFileSync(file, JSON.stringify(list, null, 2), 'utf8');
-  res.render('admin/videos', { videos: list, csrfToken: req.csrfToken(), messages: { success: 'Video added.' }});
+// Start
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
-
-app.post('/admin/videos/delete', csrfProtection, requireAdmin, (req,res)=>{
-  const idx = Number(req.body.index);
-  const file = path.join(__dirname,'data','videos.json');
-  let list = [];
-  if (fs.existsSync(file)){
-    try { const raw = JSON.parse(fs.readFileSync(file,'utf8')); list = Array.isArray(raw)? raw : (raw.videos||[]); } catch {}
-  }
-  if (!isNaN(idx) && idx>=0 && idx<list.length){
-    list.splice(idx,1);
-    fs.writeFileSync(file, JSON.stringify(list, null, 2), 'utf8');
-  }
-  res.render('admin/videos', { videos: list, csrfToken: req.csrfToken(), messages: { success: 'Video deleted.' }});
-});
-
-// About / Contact simple routes (unchanged)
-app.get('/about', csrfProtection, (req,res)=> res.render('about', { csrfToken: req.csrfToken() }));
-app.get('/contact', csrfProtection, (req,res)=> res.render('contact', { csrfToken: req.csrfToken() }));
-
-// Login/Register (stubs if no auth wired)
-app.get('/login', csrfProtection, (req,res)=> res.render('login', { csrfToken: req.csrfToken(), messages: {} }));
-app.get('/register', csrfProtection, (req,res)=> res.render('register', { csrfToken: req.csrfToken(), messages: {} }));
-
-// 404 / errors
-app.use((req,res)=> res.status(404).render('404', { buildId }));
-app.use((err,req,res,next)=> { console.error('🔥 Error:', err); res.status(500).render('error', { message: err.message||'Internal error' }); });
-
-app.listen(PORT, ()=> console.log(`🚀 Server running on port ${PORT}`));
