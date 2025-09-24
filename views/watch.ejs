@@ -2,34 +2,28 @@
 <body>
   <%- include('./partials/navbar') %>
 
-  <main class="container page-pad">
-    <h1 style="font-weight:800;margin-bottom:16px">Watch</h1>
+  <main class="stack" style="--gap:24px; max-width:1100px; margin:30px auto;">
+    <h1>Watch</h1>
 
-    <% if (videos && videos.length) { %>
-      <section class="video-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;">
-        <% videos.forEach(v => { %>
-          <article class="card" style="overflow:hidden;">
-            <% if (v.thumbnail) { %>
-              <a href="<%= v.url %>" target="_blank" aria-label="Play <%= v.title %>">
-                <img src="<%= v.thumbnail %>" alt="<%= v.title %>" style="width:100%;height:140px;object-fit:cover">
-              </a>
-            <% } %>
-            <div style="padding:12px;">
-              <h3 style="font-size:1rem;font-weight:700;line-height:1.3;margin-bottom:6px;">
-                <a href="<%= v.url %>" target="_blank"><%= v.title %></a>
-              </h3>
-              <% if (v.channel) { %><p class="muted" style="margin:0 0 8px 0"><%= v.channel %></p><% } %>
-              <a class="btn primary" href="<%= v.url %>" target="_blank">Play</a>
+    <% const list = (typeof videos !== 'undefined' && Array.isArray(videos)) ? videos : []; %>
+    <% if (!list.length) { %>
+      <div class="card" style="padding:16px;">
+        No videos yet. (Your admin can add videos in the dashboard.)
+      </div>
+    <% } else { %>
+      <div class="grid" style="--cols:4; --gap:16px;">
+        <% list.forEach(v => { %>
+          <article class="card video">
+            <a class="cover" href="/watch/<%= v._id %>">
+              <img src="<%= v.thumbnail || '/public/img/video-ph.jpg' %>" alt="">
+            </a>
+            <div class="stack" style="--gap:6px; padding:10px;">
+              <strong><%= v.title %></strong>
+              <a class="btn small" href="/watch/<%= v._id %>">Watch</a>
             </div>
           </article>
         <% }) %>
-      </section>
-    <% } else { %>
-      <div class="card">No videos yet. Ask an admin to add some in <code>/admin/videos</code>.</div>
-    <% } %>
-
-    <% if (user && user.isAdmin) { %>
-      <div style="margin-top:20px;"><a class="btn secondary" href="/admin/videos">Manage videos</a></div>
+      </div>
     <% } %>
   </main>
 
