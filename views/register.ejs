@@ -1,71 +1,41 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <%- include('./partials/head.ejs', {
-    pageTitle: 'Create your account — BookLantern',
-    pageDescription: 'Join the largest hub of free books.'
-  }) %>
-</head>
+<%- include('./partials/head', { pageTitle: 'Register - BookLantern' }) %>
 <body>
-  <%- include('./partials/navbar.ejs') %>
+  <%- include('./partials/navbar') %>
+  <%- include('./partials/backLink') %>
 
-  <header class="hero hero--compact">
-    <div class="container hero-inner">
-      <h1>Create your account</h1>
-      <p class="page-sub">Join the largest hub of free books.</p>
-    </div>
-  </header>
+  <main class="stack" style="--gap:20px; max-width:520px; margin:40px auto;">
+    <h1>Create your account</h1>
 
-  <main class="container page-pad">
-    <a class="back" href="/" onclick="if(document.referrer){history.back();return false;}">← Back</a>
-
-    <% 
-      // Defensive guards for locals so EJS never throws
-      const _msgs     = (typeof messages  !== 'undefined' && messages)  ? messages  : {};
-      const _successL = (typeof success   !== 'undefined' && success)   ? success   : null;
-      const _errorL   = (typeof error     !== 'undefined' && error)     ? error     : null;
-      const ok        = _successL || _msgs.success || null;
-      const err       = _errorL   || _msgs.error   || null;
-      const _csrf     = (typeof csrfToken !== 'undefined' && csrfToken) ? csrfToken : '';
-    %>
-
-    <% if (ok) { %>
-      <div class="alert success"><%= ok %></div>
-    <% } %>
-    <% if (err) { %>
-      <div class="alert error"><%= err %></div>
+    <% if (messages && messages.error) { %>
+      <div class="card" style="border-left:4px solid #ef4444; background:#1a0e10;">
+        <p><strong>Error:</strong> <%= messages.error %></p>
+      </div>
     <% } %>
 
-    <section class="auth-wrap">
-      <form class="card auth" action="/register" method="post" novalidate>
-        <% if (_csrf) { %><input type="hidden" name="_csrf" value="<%= _csrf %>"><% } %>
+    <form method="POST" action="/register" class="card stack" style="--gap:12px; padding:20px;">
+      <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
 
-        <div class="field">
-          <label for="name">Your Name</label>
-          <input id="name" name="name" type="text" placeholder="Your name" required>
-        </div>
+      <label class="stack" style="--gap:6px;">
+        <span>Name</span>
+        <input class="input" type="text" name="name" required placeholder="Your name">
+      </label>
 
-        <div class="field">
-          <label for="email">Email</label>
-          <input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required>
-        </div>
+      <label class="stack" style="--gap:6px;">
+        <span>Email</span>
+        <input class="input" type="email" name="email" required placeholder="you@example.com">
+      </label>
 
-        <div class="field">
-          <label for="password">Password</label>
-          <input id="password" name="password" type="password" placeholder="Your password" autocomplete="new-password" required>
-        </div>
+      <label class="stack" style="--gap:6px;">
+        <span>Password</span>
+        <input class="input" type="password" name="password" required placeholder="Create a password">
+      </label>
 
-        <div class="field">
-          <label for="confirmPassword">Confirm Password</label>
-          <input id="confirmPassword" name="confirmPassword" type="password" placeholder="Confirm password" autocomplete="new-password" required>
-        </div>
+      <button class="btn primary" type="submit">Create account</button>
+    </form>
 
-        <button class="btn btn-primary" type="submit">Create account</button>
-        <p class="muted" style="margin-top:12px">Already have an account? <a href="/login">Log in</a></p>
-      </form>
-    </section>
+    <p>Already have an account? <a href="/login">Log in</a></p>
   </main>
 
-  <%- include('./partials/footer.ejs') %>
+  <%- include('./partials/footer') %>
 </body>
 </html>
