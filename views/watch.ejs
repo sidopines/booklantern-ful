@@ -2,24 +2,28 @@
 <body>
   <%- include('./partials/navbar') %>
 
-  <main class="stack" style="--gap:24px; max-width:1100px; margin:30px auto;">
+  <main class="stack" style="--gap:20px; max-width:1200px; margin:30px auto;">
     <h1>Watch</h1>
 
-    <% const list = (typeof videos !== 'undefined' && Array.isArray(videos)) ? videos : []; %>
+    <% const list = (Array.isArray(videos) ? videos : []); %>
     <% if (!list.length) { %>
-      <div class="card" style="padding:16px;">
-        No videos yet. (Your admin can add videos in the dashboard.)
-      </div>
+      <div class="card" style="padding:16px;">No videos yet. (Add them in Admin.)</div>
     <% } else { %>
-      <div class="grid" style="--cols:4; --gap:16px;">
+      <div class="grid" style="--cols:6; --gap:14px;">
         <% list.forEach(v => { %>
-          <article class="card video">
+          <article class="book-card">
             <a class="cover" href="/watch/<%= v._id %>">
-              <img src="<%= v.thumbnail || '/public/img/video-ph.jpg' %>" alt="">
+              <% if (v.thumbnail) { %>
+                <img src="<%= v.thumbnail %>" alt="">
+              <% } else { %>
+                <img src="https://i.ytimg.com/vi/<%= v.videoId %>/hqdefault.jpg" alt="">
+              <% } %>
             </a>
-            <div class="stack" style="--gap:6px; padding:10px;">
-              <strong><%= v.title %></strong>
-              <a class="btn small" href="/watch/<%= v._id %>">Watch</a>
+            <div class="meta">
+              <div class="title"><%= v.title %></div>
+              <div class="actions">
+                <a class="btn small secondary" href="/watch/<%= v._id %>">Watch</a>
+              </div>
             </div>
           </article>
         <% }) %>
