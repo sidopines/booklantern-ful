@@ -1,44 +1,70 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <%- include('./partials/head.ejs', {
-    pageTitle: 'BookLantern — Largest Online Hub of Free Books',
-    pageDescription: 'Millions of books from globally trusted libraries. One search, one clean reader.'
-  }) %>
-</head>
+<%- include('./partials/head', { pageTitle: 'Largest Online Hub of Free Books', pageDescription: 'Millions of free books from globally trusted libraries. One search, one clean reader.' }) %>
 <body>
-  <%- include('./partials/navbar.ejs') %>
+  <%- include('./partials/navbar') %>
 
-  <!-- Hero -->
   <header class="hero">
-    <div class="container hero-inner">
+    <div class="container">
       <h1>Largest Online Hub of Free Books</h1>
       <p>Millions of books from globally trusted libraries. One search, one clean reader.</p>
-
-      <form class="search" action="/read" method="get" role="search" aria-label="Search books">
-        <input name="q" type="search" placeholder="Search millions of books…" aria-label="Search books">
-        <button class="btn btn-primary" type="submit">Search</button>
+      <div class="badges">✓ No ads  &nbsp;•&nbsp; ✓ Free forever  &nbsp;•&nbsp; ✓ Clean reading experience</div>
+      <form class="search" action="/read" method="get">
+        <input type="text" name="q" placeholder="Search millions of books..." aria-label="Search books">
+        <button class="btn primary" type="submit">Search</button>
       </form>
-
-      <ul class="ticks">
-        <li>✓ No ads</li>
-        <li>✓ Free forever</li>
-        <li>✓ Clean reading experience</li>
-      </ul>
     </div>
   </header>
 
-  <!-- Shelves -->
   <main class="container page-pad">
-    <% const T = Array.isArray(trending)   ? trending   : []; %>
-    <% const P = Array.isArray(philosophy) ? philosophy : []; %>
-    <% const H = Array.isArray(history)    ? history    : []; %>
+    <!-- Trending -->
+    <section class="carousel">
+      <div class="carousel-head">
+        <h2>Trending now</h2>
+        <div class="carousel-ctrls" aria-hidden="true">
+          <button class="carousel-btn" data-dir="-1" data-target="#c-trend" aria-label="Scroll left">‹</button>
+          <button class="carousel-btn" data-dir="1" data-target="#c-trend" aria-label="Scroll right">›</button>
+        </div>
+      </div>
+      <div id="c-trend" class="carousel-track" role="list" aria-label="Trending now">
+        <% (trending || []).forEach(it => { %>
+          <%- include('./partials/bookCard', { item: it }) %>
+        <% }) %>
+      </div>
+    </section>
 
-    <%- include('./partials/bookCarousel.ejs', { title: 'Trending now',     items: T, sectionClass: 'section--trending' }) %>
-    <%- include('./partials/bookCarousel.ejs', { title: 'Philosophy Picks', items: P, sectionClass: 'section--philosophy' }) %>
-    <%- include('./partials/bookCarousel.ejs', { title: 'History Picks',    items: H, sectionClass: 'section--history' }) %>
+    <!-- Philosophy -->
+    <section class="carousel">
+      <div class="carousel-head">
+        <h2>Philosophy Picks</h2>
+        <div class="carousel-ctrls" aria-hidden="true">
+          <button class="carousel-btn" data-dir="-1" data-target="#c-phil" aria-label="Scroll left">‹</button>
+          <button class="carousel-btn" data-dir="1" data-target="#c-phil" aria-label="Scroll right">›</button>
+        </div>
+      </div>
+      <div id="c-phil" class="carousel-track" role="list" aria-label="Philosophy Picks">
+        <% (philosophy || []).forEach(it => { %>
+          <%- include('./partials/bookCard', { item: it }) %>
+        <% }) %>
+      </div>
+    </section>
+
+    <!-- History -->
+    <section class="carousel">
+      <div class="carousel-head">
+        <h2>History Picks</h2>
+        <div class="carousel-ctrls" aria-hidden="true">
+          <button class="carousel-btn" data-dir="-1" data-target="#c-hist" aria-label="Scroll left">‹</button>
+          <button class="carousel-btn" data-dir="1" data-target="#c-hist" aria-label="Scroll right">›</button>
+        </div>
+      </div>
+      <div id="c-hist" class="carousel-track" role="list" aria-label="History Picks">
+        <% (history || []).forEach(it => { %>
+          <%- include('./partials/bookCard', { item: it }) %>
+        <% }) %>
+      </div>
+    </section>
   </main>
 
-  <%- include('./partials/footer.ejs') %>
+  <%- include('./partials/footer') %>
+  <script defer src="/public/js/ui.js?v=<%= buildId %>"></script>
 </body>
 </html>
