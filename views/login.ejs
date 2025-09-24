@@ -1,33 +1,35 @@
-<%- include('./partials/head', { pageTitle: 'Login - BookLantern' }) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', { pageTitle: 'Login - BookLantern' }) %>
+</head>
 <body>
   <%- include('./partials/navbar') %>
   <%- include('./partials/backLink') %>
 
-  <main class="stack" style="--gap:20px; max-width:520px; margin:40px auto;">
+  <main class="auth-wrap">
     <h1>Login</h1>
-    <% const msgs = (typeof messages !== 'undefined' && messages) ? messages : {}; %>
-    <% if (msgs.error) { %>
-      <div class="alert error"><%= msgs.error %></div>
+    <p class="auth-sub">Welcome back.</p>
+
+    <% if (messages && messages.error) { %>
+      <div class="alert error"><%= messages.error %></div>
     <% } %>
 
-    <form method="POST" action="/login" class="card stack" style="--gap:12px; padding:16px;">
-      <input type="hidden" name="_csrf" value="<%= csrfToken || '' %>">
+    <form class="auth-form" method="post" action="/login">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '/' %>">
 
-      <label class="stack">
-        <span>Email</span>
-        <input type="email" name="email" required autocomplete="email" placeholder="you@example.com">
+      <label>Email</label>
+      <input class="input lg" type="email" name="email" autocomplete="email" required>
+
+      <label>Password</label>
+      <input class="input lg" type="password" name="password" autocomplete="current-password" required>
+
+      <label class="remember">
+        <input type="checkbox" name="remember" value="1">
+        <span>Remember me</span>
       </label>
 
-      <label class="stack">
-        <span>Password</span>
-        <input type="password" name="password" required autocomplete="current-password" placeholder="••••••••">
-      </label>
-
-      <button class="btn primary" type="submit">Login</button>
+      <button class="btn primary xl" type="submit">Sign in</button>
     </form>
-  </main>
-
-  <%- include('./partials/footer') %>
-</body>
-</html>
+ 
