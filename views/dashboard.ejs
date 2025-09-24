@@ -1,177 +1,23 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <%- include('./partials/head.ejs', {
-    pageTitle: 'Dashboard',
-    pageDescription: 'Your account overview',
-    loadGSAP: true,
-    loadLottie: true
-  }) %>
-  <style>
-    :root { --bg:var(--bg); --text:var(--text); --muted:var(--muted); --card:var(--card); --border:var(--glass-border); --link:var(--primary); }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-    }
-    .wrap {
-      max-width: 960px;
-      margin: 2rem auto;
-      padding: 0 1rem 2.5rem;
-    }
-    .back {
-      display: inline-block;
-      margin: 0.75rem 0 1rem;
-      font-size: 0.95rem;
-      color: var(--link);
-      text-decoration: none;
-      opacity: .95;
-    }
-    .back:hover { text-decoration: underline; }
+<%- include('./partials/head', { pageTitle: 'Dashboard - BookLantern' }) %>
+<body>
+  <%- include('./partials/navbar') %>
 
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      box-shadow: 0 8px 28px rgba(0,0,0,.06);
-      padding: 1.25rem 1.25rem 1rem;
-    }
-    h1 {
-      margin: 0 0 .25rem 0;
-      font-size: clamp(1.5rem, 2.5vw, 2rem);
-      line-height: 1.2;
-    }
-    .lead { color: var(--muted); margin: 0 0 1rem 0; }
+  <main class="stack" style="--gap:18px; max-width:1100px; margin:30px auto;">
+    <h1>Your Dashboard</h1>
 
-    .section {
-      margin-top: 1.25rem;
-    }
-    .section h2 {
-      font-size: 1.1rem;
-      margin: 0 0 .75rem 0;
-    }
-
-    /* Favorites list */
-    .fav-list {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: .75rem;
-    }
-    .fav-item {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: .75rem .85rem;
-      background: #fff;
-    }
-    .fav-item a {
-      color: var(--link);
-      text-decoration: none;
-      font-weight: 600;
-    }
-    .fav-item a:hover { text-decoration: underline; }
-    .empty {
-      color: var(--muted);
-      font-size: .95rem;
-    }
-
-    /* Quick links */
-    .quick {
-      display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .5rem;
-    }
-    .btn {
-      display: inline-block;
-      padding: .6rem .9rem;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: #fff;
-      text-decoration: none;
-      color: var(--text);
-      font-weight: 600;
-    }
-    .btn:hover { background: #f9fafb; }
-
-    /* Reading Streak Meter */
-    .reading-streak {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: var(--card);
-      border-radius: var(--radius-lg);
-      padding: var(--space-md);
-      box-shadow: var(--shadow-lg);
-      display: flex;
-      align-items: center;
-      gap: var(--space-sm);
-      z-index: 10;
-    }
-
-    .streak-flame {
-      width: 24px;
-      height: 24px;
-    }
-
-    .streak-text {
-      font-size: 0.9rem;
-      font-weight: var(--font-weight-medium);
-      color: var(--text);
-    }
-  </style>
-</head>
-<body data-page="dashboard">
-  <%- include('./partials/navbar.ejs') %>
-
-  <!-- Dashboard Scene Background -->
-  <div class="dashboard-background">
-    <canvas id="dashboard3d" aria-hidden="true"></canvas>
-    <div id="dashboard-lottie" hidden></div>
-    <img id="dashboard-fallback" src="/img/dashboard-fallback.svg?v=<%= buildId %>" alt="" hidden />
-  </div>
-
-  <!-- Reading Streak Meter -->
-  <div class="reading-streak">
-    <div class="streak-flame" id="streak-flame"></div>
-    <div class="streak-text">Reading Streak: 7 days</div>
-  </div>
-
-  <div class="wrap">
-    <a href="javascript:history.back()" class="back">← Back</a>
-
-    <div class="card">
-      <h1>Welcome, <%= (user && user.name) ? user.name : 'Reader' %></h1>
-      <p class="lead">Here’s a quick look at your account.</p>
-
-      <div class="quick">
-        <a class="btn" href="/read">📖 Find books</a>
-        <a class="btn" href="/watch">🎬 Explore videos</a>
-        <a class="btn" href="/settings">⚙️ Settings</a>
+    <% if (user) { %>
+      <div class="card" style="padding:16px;">
+        <strong>Welcome, <%= user.name %></strong><br>
+        <span class="muted"><%= user.email %></span>
       </div>
+    <% } %>
 
-      <div class="section">
-        <h2>❤️ Your Favorite Books</h2>
-        <% if (!favorites || favorites.length === 0) { %>
-          <p class="empty">No favorites yet. Browse <a href="/read" style="color:var(--link);text-decoration:none;">Read</a> and tap “Add Favorite”.</p>
-        <% } else { %>
-          <div class="fav-list">
-            <% favorites.forEach(function(fav){ 
-                 // Some favorites may reference a local Book model (fav.book)
-                 const link = fav.book
-                   ? `/read/book/${fav.book._id}`
-                   : `/read/book/${fav.archiveId}`;
-                 const title = (fav.book && fav.book.title) ? fav.book.title : (fav.archiveId || 'Untitled');
-            %>
-              <div class="fav-item">
-                <a href="<%= link %>"><%= title %></a>
-              </div>
-            <% }) %>
-          </div>
-        <% } %>
-      </div>
+    <div class="card" style="padding:16px;">
+      <h2 style="margin-top:0;">Saved & Recent</h2>
+      <div class="muted">Coming soon: saved books, notes, bookmarks.</div>
     </div>
-  </div>
+  </main>
 
-  <!-- Dashboard Scripts -->
-  <script defer src="/js/dashboard.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
+  <%- include('./partials/footer') %>
 </body>
 </html>
