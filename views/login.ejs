@@ -1,35 +1,38 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <%- include('./partials/head', { pageTitle: 'Login - BookLantern' }) %>
-</head>
+<%- include('./partials/head', { pageTitle: 'Login - BookLantern' }) %>
 <body>
   <%- include('./partials/navbar') %>
   <%- include('./partials/backLink') %>
 
-  <main class="auth-wrap">
+  <main class="stack" style="--gap:20px; max-width:520px; margin:40px auto;">
     <h1>Login</h1>
-    <p class="auth-sub">Welcome back.</p>
-
-    <% if (messages && messages.error) { %>
-      <div class="alert error"><%= messages.error %></div>
+    <% const msgs = (typeof messages !== 'undefined' && messages) ? messages : {}; %>
+    <% if (msgs.error) { %>
+      <div class="alert error"><%= msgs.error %></div>
     <% } %>
 
-    <form class="auth-form" method="post" action="/login">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <form method="POST" action="/login" class="card stack" style="--gap:14px; padding:18px;">
+      <input type="hidden" name="_csrf" value="<%= csrfToken || '' %>">
       <input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '/' %>">
 
-      <label>Email</label>
-      <input class="input lg" type="email" name="email" autocomplete="email" required>
+      <label class="stack">
+        <span>Email</span>
+        <input style="font-size:18px" type="email" name="email" required autocomplete="email" placeholder="you@example.com">
+      </label>
 
-      <label>Password</label>
-      <input class="input lg" type="password" name="password" autocomplete="current-password" required>
+      <label class="stack">
+        <span>Password</span>
+        <input style="font-size:18px" type="password" name="password" required autocomplete="current-password" placeholder="••••••••">
+      </label>
 
-      <label class="remember">
+      <label style="display:flex; align-items:center; gap:8px;">
         <input type="checkbox" name="remember" value="1">
         <span>Remember me</span>
       </label>
 
-      <button class="btn primary xl" type="submit">Sign in</button>
+      <button class="btn secondary" type="submit">Login</button>
     </form>
- 
+  </main>
+
+  <%- include('./partials/footer') %>
+</body>
+</html>
