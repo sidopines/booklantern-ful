@@ -1,49 +1,25 @@
-<%- include('./partials/head', { pageTitle: 'Read - BookLantern' }) %>
+<%- include('./partials/head', { pageTitle: (book && book.title ? book.title + ' – Read' : 'Read'), pageDescription: 'Read free books on BookLantern in a clean, distraction-free experience.' }) %>
 <body>
   <%- include('./partials/navbar') %>
-  <main class="stack" style="--gap:32px; padding:24px;">
-    <%- include('./partials/backLink') %>
 
-    <!-- Hero -->
-    <section class="hero">
-      <h1 class="headline">Search & Discover</h1>
-      <form action="/read" method="get" class="hero-search">
-        <input type="text" name="q" value="<%= q || '' %>" placeholder="Search millions of free books..." aria-label="Search books">
-        <button type="submit" class="btn primary">Search</button>
-      </form>
-    </section>
+  <main class="container page-pad">
+    <div class="reader-head">
+      <div class="reader-title"><%= book?.title || 'Untitled' %></div>
+      <div class="reader-src"><%= book?.provider ? book.provider.toUpperCase() : '' %></div>
+    </div>
 
-    <!-- Results -->
-    <% if (q && results && results.length) { %>
-      <section class="grid">
-        <% results.forEach(item => { %>
-          <article class="book-card">
-            <a class="cover-wrap" href="<%= item.href %>" target="_blank" aria-label="Read <%= item.title %>">
-              <% if (item.cover) { %>
-                <img src="<%= item.cover %>" alt="Cover of <%= item.title %>" loading="lazy" onerror="blCoverFallback(this)">
-              <% } else { %>
-                <div class="cover ph"><span class="ph-initials"><%= (item.title || 'BL').slice(0,2).toUpperCase() %></span></div>
-              <% } %>
-            </a>
-            <div class="meta">
-              <h3 class="title"><a href="<%= item.href %>" target="_blank"><%= item.title %></a></h3>
-              <p class="author"><%= item.author %></p>
-            </div>
-            <div class="actions">
-              <a class="btn primary" href="<%= item.href %>" target="_blank">Read</a>
-              <button class="btn secondary btn-listen"
-                      data-title="<%= item.title %>"
-                      data-author="<%= item.author %>">Listen</button>
-            </div>
-          </article>
-        <% }) %>
-      </section>
-    <% } else if (q) { %>
-      <div class="card">No results found for “<%= q %>”. Try another search.</div>
-    <% } else { %>
-      <div class="card">Start by searching above.</div>
-    <% } %>
+    <div class="reader-wrap">
+      <!-- We proxy the source URL so the book stays on booklantern.org -->
+      <iframe
+        class="reader-iframe"
+        src="/proxy?u=<%= encodeURIComponent(readerUrl) %>"
+        referrerpolicy="no-referrer"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+      ></iframe>
+    </div>
   </main>
+
   <%- include('./partials/footer') %>
+  <script defer src="/public/js/ui.js?v=<%= buildId %>"></script>
 </body>
 </html>
