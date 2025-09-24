@@ -1,74 +1,38 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <%- include('./partials/head.ejs', {
-    pageTitle: 'Watch • BookLantern',
-    pageDescription: 'Curated educational videos and talks.'
-  }) %>
-</head>
+<%- include('./partials/head', { pageTitle: 'Watch - BookLantern' }) %>
 <body>
-  <%- include('./partials/navbar.ejs') %>
-
-  <header class="hero">
-    <div class="container hero-inner">
-      <a href="/" onclick="if(document.referrer){history.back();return false;}" class="btn btn-secondary" style="margin-bottom:14px;">← Back</a>
-      <h1 class="page-title">Watch</h1>
-      <p class="page-sub">Curated educational videos and talks.</p>
-    </div>
-  </header>
+  <%- include('./partials/navbar') %>
 
   <main class="container page-pad">
-    <% const list = Array.isArray(videos) ? videos : []; %>
+    <h1 style="font-weight:800;margin-bottom:16px">Watch</h1>
 
-    <% if (!list.length) { %>
-      <section class="panel" style="text-align:center;">
-        <strong>No videos yet.</strong>
-        <div style="margin-top:8px;">Add them via your Admin tool or by creating <code>data/videos.json</code>.</div>
-      </section>
-    <% } else { %>
-
-      <!-- Netflix-style responsive grid -->
-      <section class="video-grid">
-        <% list.forEach(v => { 
-             const id = (v && v._id) || (v && v.id) || '';
-             const title = (v && v.title) || 'Untitled';
-             const by = (v && v.channel) || (v && v.author) || '';
-             const url = (v && v.url) || '#';
-             const provider = (v && v.provider) || '';
-             const thumbExplicit = (v && v.thumbnail) || (v && v.thumb) || '';
-             let thumb = thumbExplicit;
-
-             // YouTube thumbnail inference
-             const ytMatch = url && url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
-             if (!thumb && provider.toLowerCase() === 'youtube' && ytMatch) {
-               thumb = `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`;
-             }
-        %>
-          <article class="video-card">
-            <a class="video-thumb" href="<%= url %>" target="_blank" rel="noopener">
-              <% if (thumb) { %>
-                <img src="<%= thumb %>" alt="Thumbnail: <%= title %>">
-              <% } else { %>
-                <div class="video-ph" aria-hidden="true"></div>
-              <% } %>
-              <div class="video-overlay">
-                <!-- simple play glyph -->
-                <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
-              </div>
-            </a>
-            <div class="video-meta">
-              <h3 class="video-title"><%= title %></h3>
-              <% if (by) { %><div class="video-by"><%= by %></div><% } %>
-              <div class="video-actions">
-                <a class="btn btn-primary" href="<%= url %>" target="_blank" rel="noopener">Watch</a>
-              </div>
+    <% if (videos && videos.length) { %>
+      <section class="video-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;">
+        <% videos.forEach(v => { %>
+          <article class="card" style="overflow:hidden;">
+            <% if (v.thumbnail) { %>
+              <a href="<%= v.url %>" target="_blank" aria-label="Play <%= v.title %>">
+                <img src="<%= v.thumbnail %>" alt="<%= v.title %>" style="width:100%;height:140px;object-fit:cover">
+              </a>
+            <% } %>
+            <div style="padding:12px;">
+              <h3 style="font-size:1rem;font-weight:700;line-height:1.3;margin-bottom:6px;">
+                <a href="<%= v.url %>" target="_blank"><%= v.title %></a>
+              </h3>
+              <% if (v.channel) { %><p class="muted" style="margin:0 0 8px 0"><%= v.channel %></p><% } %>
+              <a class="btn primary" href="<%= v.url %>" target="_blank">Play</a>
             </div>
           </article>
         <% }) %>
       </section>
+    <% } else { %>
+      <div class="card">No videos yet. Ask an admin to add some in <code>/admin/videos</code>.</div>
+    <% } %>
+
+    <% if (user && user.isAdmin) { %>
+      <div style="margin-top:20px;"><a class="btn secondary" href="/admin/videos">Manage videos</a></div>
     <% } %>
   </main>
 
-  <%- include('./partials/footer.ejs') %>
+  <%- include('./partials/footer') %>
 </body>
 </html>
