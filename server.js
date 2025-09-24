@@ -1,4 +1,4 @@
-// server.js — CommonJS, auth, unified /api/book, shelves, proxy, account route
+// server.js — CommonJS, auth, shelves, unified /api/book, proxy, dashboard/admin, watch DB
 require('dotenv').config();
 
 const path = require('path');
@@ -18,7 +18,6 @@ const { v4: uuidv4 } = require('uuid');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// trust proxy for secure cookies on Render
 app.set('trust proxy', 1);
 
 const MONGODB_URI =
@@ -27,7 +26,7 @@ const MONGODB_URI =
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me';
 const NODE_ENV = process.env.NODE_ENV || 'production';
 
-// ---- Mongo (optional) ----
+// ---- Mongo
 let mongoOk = false;
 if (MONGODB_URI) {
   mongoose
@@ -43,19 +42,18 @@ if (MONGODB_URI) {
   console.log('ℹ️  No MONGODB_URI provided — auth features disabled.');
 }
 
+// Models
 let User = null;
-try {
-  User = require('./models/User');
-} catch {
-  console.log('ℹ️  User model not found; login/register will be unavailable.');
-}
+try { User = require('./models/User'); } catch { console.log('ℹ️  User model not found.'); }
+let Video = null;
+try { Video = require('./models/Video'); } catch { console.log('ℹ️  Video model not found.'); }
 
-// ---- Views / static ----
+// ---- Views / static
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use('/public', express.static(path.join(__dirname, 'public'), { maxAge: '7d' }));
 
-// ---- Security / perf ----
+// ---- Security / perf
 app.use(compression());
 app.use(
   helmet({
@@ -65,6 +63,8 @@ app.use(
         'img-src': ["'self'", 'data:', 'https:'],
         'frame-src': [
           "'self'",
+          'https://www.youtube.com',
+          'https://youtube.com',
           'https://www.gutenberg.org',
           'https://gutenberg.org',
           'https://standardebooks.org',
@@ -84,7 +84,7 @@ app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// ---- Sessions ----
+// ---- Sessions
 if (MONGODB_URI) {
   app.use(
     session({
@@ -96,33 +96,30 @@ if (MONGODB_URI) {
         httpOnly: true,
         sameSite: 'lax',
         secure: NODE_ENV === 'production',
-        maxAge: 1000 * 60 * 60 * 24 * 14, // 14 days
+        maxAge: 1000 * 60 * 60 * 24 * 14,
       },
       store: MongoStore.create({ mongoUrl: MONGODB_URI }),
     })
   );
 }
 
-// ---- CSRF ----
+// ---- CSRF
 if (MONGODB_URI) {
   app.use(csrf());
 }
 
-// ---- Locals ----
+// ---- Locals
 const buildId = process.env.BUILD_ID || uuidv4().slice(0, 8);
 app.use((req, res, next) => {
   res.locals.buildId = buildId;
   res.locals.loggedIn = !!(req.session && req.session.userId);
   res.locals.referrer = req.get('referer') || '/';
-  try {
-    if (req.csrfToken) res.locals.csrfToken = req.csrfToken();
-  } catch {
-    res.locals.csrfToken = '';
-  }
+  try { if (req.csrfToken) res.locals.csrfToken = req.csrfToken(); }
+  catch { res.locals.csrfToken = ''; }
   next();
 });
 
-// ---- Helpers ----
+// ---- Helpers
 function initials(title = '') {
   const t = String(title || '').trim();
   if (!t) return 'BK';
@@ -162,7 +159,7 @@ function normalizePGToCard(b) {
   };
 }
 
-// ---- Shelves ----
+// ---- Shelves
 const shelfCache = new NodeCache({ stdTTL: 3600, checkperiod: 120 });
 
 async function fetchOpenLibrarySeed(seed, limit = 10) {
@@ -201,7 +198,7 @@ async function getShelves() {
   return shelves;
 }
 
-// ---- Auth gate ----
+// ---- Auth gates
 function requireLogin(req, res, next) {
   if (!mongoOk || !User) {
     return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}&unavailable=1`);
@@ -209,8 +206,18 @@ function requireLogin(req, res, next) {
   if (req.session && req.session.userId) return next();
   return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
 }
+async function loadUser(req) {
+  if (!mongoOk || !User || !req.session?.userId) return null;
+  try { return await User.findById(req.session.userId).lean(); }
+  catch { return null; }
+}
+async function requireAdmin(req, res, next) {
+  const u = await loadUser(req);
+  if (u && u.role === 'admin') return next();
+  return res.status(403).render('error', { pageTitle: 'Forbidden', message: 'Admins only.' });
+}
 
-// ---- Pages ----
+// ---- Pages
 app.get('/', async (req, res, next) => {
   try {
     const { trending, philosophy, history } = await getShelves();
@@ -220,36 +227,93 @@ app.get('/', async (req, res, next) => {
       philosophy,
       history,
     });
-  } catch (e) {
-    next(e);
-  }
+  } catch (e) { next(e); }
 });
 
 app.get('/about', (req, res) => res.render('about', { pageTitle: 'About' }));
 app.get('/contact', (req, res) => res.render('contact', { pageTitle: 'Contact' }));
-
-// Read tab shouldn't 404; keep a simple landing (or redirect home for now)
 app.get('/read', (req, res) => res.redirect('/'));
 
-// Watch page (guarded empty-state in EJS)
-app.get('/watch', (req, res) => res.render('watch', { pageTitle: 'Watch', videos: [] }));
+// Watch index — from DB
+app.get('/watch', async (req, res, next) => {
+  try {
+    let videos = [];
+    if (Video) {
+      videos = await Video.find({ isPublic: true }).sort({ createdAt: -1 }).lean();
+    }
+    res.render('watch', { pageTitle: 'Watch', videos });
+  } catch (e) { next(e); }
+});
 
-// Book reader (protected)
+// Watch show
+app.get('/watch/:id', async (req, res, next) => {
+  try {
+    if (!Video) return res.render('watch-show', { pageTitle: 'Watch', video: null });
+    const video = await Video.findById(req.params.id).lean();
+    res.render('watch-show', { pageTitle: video ? video.title : 'Watch', video: video || null });
+  } catch (e) { next(e); }
+});
+
+// Reader
 app.get('/read/:provider/:id', requireLogin, (req, res) => {
   const { provider, id } = req.params;
   res.render('read', { provider, id });
 });
 
-// Account page (protected, basic)
+// Account → route by role
 app.get('/account', requireLogin, async (req, res) => {
-  let user = null;
-  if (User) {
-    user = await User.findById(req.session.userId).lean().catch(() => null);
-  }
-  res.render('account', { pageTitle: 'Your Account', user });
+  const user = await loadUser(req);
+  if (!user) return res.redirect('/login');
+  if (user.role === 'admin') return res.redirect('/admin');
+  return res.redirect('/dashboard');
 });
 
-// ---- Unified /api/book (multi-provider) ----
+// Subscriber dashboard
+app.get('/dashboard', requireLogin, async (req, res) => {
+  const user = await loadUser(req);
+  res.render('dashboard', { pageTitle: 'Your Dashboard', user });
+});
+
+// Admin
+app.get('/admin', requireLogin, requireAdmin, async (req, res) => {
+  let videos = [];
+  if (Video) {
+    videos = await Video.find().sort({ createdAt: -1 }).lean();
+  }
+  res.render('admin', { pageTitle: 'Admin', videos, messages: {} });
+});
+
+app.post('/admin/videos/add', requireLogin, requireAdmin, async (req, res) => {
+  const { title, provider, videoId, thumbnail, description } = req.body || {};
+  if (!Video) return res.redirect('/admin');
+  try {
+    await Video.create({
+      title: (title || '').trim(),
+      provider: (provider || 'youtube').trim(),
+      videoId: (videoId || '').trim(),
+      thumbnail: (thumbnail || '').trim() || undefined,
+      description: (description || '').trim() || undefined,
+      isPublic: true,
+    });
+    res.redirect('/admin');
+  } catch (e) {
+    console.error('Add video error:', e);
+    let videos = await Video.find().sort({ createdAt: -1 }).lean();
+    res.status(400).render('admin', { pageTitle: 'Admin', videos, messages: { error: 'Could not add video. Check fields.' }});
+  }
+});
+
+app.post('/admin/videos/:id/delete', requireLogin, requireAdmin, async (req, res) => {
+  if (!Video) return res.redirect('/admin');
+  try {
+    await Video.findByIdAndDelete(req.params.id);
+  } catch (e) {
+    console.error('Delete video error:', e);
+  }
+  res.redirect('/admin');
+});
+
+// ---- Unified /api/book
 app.get('/api/book', async (req, res) => {
   const provider = String(req.query.provider || '').toLowerCase();
   const id = String(req.query.id || '').trim();
@@ -324,7 +388,7 @@ app.get('/api/book', async (req, res) => {
   }
 });
 
-// ---- Proxy for covers ----
+// ---- Proxy
 app.get('/proxy', async (req, res) => {
   const url = req.query.url;
   if (!url || !/^https?:\/\//i.test(url)) return res.sendStatus(400);
@@ -338,7 +402,7 @@ app.get('/proxy', async (req, res) => {
   }
 });
 
-// ---- Auth pages ----
+// ---- Auth pages
 app.get('/login', (req, res) => {
   const unavailable =
     (!mongoOk || !User) ? 'Login is temporarily unavailable (server auth not configured).' : '';
@@ -379,10 +443,7 @@ app.post('/login', async (req, res) => {
       });
     }
     req.session.userId = String(user._id);
-    if (remember) {
-      // extend cookie to 30 days when "Remember me" is checked
-      req.session.cookie.maxAge = 1000 * 60 * 60 * 24 * 30;
-    }
+    if (remember) req.session.cookie.maxAge = 1000 * 60 * 60 * 24 * 30;
     return res.redirect(next);
   } catch (e) {
     console.error('Login error:', e);
@@ -440,24 +501,20 @@ app.post('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/'));
 });
 
-// ---- CSRF error handler ----
+// ---- CSRF error handler
 app.use((err, req, res, next) => {
   if (err && err.code === 'EBADCSRFTOKEN') {
-    if (req.session) {
-      req.session.destroy(() => res.redirect('/login?csrf=1'));
-    } else {
-      res.redirect('/login?csrf=1');
-    }
+    if (req.session) req.session.destroy(() => res.redirect('/login?csrf=1'));
+    else res.redirect('/login?csrf=1');
     return;
   }
   return next(err);
 });
 
-// ---- 404 & generic errors ----
+// ---- 404 & generic errors
 app.use((req, res) => {
   res.status(404).render('404', { pageTitle: 'Page not found' });
 });
-
 app.use((err, req, res, next) => {
   console.error('🔥 Unhandled error:', err);
   const status = err.status || 500;
@@ -468,14 +525,10 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ---- Start ----
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
 
 function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
