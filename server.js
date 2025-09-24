@@ -1,4 +1,4 @@
-// server.js — CommonJS with unified /api/book (OL, Gutenberg, IA, Standard Ebooks)
+// server.js — CommonJS, CSRF-safe auth, unified /api/book, shelves, proxy
 
 require('dotenv').config();
 
@@ -19,6 +19,9 @@ const { v4: uuidv4 } = require('uuid');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
+// IMPORTANT for Render/Heroku behind proxy so secure cookies work
+app.set('trust proxy', 1);
+
 const MONGODB_URI =
   process.env.MONGODB_URI ||
   process.env.MONGO_URL ||
@@ -28,7 +31,7 @@ const MONGODB_URI =
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me';
 const NODE_ENV = process.env.NODE_ENV || 'production';
 
-const cache = new NodeCache({ stdTTL: 3600, checkperiod: 120 }); // 1h shelves cache
+const cache = new NodeCache({ stdTTL: 3600, checkperiod: 120 }); // 1h
 
 // ---------- Mongo (optional) ----------
 let mongoOk = false;
@@ -68,13 +71,7 @@ app.use(
     contentSecurityPolicy: {
       useDefaults: true,
       directives: {
-        // allow loading covers and miscellaneous images
-        'img-src': [
-          "'self'",
-          'data:',
-          'https:',
-        ],
-        // allow iframe embeds from books sources
+        'img-src': ["'self'", 'data:', 'https:'],
         'frame-src': [
           "'self'",
           'https://www.gutenberg.org',
@@ -107,21 +104,17 @@ if (MONGODB_URI) {
       cookie: {
         httpOnly: true,
         sameSite: 'lax',
-        secure: NODE_ENV === 'production',
-        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+        secure: NODE_ENV === 'production', // requires trust proxy
+        maxAge: 1000 * 60 * 60 * 24 * 7,
       },
       store: MongoStore.create({ mongoUrl: MONGODB_URI }),
     })
   );
 }
 
-// CSRF tokens when sessions available
+// ---------- CSRF (when sessions available) ----------
 if (MONGODB_URI) {
   app.use(csrf());
-  app.use((req, res, next) => {
-    res.locals.csrfToken = req.csrfToken();
-    next();
-  });
 }
 
 // ---------- Locals ----------
@@ -129,6 +122,12 @@ const buildId = process.env.BUILD_ID || uuidv4().slice(0, 8);
 app.use((req, res, next) => {
   res.locals.buildId = buildId;
   res.locals.loggedIn = !!(req.session && req.session.userId);
+  // if csurf is enabled, expose token for all views; guard if not present
+  try {
+    if (req.csrfToken) res.locals.csrfToken = req.csrfToken();
+  } catch (_) {
+    res.locals.csrfToken = '';
+  }
   next();
 });
 
@@ -139,7 +138,6 @@ function initials(title = '') {
   const parts = t.split(/\s+/).slice(0, 2);
   return parts.map((p) => p[0]).join('').toUpperCase();
 }
-
 function pickCoverUrl({ provider, coverId, image }) {
   if (provider === 'ol' && coverId) {
     const url = `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`;
@@ -150,7 +148,6 @@ function pickCoverUrl({ provider, coverId, image }) {
   }
   return '';
 }
-
 function normalizeOLWorkToCard(w) {
   return {
     provider: 'ol',
@@ -174,7 +171,7 @@ function normalizePGToCard(b) {
   };
 }
 
-// ---------- External shelves ----------
+// ---------- Shelves ----------
 async function fetchOpenLibrarySeed(seed, limit = 10) {
   const u = `https://openlibrary.org/subjects/${encodeURIComponent(seed)}.json?limit=${limit}`;
   const r = await fetch(u);
@@ -183,7 +180,6 @@ async function fetchOpenLibrarySeed(seed, limit = 10) {
   const works = j.works || [];
   return works.map(normalizeOLWorkToCard);
 }
-
 async function fetchGutendex(query, limit = 10) {
   const u = `https://gutendex.com/books/?search=${encodeURIComponent(query)}`;
   const r = await fetch(u);
@@ -192,11 +188,10 @@ async function fetchGutendex(query, limit = 10) {
   const books = (j.results || []).slice(0, limit);
   return books.map(normalizePGToCard);
 }
-
+const shelfCache = new NodeCache({ stdTTL: 3600, checkperiod: 120 });
 async function getShelves() {
-  const cached = cache.get('shelves');
+  const cached = shelfCache.get('shelves');
   if (cached) return cached;
-
   const [trOl, trPg, phOl, phPg, hiOl, hiPg] = await Promise.all([
     fetchOpenLibrarySeed('trending', 8).catch(() => []),
     fetchGutendex('fiction', 8).catch(() => []),
@@ -205,20 +200,18 @@ async function getShelves() {
     fetchOpenLibrarySeed('history', 8).catch(() => []),
     fetchGutendex('history', 8).catch(() => []),
   ]);
-
   const shelves = {
     trending: [...trOl, ...trPg].slice(0, 12),
     philosophy: [...phOl, ...phPg].slice(0, 12),
     history: [...hiOl, ...hiPg].slice(0, 12),
   };
-
-  cache.set('shelves', shelves, 3600);
+  shelfCache.set('shelves', shelves, 3600);
   return shelves;
 }
 
-// ---------- Auth helpers ----------
+// ---------- Auth helper ----------
 function requireLogin(req, res, next) {
-  if (!MONGODB_URI) return next(); // auth disabled in dev
+  if (!MONGODB_URI) return next(); // auth disabled
   if (req.session && req.session.userId) return next();
   return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
 }
@@ -242,19 +235,12 @@ app.get('/about', (req, res) => res.render('about', { pageTitle: 'About' }));
 app.get('/contact', (req, res) => res.render('contact', { pageTitle: 'Contact' }));
 app.get('/watch', (req, res) => res.render('watch', { pageTitle: 'Watch' }));
 
-// Reader (login-gated)
 app.get('/read/:provider/:id', requireLogin, (req, res) => {
   const { provider, id } = req.params;
   res.render('read', { provider, id });
 });
 
 // ---------- Unified /api/book ----------
-/*
-  Returns one of:
-  { ok:true, type:'html', content, title }
-  { ok:true, type:'url',  url,     title }
-  { ok:false, message }
-*/
 app.get('/api/book', async (req, res) => {
   const provider = String(req.query.provider || '').toLowerCase();
   const id = String(req.query.id || '').trim();
@@ -264,73 +250,41 @@ app.get('/api/book', async (req, res) => {
       return res.json({ ok: false, message: 'Missing provider or id' });
     }
 
-    // --- Project Gutenberg via Gutendex ---
+    // Project Gutenberg via Gutendex
     if (provider === 'pg') {
       const r = await fetch(`https://gutendex.com/books/${encodeURIComponent(id)}`);
       if (!r.ok) return res.json({ ok: false, message: 'Gutendex lookup failed' });
       const j = await r.json();
       const fm = j.formats || {};
-
-      // Prefer HTML → inject
-      const html =
-        fm['text/html; charset=utf-8'] ||
-        fm['text/html'] ||
-        null;
-
+      const html = fm['text/html; charset=utf-8'] || fm['text/html'] || null;
       if (html) {
-        // Fetch and inline (best reading + TTS)
-        const proxied = await fetch(html);
-        if (proxied.ok) {
-          const contentType = (proxied.headers.get('content-type') || '').toLowerCase();
-          if (contentType.includes('text/html')) {
-            const raw = await proxied.text();
-            // Light clean: strip scripts/links (security, noise)
-            const sanitized = raw
+        const prox = await fetch(html);
+        if (prox.ok) {
+          const ct = (prox.headers.get('content-type') || '').toLowerCase();
+          if (ct.includes('text/html')) {
+            const raw = await prox.text();
+            const clean = raw
               .replace(/<script[\s\S]*?<\/script>/gi, '')
               .replace(/<link[\s\S]*?>/gi, '')
               .replace(/<style[\s\S]*?<\/style>/gi, '');
-            return res.json({
-              ok: true,
-              type: 'html',
-              title: j.title || 'Untitled',
-              content: sanitized,
-            });
+            return res.json({ ok: true, type: 'html', title: j.title || 'Untitled', content: clean });
           }
         }
       }
-
-      // Plain text fallback → inject
-      const txt =
-        fm['text/plain; charset=utf-8'] ||
-        fm['text/plain'] ||
-        null;
+      const txt = fm['text/plain; charset=utf-8'] || fm['text/plain'] || null;
       if (txt) {
         const t = await (await fetch(txt)).text();
-        return res.json({
-          ok: true,
-          type: 'html',
-          title: j.title || 'Untitled',
-          content: `<pre>${escapeHtml(t)}</pre>`,
-        });
+        return res.json({ ok: true, type: 'html', title: j.title || 'Untitled', content: `<pre>${escapeHtml(t)}</pre>` });
       }
-
-      // PDF/EPUB fallback → open in iframe (remote)
       const pdf = fm['application/pdf'];
-      if (pdf) {
-        return res.json({ ok: true, type: 'url', title: j.title || 'Untitled', url: pdf });
-      }
+      if (pdf) return res.json({ ok: true, type: 'url', title: j.title || 'Untitled', url: pdf });
       const epub = fm['application/epub+zip'];
-      if (epub) {
-        // Let browser handle via plugin/extension/OS; still iframe
-        return res.json({ ok: true, type: 'url', title: j.title || 'Untitled', url: epub });
-      }
-
+      if (epub) return res.json({ ok: true, type: 'url', title: j.title || 'Untitled', url: epub });
       return res.json({ ok: false, message: 'No readable format found for this PG id.' });
     }
 
-    // --- Open Library (try to resolve to IA viewer or readable HTML) ---
+    // Open Library → try IA viewer
     if (provider === 'ol') {
-      // Try editions to find an IA/ocaid
       const ed = await fetch(`https://openlibrary.org/works/${encodeURIComponent(id)}/editions.json?limit=10`);
       if (ed.ok) {
         const ej = await ed.json();
@@ -338,26 +292,22 @@ app.get('/api/book', async (req, res) => {
         const found = entries.find(e => e.ocaid || (Array.isArray(e.ia) && e.ia.length));
         const ocaid = found?.ocaid || (Array.isArray(found?.ia) ? found.ia[0] : null);
         if (ocaid) {
-          // IA viewer (remote). CSP allows frame-src archive.org.
           const viewer = `https://archive.org/details/${encodeURIComponent(ocaid)}?view=theater&ui=embed`;
           return res.json({ ok: true, type: 'url', title: found.title || 'Open Library', url: viewer });
         }
       }
-      // Fallback: OL work page (not ideal UX, but displays metadata; your proxy/reader will still contain it)
       const olWork = `https://openlibrary.org/works/${encodeURIComponent(id)}`;
       return res.json({ ok: true, type: 'url', title: 'Open Library', url: olWork });
     }
 
-    // --- Internet Archive direct (if you call with provider=ia&id=<identifier>) ---
+    // Internet Archive direct
     if (provider === 'ia') {
       const viewer = `https://archive.org/details/${encodeURIComponent(id)}?view=theater&ui=embed`;
       return res.json({ ok: true, type: 'url', title: id, url: viewer });
     }
 
-    // --- Standard Ebooks: prefer the HTML page for the book if id is full slug ---
+    // Standard Ebooks
     if (provider === 'se') {
-      // If id looks like "author-name/book-title" (slug), direct to book page
-      // Ex: https://standardebooks.org/ebooks/mark-twain/adventures-of-huckleberry-finn
       const base = `https://standardebooks.org/ebooks/${id}`;
       return res.json({ ok: true, type: 'url', title: id, url: base });
     }
@@ -369,7 +319,7 @@ app.get('/api/book', async (req, res) => {
   }
 });
 
-// ---------- Proxy (images or generic passthrough) ----------
+// ---------- Proxy ----------
 app.get('/proxy', async (req, res) => {
   const url = req.query.url;
   if (!url || !/^https?:\/\//i.test(url)) return res.sendStatus(400);
@@ -383,11 +333,12 @@ app.get('/proxy', async (req, res) => {
   }
 });
 
-// ---------- Auth ----------
+// ---------- Auth pages ----------
 app.get('/login', (req, res) => {
+  // res.locals.csrfToken is already set (when csurf enabled)
   res.render('login', {
     pageTitle: 'Login',
-    messages: {},
+    messages: req.query.csrf ? { error: 'Session expired. Please try again.' } : {},
     next: req.query.next || '/',
   });
 });
@@ -461,10 +412,26 @@ app.post('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/'));
 });
 
-// ---------- 404 & errors ----------
+// ---------- CSRF error handler FIRST ----------
+app.use((err, req, res, next) => {
+  if (err && err.code === 'EBADCSRFTOKEN') {
+    // Session likely rotated/expired. Redirect to login to mint fresh token.
+    if (req.session) {
+      // destroy old session to be safe
+      req.session.destroy(() => res.redirect('/login?csrf=1'));
+    } else {
+      res.redirect('/login?csrf=1');
+    }
+    return;
+  }
+  return next(err);
+});
+
+// ---------- 404 & generic errors ----------
 app.use((req, res) => {
   res.status(404).render('404', { pageTitle: 'Page not found' });
 });
+
 app.use((err, req, res, next) => {
   console.error('🔥 Unhandled error:', err);
   const status = err.status || 500;
@@ -482,8 +449,5 @@ app.listen(PORT, () => {
 
 // ---------- tiny util ----------
 function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
