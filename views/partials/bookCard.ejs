@@ -1,57 +1,25 @@
 <%
-  // Safe item access
-  const it = item || {};
-
-  // Title/author
-  const title  = (it.title  || 'Untitled').toString();
-  const author = (it.author || it.authors || 'Unknown').toString();
-
-  // Primary link (prefer explicit read/url/href; otherwise fallback to internal search)
-  const primaryUrl =
-    it.readUrl || it.url || it.href || it.openlibrary_url || it.sourceUrl || '';
-  const safeQuery = encodeURIComponent([title, author].filter(Boolean).join(' '));
-  const href = primaryUrl ? String(primaryUrl) : `/read?q=${safeQuery}`;
-
-  // Cover: normalize to https; let ui.js handle onerror proxy fallback
-  const rawCover = it.cover || it.coverUrl || it.image || it.thumbnail || '';
-  const cover = rawCover ? String(rawCover).replace(/^http:/, 'https:') : '';
-
-  // Button labels (customizable if you ever pass them in)
-  const readLabel   = (it.readLabel   || 'Read').toString();
-  const listenLabel = (it.listenLabel || 'Listen').toString();
+  const t = item && item.title ? item.title : 'Untitled';
+  const a = item && item.author ? item.author : 'Unknown';
+  const href = item && item.href ? item.href : `/read?q=${encodeURIComponent(t + ' ' + a)}`;
+  const cover = (item && item.cover) ? String(item.cover).replace(/^http:/, 'https:') : '';
 %>
-
-<li class="card book-card" role="listitem">
-  <!-- Entire cover is a link -->
-  <a class="cover-wrap" href="<%= href %>" aria-label="Read <%= title %>">
+<article class="book-card">
+  <a class="cover-wrap" href="<%= href %>" target="_blank" aria-label="Read <%= t %>">
     <% if (cover) { %>
-      <img
-        class="cover"
-        src="<%= cover %>"
-        alt="Cover: <%= title %>"
-        loading="lazy"
-        referrerpolicy="no-referrer"
-        onerror="window.blCoverFallback && window.blCoverFallback(this)"
-      >
+      <img src="<%= cover %>" alt="Cover of <%= t %>" loading="lazy" onerror="blCoverFallback(this)">
     <% } else { %>
-      <div class="cover ph" aria-hidden="true">
-        <span class="ph-initials"><%= (title.trim().slice(0,2) || 'BL').toUpperCase() %></span>
-      </div>
+      <div class="cover ph"><span class="ph-initials"><%= (t||'BL').slice(0,2).toUpperCase() %></span></div>
     <% } %>
   </a>
 
   <div class="meta">
-    <div class="title" title="<%= title %>"><%= title %></div>
-    <div class="author"><%= author %></div>
+    <h3 class="title"><a href="<%= href %>" target="_blank"><%= t %></a></h3>
+    <p class="author"><%= a %></p>
   </div>
 
   <div class="actions">
-    <a class="btn btn-primary" href="<%= href %>"><%= readLabel %></a>
-    <button
-      class="btn btn-secondary btn-listen"
-      type="button"
-      data-title="<%- title.replace(/"/g,'&quot;') %>"
-      data-author="<%- author.replace(/"/g,'&quot;') %>"
-    ><%= listenLabel %></button>
+    <a class="btn primary" href="<%= href %>" target="_blank">Read</a>
+    <button class="btn secondary btn-listen" data-title="<%= t %>" data-author="<%= a %>">Listen</button>
   </div>
-</li>
+</article>
