@@ -1,26 +1,26 @@
-<%
-  const _loggedIn =
-    (typeof loggedIn !== 'undefined' && !!loggedIn) ||
-    (typeof user !== 'undefined' && !!user) || false;
-%>
-<nav class="navbar" style="position:sticky;top:0;z-index:40;background:rgba(18,22,33,.85);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,.06)">
-  <div class="container" style="display:flex;align-items:center;justify-content:space-between;height:60px">
-    <div style="display:flex;align-items:center;gap:16px">
-      <a href="/" style="display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.02em">
-        <img src="/public/img/brand.svg" alt="" width="20" height="20">
-        <span>BookLantern</span>
-      </a>
-      <a href="/read">Read</a>
-      <a href="/watch">Watch</a>
-      <a href="/about">About</a>
-      <a href="/contact">Contact</a>
-    </div>
-    <div style="display:flex;align-items:center;gap:10px">
-      <% if (_loggedIn) { %>
-        <a class="btn secondary" href="/account">Account</a>
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="/">📚 <span>BookLantern</span></a>
+
+    <ul class="nav-links">
+      <li><a href="/read">Read</a></li>
+      <li><a href="/watch">Watch</a></li>
+      <li><a href="/about">About</a></li>
+      <li><a href="/contact">Contact</a></li>
+    </ul>
+
+    <div class="nav-auth">
+      <% if (_loggedIn && _user) { %>
+        <div class="account">
+          <a class="btn ghost" href="/account" aria-label="Account"><%= _user.name || 'Account' %></a>
+          <form method="post" action="/logout" style="display:inline">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button class="btn danger" type="submit">Logout</button>
+          </form>
+        </div>
       <% } else { %>
         <a class="btn ghost" href="/login">Login</a>
-        <a class="btn secondary" href="/register">Register</a>
+        <a class="btn primary" href="/register">Register</a>
       <% } %>
     </div>
   </div>
