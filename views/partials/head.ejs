@@ -1,21 +1,26 @@
-<!doctype html>
-<html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><%= typeof pageTitle !== 'undefined' ? pageTitle : 'BookLantern' %></title>
-  <meta name="description" content="<%= typeof pageDescription !== 'undefined' ? pageDescription : 'Discover millions of free books.' %>">
+  <meta name="description" content="<%= typeof pageDescription !== 'undefined' ? pageDescription : 'Millions of free books from globally trusted libraries. One clean reader.' %>">
+  <link rel="icon" href="/public/logo.svg">
+  <link rel="apple-touch-icon" href="/public/logo.svg">
+  <link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>">
 
-  <!-- Font: Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <!-- Apply saved theme ASAP to avoid flash -->
+  <script>
+    (function() {
+      try {
+        var saved = localStorage.getItem('bl.theme'); // 'light' | 'dark' | 'system' | null
+        if (saved === 'light' || saved === 'dark') {
+          document.documentElement.setAttribute('data-theme', saved);
+        } else {
+          document.documentElement.removeAttribute('data-theme'); // system
+        }
+      } catch(e) {}
+    })();
+  </script>
 
-  <% const _build = (typeof buildId !== 'undefined' && buildId) ? buildId : 'dev'; %>
-
-  <!-- Core stylesheet -->
-  <link rel="stylesheet" href="/public/css/site.css?v=<%= _build %>">
-
-  <!-- Core UI script -->
-  <script defer src="/public/js/ui.js?v=<%= _build %>"></script>
+  <!-- Theme toggle logic -->
+  <script defer src="/public/js/theme.js?v=<%= buildId %>"></script>
 </head>
