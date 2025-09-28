@@ -1,23 +1,18 @@
-<%- include('./partials/head', { pageTitle: 'Dashboard - BookLantern' }) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', { pageTitle: 'Your Library - BookLantern' }) %>
+</head>
 <body>
   <%- include('./partials/navbar') %>
-
-  <main class="stack" style="--gap:18px; max-width:1100px; margin:30px auto;">
-    <h1>Your Dashboard</h1>
-
-    <% if (user) { %>
-      <div class="card" style="padding:16px;">
-        <strong>Welcome, <%= user.name %></strong><br>
-        <span class="muted"><%= user.email %></span>
-      </div>
-    <% } %>
-
-    <div class="card" style="padding:16px;">
-      <h2 style="margin-top:0;">Saved & Recent</h2>
-      <div class="muted">Coming soon: saved books, notes, bookmarks.</div>
-    </div>
+  <main class="stack" style="--gap:16px; max-width:1000px; margin:30px auto;">
+    <h1>Your Library</h1>
+    <p>Welcome, <strong><%= user?.email %></strong>.</p>
+    <form method="post" action="/logout">
+      <button class="btn">Logout</button>
+    </form>
+    <p class="muted">This page will list your saved books & notes (from Supabase).</p>
   </main>
-
   <%- include('./partials/footer') %>
 </body>
 </html>
