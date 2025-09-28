@@ -1,18 +1,30 @@
-<% const b = typeof b !== 'undefined' ? b : {}; %>
+<% /* views/partials/bookCard.ejs — final
+     Expects a book object passed in as `b`
+     Example include:
+       <%- include('./partials/bookCard', { b }) %>
+*/ %>
+
 <article class="card">
   <a class="cover" href="/read/<%= b.provider %>/<%= b.id %>">
     <% if (b.cover) { %>
-      <img src="<%= b.cover %>" alt="Cover: <%= b.title %>">
+      <img loading="lazy" src="<%= b.cover %>" alt="Cover of <%= b.title %>">
     <% } else { %>
-      <div class="ph" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#999;font-weight:700;">P</div>
+      <div class="cover ph"><span class="ph-initials">P</span></div>
     <% } %>
   </a>
+
   <div class="meta">
-    <p class="t"><%= b.title %></p>
-    <% if (b.author) { %><p class="a"><%= b.author %></p><% } %>
-    <div class="actions">
-      <a class="btn primary" href="/read/<%= b.provider %>/<%= b.id %>">Read</a>
-      <button class="btn ghost" data-listen data-provider="<%= b.provider %>" data-id="<%= b.id %>">Listen</button>
-    </div>
+    <div class="title"><%= b.title %></div>
+    <% if (b.author) { %><div class="author"><%= b.author %></div><% } %>
+  </div>
+
+  <div class="actions">
+    <a class="btn sm" href="/read/<%= b.provider %>/<%= b.id %>">Read</a>
+    <button
+      class="btn sm ghost listen"
+      data-provider="<%= b.provider %>"
+      data-id="<%= b.id %>">
+      Listen
+    </button>
   </div>
 </article>
