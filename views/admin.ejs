@@ -1,76 +1,18 @@
-<%- include('./partials/head', { pageTitle: 'Admin - BookLantern' }) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', { pageTitle: 'Admin - BookLantern' }) %>
+</head>
 <body>
   <%- include('./partials/navbar') %>
-
-  <main class="stack" style="--gap:24px; max-width:1100px; margin:30px auto;">
+  <main class="stack" style="--gap:16px; max-width:1000px; margin:30px auto;">
     <h1>Admin</h1>
-
-    <section class="card" style="padding:16px;">
-      <h2 style="margin-top:0;">Add Video</h2>
-      <% if (messages && messages.error) { %>
-        <div class="alert error"><%= messages.error %></div>
-      <% } %>
-      <form method="POST" action="/admin/videos/add" class="stack" style="--gap:12px;">
-        <input type="hidden" name="_csrf" value="<%= csrfToken || '' %>">
-        <label class="stack">
-          <span>Title</span>
-          <input type="text" name="title" required placeholder="Video title">
-        </label>
-        <label class="stack">
-          <span>Provider</span>
-          <select name="provider">
-            <option value="youtube">YouTube</option>
-          </select>
-        </label>
-        <label class="stack">
-          <span>Video ID (YouTube)</span>
-          <input type="text" name="videoId" required placeholder="e.g., dQw4w9WgXcQ">
-        </label>
-        <label class="stack">
-          <span>Thumbnail URL (optional)</span>
-          <input type="url" name="thumbnail" placeholder="https://i.ytimg.com/vi/ID/hqdefault.jpg">
-        </label>
-        <label class="stack">
-          <span>Description (optional)</span>
-          <textarea name="description" rows="3" placeholder="Short description"></textarea>
-        </label>
-
-        <button class="btn secondary" type="submit">Add Video</button>
-      </form>
-    </section>
-
-    <section class="stack" style="--gap:12px;">
-      <h2 style="margin:0;">Videos</h2>
-
-      <% const list = (Array.isArray(videos) ? videos : []); %>
-      <% if (!list.length) { %>
-        <div class="card" style="padding:16px;">No videos yet.</div>
-      <% } else { %>
-        <div class="grid" style="--cols:4; --gap:16px;">
-          <% list.forEach(v => { %>
-            <article class="card" style="overflow:hidden;">
-              <a class="cover" href="/watch/<%= v._id %>">
-                <% if (v.thumbnail) { %>
-                  <img src="<%= v.thumbnail %>" alt="">
-                <% } else { %>
-                  <img src="https://i.ytimg.com/vi/<%= v.videoId %>/hqdefault.jpg" alt="">
-                <% } %>
-              </a>
-              <div class="stack" style="--gap:8px; padding:12px;">
-                <strong><%= v.title %></strong>
-                <form method="POST" action="/admin/videos/<%= v._id %>/delete" onsubmit="return confirm('Delete this video?')" style="display:flex;gap:8px;">
-                  <input type="hidden" name="_csrf" value="<%= csrfToken || '' %>">
-                  <button class="btn small" type="submit">Delete</button>
-                  <a class="btn small secondary" href="/watch/<%= v._id %>">Open</a>
-                </form>
-              </div>
-            </article>
-          <% }) %>
-        </div>
-      <% } %>
-    </section>
+    <p>You are signed in as <strong><%= user?.email %></strong> (role: <%= user?.role %>).</p>
+    <p class="muted">Here you’ll manage homepage selections and Watch videos.</p>
+    <form method="post" action="/logout">
+      <button class="btn">Logout</button>
+    </form>
   </main>
-
   <%- include('./partials/footer') %>
 </body>
 </html>
