@@ -1,36 +1,20 @@
-<!doctype html>
-<html lang="en" data-theme="<%= (typeof forcedTheme !== 'undefined' ? forcedTheme : '') %>">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title><%= typeof pageTitle !== 'undefined' ? pageTitle : 'BookLantern' %></title>
-  <% if (typeof pageDescription !== 'undefined') { %>
-    <meta name="description" content="<%= pageDescription %>">
-  <% } %>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title || "BookLantern" %></title>
+  <meta name="description" content="BookLantern — millions of free books in one clean reader" />
 
-  <!-- Favicon & PWA -->
-  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
-  <link rel="alternate icon" href="/public/favicon.ico"><!-- legacy fallback -->
-  <link rel="mask-icon" href="/public/mask-icon.svg" color="#0B1020">
-  <link rel="apple-touch-icon" href="/public/logo.svg">
-  <link rel="manifest" href="/public/site.webmanifest">
-  <meta name="theme-color" content="#7C95FF">
+  <!-- Favicons -->
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <meta name="theme-color" content="#ffffff" />
 
-  <!-- Early theme init to avoid flash -->
-  <script>
-    (function() {
-      try {
-        var t = localStorage.getItem('bl.theme');
-        if (t === 'dark') document.documentElement.setAttribute('data-theme','dark');
-        if (t === 'light') document.documentElement.setAttribute('data-theme','');
-      } catch (e) {}
-    })();
-  </script>
+  <!-- CSS -->
+  <link rel="stylesheet" href="/public/css/site.css?v=<%= Date.now() %>" />
 
-  <!-- Styles -->
-  <link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>">
-
-  <!-- Core scripts -->
-  <script defer src="/public/js/ui.js?v=<%= buildId %>"></script>
-  <script defer src="/public/js/theme.js?v=<%= buildId %>"></script>
+  <!-- Scripts -->
+  <script src="/public/js/ui.js?v=<%= Date.now() %>" defer></script>
 </head>
