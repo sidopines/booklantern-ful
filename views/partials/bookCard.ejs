@@ -1,9 +1,3 @@
-<% /* views/partials/bookCard.ejs — final
-     Expects a book object passed in as `b`
-     Example include:
-       <%- include('./partials/bookCard', { b }) %>
-*/ %>
-
 <article class="card">
   <a class="cover" href="/read/<%= b.provider %>/<%= b.id %>">
     <% if (b.cover) { %>
