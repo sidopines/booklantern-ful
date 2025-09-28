@@ -1,0 +1,11 @@
+{
+  "name": "BookLantern",
+  "short_name": "BookLantern",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F9FAFB",
+  "theme_color": "#7C95FF",
+  "icons": [
+    { "src": "/public/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
