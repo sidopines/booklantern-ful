@@ -1,15 +1,21 @@
 <nav class="navbar">
-  <div class="nav-inner">
+  <div class="container nav-inner">
     <a class="brand" href="/">BookLantern</a>
+
     <div class="nav-links">
-      <a href="/read">Read</a>
+      <a href="/read/pg/10471">Read</a>
       <a href="/watch">Watch</a>
       <a href="/about">About</a>
       <a href="/contact">Contact</a>
     </div>
+
     <div class="nav-right">
-      <% if (loggedIn) { %>
-        <a href="/account">Account</a>
+      <% if (typeof isAuthenticated !== 'undefined' && isAuthenticated) { %>
+        <% if (typeof isAdmin !== 'undefined' && isAdmin) { %>
+          <a href="/admin">Account</a>
+        <% } else { %>
+          <a href="/dashboard">Account</a>
+        <% } %>
         <form method="POST" action="/logout" style="display:inline;">
           <button class="btn ghost" type="submit">Logout</button>
         </form>
