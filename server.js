@@ -65,6 +65,7 @@ app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.isAuthenticated = !!req.session.user;
   res.locals.isAdmin = !!(req.session.user && req.session.user.role === 'admin');
+  res.locals.loggedIn = res.locals.isAuthenticated; // <-- alias for legacy templates
   res.locals.referrer = req.get('referer') || '/';
   next();
 });
@@ -183,7 +184,6 @@ app.post('/register', csrfProtection, async (req, res) => {
     }
     const user = data.user;
     if (!user) {
-      // If email confirmation is ON, user will be null until they confirm.
       return res.render('register', {
         csrfToken: req.csrfToken(),
         success: 'Please check your email to confirm your account.',
@@ -216,15 +216,11 @@ app.post('/logout', async (req, res) => {
 // Account pages
 // ----------------------
 app.get('/dashboard', requireAuth, (req, res) => {
-  res.render('dashboard', {
-    pageTitle: 'Your Library'
-  });
+  res.render('dashboard', { pageTitle: 'Your Library' });
 });
 
 app.get('/admin', requireAuth, requireAdmin, (req, res) => {
-  res.render('admin', {
-    pageTitle: 'Admin'
-  });
+  res.render('admin', { pageTitle: 'Admin' });
 });
 
 // ----------------------
@@ -232,13 +228,9 @@ app.get('/admin', requireAuth, requireAdmin, (req, res) => {
 // ----------------------
 app.get('/read/:provider/:id', requireAuth, (req, res) => {
   const { provider, id } = req.params;
-  res.render('read', {
-    provider, id,
-    pageTitle: 'Read - BookLantern',
-  });
+  res.render('read', { provider, id, pageTitle: 'Read - BookLantern' });
 });
 
-// Proxy images/files (CORS-safe)
 app.get('/proxy', async (req, res) => {
   try {
     const url = req.query.url;
@@ -253,7 +245,6 @@ app.get('/proxy', async (req, res) => {
   }
 });
 
-// Unified book fetcher used by the reader
 app.get('/api/book', requireAuth, async (req, res) => {
   const { provider, id } = req.query;
   try {
