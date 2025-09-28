@@ -5,21 +5,19 @@
 </head>
 <body>
   <%- include('./partials/navbar') %>
-
-  <main class="container stack" style="--gap:16px;">
+  <main class="stack" style="--gap:16px; max-width:1100px; margin:30px auto; padding:0 16px;">
     <h1>Search results for “<%= q %>”</h1>
 
-    <% if (!results || results.length === 0) { %>
-      <p class="muted">No matches found. Try another keyword.</p>
+    <% if (!results || !results.length) { %>
+      <p class="muted">No results.</p>
     <% } else { %>
-      <div class="grid">
+      <div class="carousel">
         <% results.forEach(b => { %>
           <%- include('./partials/bookCard', { b }) %>
         <% }) %>
       </div>
     <% } %>
   </main>
-
   <%- include('./partials/footer') %>
 </body>
 </html>
