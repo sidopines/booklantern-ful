@@ -1,4 +1,4 @@
-// server.js — Supabase + multi-source reader (OL + IA + PG)
+// server.js — Supabase edition + Service Worker route
 require('dotenv').config();
 
 const express = require('express');
@@ -59,6 +59,12 @@ app.use(cookieSession({
 // Static
 app.use('/public', express.static(path.join(__dirname, 'public'), { maxAge: '7d' }));
 
+// Serve Service Worker from root scope -> /sw.js (file lives in /public/sw.js)
+app.get('/sw.js', (req, res) => {
+  res.set('Content-Type', 'application/javascript');
+  res.sendFile(path.join(__dirname, 'public', 'sw.js'));
+});
+
 // Locals for all views
 app.use((req, res, next) => {
   res.locals.buildId = BUILD_ID;
@@ -100,7 +106,7 @@ const ADMIN_EMAILS = new Set(
     .filter(Boolean)
 );
 
-// Cache for book API + lists
+// Cache for book API
 const cache = new NodeCache({ stdTTL: 60 * 30 }); // 30 min
 
 // ----------------------
@@ -108,13 +114,9 @@ const cache = new NodeCache({ stdTTL: 60 * 30 }); // 30 min
 // ----------------------
 app.get('/', async (req, res) => {
   try {
-    // three rows using Open Library subjects (broad + neutral)
-    const [trending, philosophy, history] = await Promise.all([
-      listFromOpenLibrarySubject('fiction', 10),
-      listFromOpenLibrarySubject('philosophy', 10),
-      listFromOpenLibrarySubject('history', 10),
-    ]);
-
+    const trending = await pickSomeBooks('trending');
+    const philosophy = await pickSomeBooks('philosophy');
+    const history = await pickSomeBooks('history');
     return res.render('index', {
       pageTitle: 'BookLantern',
       trending,
@@ -127,16 +129,19 @@ app.get('/', async (req, res) => {
   }
 });
 
+app.get('/watch', async (req, res) => {
+  try {
+    // Placeholder list to avoid EJS error; wire to Supabase later.
+    const videos = [];
+    return res.render('watch', { videos });
+  } catch (e) {
+    console.error('Watch error:', e);
+    return res.render('error', { message: 'Unexpected error' });
+  }
+});
+
 app.get('/about', (req, res) => res.render('about'));
 app.get('/contact', (req, res) => res.render('contact'));
-
-// ----------------------
-// WATCH (safe stub so template never 500s)
-// ----------------------
-app.get('/watch', (req, res) => {
-  // you can feed this from Supabase later
-  res.render('watch', { videos: [] });
-});
 
 // ----------------------
 // Auth pages (Supabase)
@@ -243,7 +248,7 @@ app.get('/read/:provider/:id', requireAuth, (req, res) => {
   res.render('read', { provider, id, pageTitle: 'Read - BookLantern' });
 });
 
-// SEARCH (multi-source)
+// Search (multi-source lite)
 app.get('/search', async (req, res) => {
   const q = (req.query.q || '').trim();
   if (!q) return res.redirect('/');
@@ -256,7 +261,7 @@ app.get('/search', async (req, res) => {
   }
 });
 
-// Cover / file proxy (to avoid CORS & mixed content)
+// Proxy images/files (CORS-safe)
 app.get('/proxy', async (req, res) => {
   try {
     const url = req.query.url;
@@ -271,7 +276,7 @@ app.get('/proxy', async (req, res) => {
   }
 });
 
-// Reader data
+// Unified book fetcher used by the reader
 app.get('/api/book', requireAuth, async (req, res) => {
   const { provider, id } = req.query;
   try {
@@ -310,35 +315,27 @@ app.listen(PORT, () => {
 });
 
 // ======================================================
-// Lists + Search (Open Library + Internet Archive + Gutenberg)
+// Helpers: category book lists + provider fetchers
 // ======================================================
+async function pickSomeBooks(kind) {
+  // TODO: Replace with real curated multi-source lists.
+  const per = 10;
+  const gIds = {
+    trending: ['64176','58988','58596','56517','26659','10471','7142','6593','14328','42983'],
+    philosophy: ['42884','66638','10643','11431','47204','5827','47204','10471','64176','58596'],
+    history: ['64176','47204','10471','26659','56517','14328','6593','7142','58988','42983']
+  }[kind] || [];
 
-async function listFromOpenLibrarySubject(subject, limit = 10) {
-  const key = `ol:subj:${subject}:${limit}`;
-  const cached = cache.get(key);
-  if (cached) return cached;
-
-  try {
-    const r = await fetch(`https://openlibrary.org/subjects/${encodeURIComponent(subject)}.json?limit=${limit}`);
-    if (!r.ok) throw new Error('OL subject failed');
-    const j = await r.json();
-    const out = (j.works || []).slice(0, limit).map(w => {
-      const cover = w.cover_id
-        ? `/proxy?url=${encodeURIComponent(`https://covers.openlibrary.org/b/id/${w.cover_id}-M.jpg`)}`
-        : null;
-      return {
-        provider: 'ol',
-        id: w.key.replace('/works/',''),
-        title: w.title || 'Untitled',
-        author: (w.authors && w.authors[0] && w.authors[0].name) || '',
-        cover
-      };
-    });
-    cache.set(key, out);
-    return out;
-  } catch {
-    return [];
-  }
+  const items = await Promise.all(
+    gIds.slice(0, per).map(async gid => ({
+      provider: 'pg',
+      id: gid,
+      title: `PG #${gid}`,
+      author: '',
+      cover: `/proxy?url=${encodeURIComponent(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.cover.medium.jpg`)}`
+    }))
+  );
+  return items;
 }
 
 async function searchAcrossProviders(q) {
@@ -357,33 +354,13 @@ async function searchAcrossProviders(q) {
           id: wid,
           title: d.title || wid,
           author: (d.author_name && d.author_name[0]) || '',
-          cover: d.cover_i ? `/proxy?url=${encodeURIComponent(`https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`)}`
-                           : null
+          cover: d.cover_i ? `/proxy?url=${encodeURIComponent(`https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`)}` : null
         });
       });
     }
   } catch {}
 
-  // Internet Archive (texts with epub or pdf)
-  try {
-    const query = `(${q}) AND mediatype:texts`;
-    const url = `https://archive.org/advancedsearch.php?output=json&q=${encodeURIComponent(query)}&fl[]=identifier&fl[]=title&fl[]=creator&rows=12`;
-    const r = await fetch(url);
-    if (r.ok) {
-      const j = await r.json();
-      (j.response?.docs || []).forEach(d => {
-        out.push({
-          provider: 'ia',
-          id: d.identifier,
-          title: d.title || d.identifier,
-          author: (Array.isArray(d.creator) ? d.creator[0] : d.creator) || '',
-          cover: `/proxy?url=${encodeURIComponent(`https://archive.org/services/img/${d.identifier}`)}`
-        });
-      });
-    }
-  } catch {}
-
-  // Project Gutenberg (Gutendex)
+  // Project Gutenberg search (via gutendex)
   try {
     const r = await fetch(`https://gutendex.com/books?search=${encodeURIComponent(q)}`);
     if (r.ok) {
@@ -394,7 +371,7 @@ async function searchAcrossProviders(q) {
           id: String(b.id),
           title: b.title,
           author: (b.authors && b.authors[0] && b.authors[0].name) || '',
-          cover: b.formats?.['image/jpeg'] ? `/proxy?url=${encodeURIComponent(b.formats['image/jpeg'])}` : null
+          cover: b.formats['image/jpeg'] ? `/proxy?url=${encodeURIComponent(b.formats['image/jpeg'])}` : null
         });
       });
     }
@@ -403,111 +380,42 @@ async function searchAcrossProviders(q) {
   return out;
 }
 
-// ======================================================
-// Provider fetchers for the reader
-// ======================================================
 async function fetchFromProvider(provider, id) {
   if (provider === 'pg') {
-    // Prefer EPUB from Gutenberg (via Gutendex)
-    try {
-      const r = await fetch(`https://gutendex.com/books/${id}`);
-      if (r.ok) {
-        const b = await r.json();
-        const title  = b.title || `Project Gutenberg #${id}`;
-        const author = (b.authors && b.authors[0] && b.authors[0].name) || '';
-        const epub   = b.formats?.['application/epub+zip'];
-        const html   = b.formats?.['text/html'] || b.formats?.['text/html; charset=utf-8'];
-        const txt    = b.formats?.['text/plain; charset=utf-8'] || b.formats?.['text/plain'];
+    const base = `https://www.gutenberg.org/files/${id}/${id}-h/${id}-h.htm`;
+    const alt1 = `https://www.gutenberg.org/files/${id}/${id}-h/${id}-h.html`;
+    const txt = `https://www.gutenberg.org/files/${id}/${id}.txt`;
 
-        if (epub) {
-          return { type: 'epub', title, author, epubUrl: `/proxy?url=${encodeURIComponent(epub)}` };
-        }
-        if (html) {
-          const page = await (await fetch(html)).text();
-          return { type: 'html', title, author, content: page };
-        }
-        if (txt) {
-          const page = await (await fetch(txt)).text();
-          return { type: 'text', title, author, content: page };
-        }
-      }
-    } catch {}
+    const html = await tryFetchText([base, alt1]);
+    if (html) {
+      return { type: 'html', title: `Project Gutenberg #${id}`, content: html };
+    }
+    const plain = await tryFetchText([txt]);
+    if (plain) return { type: 'text', title: `Project Gutenberg #${id}`, content: plain };
     return { type: 'error', error: 'Not found' };
   }
 
-  if (provider === 'ia') {
-    // Internet Archive metadata → find an .epub file
-    try {
-      const meta = await (await fetch(`https://archive.org/metadata/${id}`)).json();
-      const files = meta?.files || [];
-      const epub = files.find(f => /\.epub$/i.test(f.name));
-      const pdf  = files.find(f => /\.pdf$/i.test(f.name));
-      const title = meta?.metadata?.title || id;
-      const author = meta?.metadata?.creator || '';
-
-      if (epub) {
-        const url = `https://archive.org/download/${id}/${encodeURIComponent(epub.name)}`;
-        return { type: 'epub', title, author, epubUrl: `/proxy?url=${encodeURIComponent(url)}` };
-      }
-      if (pdf) {
-        const url = `https://archive.org/download/${id}/${encodeURIComponent(pdf.name)}`;
-        const html = `<iframe src="${url}" style="width:100%;height:80vh;border:0;"></iframe>`;
-        return { type: 'html', title, author, content: html };
-      }
-      // fallback: link out
-      const html = `<p>Open at Internet Archive: <a href="https://archive.org/details/${id}" target="_blank" rel="noopener">archive.org/details/${id}</a></p>`;
-      return { type: 'html', title, author, content: html };
-    } catch {
-      return { type: 'error', error: 'Not found' };
-    }
+  if (provider === 'ol') {
+    const work = await (await fetch(`https://openlibrary.org/works/${id}.json`)).json();
+    const title = work?.title || id;
+    const text = `<h1>${title}</h1><p>Open Library work page: <a href="https://openlibrary.org/works/${id}" target="_blank" rel="noopener">openlibrary.org</a></p>`;
+    return { type: 'html', title, content: text };
   }
 
-  if (provider === 'ol') {
-    // Try to resolve an IA edition (ocaid) to get an EPUB; else a nice landing
-    try {
-      const work = await (await fetch(`https://openlibrary.org/works/${id}.json`)).json().catch(() => null);
-      const title = work?.title || id;
-      let author = '';
-      if (work?.authors && work.authors[0]?.author?.key) {
-        const a = await (await fetch(`https://openlibrary.org${work.authors[0].author.key}.json`)).json().catch(() => null);
-        author = a?.name || '';
-      }
-
-      // Find an edition with IA id (ocaid)
-      const ed = await (await fetch(`https://openlibrary.org/works/${id}/editions.json?limit=50`)).json().catch(() => null);
-      const withOcaid = (ed?.entries || []).find(e => e.ocaid);
-      if (withOcaid) {
-        const ia = withOcaid.ocaid;
-        const meta = await (await fetch(`https://archive.org/metadata/${ia}`)).json().catch(() => null);
-        const files = meta?.files || [];
-        const epub = files.find(f => /\.epub$/i.test(f.name));
-        if (epub) {
-          const url = `https://archive.org/download/${ia}/${encodeURIComponent(epub.name)}`;
-          return { type: 'epub', title, author, epubUrl: `/proxy?url=${encodeURIComponent(url)}` };
-        }
-        const pdf = files.find(f => /\.pdf$/i.test(f.name));
-        if (pdf) {
-          const url = `https://archive.org/download/${ia}/${encodeURIComponent(pdf.name)}`;
-          const html = `<iframe src="${url}" style="width:100%;height:80vh;border:0;"></iframe>`;
-          return { type: 'html', title, author, content: html };
-        }
-      }
-
-      const html = `<h1>${escapeHtml(title)}</h1>
-        <p>${author ? escapeHtml(author) : ''}</p>
-        <p>Open Library work page: <a href="https://openlibrary.org/works/${id}" target="_blank" rel="noopener">openlibrary.org</a></p>`;
-      return { type: 'html', title, author, content: html };
-    } catch {
-      return { type: 'error', error: 'Not found' };
-    }
+  if (provider === 'ia') {
+    const text = `<p>Internet Archive item: ${id}. (Embed/derivative fetch can be added here.)</p>`;
+    return { type: 'html', title: `IA ${id}`, content: text };
   }
 
   return { type: 'error', error: 'Unknown provider' };
 }
 
-// ----------------------
-// Small util
-// ----------------------
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function tryFetchText(urls) {
+  for (const u of urls) {
+    try {
+      const r = await fetch(u);
+      if (r.ok) return await r.text();
+    } catch {}
+  }
+  return null;
 }
