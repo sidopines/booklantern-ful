@@ -1,24 +1,18 @@
+<% const item = b || {}; %>
 <article class="card">
-  <a class="cover" href="/read/<%= b.provider %>/<%= b.id %>">
-    <% if (b.cover) { %>
-      <img loading="lazy" src="<%= b.cover %>" alt="Cover of <%= b.title %>">
+  <a class="cover" href="/read/<%= item.provider %>/<%= item.id %>">
+    <% if (item.cover) { %>
+      <img src="<%= item.cover %>" alt="<%= item.title %>">
     <% } else { %>
-      <div class="cover ph"><span class="ph-initials">P</span></div>
+      <div class="cover ph" aria-label="No cover">📘</div>
     <% } %>
   </a>
-
   <div class="meta">
-    <div class="title"><%= b.title %></div>
-    <% if (b.author) { %><div class="author"><%= b.author %></div><% } %>
-  </div>
-
-  <div class="actions">
-    <a class="btn sm" href="/read/<%= b.provider %>/<%= b.id %>">Read</a>
-    <button
-      class="btn sm ghost listen"
-      data-provider="<%= b.provider %>"
-      data-id="<%= b.id %>">
-      Listen
-    </button>
+    <h4 class="title"><%= item.title %></h4>
+    <% if (item.author) { %><div class="author"><%= item.author %></div><% } %>
+    <div class="row" style="gap:6px;margin-top:8px;">
+      <a class="btn tiny" href="/read/<%= item.provider %>/<%= item.id %>">Read</a>
+      <a class="btn tiny ghost" href="/read/<%= item.provider %>/<%= item.id %>#listen">Listen</a>
+    </div>
   </div>
 </article>
