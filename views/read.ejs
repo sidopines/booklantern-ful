@@ -1,43 +1,67 @@
-<%- include('./partials/head', { 
-  pageTitle: 'Read Book - BookLantern', 
-  pageDescription: 'Read this book online with BookLantern’s unified reader.' 
-}) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', { pageTitle: 'Read - BookLantern' }) %>
+  <script defer src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+</head>
 <body>
   <%- include('./partials/navbar') %>
-  <%- include('./partials/backLink') %>
+  <%- include('./partials/backLink', { referrer }) %>
 
-  <main class="reader-container">
-    <div class="reader-header">
-      <h1 class="reader-title"><%= typeof title !== 'undefined' ? title : 'Book Title' %></h1>
-      <div class="reader-actions">
-        <button class="btn secondary" id="bookmarkBtn">🔖 Bookmark</button>
-        <button class="btn secondary" id="notesBtn">📝 Notes</button>
-        <button class="btn secondary" id="listenBtn"
-          data-provider="<%= provider %>" 
-          data-id="<%= id %>">🔊 Listen</button>
-      </div>
+  <main class="stack" style="--gap:16px; padding:16px;">
+    <h1 id="title">Book Title</h1>
+
+    <div class="actions row" style="gap:8px;">
+      <button class="btn" id="btnBookmark">🔖 Bookmark</button>
+      <button class="btn" id="btnNotes">🗒 Notes</button>
+      <button class="btn" id="btnListen">🔊 Listen</button>
     </div>
 
-    <section id="readerArea" class="reader-area">
-      <!-- Book content will be injected dynamically via JS -->
-      <div class="loading">Loading book…</div>
-    </section>
-
-    <aside id="notesPanel" class="notes-panel hidden">
-      <h2>Your Notes</h2>
-      <textarea id="notesInput" placeholder="Write your notes here…"></textarea>
-      <button id="saveNoteBtn" class="btn">Save Note</button>
-      <ul id="notesList"></ul>
-    </aside>
+    <div id="reader" class="card" style="min-height:70vh; overflow:auto; padding:0;"></div>
+    <div id="fallback" class="card" style="display:none; padding:16px;">Loading book...</div>
   </main>
 
   <%- include('./partials/footer') %>
+
   <script>
-    window.readerConfig = {
-      provider: "<%= provider %>",
-      id: "<%= id %>"
-    };
+  (async function () {
+    const provider = "<%= provider %>";
+    const id = "<%= id %>";
+    const r = await fetch(`/api/book?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(id)}`);
+    const data = await r.json();
+
+    document.getElementById('title').textContent =
+      [data.title, data.author].filter(Boolean).join(' — ') || 'Book';
+
+    const mount = document.getElementById('reader');
+    const fallback = document.getElementById('fallback');
+
+    if (data.type === 'epub' && data.epubUrl) {
+      try {
+        const book = ePub(data.epubUrl);
+        const rendition = book.renderTo(mount, { width: "100%", height: "75vh", spread: "always" });
+        rendition.display();
+      } catch (e) {
+        fallback.style.display = 'block';
+        mount.style.display = 'none';
+      }
+      return;
+    }
+
+    if (data.type === 'html' || data.type === 'text') {
+      mount.style.padding = '16px';
+      mount.innerHTML = (data.type === 'text')
+        ? `<pre style="white-space:pre-wrap;word-wrap:break-word;">${escapeHtml(data.content || '')}</pre>`
+        : (data.content || '<p>Not available.</p>');
+      return;
+    }
+
+    fallback.style.display = 'block';
+  })();
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
   </script>
-  <script src="/public/js/ui.js?v=<%= buildId %>" defer></script>
 </body>
 </html>
