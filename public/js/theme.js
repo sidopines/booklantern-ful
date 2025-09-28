@@ -1,59 +1,42 @@
-// public/js/theme.js
-// Cycles between: light -> dark -> system (follow device)
-// Persists to localStorage and updates the button label.
-
+// Theme toggle: persists choice and updates [data-theme]
 (function () {
-  var root = document.documentElement;
-  var STORAGE_KEY = 'bl.theme'; // 'light' | 'dark' | 'system'
+  function applyTheme(mode) {
+    if (mode === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.setAttribute('data-theme', '');
+    }
+  }
 
-  function getSaved() {
-    try { return localStorage.getItem(STORAGE_KEY) || 'system'; }
-    catch { return 'system'; }
+  function currentMode() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
   }
 
   function save(mode) {
-    try { localStorage.setItem(STORAGE_KEY, mode); } catch {}
+    try { localStorage.setItem('bl.theme', mode); } catch (e) {}
   }
 
-  function apply(mode) {
-    if (mode === 'light' || mode === 'dark') {
-      root.setAttribute('data-theme', mode);
-    } else {
-      root.removeAttribute('data-theme'); // system
-    }
-    updateButton(mode);
-  }
-
-  function nextMode(current) {
-    return current === 'light' ? 'dark' : current === 'dark' ? 'system' : 'light';
-  }
-
-  function updateButton(mode) {
-    var btn = document.getElementById('themeToggle');
+  function initButton() {
+    const btn = document.getElementById('themeToggle');
     if (!btn) return;
-    var label = mode === 'light' ? 'Light' : mode === 'dark' ? 'Dark' : 'Auto';
-    btn.textContent = label;
-    btn.setAttribute('data-mode', mode);
-    btn.setAttribute('aria-label', 'Theme: ' + label);
-  }
-
-  document.addEventListener('DOMContentLoaded', function () {
-    var btn = document.getElementById('themeToggle');
-    if (!btn) return;
-
-    var current = getSaved();
-    apply(current);
+    const mode = currentMode();
+    btn.setAttribute('aria-pressed', mode === 'dark' ? 'true' : 'false');
+    btn.innerHTML = mode === 'dark' ? '☀️' : '🌙';
 
     btn.addEventListener('click', function () {
-      var mode = nextMode(btn.getAttribute('data-mode') || 'system');
-      save(mode);
-      apply(mode);
+      const now = currentMode();
+      const next = now === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      save(next);
+      btn.setAttribute('aria-pressed', next === 'dark' ? 'true' : 'false');
+      btn.innerHTML = next === 'dark' ? '☀️' : '🌙';
     });
+  }
 
-    // If user selected "system", react to OS changes too
-    var mql = window.matchMedia('(prefers-color-scheme: dark)');
-    mql.addEventListener('change', function () {
-      if (getSaved() === 'system') apply('system');
-    });
-  });
+  // Initialize on DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initButton);
+  } else {
+    initButton();
+  }
 })();
