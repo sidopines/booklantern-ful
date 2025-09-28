@@ -1,34 +1,39 @@
-<%- include('./partials/head', { pageTitle: 'Register - BookLantern' }) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', { pageTitle: 'Register - BookLantern' }) %>
+</head>
 <body>
   <%- include('./partials/navbar') %>
-  <%- include('./partials/backLink') %>
+  <%- include('./partials/backLink', { referrer: referrer }) %>
 
   <main class="stack" style="--gap:20px; max-width:520px; margin:40px auto;">
     <h1>Create your account</h1>
-    <% const msgs = (typeof messages !== 'undefined' && messages) ? messages : {}; %>
-    <% if (msgs.error) { %>
-      <div class="alert error"><%= msgs.error %></div>
+    <% if (typeof error !== 'undefined') { %>
+      <p class="alert error"><%= error %></p>
+    <% } %>
+    <% if (typeof success !== 'undefined') { %>
+      <p class="alert success"><%= success %></p>
     <% } %>
 
-    <form method="POST" action="/register" class="card stack" style="--gap:14px; padding:18px;">
-      <input type="hidden" name="_csrf" value="<%= csrfToken || '' %>">
+    <form method="post" action="/register" class="card stack" style="--gap:12px; padding:16px;">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '/' %>">
 
-      <label class="stack">
-        <span>Name</span>
-        <input style="font-size:18px" type="text" name="name" required placeholder="Your name">
+      <label>Name
+        <input name="name" type="text" required placeholder="Your name" autocomplete="name">
       </label>
 
-      <label class="stack">
-        <span>Email</span>
-        <input style="font-size:18px" type="email" name="email" required autocomplete="email" placeholder="you@example.com">
+      <label>Email
+        <input name="email" type="email" required placeholder="you@example.com" autocomplete="email">
       </label>
 
-      <label class="stack">
-        <span>Password</span>
-        <input style="font-size:18px" type="password" name="password" required autocomplete="new-password" placeholder="Choose a password">
+      <label>Password
+        <input name="password" type="password" required placeholder="At least 6 characters" autocomplete="new-password">
       </label>
 
-      <button class="btn secondary" type="submit">Create account</button>
+      <button class="btn primary" type="submit">Register</button>
+      <p class="muted">Already have an account? <a href="/login">Login</a></p>
     </form>
   </main>
 
