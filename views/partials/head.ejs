@@ -1,26 +1,36 @@
+<!doctype html>
+<html lang="en" data-theme="<%= (typeof forcedTheme !== 'undefined' ? forcedTheme : '') %>">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title><%= typeof pageTitle !== 'undefined' ? pageTitle : 'BookLantern' %></title>
-  <meta name="description" content="<%= typeof pageDescription !== 'undefined' ? pageDescription : 'Millions of free books from globally trusted libraries. One clean reader.' %>">
-  <link rel="icon" href="/public/logo.svg">
-  <link rel="apple-touch-icon" href="/public/logo.svg">
-  <link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>">
+  <% if (typeof pageDescription !== 'undefined') { %>
+    <meta name="description" content="<%= pageDescription %>">
+  <% } %>
 
-  <!-- Apply saved theme ASAP to avoid flash -->
+  <!-- Favicon & PWA -->
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="alternate icon" href="/public/favicon.ico"><!-- legacy fallback -->
+  <link rel="mask-icon" href="/public/mask-icon.svg" color="#0B1020">
+  <link rel="apple-touch-icon" href="/public/logo.svg">
+  <link rel="manifest" href="/public/site.webmanifest">
+  <meta name="theme-color" content="#7C95FF">
+
+  <!-- Early theme init to avoid flash -->
   <script>
     (function() {
       try {
-        var saved = localStorage.getItem('bl.theme'); // 'light' | 'dark' | 'system' | null
-        if (saved === 'light' || saved === 'dark') {
-          document.documentElement.setAttribute('data-theme', saved);
-        } else {
-          document.documentElement.removeAttribute('data-theme'); // system
-        }
-      } catch(e) {}
+        var t = localStorage.getItem('bl.theme');
+        if (t === 'dark') document.documentElement.setAttribute('data-theme','dark');
+        if (t === 'light') document.documentElement.setAttribute('data-theme','');
+      } catch (e) {}
     })();
   </script>
 
-  <!-- Theme toggle logic -->
+  <!-- Styles -->
+  <link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>">
+
+  <!-- Core scripts -->
+  <script defer src="/public/js/ui.js?v=<%= buildId %>"></script>
   <script defer src="/public/js/theme.js?v=<%= buildId %>"></script>
 </head>
