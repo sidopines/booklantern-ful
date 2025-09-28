@@ -1,27 +1,23 @@
 <nav class="navbar">
-  <div class="container nav-inner">
-    <a class="brand" href="/">BookLantern</a>
+  <div class="nav-inner">
+    <a class="brand" href="/">📚 <span>BookLantern</span></a>
 
-    <div class="nav-links">
-      <a href="/read/pg/10471">Read</a>
-      <a href="/watch">Watch</a>
-      <a href="/about">About</a>
-      <a href="/contact">Contact</a>
-    </div>
+    <ul class="nav-links">
+      <li><a href="/read/pg/10471">Read</a></li>
+      <li><a href="/watch">Watch</a></li>
+      <li><a href="/about">About</a></li>
+      <li><a href="/contact">Contact</a></li>
+    </ul>
 
     <div class="nav-right">
-      <% if (typeof isAuthenticated !== 'undefined' && isAuthenticated) { %>
-        <% if (typeof isAdmin !== 'undefined' && isAdmin) { %>
-          <a href="/admin">Account</a>
-        <% } else { %>
-          <a href="/dashboard">Account</a>
-        <% } %>
-        <form method="POST" action="/logout" style="display:inline;">
-          <button class="btn ghost" type="submit">Logout</button>
+      <% if (isAuthenticated) { %>
+        <a class="btn ghost" href="<%= isAdmin ? '/admin' : '/dashboard' %>">Account</a>
+        <form method="POST" action="/logout" class="inline">
+          <button class="btn">Logout</button>
         </form>
       <% } else { %>
-        <a href="/login">Login</a>
-        <a class="btn secondary" href="/register">Register</a>
+        <a class="btn ghost" href="/login">Login</a>
+        <a class="btn primary" href="/register">Register</a>
       <% } %>
     </div>
   </div>
