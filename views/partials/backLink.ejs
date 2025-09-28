@@ -1,8 +1,2 @@
-<%
-// Safe default so this partial NEVER throws if `referrer` isn't provided.
-const _ref = (typeof referrer !== 'undefined' && referrer) ? referrer : '/';
-%>
-<a class="back" href="<%= _ref %>"
-   onclick="if(document.referrer){ history.back(); return false; }">
-  ← Back
-</a>
+<a class="back" href="<%= (typeof referrer !== 'undefined' && referrer) ? referrer : '/' %>"
+   onclick="if(document.referrer){history.back();return false;}">← Back</a>
