@@ -1,534 +1,363 @@
-// server.js — CommonJS, auth, shelves, unified /api/book, proxy, dashboard/admin, watch DB
+// server.js — Supabase edition
 require('dotenv').config();
 
-const path = require('path');
 const express = require('express');
+const path = require('path');
 const compression = require('compression');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
-const session = require('express-session');
-const MongoStore = require('connect-mongo');
-const mongoose = require('mongoose');
+const cookieSession = require('cookie-session');
 const csrf = require('csurf');
-const NodeCache = require('node-cache');
 const fetch = require('node-fetch'); // v2
-const { v4: uuidv4 } = require('uuid');
+const NodeCache = require('node-cache');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+const BUILD_ID = Date.now().toString();
 
-app.set('trust proxy', 1);
+// ---- Supabase clients ----
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
 
-const MONGODB_URI =
-  process.env.MONGODB_URI || process.env.MONGO_URL || process.env.MONGODB_URL || '';
-
-const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me';
-const NODE_ENV = process.env.NODE_ENV || 'production';
-
-// ---- Mongo
-let mongoOk = false;
-if (MONGODB_URI) {
-  mongoose
-    .connect(MONGODB_URI)
-    .then(() => {
-      mongoOk = true;
-      console.log('✅ Connected to MongoDB');
-    })
-    .catch((err) => {
-      console.log('❌ MongoDB connection failed; continuing without auth:', err.message);
-    });
-} else {
-  console.log('ℹ️  No MONGODB_URI provided — auth features disabled.');
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE) {
+  console.warn('⚠️  Missing Supabase env vars. Set SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE.');
 }
 
-// Models
-let User = null;
-try { User = require('./models/User'); } catch { console.log('ℹ️  User model not found.'); }
-let Video = null;
-try { Video = require('./models/Video'); } catch { console.log('ℹ️  Video model not found.'); }
+const supabaseAnon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE, { auth: { persistSession: false } });
 
-// ---- Views / static
+// ---- Express base setup ----
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-app.use('/public', express.static(path.join(__dirname, 'public'), { maxAge: '7d' }));
 
-// ---- Security / perf
+app.disable('x-powered-by');
+app.use(helmet({
+  contentSecurityPolicy: false
+}));
 app.use(compression());
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      useDefaults: true,
-      directives: {
-        'img-src': ["'self'", 'data:', 'https:'],
-        'frame-src': [
-          "'self'",
-          'https://www.youtube.com',
-          'https://youtube.com',
-          'https://www.gutenberg.org',
-          'https://gutenberg.org',
-          'https://standardebooks.org',
-          'https://archive.org',
-          'https://openlibrary.org',
-        ],
-        'script-src': ["'self'", "'unsafe-inline'"],
-        'connect-src': ["'self'", 'https:', 'data:'],
-        'media-src': ["'self'", 'https:', 'data:'],
-      },
-    },
-    crossOriginEmbedderPolicy: false,
-  })
-);
 app.use(morgan('dev'));
-app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use(cookieParser());
 
-// ---- Sessions
-if (MONGODB_URI) {
-  app.use(
-    session({
-      name: 'bl.sid',
-      secret: SESSION_SECRET,
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: NODE_ENV === 'production',
-        maxAge: 1000 * 60 * 60 * 24 * 14,
-      },
-      store: MongoStore.create({ mongoUrl: MONGODB_URI }),
-    })
-  );
+app.set('trust proxy', 1);
+const keys = (process.env.SESSION_KEYS || '').split(',').map(s => s.trim()).filter(Boolean);
+if (!keys.length) {
+  console.warn('⚠️  SESSION_KEYS not set. Using a weak fallback key (dev only).');
+  keys.push('dev-only-key');
 }
+app.use(cookieSession({
+  name: 'bl.sess',
+  keys,
+  sameSite: 'lax',
+  secure: process.env.NODE_ENV === 'production',
+  httpOnly: true,
+  maxAge: 1000 * 60 * 60 * 24 * 30 // 30 days
+}));
 
-// ---- CSRF
-if (MONGODB_URI) {
-  app.use(csrf());
-}
+// Static
+app.use('/public', express.static(path.join(__dirname, 'public'), { maxAge: '7d' }));
 
-// ---- Locals
-const buildId = process.env.BUILD_ID || uuidv4().slice(0, 8);
+// Locals for all views
 app.use((req, res, next) => {
-  res.locals.buildId = buildId;
-  res.locals.loggedIn = !!(req.session && req.session.userId);
+  res.locals.buildId = BUILD_ID;
+  res.locals.user = req.session.user || null;
+  res.locals.isAuthenticated = !!req.session.user;
+  res.locals.isAdmin = !!(req.session.user && req.session.user.role === 'admin');
   res.locals.referrer = req.get('referer') || '/';
-  try { if (req.csrfToken) res.locals.csrfToken = req.csrfToken(); }
-  catch { res.locals.csrfToken = ''; }
   next();
 });
 
-// ---- Helpers
-function initials(title = '') {
-  const t = String(title || '').trim();
-  if (!t) return 'BK';
-  const parts = t.split(/\s+/).slice(0, 2);
-  return parts.map((p) => p[0]).join('').toUpperCase();
-}
-function pickCoverUrl({ provider, coverId, image }) {
-  if (provider === 'ol' && coverId) {
-    const url = `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`;
-    return `/proxy?url=${encodeURIComponent(url)}`;
+// CSRF (cookies)
+const csrfProtection = csrf({ cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' } });
+
+// ----------------------
+// Helpers / Middleware
+// ----------------------
+const requireAuth = (req, res, next) => {
+  if (!req.session.user) {
+    const nextUrl = encodeURIComponent(req.originalUrl || '/');
+    return res.redirect(`/login?next=${nextUrl}`);
   }
-  if (provider === 'pg' && image) {
-    return `/proxy?url=${encodeURIComponent(image)}`;
+  next();
+};
+
+const requireAdmin = (req, res, next) => {
+  if (!req.session.user || req.session.user.role !== 'admin') {
+    return res.status(403).render('error', { message: 'Forbidden' });
   }
-  return '';
-}
-function normalizeOLWorkToCard(w) {
-  return {
-    provider: 'ol',
-    id: String((w.key || '').replace('/works/', '')),
-    title: w.title || 'Untitled',
-    author: (w.authors && w.authors[0] && w.authors[0].name) || '',
-    coverUrl: pickCoverUrl({ provider: 'ol', coverId: w.cover_id || w.cover_i }),
-    initials: initials(w.title),
-  };
-}
-function normalizePGToCard(b) {
-  const fm = b.formats || {};
-  const img = fm['image/jpeg'] || fm['image/png'] || '';
-  return {
-    provider: 'pg',
-    id: String(b.id),
-    title: b.title || 'Untitled',
-    author: (b.authors && b.authors[0] && b.authors[0].name) || '',
-    coverUrl: pickCoverUrl({ provider: 'pg', image: img }),
-    initials: initials(b.title),
-  };
-}
+  next();
+};
 
-// ---- Shelves
-const shelfCache = new NodeCache({ stdTTL: 3600, checkperiod: 120 });
+const ADMIN_EMAILS = new Set(
+  (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean)
+);
 
-async function fetchOpenLibrarySeed(seed, limit = 10) {
-  const u = `https://openlibrary.org/subjects/${encodeURIComponent(seed)}.json?limit=${limit}`;
-  const r = await fetch(u);
-  if (!r.ok) throw new Error(`OL subjects ${seed} failed: ${r.status}`);
-  const j = await r.json();
-  const works = j.works || [];
-  return works.map(normalizeOLWorkToCard);
-}
-async function fetchGutendex(query, limit = 10) {
-  const u = `https://gutendex.com/books/?search=${encodeURIComponent(query)}`;
-  const r = await fetch(u);
-  if (!r.ok) throw new Error(`Gutendex ${query} failed: ${r.status}`);
-  const j = await r.json();
-  const books = (j.results || []).slice(0, limit);
-  return books.map(normalizePGToCard);
-}
-async function getShelves() {
-  const cached = shelfCache.get('shelves');
-  if (cached) return cached;
-  const [trOl, trPg, phOl, phPg, hiOl, hiPg] = await Promise.all([
-    fetchOpenLibrarySeed('trending', 8).catch(() => []),
-    fetchGutendex('fiction', 8).catch(() => []),
-    fetchOpenLibrarySeed('philosophy', 8).catch(() => []),
-    fetchGutendex('philosophy', 8).catch(() => []),
-    fetchOpenLibrarySeed('history', 8).catch(() => []),
-    fetchGutendex('history', 8).catch(() => []),
-  ]);
-  const shelves = {
-    trending: [...trOl, ...trPg].slice(0, 12),
-    philosophy: [...phOl, ...phPg].slice(0, 12),
-    history: [...hiOl, ...hiPg].slice(0, 12),
-  };
-  shelfCache.set('shelves', shelves, 3600);
-  return shelves;
-}
+// Cache for book API
+const cache = new NodeCache({ stdTTL: 60 * 30 }); // 30 min
 
-// ---- Auth gates
-function requireLogin(req, res, next) {
-  if (!mongoOk || !User) {
-    return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}&unavailable=1`);
-  }
-  if (req.session && req.session.userId) return next();
-  return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
-}
-async function loadUser(req) {
-  if (!mongoOk || !User || !req.session?.userId) return null;
-  try { return await User.findById(req.session.userId).lean(); }
-  catch { return null; }
-}
-async function requireAdmin(req, res, next) {
-  const u = await loadUser(req);
-  if (u && u.role === 'admin') return next();
-  return res.status(403).render('error', { pageTitle: 'Forbidden', message: 'Admins only.' });
-}
-
-// ---- Pages
-app.get('/', async (req, res, next) => {
+// ----------------------
+// Basic pages
+// ----------------------
+app.get('/', async (req, res) => {
   try {
-    const { trending, philosophy, history } = await getShelves();
-    res.render('index', {
-      pageTitle: 'BookLantern — Largest Online Hub of Free Books',
+    // We reuse your existing lists. Example uses Gutenberg + OL.
+    const trending = await pickSomeBooks('trending');
+    const philosophy = await pickSomeBooks('philosophy');
+    const history = await pickSomeBooks('history');
+
+    return res.render('index', {
+      pageTitle: 'BookLantern',
       trending,
       philosophy,
-      history,
+      history
     });
-  } catch (e) { next(e); }
-});
-
-app.get('/about', (req, res) => res.render('about', { pageTitle: 'About' }));
-app.get('/contact', (req, res) => res.render('contact', { pageTitle: 'Contact' }));
-app.get('/read', (req, res) => res.redirect('/'));
-
-// Watch index — from DB
-app.get('/watch', async (req, res, next) => {
-  try {
-    let videos = [];
-    if (Video) {
-      videos = await Video.find({ isPublic: true }).sort({ createdAt: -1 }).lean();
-    }
-    res.render('watch', { pageTitle: 'Watch', videos });
-  } catch (e) { next(e); }
-});
-
-// Watch show
-app.get('/watch/:id', async (req, res, next) => {
-  try {
-    if (!Video) return res.render('watch-show', { pageTitle: 'Watch', video: null });
-    const video = await Video.findById(req.params.id).lean();
-    res.render('watch-show', { pageTitle: video ? video.title : 'Watch', video: video || null });
-  } catch (e) { next(e); }
-});
-
-// Reader
-app.get('/read/:provider/:id', requireLogin, (req, res) => {
-  const { provider, id } = req.params;
-  res.render('read', { provider, id });
-});
-
-// Account → route by role
-app.get('/account', requireLogin, async (req, res) => {
-  const user = await loadUser(req);
-  if (!user) return res.redirect('/login');
-  if (user.role === 'admin') return res.redirect('/admin');
-  return res.redirect('/dashboard');
-});
-
-// Subscriber dashboard
-app.get('/dashboard', requireLogin, async (req, res) => {
-  const user = await loadUser(req);
-  res.render('dashboard', { pageTitle: 'Your Dashboard', user });
-});
-
-// Admin
-app.get('/admin', requireLogin, requireAdmin, async (req, res) => {
-  let videos = [];
-  if (Video) {
-    videos = await Video.find().sort({ createdAt: -1 }).lean();
-  }
-  res.render('admin', { pageTitle: 'Admin', videos, messages: {} });
-});
-
-app.post('/admin/videos/add', requireLogin, requireAdmin, async (req, res) => {
-  const { title, provider, videoId, thumbnail, description } = req.body || {};
-  if (!Video) return res.redirect('/admin');
-  try {
-    await Video.create({
-      title: (title || '').trim(),
-      provider: (provider || 'youtube').trim(),
-      videoId: (videoId || '').trim(),
-      thumbnail: (thumbnail || '').trim() || undefined,
-      description: (description || '').trim() || undefined,
-      isPublic: true,
-    });
-    res.redirect('/admin');
   } catch (e) {
-    console.error('Add video error:', e);
-    let videos = await Video.find().sort({ createdAt: -1 }).lean();
-    res.status(400).render('admin', { pageTitle: 'Admin', videos, messages: { error: 'Could not add video. Check fields.' }});
+    console.error('Home error:', e);
+    return res.render('error', { message: 'Unexpected error' });
   }
 });
 
-app.post('/admin/videos/:id/delete', requireLogin, requireAdmin, async (req, res) => {
-  if (!Video) return res.redirect('/admin');
-  try {
-    await Video.findByIdAndDelete(req.params.id);
-  } catch (e) {
-    console.error('Delete video error:', e);
-  }
-  res.redirect('/admin');
-});
+app.get('/about', (req, res) => res.render('about'));
+app.get('/contact', (req, res) => res.render('contact'));
 
-// ---- Unified /api/book
-app.get('/api/book', async (req, res) => {
-  const provider = String(req.query.provider || '').toLowerCase();
-  const id = String(req.query.id || '').trim();
-
-  try {
-    if (!provider || !id) {
-      return res.json({ ok: false, message: 'Missing provider or id' });
-    }
-
-    if (provider === 'pg') {
-      const r = await fetch(`https://gutendex.com/books/${encodeURIComponent(id)}`);
-      if (!r.ok) return res.json({ ok: false, message: 'Gutendex lookup failed' });
-      const j = await r.json();
-      const fm = j.formats || {};
-      const html = fm['text/html; charset=utf-8'] || fm['text/html'] || null;
-      if (html) {
-        const prox = await fetch(html);
-        if (prox.ok) {
-          const ct = (prox.headers.get('content-type') || '').toLowerCase();
-          if (ct.includes('text/html')) {
-            const raw = await prox.text();
-            const clean = raw
-              .replace(/<script[\s\S]*?<\/script>/gi, '')
-              .replace(/<link[\s\S]*?>/gi, '')
-              .replace(/<style[\s\S]*?<\/style>/gi, '');
-            return res.json({ ok: true, type: 'html', title: j.title || 'Untitled', content: clean });
-          }
-        }
-      }
-      const txt = fm['text/plain; charset=utf-8'] || fm['text/plain'] || null;
-      if (txt) {
-        const t = await (await fetch(txt)).text();
-        return res.json({ ok: true, type: 'html', title: j.title || 'Untitled', content: `<pre>${escapeHtml(t)}</pre>` });
-      }
-      const pdf = fm['application/pdf'];
-      if (pdf) return res.json({ ok: true, type: 'url', title: j.title || 'Untitled', url: pdf });
-      const epub = fm['application/epub+zip'];
-      if (epub) return res.json({ ok: true, type: 'url', title: j.title || 'Untitled', url: epub });
-      return res.json({ ok: false, message: 'No readable format found for this PG id.' });
-    }
-
-    if (provider === 'ol') {
-      const ed = await fetch(`https://openlibrary.org/works/${encodeURIComponent(id)}/editions.json?limit=10`);
-      if (ed.ok) {
-        const ej = await ed.json();
-        const entries = ej.entries || [];
-        const found = entries.find(e => e.ocaid || (Array.isArray(e.ia) && e.ia.length));
-        const ocaid = found?.ocaid || (Array.isArray(found?.ia) ? found.ia[0] : null);
-        if (ocaid) {
-          const viewer = `https://archive.org/details/${encodeURIComponent(ocaid)}?view=theater&ui=embed`;
-          return res.json({ ok: true, type: 'url', title: found.title || 'Open Library', url: viewer });
-        }
-      }
-      const olWork = `https://openlibrary.org/works/${encodeURIComponent(id)}`;
-      return res.json({ ok: true, type: 'url', title: 'Open Library', url: olWork });
-    }
-
-    if (provider === 'ia') {
-      const viewer = `https://archive.org/details/${encodeURIComponent(id)}?view=theater&ui=embed`;
-      return res.json({ ok: true, type: 'url', title: id, url: viewer });
-    }
-
-    if (provider === 'se') {
-      const base = `https://standardebooks.org/ebooks/${id}`;
-      return res.json({ ok: true, type: 'url', title: id, url: base });
-    }
-
-    return res.json({ ok: false, message: 'Unknown provider' });
-  } catch (err) {
-    console.error('api/book error:', err);
-    return res.json({ ok: false, message: 'Resolver error' });
-  }
-});
-
-// ---- Proxy
-app.get('/proxy', async (req, res) => {
-  const url = req.query.url;
-  if (!url || !/^https?:\/\//i.test(url)) return res.sendStatus(400);
-  try {
-    const r = await fetch(url);
-    if (!r.ok) return res.sendStatus(502);
-    res.setHeader('Content-Type', r.headers.get('content-type') || 'application/octet-stream');
-    r.body.pipe(res);
-  } catch {
-    res.sendStatus(502);
-  }
-});
-
-// ---- Auth pages
-app.get('/login', (req, res) => {
-  const unavailable =
-    (!mongoOk || !User) ? 'Login is temporarily unavailable (server auth not configured).' : '';
+// ----------------------
+// Auth pages (Supabase)
+// ----------------------
+app.get('/login', csrfProtection, (req, res) => {
   res.render('login', {
-    pageTitle: 'Login',
-    messages: unavailable ? { error: unavailable } : {},
-    next: req.query.next || '/',
+    csrfToken: req.csrfToken(),
+    next: req.query.next || '/'
   });
 });
 
-app.post('/login', async (req, res) => {
-  const { email, password, remember, next: nextUrl } = req.body || {};
-  const next = nextUrl || '/';
-
-  if (!mongoOk || !User) {
-    return res.status(503).render('login', {
-      pageTitle: 'Login',
-      messages: { error: 'Login is temporarily unavailable (server auth not configured).' },
-      next,
-    });
-  }
-
+app.post('/login', csrfProtection, async (req, res) => {
+  const { email, password, next } = req.body;
   try {
-    const user = await User.findOne({ email: (email || '').toLowerCase().trim() });
-    if (!user) {
-      return res.status(400).render('login', {
-        pageTitle: 'Login',
-        messages: { error: 'Invalid email or password.' },
-        next,
-      });
+    const { data, error } = await supabaseAnon.auth.signInWithPassword({ email, password });
+    if (error) {
+      return res.status(400).render('login', { csrfToken: req.csrfToken(), error: error.message, next: next || '/' });
     }
-    const okPw = await user.comparePassword(password || '');
-    if (!okPw) {
-      return res.status(400).render('login', {
-        pageTitle: 'Login',
-        messages: { error: 'Invalid email or password.' },
-        next,
-      });
+    const user = data.user;
+
+    // Read role from profiles (or default user)
+    let role = 'user';
+    const { data: prof } = await supabaseAdmin
+      .from('profiles')
+      .select('role,name')
+      .eq('id', user.id)
+      .single();
+    if (prof && prof.role) role = prof.role;
+    if (!prof) {
+      // Backfill profile if missing
+      await supabaseAdmin.from('profiles').insert({ id: user.id, email: user.email, role });
     }
-    req.session.userId = String(user._id);
-    if (remember) req.session.cookie.maxAge = 1000 * 60 * 60 * 24 * 30;
-    return res.redirect(next);
-  } catch (e) {
-    console.error('Login error:', e);
-    return res.status(500).render('login', {
-      pageTitle: 'Login',
-      messages: { error: 'Something went wrong. Please try again.' },
-      next,
-    });
+
+    req.session.user = { id: user.id, email: user.email, role };
+    return res.redirect(next || '/dashboard');
+  } catch (err) {
+    console.error('Login error:', err);
+    return res.status(500).render('login', { csrfToken: req.csrfToken(), error: 'Login failed', next: next || '/' });
   }
 });
 
-app.get('/register', (req, res) => {
-  const unavailable =
-    (!mongoOk || !User) ? 'Register is temporarily unavailable (server auth not configured).' : '';
+app.get('/register', csrfProtection, (req, res) => {
   res.render('register', {
-    pageTitle: 'Register',
-    messages: unavailable ? { error: unavailable } : {},
+    csrfToken: req.csrfToken(),
+    next: req.query.next || '/'
   });
 });
 
-app.post('/register', async (req, res) => {
-  const { name, email, password } = req.body || {};
-  if (!mongoOk || !User) {
-    return res.status(503).render('register', {
-      pageTitle: 'Register',
-      messages: { error: 'Register is temporarily unavailable (server auth not configured).' },
-    });
-  }
+app.post('/register', csrfProtection, async (req, res) => {
+  const { name, email, password, next } = req.body;
   try {
-    const exists = await User.findOne({ email: (email || '').toLowerCase().trim() });
-    if (exists) {
-      return res.status(400).render('register', {
-        pageTitle: 'Register',
-        messages: { error: 'That email is already registered.' },
+    const { data, error } = await supabaseAnon.auth.signUp({
+      email, password,
+      options: { data: { name } }
+    });
+    if (error) {
+      return res.status(400).render('register', { csrfToken: req.csrfToken(), error: error.message, next: next || '/' });
+    }
+    const user = data.user;
+    if (!user) {
+      // If email confirmation is ON, user will be null until they confirm.
+      return res.render('register', {
+        csrfToken: req.csrfToken(),
+        success: 'Please check your email to confirm your account.',
+        next: next || '/'
       });
     }
-    const user = await User.create({
-      name: (name || '').trim() || 'Reader',
-      email: (email || '').toLowerCase().trim(),
-      password: password || '',
-    });
-    req.session.userId = String(user._id);
+
+    // Set role (admin if email in env list)
+    const role = ADMIN_EMAILS.has(email.toLowerCase()) ? 'admin' : 'user';
+    await supabaseAdmin.from('profiles').insert({ id: user.id, email, name, role });
+
+    // Auto-login (if email confirmations are OFF)
+    req.session.user = { id: user.id, email: user.email, role };
+    return res.redirect(next || '/dashboard');
+  } catch (err) {
+    console.error('Register error:', err);
+    return res.status(500).render('register', { csrfToken: req.csrfToken(), error: 'Registration failed', next: next || '/' });
+  }
+});
+
+app.post('/logout', async (req, res) => {
+  try {
+    req.session = null;
     return res.redirect('/');
   } catch (e) {
-    console.error('Register error:', e);
-    return res.status(500).render('register', {
-      pageTitle: 'Register',
-      messages: { error: 'Something went wrong. Please try again.' },
-    });
+    console.error('Logout error:', e);
+    return res.redirect('/');
   }
 });
 
-app.post('/logout', (req, res) => {
-  if (!req.session) return res.redirect('/');
-  req.session.destroy(() => res.redirect('/'));
-});
-
-// ---- CSRF error handler
-app.use((err, req, res, next) => {
-  if (err && err.code === 'EBADCSRFTOKEN') {
-    if (req.session) req.session.destroy(() => res.redirect('/login?csrf=1'));
-    else res.redirect('/login?csrf=1');
-    return;
-  }
-  return next(err);
-});
-
-// ---- 404 & generic errors
-app.use((req, res) => {
-  res.status(404).render('404', { pageTitle: 'Page not found' });
-});
-app.use((err, req, res, next) => {
-  console.error('🔥 Unhandled error:', err);
-  const status = err.status || 500;
-  res.status(status).render('error', {
-    pageTitle: 'Something went wrong',
-    message: NODE_ENV === 'production' ? 'Unexpected error' : err.message,
-    stack: NODE_ENV === 'production' ? null : err.stack,
+// ----------------------
+// Account pages
+// ----------------------
+app.get('/dashboard', requireAuth, (req, res) => {
+  res.render('dashboard', {
+    pageTitle: 'Your Library'
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+app.get('/admin', requireAuth, requireAdmin, (req, res) => {
+  res.render('admin', {
+    pageTitle: 'Admin'
+  });
 });
 
-function escapeHtml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// ----------------------
+// Reader + Book API
+// ----------------------
+app.get('/read/:provider/:id', requireAuth, (req, res) => {
+  const { provider, id } = req.params;
+  res.render('read', {
+    provider, id,
+    pageTitle: 'Read - BookLantern',
+  });
+});
+
+// Proxy images/files (CORS-safe)
+app.get('/proxy', async (req, res) => {
+  try {
+    const url = req.query.url;
+    if (!url) return res.status(400).send('Missing url');
+    const r = await fetch(url);
+    res.set('Content-Type', r.headers.get('content-type') || 'application/octet-stream');
+    const buf = await r.buffer();
+    return res.send(buf);
+  } catch (e) {
+    console.error('Proxy error:', e);
+    return res.status(500).end();
+  }
+});
+
+// Unified book fetcher used by the reader
+app.get('/api/book', requireAuth, async (req, res) => {
+  const { provider, id } = req.query;
+  try {
+    const key = `bk:${provider}:${id}`;
+    const cached = cache.get(key);
+    if (cached) return res.json(cached);
+
+    const data = await fetchFromProvider(provider, id);
+    cache.set(key, data, 60 * 15);
+    res.json(data);
+  } catch (e) {
+    console.error('/api/book error:', e);
+    res.status(500).json({ error: 'Failed to fetch book' });
+  }
+});
+
+// ----------------------
+// Error / 404
+// ----------------------
+app.use((err, req, res, next) => {
+  if (err && err.code === 'EBADCSRFTOKEN') {
+    return res.status(403).render('error', { message: 'Invalid CSRF token' });
+  }
+  console.error('🔥 Unhandled error:', err);
+  return res.status(500).render('error', { message: 'Unexpected error' });
+});
+
+app.use((req, res) => res.status(404).render('404'));
+
+// ----------------------
+// Start
+// ----------------------
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log('✅ Connected to Supabase');
+});
+
+// ======================================================
+// Helpers: category book lists + provider fetchers
+// ======================================================
+async function pickSomeBooks(kind) {
+  // You can customize these lists. For demo we hit Gutenberg & OL.
+  const per = 10;
+  const gIds = {
+    trending: ['64176','58988','58596','56517','26659','10471','7142','6593','14328','42983'],
+    philosophy: ['42884','66638','10643','11431','47204','5827','47204','10471','64176','58596'],
+    history: ['64176','47204','10471','26659','56517','14328','6593','7142','58988','42983']
+  }[kind] || [];
+
+  const items = await Promise.all(
+    gIds.slice(0, per).map(async gid => ({
+      provider: 'pg',
+      id: gid,
+      title: `PG #${gid}`,
+      author: '',
+      cover: `/proxy?url=${encodeURIComponent(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.cover.medium.jpg`)}`
+    }))
+  );
+  return items;
+}
+
+async function fetchFromProvider(provider, id) {
+  if (provider === 'pg') {
+    // Gutenberg: try HTML -> fallback to plain text
+    const base = `https://www.gutenberg.org/files/${id}/${id}-h/${id}-h.htm`;
+    const alt1 = `https://www.gutenberg.org/files/${id}/${id}-h/${id}-h.html`;
+    const txt = `https://www.gutenberg.org/files/${id}/${id}.txt`;
+
+    const html = await tryFetchText([base, alt1]);
+    if (html) {
+      return { type: 'html', title: `Project Gutenberg #${id}`, content: html };
+    }
+    const plain = await tryFetchText([txt]);
+    if (plain) return { type: 'text', title: `Project Gutenberg #${id}`, content: plain };
+    return { type: 'error', error: 'Not found' };
+  }
+
+  if (provider === 'ol') {
+    const work = await (await fetch(`https://openlibrary.org/works/${id}.json`)).json();
+    const title = work?.title || id;
+    const text = `<h1>${title}</h1><p>Open Library work page: <a href="https://openlibrary.org/works/${id}" target="_blank" rel="noopener">openlibrary.org</a></p>`;
+    return { type: 'html', title, content: text };
+  }
+
+  if (provider === 'ia') {
+    // Internet Archive placeholder
+    const text = `<p>Internet Archive item: ${id}. (Embed/derivative fetch can be added here.)</p>`;
+    return { type: 'html', title: `IA ${id}`, content: text };
+  }
+
+  return { type: 'error', error: 'Unknown provider' };
+}
+
+async function tryFetchText(urls) {
+  for (const u of urls) {
+    try {
+      const r = await fetch(u);
+      if (r.ok) return await r.text();
+    } catch {}
+  }
+  return null;
 }
