@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="BookLantern">
+  <!-- Soft halo -->
+  <defs>
+    <radialGradient id="halo" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(64 64) rotate(90) scale(64)">
+      <stop stop-color="#FFF6D2"/>
+      <stop offset="1" stop-color="#FFF0C2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#halo)"/>
+  <!-- Badge -->
+  <rect x="12" y="12" width="104" height="104" rx="22" fill="#FFFFFF" stroke="#E9E6FF"/>
+  <!-- Lantern body -->
+  <g transform="translate(32 22)">
+    <rect x="22" width="20" height="10" rx="5" fill="#2B2B2B"/>
+    <rect x="8" y="12" width="48" height="64" rx="14" fill="#FFDDE5" stroke="#FFC3D1"/>
+    <rect x="16" y="22" width="32" height="44" rx="8" fill="#DFF7EF" stroke="#C7EBDD"/>
+    <!-- Flame/bookmark -->
+    <path d="M32 28c6 6 6 12 0 18-6-6-6-12 0-18z" fill="#F7D774"/>
+    <!-- Base -->
+    <rect x="0" y="78" width="64" height="10" rx="5" fill="#DFF1FF"/>
+  </g>
+</svg>
