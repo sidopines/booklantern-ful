@@ -1,70 +1,69 @@
-<%- include('./partials/head', { pageTitle: 'Largest Online Hub of Free Books', pageDescription: 'Millions of free books from globally trusted libraries. One search, one clean reader.' }) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', { 
+    pageTitle: 'Largest Online Hub of Free Books',
+    pageDescription: 'Millions of free books from globally trusted libraries. One search, one clean reader.'
+  }) %>
+</head>
 <body>
   <%- include('./partials/navbar') %>
 
-  <header class="hero">
+  <header class="hero hero-soft">
     <div class="container">
       <h1>Largest Online Hub of Free Books</h1>
-      <p>Millions of books from globally trusted libraries. One search, one clean reader.</p>
-      <div class="badges">✓ No ads  &nbsp;•&nbsp; ✓ Free forever  &nbsp;•&nbsp; ✓ Clean reading experience</div>
-      <form class="search" action="/read" method="get">
-        <input type="text" name="q" placeholder="Search millions of books..." aria-label="Search books">
+      <p class="sub">
+        Millions of books from trusted libraries and archives. One search, one clean reader.
+      </p>
+
+      <form class="searchbar" action="/search" method="get">
+        <input name="q" type="search" placeholder="Search millions of books…" required>
         <button class="btn primary" type="submit">Search</button>
       </form>
+
+      <ul class="checks">
+        <li>No ads</li>
+        <li>Free forever</li>
+        <li>Clean reading experience</li>
+      </ul>
     </div>
   </header>
 
-  <main class="container page-pad">
-    <!-- Trending -->
-    <section class="carousel">
-      <div class="carousel-head">
+  <main class="container stack">
+    <section class="row">
+      <div class="row-head">
         <h2>Trending now</h2>
-        <div class="carousel-ctrls" aria-hidden="true">
-          <button class="carousel-btn" data-dir="-1" data-target="#c-trend" aria-label="Scroll left">‹</button>
-          <button class="carousel-btn" data-dir="1" data-target="#c-trend" aria-label="Scroll right">›</button>
-        </div>
       </div>
-      <div id="c-trend" class="carousel-track" role="list" aria-label="Trending now">
-        <% (trending || []).forEach(it => { %>
-          <%- include('./partials/bookCard', { item: it }) %>
+      <div class="carousel">
+        <% trending.forEach(b => { %>
+          <%- include('./partials/bookCard', { b }) %>
         <% }) %>
       </div>
     </section>
 
-    <!-- Philosophy -->
-    <section class="carousel">
-      <div class="carousel-head">
+    <section class="row">
+      <div class="row-head">
         <h2>Philosophy Picks</h2>
-        <div class="carousel-ctrls" aria-hidden="true">
-          <button class="carousel-btn" data-dir="-1" data-target="#c-phil" aria-label="Scroll left">‹</button>
-          <button class="carousel-btn" data-dir="1" data-target="#c-phil" aria-label="Scroll right">›</button>
-        </div>
       </div>
-      <div id="c-phil" class="carousel-track" role="list" aria-label="Philosophy Picks">
-        <% (philosophy || []).forEach(it => { %>
-          <%- include('./partials/bookCard', { item: it }) %>
+      <div class="carousel">
+        <% philosophy.forEach(b => { %>
+          <%- include('./partials/bookCard', { b }) %>
         <% }) %>
       </div>
     </section>
 
-    <!-- History -->
-    <section class="carousel">
-      <div class="carousel-head">
+    <section class="row">
+      <div class="row-head">
         <h2>History Picks</h2>
-        <div class="carousel-ctrls" aria-hidden="true">
-          <button class="carousel-btn" data-dir="-1" data-target="#c-hist" aria-label="Scroll left">‹</button>
-          <button class="carousel-btn" data-dir="1" data-target="#c-hist" aria-label="Scroll right">›</button>
-        </div>
       </div>
-      <div id="c-hist" class="carousel-track" role="list" aria-label="History Picks">
-        <% (history || []).forEach(it => { %>
-          <%- include('./partials/bookCard', { item: it }) %>
+      <div class="carousel">
+        <% history.forEach(b => { %>
+          <%- include('./partials/bookCard', { b }) %>
         <% }) %>
       </div>
     </section>
   </main>
 
   <%- include('./partials/footer') %>
-  <script defer src="/public/js/ui.js?v=<%= buildId %>"></script>
 </body>
 </html>
