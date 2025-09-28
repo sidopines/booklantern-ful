@@ -1,65 +1,59 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <%- include('./partials/head', { 
-    pageTitle: 'Largest Online Hub of Free Books',
-    pageDescription: 'Millions of free books from globally trusted libraries. One search, one clean reader.'
-  }) %>
-</head>
+<%- include('./partials/head', {
+  pageTitle: 'Largest Online Hub of Free Books',
+  pageDescription: 'Millions of free books from globally trusted libraries. One search, one clean reader.'
+}) %>
 <body>
   <%- include('./partials/navbar') %>
 
-  <header class="hero hero-soft">
+  <header class="hero">
     <div class="container">
       <h1>Largest Online Hub of Free Books</h1>
-      <p class="sub">
-        Millions of books from trusted libraries and archives. One search, one clean reader.
-      </p>
-
-      <form class="searchbar" action="/search" method="get">
-        <input name="q" type="search" placeholder="Search millions of books…" required>
-        <button class="btn primary" type="submit">Search</button>
-      </form>
-
-      <ul class="checks">
-        <li>No ads</li>
-        <li>Free forever</li>
-        <li>Clean reading experience</li>
+      <p class="hero-sub">Millions of books from globally trusted libraries. One search, one clean reader.</p>
+      <ul class="hero-points">
+        <li>No ads</li><li>Free forever</li><li>Clean reading experience</li>
       </ul>
+
+      <form class="search" action="/search" method="get">
+        <input type="text" name="q" placeholder="Search books, authors…" aria-label="Search">
+        <button class="btn" type="submit">Search</button>
+      </form>
     </div>
   </header>
 
-  <main class="container stack">
+  <main class="container">
+    <!-- Trending -->
     <section class="row">
       <div class="row-head">
         <h2>Trending now</h2>
       </div>
       <div class="carousel">
-        <% trending.forEach(b => { %>
-          <%- include('./partials/bookCard', { b }) %>
-        <% }) %>
+        <% for (const b of trending) { %>
+          <%- include('./partials/bookCard', { b: b }) %>
+        <% } %>
       </div>
     </section>
 
+    <!-- Philosophy -->
     <section class="row">
       <div class="row-head">
         <h2>Philosophy Picks</h2>
       </div>
       <div class="carousel">
-        <% philosophy.forEach(b => { %>
-          <%- include('./partials/bookCard', { b }) %>
-        <% }) %>
+        <% for (const b of philosophy) { %>
+          <%- include('./partials/bookCard', { b: b }) %>
+        <% } %>
       </div>
     </section>
 
+    <!-- History -->
     <section class="row">
       <div class="row-head">
         <h2>History Picks</h2>
       </div>
       <div class="carousel">
-        <% history.forEach(b => { %>
-          <%- include('./partials/bookCard', { b }) %>
-        <% }) %>
+        <% for (const b of history) { %>
+          <%- include('./partials/bookCard', { b: b }) %>
+        <% } %>
       </div>
     </section>
   </main>
