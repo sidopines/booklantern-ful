@@ -1,30 +1,27 @@
-<%- include('./partials/head', { pageTitle: 'Watch - BookLantern' }) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', { pageTitle: 'Watch - BookLantern' }) %>
+</head>
 <body>
   <%- include('./partials/navbar') %>
 
-  <main class="stack" style="--gap:20px; max-width:1200px; margin:30px auto;">
+  <main class="stack" style="--gap:16px; max-width:1100px; margin:30px auto; padding:0 16px;">
     <h1>Watch</h1>
 
     <% const list = (Array.isArray(videos) ? videos : []); %>
     <% if (!list.length) { %>
       <div class="card" style="padding:16px;">No videos yet. (Add them in Admin.)</div>
     <% } else { %>
-      <div class="grid" style="--cols:6; --gap:14px;">
+      <div class="grid" style="--cols:4; gap:12px;">
         <% list.forEach(v => { %>
-          <article class="book-card">
-            <a class="cover" href="/watch/<%= v._id %>">
-              <% if (v.thumbnail) { %>
-                <img src="<%= v.thumbnail %>" alt="">
-              <% } else { %>
-                <img src="https://i.ytimg.com/vi/<%= v.videoId %>/hqdefault.jpg" alt="">
-              <% } %>
-            </a>
-            <div class="meta">
-              <div class="title"><%= v.title %></div>
-              <div class="actions">
-                <a class="btn small secondary" href="/watch/<%= v._id %>">Watch</a>
+          <article class="card">
+            <a href="<%= v.url %>" target="_blank" rel="noopener">
+              <img src="<%= v.thumb %>" alt="<%= v.title %>">
+              <div class="meta" style="padding:8px;">
+                <h4 class="title"><%= v.title %></h4>
               </div>
-            </div>
+            </a>
           </article>
         <% }) %>
       </div>
