@@ -1,20 +1,46 @@
+<!doctype html>
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8" />
+  <title><%= typeof pageTitle !== 'undefined' ? pageTitle : 'BookLantern' %></title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title><%= title || "BookLantern" %></title>
-  <meta name="description" content="BookLantern — millions of free books in one clean reader" />
+  <% if (typeof pageDescription !== 'undefined') { %>
+    <meta name="description" content="<%= pageDescription %>">
+  <% } %>
 
-  <!-- Favicons -->
-  <link rel="icon" href="/favicon.ico" sizes="any" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-  <link rel="manifest" href="/site.webmanifest" />
-  <meta name="theme-color" content="#ffffff" />
+  <!-- Favicons & PWA -->
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/favicon-32x32.png" sizes="32x32">
+  <link rel="icon" type="image/png" href="/favicon-16x16.png" sizes="16x16">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#9AB0FF">
 
-  <!-- CSS -->
-  <link rel="stylesheet" href="/public/css/site.css?v=<%= Date.now() %>" />
+  <!-- Core stylesheet -->
+  <link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>">
 
-  <!-- Scripts -->
-  <script src="/public/js/ui.js?v=<%= Date.now() %>" defer></script>
+  <!-- Theme bootstrap (respects saved choice) -->
+  <script>
+    (function(){
+      try {
+        const saved = localStorage.getItem('bl_theme');
+        if (saved) document.documentElement.setAttribute('data-theme', saved);
+      } catch {}
+    })();
+  </script>
+
+  <!-- Core UI script -->
+  <script defer src="/public/js/ui.js?v=<%= buildId %>"></script>
+
+  <!-- Register Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        // We serve /sw.js from the site root via server.js so it controls the whole scope
+        navigator.serviceWorker.register('/sw.js').catch(function(e){
+          console.warn('SW registration failed:', e);
+        });
+      });
+    }
+  </script>
 </head>
