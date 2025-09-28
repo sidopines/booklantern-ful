@@ -1,4 +1,4 @@
-// server.js — Supabase edition
+// server.js — Supabase edition (final)
 require('dotenv').config();
 
 const express = require('express');
@@ -41,6 +41,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cookieParser());
 
+// sessions (cookie-based)
 app.set('trust proxy', 1);
 const keys = (process.env.SESSION_KEYS || '').split(',').map(s => s.trim()).filter(Boolean);
 if (!keys.length) {
@@ -65,12 +66,12 @@ app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.isAuthenticated = !!req.session.user;
   res.locals.isAdmin = !!(req.session.user && req.session.user.role === 'admin');
-  res.locals.loggedIn = res.locals.isAuthenticated; // <-- alias for legacy templates
+  res.locals.loggedIn = res.locals.isAuthenticated; // alias for any legacy partials
   res.locals.referrer = req.get('referer') || '/';
   next();
 });
 
-// CSRF (cookies)
+// CSRF (cookie mode)
 const csrfProtection = csrf({
   cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' }
 });
@@ -125,6 +126,16 @@ app.get('/', async (req, res) => {
 
 app.get('/about', (req, res) => res.render('about'));
 app.get('/contact', (req, res) => res.render('contact'));
+
+// Optional shell so the nav never 404s while you iterate
+app.get('/watch', (req, res) => {
+  try { res.render('watch'); } catch { res.render('error', { message: 'Watch page not set up yet' }); }
+});
+
+// /account convenience redirect
+app.get('/account', requireAuth, (req, res) => {
+  return res.redirect(req.session.user.role === 'admin' ? '/admin' : '/dashboard');
+});
 
 // ----------------------
 // Auth pages (Supabase)
@@ -231,6 +242,63 @@ app.get('/read/:provider/:id', requireAuth, (req, res) => {
   res.render('read', { provider, id, pageTitle: 'Read - BookLantern' });
 });
 
+// ---------- SEARCH ----------
+app.get('/search', async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (!q) return res.redirect('/');
+
+  try {
+    const results = await searchAcrossProviders(q);
+    return res.render('search', { q, results });
+  } catch (e) {
+    console.error('Search error:', e);
+    return res.render('search', { q, results: [] });
+  }
+});
+
+async function searchAcrossProviders(q) {
+  const out = [];
+
+  // Open Library works
+  try {
+    const r = await fetch(`https://openlibrary.org/search.json?limit=12&q=${encodeURIComponent(q)}`);
+    if (r.ok) {
+      const j = await r.json();
+      (j.docs || []).slice(0, 12).forEach(d => {
+        const wid = d.key?.replace('/works/','');
+        if (!wid) return;
+        out.push({
+          provider: 'ol',
+          id: wid,
+          title: d.title || wid,
+          author: (d.author_name && d.author_name[0]) || '',
+          cover: d.cover_i ? `/proxy?url=${encodeURIComponent(`https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`)}` : null
+        });
+      });
+    }
+  } catch {}
+
+  // Project Gutenberg search (via gutendex)
+  try {
+    const r = await fetch(`https://gutendex.com/books?search=${encodeURIComponent(q)}`);
+    if (r.ok) {
+      const j = await r.json();
+      (j.results || []).slice(0, 12).forEach(b => {
+        out.push({
+          provider: 'pg',
+          id: String(b.id),
+          title: b.title,
+          author: (b.authors && b.authors[0] && b.authors[0].name) || '',
+          cover: b.formats['image/jpeg'] ? `/proxy?url=${encodeURIComponent(b.formats['image/jpeg'])}` : null
+        });
+      });
+    }
+  } catch {}
+
+  return out;
+}
+
+// Proxy images/files (CORS-safe)
 app.get('/proxy', async (req, res) => {
   try {
     const url = req.query.url;
@@ -245,6 +313,7 @@ app.get('/proxy', async (req, res) => {
   }
 });
 
+// Unified book fetcher used by the reader
 app.get('/api/book', requireAuth, async (req, res) => {
   const { provider, id } = req.query;
   try {
@@ -307,14 +376,13 @@ async function pickSomeBooks(kind) {
 
 async function fetchFromProvider(provider, id) {
   if (provider === 'pg') {
+    // Gutenberg: try HTML -> fallback to plain text
     const base = `https://www.gutenberg.org/files/${id}/${id}-h/${id}-h.htm`;
     const alt1 = `https://www.gutenberg.org/files/${id}/${id}-h/${id}-h.html`;
     const txt = `https://www.gutenberg.org/files/${id}/${id}.txt`;
 
     const html = await tryFetchText([base, alt1]);
-    if (html) {
-      return { type: 'html', title: `Project Gutenberg #${id}`, content: html };
-    }
+    if (html) return { type: 'html', title: `Project Gutenberg #${id}`, content: html };
     const plain = await tryFetchText([txt]);
     if (plain) return { type: 'text', title: `Project Gutenberg #${id}`, content: plain };
     return { type: 'error', error: 'Not found' };
