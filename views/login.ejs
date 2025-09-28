@@ -1,35 +1,32 @@
-<%- include('./partials/head', { pageTitle: 'Login - BookLantern' }) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', { pageTitle: 'Login - BookLantern' }) %>
+</head>
 <body>
   <%- include('./partials/navbar') %>
-  <%- include('./partials/backLink') %>
+  <%- include('./partials/backLink', { referrer: referrer }) %>
 
   <main class="stack" style="--gap:20px; max-width:520px; margin:40px auto;">
     <h1>Login</h1>
-    <% const msgs = (typeof messages !== 'undefined' && messages) ? messages : {}; %>
-    <% if (msgs.error) { %>
-      <div class="alert error"><%= msgs.error %></div>
+    <% if (typeof error !== 'undefined') { %>
+      <p class="alert error"><%= error %></p>
     <% } %>
 
-    <form method="POST" action="/login" class="card stack" style="--gap:14px; padding:18px;">
-      <input type="hidden" name="_csrf" value="<%= csrfToken || '' %>">
+    <form method="post" action="/login" class="card stack" style="--gap:12px; padding:16px;">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '/' %>">
 
-      <label class="stack">
-        <span>Email</span>
-        <input style="font-size:18px" type="email" name="email" required autocomplete="email" placeholder="you@example.com">
+      <label>Email
+        <input name="email" type="email" required placeholder="you@example.com" autocomplete="email">
       </label>
 
-      <label class="stack">
-        <span>Password</span>
-        <input style="font-size:18px" type="password" name="password" required autocomplete="current-password" placeholder="••••••••">
+      <label>Password
+        <input name="password" type="password" required placeholder="••••••••" autocomplete="current-password">
       </label>
 
-      <label style="display:flex; align-items:center; gap:8px;">
-        <input type="checkbox" name="remember" value="1">
-        <span>Remember me</span>
-      </label>
-
-      <button class="btn secondary" type="submit">Login</button>
+      <button class="btn primary" type="submit">Login</button>
+      <p class="muted">No account? <a href="/register">Create one</a></p>
     </form>
   </main>
 
