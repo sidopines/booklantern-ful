@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', { pageTitle: 'Search - BookLantern' }) %>
+</head>
+<body>
+  <%- include('./partials/navbar') %>
+
+  <main class="container stack" style="--gap:16px;">
+    <h1>Search results for “<%= q %>”</h1>
+
+    <% if (!results || results.length === 0) { %>
+      <p class="muted">No matches found. Try another keyword.</p>
+    <% } else { %>
+      <div class="grid">
+        <% results.forEach(b => { %>
+          <%- include('./partials/bookCard', { b }) %>
+        <% }) %>
+      </div>
+    <% } %>
+  </main>
+
+  <%- include('./partials/footer') %>
+</body>
+</html>
