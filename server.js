@@ -34,9 +34,7 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 app.disable('x-powered-by');
-app.use(helmet({
-  contentSecurityPolicy: false
-}));
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 app.use(morgan('dev'));
 app.use(express.urlencoded({ extended: true }));
@@ -72,7 +70,9 @@ app.use((req, res, next) => {
 });
 
 // CSRF (cookies)
-const csrfProtection = csrf({ cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' } });
+const csrfProtection = csrf({
+  cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' }
+});
 
 // ----------------------
 // Helpers / Middleware
@@ -107,11 +107,9 @@ const cache = new NodeCache({ stdTTL: 60 * 30 }); // 30 min
 // ----------------------
 app.get('/', async (req, res) => {
   try {
-    // We reuse your existing lists. Example uses Gutenberg + OL.
     const trending = await pickSomeBooks('trending');
     const philosophy = await pickSomeBooks('philosophy');
     const history = await pickSomeBooks('history');
-
     return res.render('index', {
       pageTitle: 'BookLantern',
       trending,
@@ -155,7 +153,6 @@ app.post('/login', csrfProtection, async (req, res) => {
       .single();
     if (prof && prof.role) role = prof.role;
     if (!prof) {
-      // Backfill profile if missing
       await supabaseAdmin.from('profiles').insert({ id: user.id, email: user.email, role });
     }
 
@@ -194,11 +191,9 @@ app.post('/register', csrfProtection, async (req, res) => {
       });
     }
 
-    // Set role (admin if email in env list)
     const role = ADMIN_EMAILS.has(email.toLowerCase()) ? 'admin' : 'user';
     await supabaseAdmin.from('profiles').insert({ id: user.id, email, name, role });
 
-    // Auto-login (if email confirmations are OFF)
     req.session.user = { id: user.id, email: user.email, role };
     return res.redirect(next || '/dashboard');
   } catch (err) {
@@ -300,7 +295,6 @@ app.listen(PORT, () => {
 // Helpers: category book lists + provider fetchers
 // ======================================================
 async function pickSomeBooks(kind) {
-  // You can customize these lists. For demo we hit Gutenberg & OL.
   const per = 10;
   const gIds = {
     trending: ['64176','58988','58596','56517','26659','10471','7142','6593','14328','42983'],
@@ -322,7 +316,6 @@ async function pickSomeBooks(kind) {
 
 async function fetchFromProvider(provider, id) {
   if (provider === 'pg') {
-    // Gutenberg: try HTML -> fallback to plain text
     const base = `https://www.gutenberg.org/files/${id}/${id}-h/${id}-h.htm`;
     const alt1 = `https://www.gutenberg.org/files/${id}/${id}-h/${id}-h.html`;
     const txt = `https://www.gutenberg.org/files/${id}/${id}.txt`;
@@ -344,7 +337,6 @@ async function fetchFromProvider(provider, id) {
   }
 
   if (provider === 'ia') {
-    // Internet Archive placeholder
     const text = `<p>Internet Archive item: ${id}. (Embed/derivative fetch can be added here.)</p>`;
     return { type: 'html', title: `IA ${id}`, content: text };
   }
