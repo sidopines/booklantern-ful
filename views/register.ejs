@@ -1,42 +1,112 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <%- include('./partials/head', { pageTitle: 'Register - BookLantern' }) %>
+  <%- include('./partials/head', { pageTitle: 'Create Account – BookLantern' }) %>
 </head>
 <body>
   <%- include('./partials/navbar') %>
   <%- include('./partials/backLink', { referrer: referrer }) %>
 
-  <main class="stack" style="--gap:20px; max-width:520px; margin:40px auto;">
+  <main class="stack" style="--gap:20px; max-width:560px; margin:40px auto; padding:0 16px;">
     <h1>Create your account</h1>
-    <% if (typeof error !== 'undefined') { %>
+
+    <% if (typeof error !== 'undefined' && error) { %>
       <p class="alert error"><%= error %></p>
     <% } %>
-    <% if (typeof success !== 'undefined') { %>
+    <% if (typeof success !== 'undefined' && success) { %>
       <p class="alert success"><%= success %></p>
     <% } %>
 
-    <form method="post" action="/register" class="card stack" style="--gap:12px; padding:16px;">
+    <form method="post" action="/register" class="card stack" style="--gap:14px; padding:18px;" novalidate>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '/' %>">
 
-      <label>Name
-        <input name="name" type="text" required placeholder="Your name" autocomplete="name">
+      <label class="stack" style="--gap:6px;">
+        <span>Name</span>
+        <input name="name" type="text" required placeholder="Your name" autocomplete="name" />
       </label>
 
-      <label>Email
-        <input name="email" type="email" required placeholder="you@example.com" autocomplete="email">
+      <label class="stack" style="--gap:6px;">
+        <span>Email</span>
+        <input name="email" type="email" required placeholder="you@example.com" autocomplete="email" />
       </label>
 
-      <label>Password
-        <input name="password" type="password" required placeholder="At least 6 characters" autocomplete="new-password">
+      <label class="stack" style="--gap:6px;">
+        <span>Password</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input id="password" name="password" type="password" required minlength="6"
+                 placeholder="At least 6 characters" autocomplete="new-password" style="flex:1;" />
+          <button type="button" id="togglePw" class="btn" style="min-width:80px;">Show</button>
+        </div>
+        <small class="muted">Use 8+ characters with letters and numbers for best security.</small>
       </label>
 
-      <button class="btn primary" type="submit">Register</button>
-      <p class="muted">Already have an account? <a href="/login">Login</a></p>
+      <label class="stack" style="--gap:6px;">
+        <span>Confirm password</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input id="password2" name="password2" type="password" required minlength="6"
+                 placeholder="Re-enter your password" autocomplete="new-password" style="flex:1;" />
+          <button type="button" id="togglePw2" class="btn" style="min-width:80px;">Show</button>
+        </div>
+        <small id="pwMatch" class="muted"></small>
+      </label>
+
+      <label style="display:flex; align-items:flex-start; gap:10px;">
+        <input type="checkbox" required name="terms" value="1" style="margin-top:4px;">
+        <span>I agree to the <a href="/terms">Terms</a> and <a href="/privacy">Privacy Policy</a>.</span>
+      </label>
+
+      <button class="btn btn-primary" type="submit">Create account</button>
+
+      <div class="muted" style="text-align:center;">Already have an account? <a href="/login">Login</a></div>
+
+      <div class="divider" style="display:flex; align-items:center; gap:12px; color:var(--muted);">
+        <hr style="flex:1; border:none; border-top:1px solid var(--border);" />
+        <span>or</span>
+        <hr style="flex:1; border:none; border-top:1px solid var(--border);" />
+      </div>
+
+      <!-- OAuth stubs: will be wired to Supabase OAuth routes -->
+      <div class="stack" style="--gap:10px;">
+        <a class="btn" style="width:100%;" href="/auth/google">Sign up with Google</a>
+        <a class="btn" style="width:100%;" href="/auth/apple">Sign up with Apple</a>
+      </div>
     </form>
   </main>
 
   <%- include('./partials/footer') %>
+
+  <script>
+    (function () {
+      var pw  = document.getElementById('password');
+      var pw2 = document.getElementById('password2');
+      var t1  = document.getElementById('togglePw');
+      var t2  = document.getElementById('togglePw2');
+      var match = document.getElementById('pwMatch');
+
+      function toggle(input, btn) {
+        var isPwd = input.getAttribute('type') === 'password';
+        input.setAttribute('type', isPwd ? 'text' : 'password');
+        btn.textContent = isPwd ? 'Hide' : 'Show';
+      }
+
+      if (t1 && pw) t1.addEventListener('click', function(){ toggle(pw, t1); });
+      if (t2 && pw2) t2.addEventListener('click', function(){ toggle(pw2, t2); });
+
+      function checkMatch() {
+        if (!pw || !pw2 || !match) return;
+        if (!pw.value || !pw2.value) { match.textContent = ''; return; }
+        if (pw.value === pw2.value) {
+          match.textContent = 'Passwords match ✔';
+          match.style.color = 'var(--muted)';
+        } else {
+          match.textContent = 'Passwords do not match';
+          match.style.color = 'var(--danger, #cc3b3b)';
+        }
+      }
+      if (pw)  pw.addEventListener('input', checkMatch);
+      if (pw2) pw2.addEventListener('input', checkMatch);
+    })();
+  </script>
 </body>
 </html>
