@@ -1,18 +1,141 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <%- include('./partials/head', { pageTitle: 'Admin - BookLantern' }) %>
+  <%- include('./partials/head', { pageTitle: 'Admin – BookLantern' }) %>
 </head>
 <body>
   <%- include('./partials/navbar') %>
-  <main class="stack" style="--gap:16px; max-width:1000px; margin:30px auto;">
-    <h1>Admin</h1>
-    <p>You are signed in as <strong><%= user?.email %></strong> (role: <%= user?.role %>).</p>
-    <p class="muted">Here you’ll manage homepage selections and Watch videos.</p>
+
+  <main class="container stack" style="--gap:20px; padding:24px 16px; max-width:1100px;">
+    <header class="stack" style="--gap:8px;">
+      <h1>Admin</h1>
+      <p>
+        You are signed in as
+        <strong><%= (user && user.email) ? user.email : 'unknown' %></strong>
+        (role: <%= (user && user.role) ? user.role : 'user' %>).
+      </p>
+      <p class="muted">Manage homepage selections and Watch videos.</p>
+    </header>
+
+    <!-- Flash messages (optional) -->
+    <% if (typeof messages !== 'undefined' && messages) { %>
+      <% if (messages.success) { %>
+        <p class="alert success"><%= messages.success %></p>
+      <% } %>
+      <% if (messages.error) { %>
+        <p class="alert error"><%= messages.error %></p>
+      <% } %>
+    <% } %>
+
+    <!-- =========================
+         Homepage Selections
+         ========================= -->
+    <section class="stack panel" style="--gap:12px; padding:16px;">
+      <h2>Homepage Selections</h2>
+      <p class="muted">
+        Enter comma-separated IDs for each row. For Gutenberg, use numeric IDs (e.g. 1342).  
+        We’ll soon expand to richer curated sources.
+      </p>
+
+      <% const hp = (typeof homepage !== 'undefined' && homepage) ? homepage : {}; %>
+      <% const curTrending   = Array.isArray(hp.trending)   ? hp.trending.join(',')   : (hp.trending   || ''); %>
+      <% const curPhilosophy = Array.isArray(hp.philosophy) ? hp.philosophy.join(',') : (hp.philosophy || ''); %>
+      <% const curHistory    = Array.isArray(hp.history)    ? hp.history.join(',')    : (hp.history    || ''); %>
+
+      <form method="post" action="/admin/homepage/save" class="stack" style="--gap:12px;">
+        <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <% } %>
+
+        <label class="stack" style="--gap:6px;">
+          <span>Trending IDs (comma separated)</span>
+          <input name="trending" type="text" value="<%= curTrending %>" placeholder="64176, 58988, 58596, …">
+        </label>
+
+        <label class="stack" style="--gap:6px;">
+          <span>Philosophy IDs (comma separated)</span>
+          <input name="philosophy" type="text" value="<%= curPhilosophy %>" placeholder="42884, 66638, 10643, …">
+        </label>
+
+        <label class="stack" style="--gap:6px;">
+          <span>History IDs (comma separated)</span>
+          <input name="history" type="text" value="<%= curHistory %>" placeholder="64176, 47204, 10471, …">
+        </label>
+
+        <div class="row" style="gap:8px;">
+          <button class="btn btn-primary" type="submit">Save Homepage</button>
+          <a class="btn ghost" href="/">Preview Homepage</a>
+        </div>
+      </form>
+    </section>
+
+    <!-- =========================
+         Watch Videos
+         ========================= -->
+    <section class="stack panel" style="--gap:14px; padding:16px;">
+      <h2>Watch Videos</h2>
+
+      <form method="post" action="/admin/videos/add" class="grid" style="--cols:3; gap:12px; align-items:end;">
+        <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <% } %>
+
+        <label class="stack" style="--gap:6px;">
+          <span>Title</span>
+          <input name="title" type="text" placeholder="Video title" required>
+        </label>
+
+        <label class="stack" style="--gap:6px;">
+          <span>Video URL (YouTube, Vimeo, etc.)</span>
+          <input name="url" type="url" placeholder="https://www.youtube.com/watch?v=…" required>
+        </label>
+
+        <label class="stack" style="--gap:6px;">
+          <span>Thumbnail URL (optional)</span>
+          <input name="thumb" type="url" placeholder="https://…/thumbnail.jpg">
+        </label>
+
+        <button class="btn btn-primary" type="submit">Add Video</button>
+      </form>
+
+      <% const vids = (typeof videos !== 'undefined' && Array.isArray(videos)) ? videos : []; %>
+      <% if (!vids.length) { %>
+        <div class="card" style="padding:16px;">No videos added yet.</div>
+      <% } else { %>
+        <div class="grid" style="--cols:3; gap:12px;">
+          <% vids.forEach(function (v) { %>
+            <article class="card stack" style="--gap:8px;">
+              <a href="<%= v.url %>" target="_blank" rel="noopener">
+                <% if (v.thumb) { %>
+                  <img src="<%= v.thumb %>" alt="<%= v.title %>">
+                <% } else { %>
+                  <div class="cover ph" style="height:160px; display:flex; align-items:center; justify-content:center;">No thumb</div>
+                <% } %>
+              </a>
+              <div class="stack" style="--gap:6px; padding:0 10px 10px;">
+                <strong><%= v.title %></strong>
+                <form method="post" action="/admin/videos/delete" class="inline">
+                  <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <% } %>
+                  <input type="hidden" name="id" value="<%= v.id %>">
+                  <button class="btn ghost" type="submit">Delete</button>
+                </form>
+              </div>
+            </article>
+          <% }) %>
+        </div>
+      <% } %>
+    </section>
+
     <form method="post" action="/logout">
+      <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <% } %>
       <button class="btn">Logout</button>
     </form>
   </main>
+
   <%- include('./partials/footer') %>
 </body>
 </html>
