@@ -1,18 +1,45 @@
-<% const item = b || {}; %>
-<article class="card">
-  <a class="cover" href="/read/<%= item.provider %>/<%= item.id %>">
-    <% if (item.cover) { %>
-      <img src="<%= item.cover %>" alt="<%= item.title %>">
-    <% } else { %>
-      <div class="cover ph" aria-label="No cover">📘</div>
-    <% } %>
+<%
+// Safe item
+const item = b || {};
+const title = item.title || `${item.provider?.toUpperCase?.() || 'Item'} #${item.id || ''}`;
+const author = item.author || '';
+const href = `/read/${item.provider}/${item.id}`;
+%>
+
+<article class="card" style="overflow:hidden;">
+  <a class="cover" href="<%= href %>" aria-label="Read: <%= title %>" style="display:block;border-radius:14px;overflow:hidden;background:var(--surface-soft);">
+    <!-- Aspect-ratio wrapper to normalize thumbnail sizes -->
+    <div style="position:relative;width:100%;aspect-ratio:2/3;overflow:hidden;">
+      <% if (item.cover) { %>
+        <img
+          src="<%= item.cover %>"
+          alt="<%= title %>"
+          loading="lazy"
+          decoding="async"
+          style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;"
+        >
+      <% } else { %>
+        <div
+          aria-label="No cover available"
+          style="position:absolute;inset:0;display:grid;place-items:center;font-size:1.6rem;opacity:.6;"
+        >📘</div>
+      <% } %>
+    </div>
   </a>
-  <div class="meta">
-    <h4 class="title"><%= item.title %></h4>
-    <% if (item.author) { %><div class="author"><%= item.author %></div><% } %>
-    <div class="row" style="gap:6px;margin-top:8px;">
-      <a class="btn tiny" href="/read/<%= item.provider %>/<%= item.id %>">Read</a>
-      <a class="btn tiny ghost" href="/read/<%= item.provider %>/<%= item.id %>#listen">Listen</a>
+
+  <div class="meta" style="padding:10px 4px 2px;">
+    <h4 class="title" style="margin:0 0 4px;font-size:1rem;line-height:1.25;">
+      <a href="<%= href %>" style="color:var(--ink);text-decoration:none;">
+        <%= title %>
+      </a>
+    </h4>
+    <% if (author) { %>
+      <div class="author" style="font-size:.9rem;color:var(--ink-muted);margin-bottom:8px;"><%= author %></div>
+    <% } %>
+
+    <div class="row" style="gap:6px;margin-top:4px;">
+      <a class="btn tiny" href="<%= href %>">Read</a>
+      <a class="btn tiny ghost" href="<%= href %>#listen">Listen</a>
     </div>
   </div>
 </article>
