@@ -1,46 +1,47 @@
 (function () {
   var LS_KEY = 'bl-theme';
 
+  function sysPrefersDark() {
+    try { return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; }
+    catch (e) { return false; }
+  }
+
+  function get() {
+    try { return localStorage.getItem(LS_KEY); } catch (e) { return null; }
+  }
+
+  function set(mode) {
+    try { localStorage.setItem(LS_KEY, mode); } catch (e) {}
+  }
+
   function apply(mode) {
-    if (mode === 'auto') {
-      try {
-        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        mode = prefersDark ? 'dark' : 'light';
-      } catch (e) { mode = 'light'; }
-    }
+    // fallback to system if nothing saved
+    if (!mode) mode = sysPrefersDark() ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', mode);
     var icon = document.getElementById('themeIcon');
     if (icon) icon.textContent = (mode === 'dark') ? '🌙' : '☀️';
   }
 
-  function current() {
-    try { return localStorage.getItem(LS_KEY) || 'auto'; }
-    catch (e) { return 'auto'; }
-  }
+  // Pre-apply whatever is saved (or system) ASAP
+  apply(get());
 
-  function set(mode) {
-    try { localStorage.setItem(LS_KEY, mode); } catch (e) {}
-    apply(mode);
-  }
-
-  // Initialize on DOM ready (pre-paint script in head already set data-theme)
+  // Wire up the button (simple two-state)
   document.addEventListener('DOMContentLoaded', function () {
-    apply(current());
-
     var btn = document.getElementById('themeToggle');
-    if (btn) {
-      btn.addEventListener('click', function () {
-        var m = current();
-        var next = (m === 'light') ? 'dark' : (m === 'dark') ? 'auto' : 'light';
-        set(next);
-      });
-    }
+    if (!btn) return;
 
-    // If user changes system theme and we're in auto, reflect it
+    btn.addEventListener('click', function () {
+      var current = document.documentElement.getAttribute('data-theme') || (sysPrefersDark() ? 'dark' : 'light');
+      var next = current === 'dark' ? 'light' : 'dark';
+      set(next);
+      apply(next);
+    });
+
+    // If user changes OS theme and no explicit choice saved, follow system
     var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
     if (mq) {
       mq.addEventListener('change', function () {
-        if (current() === 'auto') apply('auto');
+        if (!get()) apply(null);
       });
     }
   });
