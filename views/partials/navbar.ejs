@@ -1,34 +1,60 @@
-<header class="site-header">
-  <div class="container nav-row">
-    <a class="brand" href="/">
-      <img src="/logo.svg" alt="BookLantern" width="44" height="44" class="brand-logo">
-      <span class="brand-name">BookLantern</span>
+<header class="site-header" style="position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border)">
+  <div class="container" style="display:flex;align-items:center;gap:14px;min-height:64px">
+    <!-- Brand -->
+    <a href="/" class="brand" style="display:flex;align-items:center;gap:10px;text-decoration:none">
+      <img src="/logo.svg" alt="BookLantern" width="40" height="40" style="display:block;flex:0 0 40px;border-radius:10px"/>
+      <span class="brand-title" style="font-size:20px;font-weight:700;letter-spacing:0.2px;color:var(--ink)">BookLantern</span>
     </a>
 
-    <nav class="nav-links">
-      <a href="/read/pg/10471" class="nav-link">Read</a>
-      <a href="/watch" class="nav-link">Watch</a>
-      <a href="/about" class="nav-link">About</a>
+    <!-- Primary links -->
+    <nav class="nav-primary" style="display:flex;align-items:center;gap:14px;margin-left:10px;">
+      <a href="/read"   class="nav-link">Read</a>
+      <a href="/watch"  class="nav-link">Watch</a>
+      <a href="/about"  class="nav-link">About</a>
       <a href="/contact" class="nav-link">Contact</a>
     </nav>
 
-    <form class="nav-search" action="/search" method="get" role="search">
-      <input name="q" type="search" placeholder="Search free books…" aria-label="Search books" value="<%= (typeof q !== 'undefined' ? q : '') %>">
-      <button class="btn">Search</button>
+    <!-- Spacer -->
+    <div style="flex:1"></div>
+
+    <!-- Search -->
+    <form action="/search" method="get" class="nav-search" style="display:flex;gap:8px;align-items:center">
+      <input
+        type="search"
+        name="q"
+        placeholder="Search free books..."
+        value="<%= typeof q !== 'undefined' ? q : '' %>"
+        style="min-width:320px;max-width:520px;width:40vw"
+        class="input"
+      />
+      <button class="btn" type="submit">Search</button>
     </form>
 
-    <div class="nav-actions">
-      <button id="themeToggle" class="btn ghost" type="button" aria-label="Toggle theme">🌙</button>
+    <!-- Theme toggle -->
+    <button id="themeToggle" class="btn ghost" type="button" style="margin-left:10px">Toggle</button>
 
+    <!-- Auth -->
+    <div class="nav-auth" style="display:flex;align-items:center;gap:8px;margin-left:10px;">
       <% if (isAuthenticated) { %>
-        <a class="btn ghost" href="/dashboard">Account</a>
+        <a href="/dashboard" class="btn ghost">Account</a>
         <form method="post" action="/logout" style="display:inline;">
-          <button class="btn" type="submit">Logout</button>
+          <button class="btn danger" type="submit">Logout</button>
         </form>
       <% } else { %>
-        <a class="btn ghost" href="/login">Login</a>
-        <a class="btn primary" href="/register">Create account</a>
+        <a href="/login" class="btn ghost">Login</a>
+        <a href="/register" class="btn primary">Create<br/>account</a>
       <% } %>
     </div>
   </div>
 </header>
+
+<style>
+  /* Small helpers so links match your palette without needing to touch site.css */
+  .nav-link { color: var(--ink-soft); text-decoration: none; padding: 6px 8px; border-radius: 10px; }
+  .nav-link:hover { background: var(--card); color: var(--ink); }
+  @media (max-width: 880px){
+    .nav-primary { display:none; }
+    .nav-search input { min-width:180px; width:45vw; }
+    .brand-title { font-size:18px !important; }
+  }
+</style>
