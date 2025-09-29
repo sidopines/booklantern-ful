@@ -1,53 +1,43 @@
-<nav class="nav">
-  <div class="container nav__inner">
-    <!-- Brand -->
-    <a class="brand" href="/" aria-label="BookLantern home">
-      <img class="brand__icon" src="/public/logo.svg" alt="" width="64" height="64" />
-      <span class="brand__wordmark">BookLantern</span>
+<!-- views/partials/navbar.ejs -->
+<nav class="site-nav">
+  <div class="nav-inner">
+    <a class="brand" href="/">
+      <img src="/public/logo.svg" alt="BookLantern" width="36" height="36" />
+      <span class="wordmark">BookLantern</span>
     </a>
 
-    <!-- Primary links -->
-    <ul class="nav__links" aria-label="Primary">
+    <ul class="nav-links">
       <li><a href="/read">Read</a></li>
       <li><a href="/watch">Watch</a></li>
       <li><a href="/about">About</a></li>
       <li><a href="/contact">Contact</a></li>
     </ul>
 
-    <!-- Search -->
-    <form class="nav__search" action="/search" method="get" role="search">
-      <input
-        class="input"
-        type="search"
-        name="q"
-        placeholder="Search free books…"
-        aria-label="Search free books"
-        value="<%= typeof q !== 'undefined' ? q : '' %>"
-      />
-      <button class="btn btn--primary" type="submit">Search</button>
+    <form class="nav-search" action="/search" method="get">
+      <input type="text" name="q" placeholder="Search free books..." aria-label="Search" />
+      <button class="btn btn--ghost" type="submit">Search</button>
     </form>
 
-    <!-- Actions -->
-    <div class="nav__actions">
-      <button
-        id="themeToggle"
-        class="btn btn--ghost nav__theme"
-        type="button"
-        aria-label="Toggle theme"
-        aria-pressed="false"
-        tabindex="0"
-      >
-        <span id="themeGlyph" aria-hidden="true">🌙</span>
+    <div class="nav-actions">
+      <!-- single theme toggle button -->
+      <button id="themeToggle" class="btn btn--ghost" type="button" aria-label="Toggle theme">
+        <span id="themeIcon">🌙</span>
       </button>
 
-      <% if (isAuthenticated) { %>
+      <% 
+        // Be defensive: compute auth state locally so this partial never throws.
+        const _user   = (typeof user !== 'undefined' && user) ? user : null;
+        const _authed = (typeof isAuthenticated !== 'undefined') ? !!isAuthenticated 
+                       : !!(_user && (_user.id || _user.email));
+      %>
+
+      <% if (_authed) { %>
         <a class="btn btn--ghost" href="/dashboard">Account</a>
         <form method="post" action="/logout" style="display:inline;">
           <button class="btn btn--primary" type="submit">Logout</button>
         </form>
       <% } else { %>
         <a class="btn btn--ghost" href="/login">Login</a>
-        <!-- Use the same primary style to match the rest -->
         <a class="btn btn--primary" href="/register">Create account</a>
       <% } %>
     </div>
