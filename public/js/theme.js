@@ -1,4 +1,4 @@
-// BookLantern theme controller (robust)
+// BookLantern theme controller (robust, idempotent)
 (function () {
   var KEY = 'bl-theme';
   var root = document.documentElement;
@@ -13,7 +13,7 @@
     if (glyph) glyph.textContent = (t === 'dark') ? '☀️' : '🌙';
   }
 
-  // Initialize glyph based on pre-set data-theme (head bootstrap)
+  // Initialize glyph to match the pre-bootstrapped theme from head.ejs
   setTheme(current());
 
   if (btn) {
