@@ -1,42 +1,26 @@
-// Theme toggle: persists choice and updates [data-theme]
+// BookLantern theme controller (robust)
 (function () {
-  function applyTheme(mode) {
-    if (mode === 'dark') {
-      document.documentElement.setAttribute('data-theme', 'dark');
-    } else {
-      document.documentElement.setAttribute('data-theme', '');
-    }
+  var KEY = 'bl-theme';
+  var root = document.documentElement;
+  var btn  = document.getElementById('themeToggle');
+  var glyph= document.getElementById('themeGlyph');
+
+  function current() {
+    return root.getAttribute('data-theme') || 'light';
+  }
+  function setTheme(t) {
+    root.setAttribute('data-theme', t);
+    if (glyph) glyph.textContent = (t === 'dark') ? '☀️' : '🌙';
   }
 
-  function currentMode() {
-    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-  }
+  // Initialize glyph based on pre-set data-theme (head bootstrap)
+  setTheme(current());
 
-  function save(mode) {
-    try { localStorage.setItem('bl.theme', mode); } catch (e) {}
-  }
-
-  function initButton() {
-    const btn = document.getElementById('themeToggle');
-    if (!btn) return;
-    const mode = currentMode();
-    btn.setAttribute('aria-pressed', mode === 'dark' ? 'true' : 'false');
-    btn.innerHTML = mode === 'dark' ? '☀️' : '🌙';
-
+  if (btn) {
     btn.addEventListener('click', function () {
-      const now = currentMode();
-      const next = now === 'dark' ? 'light' : 'dark';
-      applyTheme(next);
-      save(next);
-      btn.setAttribute('aria-pressed', next === 'dark' ? 'true' : 'false');
-      btn.innerHTML = next === 'dark' ? '☀️' : '🌙';
+      var t = current() === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem(KEY, t); } catch (_) {}
+      setTheme(t);
     });
-  }
-
-  // Initialize on DOM ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initButton);
-  } else {
-    initButton();
   }
 })();
