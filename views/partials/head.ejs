@@ -10,12 +10,12 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
 
-  <!-- Initial theme: apply ASAP to avoid FOUC -->
+  <!-- Apply saved theme ASAP to avoid flash -->
   <script>
     (function () {
       try {
         var saved = localStorage.getItem('bl-theme');
-        if (saved && (saved === 'light' || saved === 'dark')) {
+        if (saved === 'light' || saved === 'dark') {
           document.documentElement.dataset.theme = saved;
         }
       } catch (e) {}
@@ -24,4 +24,7 @@
 
   <!-- Styles -->
   <link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>">
+
+  <!-- UI scripts (defer so DOM exists when they run) -->
+  <script src="/public/js/ui.js?v=<%= buildId %>" defer></script>
 </head>
