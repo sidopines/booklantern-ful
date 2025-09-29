@@ -1,46 +1,27 @@
-<!doctype html>
-<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8" />
-  <title><%= typeof pageTitle !== 'undefined' ? pageTitle : 'BookLantern' %></title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <% if (typeof pageDescription !== 'undefined') { %>
-    <meta name="description" content="<%= pageDescription %>">
-  <% } %>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title><%= typeof pageTitle !== 'undefined' ? pageTitle + ' – ' : '' %>BookLantern</title>
+  <meta name="description" content="<%= typeof pageDescription !== 'undefined' ? pageDescription : 'Discover millions of free books from globally trusted libraries and archives.' %>">
 
-  <!-- Favicons & PWA -->
+  <!-- Icons / PWA -->
   <link rel="icon" href="/favicon.ico" sizes="any">
-  <link rel="icon" type="image/png" href="/favicon-32x32.png" sizes="32x32">
-  <link rel="icon" type="image/png" href="/favicon-16x16.png" sizes="16x16">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
-  <meta name="theme-color" content="#9AB0FF">
 
-  <!-- Core stylesheet -->
-  <link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>">
-
-  <!-- Theme bootstrap (respects saved choice) -->
+  <!-- Initial theme: apply ASAP to avoid FOUC -->
   <script>
-    (function(){
+    (function () {
       try {
-        const saved = localStorage.getItem('bl_theme');
-        if (saved) document.documentElement.setAttribute('data-theme', saved);
-      } catch {}
+        var saved = localStorage.getItem('bl-theme');
+        if (saved && (saved === 'light' || saved === 'dark')) {
+          document.documentElement.dataset.theme = saved;
+        }
+      } catch (e) {}
     })();
   </script>
 
-  <!-- Core UI script -->
-  <script defer src="/public/js/ui.js?v=<%= buildId %>"></script>
-
-  <!-- Register Service Worker -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function() {
-        // We serve /sw.js from the site root via server.js so it controls the whole scope
-        navigator.serviceWorker.register('/sw.js').catch(function(e){
-          console.warn('SW registration failed:', e);
-        });
-      });
-    }
-  </script>
+  <!-- Styles -->
+  <link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>">
 </head>
