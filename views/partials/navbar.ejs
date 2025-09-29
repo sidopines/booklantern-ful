@@ -1,32 +1,34 @@
-<nav class="navbar">
-  <div class="container navbar-inner">
-    <div class="nav-left">
-      <a class="brand" href="/">
-        <img src="/public/logo.svg" alt="BookLantern logo" height="28" width="28">
-        <span>BookLantern</span>
-      </a>
-    </div>
+<header class="site-header">
+  <div class="container nav-row">
+    <a class="brand" href="/">
+      <img src="/logo.svg" alt="BookLantern" width="32" height="32" class="brand-logo">
+      <span class="brand-name">BookLantern</span>
+    </a>
 
-    <form class="search-wrap" action="/search" method="get" role="search" style="flex:1;">
-      <input type="search" name="q" placeholder="Search free books…" aria-label="Search books" value="<%= typeof q !== 'undefined' ? q : '' %>">
-      <button class="btn primary" type="submit">Search</button>
+    <nav class="nav-links">
+      <a href="/read/pg/10471" class="nav-link">Read</a>
+      <a href="/watch" class="nav-link">Watch</a>
+      <a href="/about" class="nav-link">About</a>
+      <a href="/contact" class="nav-link">Contact</a>
+    </nav>
+
+    <form class="nav-search" action="/search" method="get" role="search">
+      <input name="q" type="search" placeholder="Search free books…" aria-label="Search books" value="<%= (typeof q !== 'undefined' ? q : '') %>">
+      <button class="btn">Search</button>
     </form>
 
-    <div class="nav-right">
-      <!-- Theme toggle -->
-      <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" title="Toggle theme">
-        <span aria-hidden="true">🌙</span><span class="sr-only">Toggle theme</span>
-      </button>
+    <div class="nav-actions">
+      <button id="themeToggle" class="btn ghost" type="button" aria-label="Toggle theme">Toggle</button>
 
-      <% if (loggedIn) { %>
-        <a href="<%= isAdmin ? '/admin' : '/dashboard' %>">Account</a>
-        <form method="POST" action="/logout" style="display:inline;">
-          <button class="btn ghost" type="submit">Logout</button>
+      <% if (isAuthenticated) { %>
+        <a class="btn ghost" href="/dashboard">Account</a>
+        <form method="post" action="/logout" style="display:inline;">
+          <button class="btn" type="submit">Logout</button>
         </form>
       <% } else { %>
-        <a href="/login">Login</a>
-        <a class="btn" href="/register">Create account</a>
+        <a class="btn ghost" href="/login">Login</a>
+        <a class="btn primary" href="/register">Create account</a>
       <% } %>
     </div>
   </div>
-</nav>
+</header>
