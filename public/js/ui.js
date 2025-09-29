@@ -1,33 +1,41 @@
 // public/js/ui.js
-
 (function () {
-  // THEME TOGGLE ---------------------------------------------
   var root = document.documentElement;
-  var toggleBtn = document.getElementById('themeToggle');
+  var btn  = null;
 
-  function applyTheme(t) {
-    if (t === 'light' || t === 'dark') {
-      root.dataset.theme = t;
-      try { localStorage.setItem('bl-theme', t); } catch (e) {}
-      if (toggleBtn) toggleBtn.setAttribute('aria-label', 'Switch to ' + (t === 'light' ? 'dark' : 'light') + ' theme');
+  function setLabel(theme) {
+    if (!btn) return;
+    // show the icon for the *next* theme
+    btn.textContent = theme === 'light' ? '🌙' : '☀️';
+    btn.title = 'Switch to ' + (theme === 'light' ? 'dark' : 'light') + ' theme';
+    btn.setAttribute('aria-label', btn.title);
+  }
+
+  function getTheme() {
+    try {
+      var saved = localStorage.getItem('bl-theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch (e) {}
+    return root.dataset.theme === 'dark' ? 'dark' : 'light';
+  }
+
+  function applyTheme(theme) {
+    root.dataset.theme = theme;
+    try { localStorage.setItem('bl-theme', theme); } catch (e) {}
+    setLabel(theme);
+  }
+
+  function toggleTheme() {
+    var cur = getTheme();
+    applyTheme(cur === 'light' ? 'dark' : 'light');
+  }
+
+  // Wait for DOM to mount to find the button
+  window.addEventListener('DOMContentLoaded', function () {
+    btn = document.getElementById('themeToggle');
+    if (btn) {
+      btn.addEventListener('click', toggleTheme);
+      setLabel(getTheme()); // initialize label
     }
-  }
-
-  function currentTheme() {
-    var saved;
-    try { saved = localStorage.getItem('bl-theme'); } catch (e) {}
-    if (saved === 'light' || saved === 'dark') return saved;
-    // default to light if not set
-    return 'light';
-  }
-
-  if (toggleBtn) {
-    toggleBtn.addEventListener('click', function () {
-      var next = currentTheme() === 'light' ? 'dark' : 'light';
-      applyTheme(next);
-    });
-  }
-
-  // Ensure theme is applied on load (in case head inline script didn't)
-  applyTheme(currentTheme());
+  });
 })();
