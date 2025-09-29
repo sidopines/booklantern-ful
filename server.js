@@ -1,4 +1,4 @@
-// server.js — Supabase edition + Service Worker route
+// server.js — Supabase + PWA + Offline queue endpoints + multi-source search
 require('dotenv').config();
 
 const express = require('express');
@@ -106,7 +106,7 @@ const ADMIN_EMAILS = new Set(
     .filter(Boolean)
 );
 
-// Cache for book API
+// Cache for book API & homepage
 const cache = new NodeCache({ stdTTL: 60 * 30 }); // 30 min
 
 // ----------------------
@@ -114,9 +114,10 @@ const cache = new NodeCache({ stdTTL: 60 * 30 }); // 30 min
 // ----------------------
 app.get('/', async (req, res) => {
   try {
-    const trending = await pickSomeBooks('trending');
-    const philosophy = await pickSomeBooks('philosophy');
-    const history = await pickSomeBooks('history');
+    // pull curated sets with proper metadata (title/author/covers)
+    const trending = await curatedSet('trending');
+    const philosophy = await curatedSet('philosophy');
+    const history = await curatedSet('history');
     return res.render('index', {
       pageTitle: 'BookLantern',
       trending,
@@ -131,7 +132,6 @@ app.get('/', async (req, res) => {
 
 app.get('/watch', async (req, res) => {
   try {
-    // Placeholder list to avoid EJS error; wire to Supabase later.
     const videos = [];
     return res.render('watch', { videos });
   } catch (e) {
@@ -248,7 +248,7 @@ app.get('/read/:provider/:id', requireAuth, (req, res) => {
   res.render('read', { provider, id, pageTitle: 'Read - BookLantern' });
 });
 
-// Search (multi-source lite)
+// Search (multi-source)
 app.get('/search', async (req, res) => {
   const q = (req.query.q || '').trim();
   if (!q) return res.redirect('/');
@@ -294,6 +294,79 @@ app.get('/api/book', requireAuth, async (req, res) => {
 });
 
 // ----------------------
+// Library actions (Save / Notes) with offline-friendly behavior
+// ----------------------
+app.post('/api/save', requireAuth, async (req, res) => {
+  try {
+    const { provider, id, title, author, cover } = req.body;
+    if (!provider || !id) return res.status(400).json({ error: 'Missing provider or id' });
+    const user_id = req.session.user.id;
+
+    // upsert into "saves" (unique: user_id+provider+id)
+    const { error } = await supabaseAdmin
+      .from('saves')
+      .upsert({ user_id, provider, book_id: String(id), title: title || null, author: author || null, cover: cover || null }, {
+        onConflict: 'user_id,provider,book_id'
+      });
+
+    if (error) {
+      console.error('save error', error);
+      return res.status(500).json({ error: 'Failed to save' });
+    }
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error('save api error', e);
+    return res.status(500).json({ error: 'Failed to save' });
+  }
+});
+
+app.get('/api/notes', requireAuth, async (req, res) => {
+  try {
+    const { provider, id } = req.query;
+    if (!provider || !id) return res.status(400).json({ error: 'Missing provider or id' });
+    const user_id = req.session.user.id;
+
+    const { data, error } = await supabaseAdmin
+      .from('notes')
+      .select('id, provider, book_id, text, pos, created_at')
+      .eq('user_id', user_id)
+      .eq('provider', provider)
+      .eq('book_id', String(id))
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('notes get error', error);
+      return res.status(500).json({ error: 'Failed to fetch notes' });
+    }
+    return res.json({ notes: data || [] });
+  } catch (e) {
+    console.error('notes api error', e);
+    return res.status(500).json({ error: 'Failed to fetch notes' });
+  }
+});
+
+app.post('/api/notes', requireAuth, async (req, res) => {
+  try {
+    const { provider, id, text, pos } = req.body;
+    if (!provider || !id || !text) return res.status(400).json({ error: 'Missing fields' });
+    const user_id = req.session.user.id;
+
+    const { error } = await supabaseAdmin
+      .from('notes')
+      .insert({ user_id, provider, book_id: String(id), text, pos: pos || null });
+
+    if (error) {
+      console.error('notes insert error', error);
+      return res.status(500).json({ error: 'Failed to add note' });
+    }
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error('notes api error', e);
+    return res.status(500).json({ error: 'Failed to add note' });
+  }
+});
+
+// ----------------------
 // Error / 404
 // ----------------------
 app.use((err, req, res, next) => {
@@ -315,27 +388,96 @@ app.listen(PORT, () => {
 });
 
 // ======================================================
-// Helpers: category book lists + provider fetchers
+// Helpers: curated homepage + search + provider fetchers
 // ======================================================
-async function pickSomeBooks(kind) {
-  // TODO: Replace with real curated multi-source lists.
-  const per = 10;
-  const gIds = {
-    trending: ['64176','58988','58596','56517','26659','10471','7142','6593','14328','42983'],
-    philosophy: ['42884','66638','10643','11431','47204','5827','47204','10471','64176','58596'],
-    history: ['64176','47204','10471','26659','56517','14328','6593','7142','58988','42983']
-  }[kind] || [];
 
-  const items = await Promise.all(
-    gIds.slice(0, per).map(async gid => ({
-      provider: 'pg',
-      id: gid,
-      title: `PG #${gid}`,
-      author: '',
-      cover: `/proxy?url=${encodeURIComponent(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.cover.medium.jpg`)}`
-    }))
-  );
-  return items;
+// Curated IDs (mixed providers). We’ll look up real metadata.
+const CURATED = {
+  trending: [
+    { provider: 'pg', id: '10471' },
+    { provider: 'pg', id: '64176' },
+    { provider: 'ol', id: 'OL17732W' },
+    { provider: 'ia', id: 'bub_gb_5XoWAAAAYAAJ' }, // IA id example
+    { provider: 'se', id: 'the-iliad-homer' }      // Standard Ebooks slug example
+  ],
+  philosophy: [
+    { provider: 'pg', id: '42884' },
+    { provider: 'pg', id: '66638' },
+    { provider: 'se', id: 'meditations-marcus-aurelius' },
+    { provider: 'ol', id: 'OL8193416W' }
+  ],
+  history: [
+    { provider: 'pg', id: '26659' },
+    { provider: 'pg', id: '58988' },
+    { provider: 'ia', id: 'historyofgreece01groo' },
+    { provider: 'se', id: 'a-short-history-of-england-g-k-chesterton' }
+  ]
+};
+
+async function curatedSet(kind) {
+  const items = CURATED[kind] || [];
+  const enriched = await Promise.all(items.map(metaLookup));
+  return enriched.filter(Boolean);
+}
+
+async function metaLookup(item) {
+  try {
+    const { provider, id } = item;
+    if (provider === 'pg') {
+      // Gutendex for richer metadata
+      const r = await fetch(`https://gutendex.com/books/${id}`);
+      if (r.ok) {
+        const j = await r.json();
+        return {
+          provider, id: String(j.id),
+          title: j.title || `PG #${id}`,
+          author: (j.authors && j.authors[0] && j.authors[0].name) || '',
+          cover: j.formats && j.formats['image/jpeg'] ? `/proxy?url=${encodeURIComponent(j.formats['image/jpeg'])}` :
+                 `/proxy?url=${encodeURIComponent(`https://www.gutenberg.org/cache/epub/${id}/pg${id}.cover.medium.jpg`)}`
+        };
+      }
+    }
+    if (provider === 'ol') {
+      const r = await fetch(`https://openlibrary.org/works/${id}.json`);
+      if (r.ok) {
+        const j = await r.json();
+        const coverId = (j.covers && j.covers[0]) || null;
+        return {
+          provider, id,
+          title: j.title || id,
+          author: Array.isArray(j.authors) ? '' : '',
+          cover: coverId ? `/proxy?url=${encodeURIComponent(`https://covers.openlibrary.org/b/id/${coverId}-M.jpg`)}` : null
+        };
+      }
+    }
+    if (provider === 'ia') {
+      // IA metadata
+      const r = await fetch(`https://archive.org/metadata/${id}`);
+      if (r.ok) {
+        const j = await r.json();
+        const title = j.metadata && (j.metadata.title || j.metadata['title']) || id;
+        const author = j.metadata && (j.metadata.creator || j.metadata['creator'] || '');
+        // Try IA cover if present
+        const cover = `/proxy?url=${encodeURIComponent(`https://archive.org/services/img/${id}`)}`;
+        return { provider, id, title, author, cover };
+      }
+    }
+    if (provider === 'se') {
+      // Standard Ebooks: static metadata fetch from OPDS entry (HTML page fallback)
+      // We’ll guess nice title from slug; cover via CDN pattern
+      const pretty = id.split('-').map(s => s[0].toUpperCase() + s.slice(1)).join(' ');
+      const cover = `/proxy?url=${encodeURIComponent(`https://standardebooks.org/covers/${id}.png`)}`;
+      return { provider, id, title: pretty, author: '', cover };
+    }
+  } catch (e) {
+    console.warn('meta lookup failed', item, e.message);
+  }
+  // Fallback minimal
+  return {
+    provider: item.provider, id: item.id,
+    title: `${item.provider.toUpperCase()} #${item.id}`,
+    author: '', cover: null
+  };
 }
 
 async function searchAcrossProviders(q) {
@@ -360,7 +502,7 @@ async function searchAcrossProviders(q) {
     }
   } catch {}
 
-  // Project Gutenberg search (via gutendex)
+  // Project Gutenberg (Gutendex)
   try {
     const r = await fetch(`https://gutendex.com/books?search=${encodeURIComponent(q)}`);
     if (r.ok) {
@@ -377,10 +519,34 @@ async function searchAcrossProviders(q) {
     }
   } catch {}
 
+  // Internet Archive (text & ebooks)
+  try {
+    const qIA = `${q} AND mediatype:(texts)`;
+    const r = await fetch(`https://archive.org/advancedsearch.php?q=${encodeURIComponent(qIA)}&output=json&rows=12&fields=identifier,title,creator`);
+    if (r.ok) {
+      const j = await r.json();
+      (j.response && j.response.docs || []).forEach(d => {
+        out.push({
+          provider: 'ia',
+          id: d.identifier,
+          title: d.title || d.identifier,
+          author: d.creator || '',
+          cover: `/proxy?url=${encodeURIComponent(`https://archive.org/services/img/${d.identifier}`)}`
+        });
+      });
+    }
+  } catch {}
+
+  // Standard Ebooks (lightweight heuristic search: try direct slug if user typed exact title)
+  // We add one "sluggy" guess to widen provider diversity
+  const slugGuess = q.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+  out.push({ provider: 'se', id: slugGuess, title: q, author: '', cover: `/proxy?url=${encodeURIComponent(`https://standardebooks.org/covers/${slugGuess}.png`)}` });
+
   return out;
 }
 
 async function fetchFromProvider(provider, id) {
+  // Return { type: 'html'|'text'|'pdf'|'epub', title, content|url }
   if (provider === 'pg') {
     const base = `https://www.gutenberg.org/files/${id}/${id}-h/${id}-h.htm`;
     const alt1 = `https://www.gutenberg.org/files/${id}/${id}-h/${id}-h.html`;
@@ -398,13 +564,32 @@ async function fetchFromProvider(provider, id) {
   if (provider === 'ol') {
     const work = await (await fetch(`https://openlibrary.org/works/${id}.json`)).json();
     const title = work?.title || id;
-    const text = `<h1>${title}</h1><p>Open Library work page: <a href="https://openlibrary.org/works/${id}" target="_blank" rel="noopener">openlibrary.org</a></p>`;
+    const text = `<h1>${title}</h1><p>This Open Library work links to multiple editions. Pick an edition in your library.</p>`;
     return { type: 'html', title, content: text };
   }
 
   if (provider === 'ia') {
-    const text = `<p>Internet Archive item: ${id}. (Embed/derivative fetch can be added here.)</p>`;
-    return { type: 'html', title: `IA ${id}`, content: text };
+    // Try to embed a readable format if available (PDF/EPUB)
+    try {
+      const meta = await (await fetch(`https://archive.org/metadata/${id}`)).json();
+      const files = meta.files || [];
+      const pdf = files.find(f => /\.pdf$/i.test(f.name));
+      const epub = files.find(f => /\.epub$/i.test(f.name));
+      if (pdf) return { type: 'pdf', title: meta.metadata?.title || id, url: `https://archive.org/download/${id}/${pdf.name}` };
+      if (epub) return { type: 'epub', title: meta.metadata?.title || id, url: `https://archive.org/download/${id}/${epub.name}` };
+      // fallback message
+      const title = meta.metadata?.title || id;
+      const html = `<h1>${title}</h1><p>This Internet Archive item may require viewing formats (PDF/EPUB). We’ll add inline rendering where possible.</p>`;
+      return { type: 'html', title, content: html };
+    } catch {}
+    return { type: 'error', error: 'Not found' };
+  }
+
+  if (provider === 'se') {
+    // Standard Ebooks: serve HTML if available; otherwise link
+    const pretty = id.split('-').map(s => s[0]?.toUpperCase() + s.slice(1)).join(' ');
+    const html = `<h1>${pretty}</h1><p>Standard Ebooks edition. We’ll fetch and inline the HTML/EPUB in the next pass.</p>`;
+    return { type: 'html', title: pretty, content: html };
   }
 
   return { type: 'error', error: 'Unknown provider' };
