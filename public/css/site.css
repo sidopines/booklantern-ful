@@ -1,109 +1,47 @@
-/* public/css/site.css  — Pastel theme + header */
-
-:root {
-  --bg: #fffdfc;
-  --ink: #0b1020;
-  --muted-ink: #4a5165;
-
-  --brand-1: #9AB0FF;
-  --brand-1b:#7C95FF;
-  --accent: #F7C4A5;
-  --accent-2: #FBE4D4;
-
-  --card: #ffffff;
-  --card-border: #E9ECF6;
-
-  --btn-bg: #0b1020;
-  --btn-fg: #ffffff;
-
-  --ghost-bg: transparent;
-  --ghost-border: #cfd6ea;
-
-  --input-bg: #ffffff;
-  --input-border: #dfe3f0;
-
-  --focus: #9AB0FF;
-
-  --shadow: 0 2px 10px rgba(12,20,40,.06);
+/* Pastel theme variables (same as before) */
+:root{
+  --bg:#fffdfc; --ink:#0b1020; --muted-ink:#4a5165;
+  --brand-1:#9AB0FF; --brand-1b:#7C95FF;
+  --accent:#F7C4A5; --accent-2:#FBE4D4;
+  --card:#ffffff; --card-border:#E9ECF6;
+  --btn-bg:#0b1020; --btn-fg:#ffffff;
+  --ghost-bg:transparent; --ghost-border:#cfd6ea;
+  --input-bg:#ffffff; --input-border:#dfe3f0;
+  --focus:#9AB0FF; --shadow:0 2px 10px rgba(12,20,40,.06);
 }
-
 :root[data-theme="dark"]{
-  --bg: #0f141b;
-  --ink: #edf1ff;
-  --muted-ink: #98a2c0;
-
-  --card: #131a23;
-  --card-border: #1b2532;
-
-  --btn-bg: #edf1ff;
-  --btn-fg: #0b1020;
-
-  --ghost-border: #38465e;
-
-  --input-bg: #0f141b;
-  --input-border: #2a3648;
-
-  --shadow: 0 2px 10px rgba(0,0,0,.25);
+  --bg:#0f141b; --ink:#edf1ff; --muted-ink:#98a2c0;
+  --card:#131a23; --card-border:#1b2532;
+  --btn-bg:#edf1ff; --btn-fg:#0b1020;
+  --ghost-border:#38465e;
+  --input-bg:#0f141b; --input-border:#2a3648;
+  --shadow:0 2px 10px rgba(0,0,0,.25);
 }
 
-html,body { height:100%; }
-body {
-  margin:0;
-  background: var(--bg);
-  color: var(--ink);
-  font: 16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";}
 
-/* Utilities */
-.container { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
-.stack { display:flex; flex-direction:column; gap: var(--gap, 16px); }
+.container{max-width:1100px;margin:0 auto;padding:0 16px}
+.btn{appearance:none;border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer;background:var(--btn-bg);color:var(--btn-fg);box-shadow:var(--shadow)}
+.btn.primary{background:linear-gradient(180deg,var(--brand-1),var(--brand-1b));color:#fff}
+.btn.ghost{background:var(--ghost-bg);color:var(--ink);border:1px solid var(--ghost-border);box-shadow:none}
+.btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+input[type="search"],input[type="text"],input[type="email"],input[type="password"]{padding:10px 12px;border-radius:10px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--ink)}
 
-/* Buttons */
-.btn {
-  appearance:none; border:0; border-radius:10px;
-  padding:10px 14px; font-weight:600; cursor:pointer;
-  background:var(--btn-bg); color:var(--btn-fg); box-shadow:var(--shadow);
-}
-.btn.primary { background: linear-gradient(180deg, var(--brand-1), var(--brand-1b)); color:#fff; }
-.btn.ghost { background:var(--ghost-bg); color:var(--ink); border:1px solid var(--ghost-border); box-shadow:none; }
-.btn:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+/* Header */
+.site-header{position:sticky;top:0;z-index:1000;backdrop-filter:saturate(1.2) blur(6px);
+  background:color-mix(in oklab,var(--bg) 90%, transparent);border-bottom:1px solid var(--card-border)}
+.nav-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:14px;align-items:center;height:72px}
+.brand{display:inline-flex;align-items:center;gap:12px;text-decoration:none;color:var(--ink)}
+.brand-logo{width:44px;height:44px}          /* BIGGER LOGO */
+.brand-name{font-size:20px;font-weight:800;letter-spacing:.2px}
+.nav-links{display:flex;gap:16px;align-items:center}
+.nav-link{color:var(--muted-ink);text-decoration:none;font-weight:600}
+.nav-link:hover{color:var(--ink)}
+.nav-search{display:flex;gap:8px;align-items:center}
+.nav-search input{width:360px}
+.nav-actions{display:flex;gap:8px;align-items:center}
 
-/* Inputs */
-input[type="search"], input[type="text"], input[type="email"], input[type="password"] {
-  padding:10px 12px; border-radius:10px;
-  border:1px solid var(--input-border); background:var(--input-bg); color:var(--ink);
-}
-
-/* HEADER / NAV -------------------------------------------------- */
-.site-header {
-  position:sticky; top:0; z-index:1000;
-  backdrop-filter:saturate(1.2) blur(6px);
-  background: color-mix(in oklab, var(--bg) 90%, transparent);
-  border-bottom:1px solid var(--card-border);
-}
-.nav-row {
-  display:grid; grid-template-columns: auto 1fr auto auto; gap:12px; align-items:center; height:64px;
-}
-.brand { display:inline-flex; align-items:center; gap:10px; text-decoration:none; color:var(--ink); }
-.brand-logo { width:32px; height:32px; }
-.brand-name { font-size:18px; font-weight:800; letter-spacing:.2px; }
-
-.nav-links { display:flex; gap:14px; align-items:center; }
-.nav-link { color:var(--muted-ink); text-decoration:none; font-weight:600; }
-.nav-link:hover { color:var(--ink); }
-
-.nav-search { display:flex; gap:8px; align-items:center; }
-.nav-search input { width:340px; }
-
-.nav-actions { display:flex; gap:8px; align-items:center; }
-
-/* MAIN CONTENT WRAPPER */
-main { min-height: calc(100dvh - 64px - 120px); }
-
-/* FOOTER */
-.site-footer {
-  border-top:1px solid var(--card-border);
-  padding:24px 0; color:var(--muted-ink);
-}
-
-/* (Your existing card/grid/book styles can follow below) */
+main{min-height:calc(100dvh - 72px - 120px)}
+.site-footer{border-top:1px solid var(--card-border);padding:24px 0;color:var(--muted-ink)}
