@@ -27,7 +27,7 @@
       <button class="btn btn--dark" type="submit">Search</button>
     </form>
 
-    <!-- Actions (theme + auth) -->
+    <!-- Actions -->
     <div class="nav__actions">
       <button class="btn btn--ghost nav__theme" id="themeToggle" type="button" aria-label="Toggle theme">
         <span id="themeGlyph" aria-hidden="true">🌙</span>
@@ -45,31 +45,3 @@
     </div>
   </div>
 </nav>
-
-<script>
-  // Robust theme toggle: reads/writes localStorage and updates emoji immediately.
-  (function () {
-    const KEY = 'bl-theme';
-    const root = document.documentElement;
-    const btn  = document.getElementById('themeToggle');
-    const glyph= document.getElementById('themeGlyph');
-
-    function setTheme(t) {
-      root.setAttribute('data-theme', t);
-      if (glyph) glyph.textContent = t === 'dark' ? '☀️' : '🌙';
-    }
-
-    // Initial theme: saved -> attribute -> media query -> light
-    let theme = localStorage.getItem(KEY)
-             || root.getAttribute('data-theme')
-             || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-
-    setTheme(theme);
-
-    btn && btn.addEventListener('click', () => {
-      theme = (root.getAttribute('data-theme') === 'dark') ? 'light' : 'dark';
-      localStorage.setItem(KEY, theme);
-      setTheme(theme);
-    });
-  })();
-</script>
