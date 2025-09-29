@@ -1,4 +1,4 @@
-// server.js (CommonJS, final)
+// server.js (CommonJS, final-fixed)
 
 const path = require('path');
 const express = require('express');
@@ -49,16 +49,25 @@ app.use((req, res, next) => {
   // for cache-busting <link ... ?v=<%= buildId %>>
   res.locals.buildId = BUILD_ID;
 
-  // Give every view a sane default pageDescription (can be overridden)
+  // Default description (views can override by passing pageDescription)
   res.locals.pageDescription =
     'Millions of free books from globally trusted libraries. One clean reader.';
 
   next();
 });
 
+// Helper to render with static object or per-request function
+const renderPage = (view, dataOrFn = {}) => {
+  return (req, res) => {
+    const data =
+      typeof dataOrFn === 'function' ? dataOrFn(req, res) : dataOrFn || {};
+    res.render(view, data);
+  };
+};
+
 // -------- Mount your existing app routes if present --------
 (function mountOptionalRoutes() {
-  // Try common route entry points. If not found, we just skip.
+  // Try common route entry points. If not found, we just provide fallbacks.
   const candidates = [
     './routes/index',
     './routes',
@@ -71,8 +80,6 @@ app.use((req, res, next) => {
       // route module can be (app)=>void or an express.Router()
       const mod = require(rel);
       if (typeof mod === 'function') {
-        // function(routerOrApp)
-        // If it expects an app, pass app. If it returns a router, mount it.
         const maybeRouter = mod.length >= 1 ? mod(app) : mod();
         if (maybeRouter && typeof maybeRouter === 'function') {
           app.use(maybeRouter);
@@ -92,18 +99,54 @@ app.use((req, res, next) => {
 
   // If nothing mounted, provide minimal page routes so the site still works.
   if (!mounted) {
-    const renderPage = (view, data = {}) => (req, res) =>
-      res.render(view, data);
+    app.get(
+      '/',
+      renderPage('index', {
+        trending: [],
+        philosophy: [],
+        history: [],
+      })
+    );
 
-    app.get('/', renderPage('index', { trending: [], philosophy: [], history: [] }));
     app.get('/about', renderPage('about'));
     app.get('/contact', renderPage('contact'));
     app.get('/watch', renderPage('watch', { videos: [] }));
-    app.get('/login', renderPage('login', { csrfToken: '', referrer: req => req.get('referer') || '/' }));
-    app.get('/register', renderPage('register', { csrfToken: '', referrer: req => req.get('referer') || '/' }));
-    app.get('/dashboard', renderPage('dashboard', { user: res.locals.user, saves: [], notes: [], csrfToken: '' }));
-    // Lightweight read page (your API route may override this when real routes are mounted)
-    app.get('/read/:provider?/:id?', renderPage('read', { provider: '', id: '', referrer: '' }));
+
+    app.get(
+      '/login',
+      renderPage('login', (req) => ({
+        csrfToken: '',
+        referrer: req.get('referer') || '/',
+      }))
+    );
+
+    app.get(
+      '/register',
+      renderPage('register', (req) => ({
+        csrfToken: '',
+        referrer: req.get('referer') || '/',
+      }))
+    );
+
+    app.get(
+      '/dashboard',
+      renderPage('dashboard', (_req, res) => ({
+        user: res.locals.user,
+        saves: [],
+        notes: [],
+        csrfToken: '',
+      }))
+    );
+
+    // Lightweight read page (your API/real routes may override this when mounted)
+    app.get(
+      '/read/:provider?/:id?',
+      renderPage('read', (req) => ({
+        provider: req.params.provider || '',
+        id: req.params.id || '',
+        referrer: req.get('referer') || '/',
+      }))
+    );
   }
 })();
 
