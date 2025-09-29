@@ -1,9 +1,7 @@
-/* BookLantern Service Worker
-   Scope: root (served at /sw.js by server.js)
-*/
-const SW_VERSION = 'bl-v1-2025-09-28';
+/* BookLantern Service Worker */
+const SW_VERSION = 'bl-v2-2025-09-29';
 const APP_SHELL = [
-  '/',                       // homepage
+  '/',
   '/about',
   '/contact',
   '/public/css/site.css',
@@ -17,60 +15,30 @@ const APP_SHELL = [
   '/public/offline.html'
 ];
 
-// Install: pre-cache app shell
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(SW_VERSION).then((cache) => cache.addAll(APP_SHELL))
-  );
+  event.waitUntil(caches.open(SW_VERSION).then((cache) => cache.addAll(APP_SHELL)));
   self.skipWaiting();
 });
 
-// Activate: clean old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then(async (keys) => {
-      await Promise.all(keys.map((k) => (k !== SW_VERSION ? caches.delete(k) : null)));
-    })
+    caches.keys().then((keys) => Promise.all(keys.map((k) => (k !== SW_VERSION ? caches.delete(k) : null))))
   );
   self.clients.claim();
 });
 
-// Helpers
 const isHTMLNavigation = (req) =>
   req.mode === 'navigate' ||
   (req.method === 'GET' &&
    req.headers.get('accept') &&
    req.headers.get('accept').includes('text/html'));
 
-// Runtime strategies:
-//  - HTML pages: Network first, fallback to cache, then offline page
-//  - Static assets: Cache first, then network
-//  - API/proxy: Stale-while-revalidate (cache then update)
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
-
-  // Ignore non-GET
   if (req.method !== 'GET') return;
 
-  // HTML navigations
-  if (isHTMLNavigation(req)) {
-    event.respondWith((async () => {
-      try {
-        const fresh = await fetch(req);
-        const cache = await caches.open(SW_VERSION);
-        cache.put(req, fresh.clone());
-        return fresh;
-      } catch {
-        const cache = await caches.open(SW_VERSION);
-        const cached = await cache.match(req);
-        return cached || cache.match('/public/offline.html');
-      }
-    })());
-    return;
-  }
-
-  // Static assets (same-origin /public, favicons, manifest)
+  // Cache-first for static
   if (url.origin === location.origin &&
       (url.pathname.startsWith('/public/') ||
        url.pathname.startsWith('/favicon') ||
@@ -91,19 +59,45 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API/proxy (stale-while-revalidate)
+  // Cache /read/* navigations (so user can resume offline)
+  if (isHTMLNavigation(req) || url.pathname.startsWith('/read/')) {
+    event.respondWith((async () => {
+      try {
+        const net = await fetch(req);
+        const cache = await caches.open(SW_VERSION);
+        cache.put(req, net.clone());
+        return net;
+      } catch {
+        const cache = await caches.open(SW_VERSION);
+        const cached = await cache.match(req);
+        return cached || cache.match('/public/offline.html');
+      }
+    })());
+    return;
+  }
+
+  // API/proxy: stale-while-revalidate
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/proxy')) {
     event.respondWith((async () => {
       const cache = await caches.open(SW_VERSION);
       const cached = await cache.match(req);
       const fetchPromise = fetch(req)
-        .then((net) => {
-          cache.put(req, net.clone());
-          return net;
-        })
+        .then((net) => { cache.put(req, net.clone()); return net; })
         .catch(() => null);
       return cached || (await fetchPromise) || new Response('', { status: 504 });
     })());
     return;
+  }
+});
+
+// Background Sync: ask clients to flush their offline queue
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'bl-sync') {
+    event.waitUntil((async () => {
+      const clientsArr = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' });
+      for (const client of clientsArr) {
+        client.postMessage({ type: 'BL_SYNC' });
+      }
+    })());
   }
 });
