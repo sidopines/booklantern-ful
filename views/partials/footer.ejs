@@ -1,20 +1,11 @@
+<!-- views/partials/footer.ejs -->
 <footer class="site-footer">
   <div class="container row" style="justify-content:space-between; align-items:center;">
     <p class="muted" style="margin:0;">© <%= new Date().getFullYear() %> BookLantern. Free forever.</p>
-    <!-- Removed duplicate theme toggle from footer to avoid two toggles -->
   </div>
 </footer>
 
-<!-- Scripts (keep only one of each) -->
-<script src="/public/js/ui.js?v=<%= buildId %>" defer></script>
 <script src="/public/js/theme.js?v=<%= buildId %>" defer></script>
-<script>
-  // PWA: register SW when available
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/sw.js').catch(function(){});
-    });
-  }
-</script>
+<script src="/public/js/ui.js?v=<%= buildId %>" defer></script>
 </body>
 </html>
