@@ -1,26 +1,40 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title><%= typeof pageTitle !== 'undefined' ? pageTitle + ' · ' : '' %>BookLantern</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- Favicons / PWA -->
-  <link rel="icon" href="/public/favicon.ico" sizes="any">
-  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
-  <link rel="apple-touch-icon" href="/public/apple-touch-icon.png">
-  <link rel="manifest" href="/public/site.webmanifest">
+  <!-- Title & Description -->
+  <title><%= pageTitle || 'BookLantern' %></title>
+  <meta name="description" content="<%= pageDescription || 'Millions of free books from globally trusted libraries. One clean reader.' %>">
 
-  <!-- Early theme bootstrap: set data-theme before paint -->
-  <script>
-    (function () {
-      try {
-        var KEY = 'bl-theme';
-        var saved = localStorage.getItem(KEY);
-        var theme = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        document.documentElement.setAttribute('data-theme', theme);
-      } catch (_) {}
-    })();
-  </script>
+  <!-- Open Graph -->
+  <meta property="og:title" content="<%= pageTitle || 'BookLantern' %>">
+  <meta property="og:description" content="<%= pageDescription || 'Millions of free books from globally trusted libraries. One clean reader.' %>">
+  <meta property="og:image" content="/img/social-card.png">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://booklantern.org">
 
-  <!-- Global styles (includes Soria family + layout + components) -->
-  <link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>" />
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="<%= pageTitle || 'BookLantern' %>">
+  <meta name="twitter:description" content="<%= pageDescription || 'Millions of free books from globally trusted libraries. One clean reader.' %>">
+  <meta name="twitter:image" content="/img/social-card.png">
+
+  <!-- Favicon & PWA -->
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Soria&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>">
+
+  <!-- Scripts (defer ensures DOM is parsed first) -->
+  <script src="/public/js/theme.js?v=<%= buildId %>" defer></script>
+  <script src="/public/js/ui.js?v=<%= buildId %>" defer></script>
 </head>
