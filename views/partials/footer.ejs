@@ -1,26 +1,16 @@
-<footer class="footer">
-  <div class="container">
-    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between">
-      <div>
-        <strong>BookLantern</strong> · Clean reading from trusted libraries.
-      </div>
-      <nav style="display:flex;gap:16px;flex-wrap:wrap">
-        <a href="/about">About</a>
-        <a href="/contact">Contact</a>
-        <a href="/legal">Terms</a>
-        <a href="/privacy">Privacy</a>
-      </nav>
-    </div>
+<footer class="site-footer">
+  <div class="container row" style="justify-content:space-between; align-items:center;">
+    <p class="muted" style="margin:0;">© <%= new Date().getFullYear() %> BookLantern. Free forever.</p>
+
+    <!-- Theme toggle -->
+    <button id="themeToggle" class="btn ghost" type="button" aria-label="Toggle theme">
+      <span id="themeIcon">🌙</span>
+    </button>
   </div>
 </footer>
 
-<!-- Scripts (deferred so they don’t block rendering) -->
+<!-- Scripts -->
 <script src="/public/js/theme.js?v=<%= buildId %>" defer></script>
 <script src="/public/js/ui.js?v=<%= buildId %>" defer></script>
-
-<!-- Optional: register service worker if present (safe no-op if missing) -->
-<script defer>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  }
-</script>
+</body>
+</html>
