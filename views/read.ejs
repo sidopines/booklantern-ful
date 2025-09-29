@@ -1,9 +1,4 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <%- include('./partials/head', { pageTitle: 'Read - BookLantern' }) %>
-  <script defer src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
-</head>
+<%- include('./partials/head', { pageTitle: 'Read - BookLantern' }) %>
 <body>
   <%- include('./partials/navbar') %>
   <%- include('./partials/backLink', { referrer }) %>
@@ -11,57 +6,280 @@
   <main class="stack" style="--gap:16px; padding:16px;">
     <h1 id="title">Book Title</h1>
 
-    <div class="actions row" style="gap:8px;">
-      <button class="btn" id="btnBookmark">🔖 Bookmark</button>
-      <button class="btn" id="btnNotes">🗒 Notes</button>
-      <button class="btn" id="btnListen">🔊 Listen</button>
+    <div class="actions row" style="gap:8px; flex-wrap:wrap;">
+      <button class="btn" id="btnBookmark" type="button">🔖 Bookmark</button>
+      <button class="btn" id="btnNotes" type="button">🗒 Notes</button>
+      <button class="btn" id="btnListen" type="button" aria-pressed="false">🔊 Listen</button>
     </div>
 
     <div id="reader" class="card" style="min-height:70vh; overflow:auto; padding:0;"></div>
     <div id="fallback" class="card" style="display:none; padding:16px;">Loading book...</div>
+
+    <!-- Notes area (simple, local) -->
+    <section class="card" style="margin-top:16px; padding:12px;">
+      <h3 style="margin-top:0;">Your Notes</h3>
+      <div class="row" style="gap:8px; margin-bottom:8px;">
+        <input id="noteInput" class="input" type="text" placeholder="Write your notes here…" style="flex:1; min-width:220px;">
+        <button id="saveNote" class="btn" type="button">Save Note</button>
+      </div>
+      <ul id="notesList" class="stack" style="--gap:6px; margin:0; padding-left:18px;"></ul>
+    </section>
   </main>
 
   <%- include('./partials/footer') %>
+
+  <!-- EPUB.js (for .epub rendering) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
 
   <script>
   (async function () {
     const provider = "<%= provider %>";
     const id = "<%= id %>";
-    const r = await fetch(`/api/book?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(id)}`);
-    const data = await r.json();
+    const KEY_POS   = `bl:pos:${provider}:${id}`;
+    const KEY_NOTES = `bl:notes:${provider}:${id}`;
 
-    document.getElementById('title').textContent =
-      [data.title, data.author].filter(Boolean).join(' — ') || 'Book';
+    const titleEl = document.getElementById('title');
+    const mount   = document.getElementById('reader');
+    const fallback= document.getElementById('fallback');
 
-    const mount = document.getElementById('reader');
-    const fallback = document.getElementById('fallback');
+    // Controls
+    const btnBookmark = document.getElementById('btnBookmark');
+    const btnListen   = document.getElementById('btnListen');
+    const btnNotes    = document.getElementById('btnNotes');
 
-    if (data.type === 'epub' && data.epubUrl) {
+    // Notes widgets
+    const noteInput = document.getElementById('noteInput');
+    const saveNote  = document.getElementById('saveNote');
+    const notesList = document.getElementById('notesList');
+
+    // ---- Fetch book payload from our API ----
+    let data;
+    try {
+      const r = await fetch(`/api/book?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(id)}`);
+      data = await r.json();
+    } catch (e) {
+      console.error('Book API error:', e);
+      data = { type: 'error', error: 'Network error' };
+    }
+
+    // ---- Title ----
+    titleEl.textContent = [data?.title, data?.author].filter(Boolean).join(' — ') || 'Book';
+
+    // ---- Render handlers
+    let rendition = null; // epub.js rendition (if used)
+    let book = null;
+
+    // Helper: restore scroll position (for HTML/TXT)
+    function restoreScroll() {
       try {
-        const book = ePub(data.epubUrl);
-        const rendition = book.renderTo(mount, { width: "100%", height: "75vh", spread: "always" });
-        rendition.display();
+        const pos = JSON.parse(localStorage.getItem(KEY_POS) || 'null');
+        if (pos && pos.type === 'scroll' && typeof pos.y === 'number') {
+          mount.scrollTop = pos.y;
+        }
+      } catch {}
+    }
+    // Helper: save scroll position (for HTML/TXT)
+    function saveScroll() {
+      const payload = { type: 'scroll', y: mount.scrollTop, ts: Date.now() };
+      localStorage.setItem(KEY_POS, JSON.stringify(payload));
+    }
+
+    // Helper: save EPUB CFI
+    function saveEpubCFI(cfi) {
+      const payload = { type: 'cfi', cfi, ts: Date.now() };
+      localStorage.setItem(KEY_POS, JSON.stringify(payload));
+    }
+    // Helper: read saved position
+    function getSavedPos() {
+      try { return JSON.parse(localStorage.getItem(KEY_POS) || 'null'); } catch { return null; }
+    }
+
+    // ---- Render by type ----
+    if (data?.type === 'epub' && data?.epubUrl) {
+      try {
+        book = ePub(data.epubUrl);
+        rendition = book.renderTo(mount, { width: "100%", height: "75vh", spread: "always" });
+
+        const saved = getSavedPos();
+        if (saved && saved.type === 'cfi' && saved.cfi) {
+          await rendition.display(saved.cfi);
+        } else {
+          await rendition.display();
+        }
+
+        rendition.on('relocated', (loc) => {
+          if (loc && loc.start && loc.start.cfi) {
+            saveEpubCFI(loc.start.cfi);
+          }
+        });
       } catch (e) {
+        console.error('EPUB render error:', e);
         fallback.style.display = 'block';
         mount.style.display = 'none';
       }
-      return;
-    }
-
-    if (data.type === 'html' || data.type === 'text') {
+    } else if (data?.type === 'html' || data?.type === 'text') {
+      // Make card padded for readable HTML/text
       mount.style.padding = '16px';
-      mount.innerHTML = (data.type === 'text')
-        ? `<pre style="white-space:pre-wrap;word-wrap:break-word;">${escapeHtml(data.content || '')}</pre>`
-        : (data.content || '<p>Not available.</p>');
-      return;
+      if (data.type === 'text') {
+        mount.innerHTML = `<pre style="white-space:pre-wrap;word-wrap:break-word;">${escapeHtml(data.content || '')}</pre>`;
+      } else {
+        mount.innerHTML = data.content || '<p>Not available.</p>';
+      }
+
+      // Restore scroll if we have it
+      restoreScroll();
+      // Save on scroll
+      mount.addEventListener('scroll', throttle(saveScroll, 400));
+    } else {
+      // Nothing we can render
+      fallback.style.display = 'block';
+      mount.style.display = 'none';
     }
 
-    fallback.style.display = 'block';
-  })();
+    // ---- Bookmark button
+    btnBookmark.addEventListener('click', async () => {
+      if (rendition) {
+        const loc = rendition.currentLocation();
+        const cfi = loc?.start?.cfi || null;
+        if (cfi) {
+          saveEpubCFI(cfi);
+          flash('Bookmark saved');
+          return;
+        }
+      }
+      // HTML/TXT fallback: save scrollTop
+      saveScroll();
+      flash('Bookmark saved');
+    });
 
-  function escapeHtml(s){
-    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  }
+    // ---- Notes (local for now)
+    function loadNotes() {
+      try { return JSON.parse(localStorage.getItem(KEY_NOTES) || '[]'); } catch { return []; }
+    }
+    function saveNotes(notes) {
+      localStorage.setItem(KEY_NOTES, JSON.stringify(notes));
+    }
+    function renderNotes() {
+      const notes = loadNotes();
+      notesList.innerHTML = '';
+      if (!notes.length) {
+        notesList.innerHTML = '<li style="opacity:.75;">No notes yet.</li>';
+        return;
+      }
+      notes.forEach((n, idx) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span>${escapeHtml(n.text)}</span> <button class="btn" style="padding:2px 8px;margin-left:8px;" data-del="${idx}">Delete</button>`;
+        notesList.appendChild(li);
+      });
+    }
+    saveNote.addEventListener('click', () => {
+      const val = (noteInput.value || '').trim();
+      if (!val) return;
+      const arr = loadNotes();
+      arr.push({ text: val, ts: Date.now() });
+      saveNotes(arr);
+      noteInput.value = '';
+      renderNotes();
+      flash('Note saved');
+    });
+    notesList.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-del]');
+      if (!btn) return;
+      const idx = parseInt(btn.getAttribute('data-del'), 10);
+      const arr = loadNotes();
+      if (idx >= 0 && idx < arr.length) {
+        arr.splice(idx, 1);
+        saveNotes(arr);
+        renderNotes();
+      }
+    });
+    // Ensure panel toggle jumps to input
+    btnNotes.addEventListener('click', () => {
+      noteInput.focus();
+      noteInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    renderNotes();
+
+    // ---- Listen (Web Speech API – works best for HTML/TXT)
+    let speaking = false;
+    let paused   = false;
+    let utter    = null;
+
+    function currentReadableText() {
+      // Prefer readable DOM text (HTML/TXT path)
+      if (mount && mount.textContent && mount.textContent.trim().length > 0) {
+        return mount.textContent.trim().replace(/\s+/g, ' ');
+      }
+      return '';
+    }
+
+    btnListen.addEventListener('click', () => {
+      if (!('speechSynthesis' in window)) {
+        flash('Text-to-speech not supported in this browser.');
+        return;
+      }
+
+      // If already speaking, toggle pause/resume
+      if (speaking) {
+        if (!paused) {
+          window.speechSynthesis.pause();
+          paused = true;
+          btnListen.setAttribute('aria-pressed', 'true');
+          btnListen.textContent = '⏸ Paused';
+        } else {
+          window.speechSynthesis.resume();
+          paused = false;
+          btnListen.setAttribute('aria-pressed', 'false');
+          btnListen.textContent = '🔊 Listen';
+        }
+        return;
+      }
+
+      // Start speaking for HTML/TXT only (EPUB parsing to plain text is non-trivial)
+      const text = currentReadableText();
+      if (!text) {
+        flash('Listening is only available after the page content loads.');
+        return;
+      }
+
+      // Cancel any previous utterances
+      window.speechSynthesis.cancel();
+      utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 1; // comfortable pace
+
+      utter.onstart = () => { speaking = true; paused = false; btnListen.textContent = '⏸ Paused'; };
+      utter.onend   = () => { speaking = false; paused = false; btnListen.textContent = '🔊 Listen'; };
+      utter.onerror = () => { speaking = false; paused = false; btnListen.textContent = '🔊 Listen'; };
+
+      window.speechSynthesis.speak(utter);
+    });
+
+    // ---- Little UI helper
+    function flash(msg) {
+      const el = document.createElement('div');
+      el.textContent = msg;
+      el.style.position = 'fixed';
+      el.style.right = '16px';
+      el.style.bottom = '16px';
+      el.style.padding = '10px 12px';
+      el.style.borderRadius = '12px';
+      el.style.background = 'rgba(0,0,0,.75)';
+      el.style.color = '#fff';
+      el.style.zIndex = '9999';
+      el.style.boxShadow = '0 6px 20px rgba(0,0,0,.25)';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 1500);
+    }
+
+    // ---- Utils
+    function escapeHtml(s){
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function throttle(fn, wait) {
+      let t = 0;
+      return function(){ const now = Date.now(); if (now - t > wait){ t = now; fn.apply(this, arguments); } };
+    }
+  })();
   </script>
 </body>
 </html>
