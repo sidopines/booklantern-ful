@@ -10,7 +10,9 @@
       <h1>Largest Online Hub of Free Books</h1>
       <p class="hero-sub">Millions of books from globally trusted libraries. One search, one clean reader.</p>
       <ul class="hero-points">
-        <li>No ads</li><li>Free forever</li><li>Clean reading experience</li>
+        <li>No ads</li>
+        <li>Free forever</li>
+        <li>Clean reading experience</li>
       </ul>
 
       <form class="search" action="/search" method="get">
@@ -27,8 +29,13 @@
         <h2>Trending now</h2>
       </div>
       <div class="carousel">
-        <% for (const b of trending) { %>
-          <%- include('./partials/bookCard', { b: b }) %>
+        <% const tList = Array.isArray(trending) ? trending : []; %>
+        <% if (!tList.length) { %>
+          <div class="empty">No books to show yet.</div>
+        <% } else { %>
+          <% tList.forEach(function(b){ %>
+            <%- include('./partials/bookCard', { b }) %>
+          <% }) %>
         <% } %>
       </div>
     </section>
@@ -39,8 +46,13 @@
         <h2>Philosophy Picks</h2>
       </div>
       <div class="carousel">
-        <% for (const b of philosophy) { %>
-          <%- include('./partials/bookCard', { b: b }) %>
+        <% const pList = Array.isArray(philosophy) ? philosophy : []; %>
+        <% if (!pList.length) { %>
+          <div class="empty">No books to show yet.</div>
+        <% } else { %>
+          <% pList.forEach(function(b){ %>
+            <%- include('./partials/bookCard', { b }) %>
+          <% }) %>
         <% } %>
       </div>
     </section>
@@ -51,13 +63,16 @@
         <h2>History Picks</h2>
       </div>
       <div class="carousel">
-        <% for (const b of history) { %>
-          <%- include('./partials/bookCard', { b: b }) %>
+        <% const hList = Array.isArray(history) ? history : []; %>
+        <% if (!hList.length) { %>
+          <div class="empty">No books to show yet.</div>
+        <% } else { %>
+          <% hList.forEach(function(b){ %>
+            <%- include('./partials/bookCard', { b }) %>
+          <% }) %>
         <% } %>
       </div>
     </section>
   </main>
 
   <%- include('./partials/footer') %>
-</body>
-</html>
