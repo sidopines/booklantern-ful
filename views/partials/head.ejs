@@ -1,40 +1,44 @@
-<!doctype html>
-<html lang="en" data-theme="auto">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Head partial: include this INSIDE your page <head> -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- Title & Description -->
-  <title><%= pageTitle || 'BookLantern' %></title>
-  <meta name="description" content="<%= pageDescription || 'Millions of free books from globally trusted libraries. One clean reader.' %>">
+<!-- Title & Description -->
+<title><%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern' %></title>
+<meta name="description" content="<%= (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Millions of free books from globally trusted libraries. One clean reader.' %>">
 
-  <!-- Open Graph -->
-  <meta property="og:title" content="<%= pageTitle || 'BookLantern' %>">
-  <meta property="og:description" content="<%= pageDescription || 'Millions of free books from globally trusted libraries. One clean reader.' %>">
-  <meta property="og:image" content="/img/social-card.png">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://booklantern.org">
+<!-- Open Graph -->
+<meta property="og:title" content="<%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern' %>">
+<meta property="og:description" content="<%= (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Millions of free books from globally trusted libraries. One clean reader.' %>">
+<meta property="og:type" content="website">
+<meta property="og:url" content="<%= (typeof canonicalUrl !== 'undefined' && canonicalUrl) ? canonicalUrl : '' %>">
+<meta property="og:image" content="/apple-touch-icon.png">
 
-  <!-- Twitter -->
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="<%= pageTitle || 'BookLantern' %>">
-  <meta name="twitter:description" content="<%= pageDescription || 'Millions of free books from globally trusted libraries. One clean reader.' %>">
-  <meta name="twitter:image" content="/img/social-card.png">
+<!-- Icons / PWA -->
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
 
-  <!-- Favicon & PWA -->
-  <link rel="icon" href="/favicon.ico" sizes="any">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <link rel="manifest" href="/site.webmanifest">
+<!-- Fonts (Soria already in your CSS build; this is here in case you’re pulling it) -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
 
-  <!-- Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Soria&display=swap" rel="stylesheet">
+<!-- CSS -->
+<link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>">
 
-  <!-- Styles -->
-  <link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>">
-
-  <!-- Scripts (defer ensures DOM is parsed first) -->
-  <script src="/public/js/theme.js?v=<%= buildId %>" defer></script>
-  <script src="/public/js/ui.js?v=<%= buildId %>" defer></script>
-</head>
+<!-- Pre-paint theme init (so the toggle works and no flash of wrong theme) -->
+<script>
+  (function () {
+    try {
+      var LS_KEY = 'bl-theme';
+      var m = localStorage.getItem(LS_KEY) || 'auto';
+      if (m === 'auto') {
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        m = prefersDark ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', m);
+    } catch (e) {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  })();
+</script>
