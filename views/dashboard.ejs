@@ -1,7 +1,7 @@
 <!doctype html>
-<html lang="en" data-theme="auto">
+<html lang="en">
 <head>
-  <%- include('./partials/head', { pageTitle: 'Your Library - BookLantern' }) %>
+  <%- include('./partials/head', { pageTitle: 'Your Library – BookLantern' }) %>
 </head>
 <body>
   <%- include('./partials/navbar') %>
@@ -9,7 +9,7 @@
   <main class="container stack" style="--gap:20px; padding:24px 16px; max-width:1100px;">
     <header class="stack" style="--gap:8px;">
       <h1>Your Library</h1>
-      <p class="muted">Signed in as <strong><%= user?.email %></strong>.</p>
+      <p class="muted">Signed in as <strong><%= (user && user.email) ? user.email : 'unknown' %></strong>.</p>
       <% if (typeof error !== 'undefined' && error) { %>
         <p class="alert error"><%= error %></p>
       <% } %>
@@ -17,12 +17,16 @@
 
     <!-- Saves -->
     <section class="stack" style="--gap:12px;">
-      <h2>Saved Books</h2>
+      <div class="row" style="align-items:baseline; justify-content:space-between;">
+        <h2>Saved Books</h2>
+        <span class="muted"><%= (saves && saves.length) ? saves.length : 0 %> total</span>
+      </div>
+
       <% if (!saves || !saves.length) { %>
         <div class="card" style="padding:16px;">No saved books yet.</div>
       <% } else { %>
         <div class="grid books">
-          <% saves.forEach(s => { %>
+          <% saves.forEach(function (s) { %>
             <article class="card book">
               <a class="cover" href="/read/<%= s.provider %>/<%= s.book_id %>">
                 <% if (s.cover) { %>
@@ -32,10 +36,17 @@
                 <% } %>
               </a>
               <div class="meta">
-                <h3 class="title"><a href="/read/<%= s.provider %>/<%= s.book_id %>"><%= s.title || (s.provider + ':' + s.book_id) %></a></h3>
+                <h3 class="title">
+                  <a href="/read/<%= s.provider %>/<%= s.book_id %>">
+                    <%= s.title || (s.provider + ':' + s.book_id) %>
+                  </a>
+                </h3>
                 <% if (s.author) { %><p class="author"><%= s.author %></p><% } %>
-                <form method="post" action="/library/saves/delete" class="inline">
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+                <form method="post" action="/library/saves/delete" class="inline" style="margin-top:8px;">
+                  <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <% } %>
                   <input type="hidden" name="provider" value="<%= s.provider %>">
                   <input type="hidden" name="book_id" value="<%= s.book_id %>">
                   <button class="btn ghost" type="submit">Delete</button>
@@ -49,22 +60,30 @@
 
     <!-- Notes -->
     <section class="stack" style="--gap:12px;">
-      <h2>Your Notes</h2>
+      <div class="row" style="align-items:baseline; justify-content:space-between;">
+        <h2>Your Notes</h2>
+        <span class="muted"><%= (notes && notes.length) ? notes.length : 0 %> total</span>
+      </div>
+
       <% if (!notes || !notes.length) { %>
         <div class="card" style="padding:16px;">No notes yet.</div>
       <% } else { %>
         <div class="stack" style="--gap:10px;">
-          <% notes.forEach(n => { %>
+          <% notes.forEach(function (n) { %>
             <article class="card" style="padding:12px;">
-              <div class="row" style="justify-content:space-between;align-items:center;">
-                <div class="stack" style="--gap:6px;">
+              <div class="row" style="justify-content:space-between; align-items:center; gap:12px;">
+                <div class="stack" style="--gap:6px; flex:1;">
                   <div class="muted" style="font-size:.9rem;">
                     <a href="/read/<%= n.provider %>/<%= n.book_id %>"><%= n.provider %>:<%= n.book_id %></a>
+                    <span style="opacity:.75; margin-left:8px;"><%= new Date(n.created_at).toLocaleString() %></span>
                   </div>
                   <div><%= n.text %></div>
                 </div>
+
                 <form method="post" action="/library/notes/delete" class="inline">
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <% } %>
                   <input type="hidden" name="id" value="<%= n.id %>">
                   <button class="btn ghost" type="submit">Delete</button>
                 </form>
@@ -76,6 +95,9 @@
     </section>
 
     <form method="post" action="/logout">
+      <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <% } %>
       <button class="btn">Logout</button>
     </form>
   </main>
