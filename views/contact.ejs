@@ -1,17 +1,13 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <%- include('./partials/head.ejs', {
-    pageTitle: 'Contact • BookLantern',
-    pageDescription: 'Contact BookLantern — we’d love to hear from you.'
-  }) %>
-</head>
+<%- include('./partials/head', {
+  pageTitle: 'Contact – BookLantern',
+  pageDescription: 'Contact BookLantern — we’d love to hear from you.'
+}) %>
 <body>
-  <%- include('./partials/navbar.ejs') %>
+  <%- include('./partials/navbar') %>
 
   <header class="hero">
     <div class="container hero-inner">
-      <a href="/" onclick="if(document.referrer){history.back();return false;}" class="btn btn-secondary" style="margin-bottom:14px;">← Back</a>
+      <%- include('./partials/backLink', { referrer: referrer }) %>
       <h1 class="page-title">Contact Us</h1>
       <p class="page-sub">We’d love to hear from you. Send questions or feedback any time.</p>
     </div>
@@ -22,47 +18,50 @@
       <% const csrf = (typeof csrfToken !== 'undefined') ? csrfToken : null; %>
       <% const flash = (typeof messages !== 'undefined' && messages) ? messages : {}; %>
 
-      <% if (flash.success) { %>
+      <% if (flash && flash.success) { %>
         <div class="panel" style="background:rgba(76, 175, 80, .15); border:1px solid rgba(76,175,80,.35); margin-bottom:12px;">
           <strong>Thanks!</strong> <%= flash.success %>
         </div>
       <% } %>
-      <% if (flash.error) { %>
+      <% if (flash && flash.error) { %>
         <div class="panel" style="background:rgba(244, 67, 54, .12); border:1px solid rgba(244,67,54,.35); margin-bottom:12px;">
           <strong>Oops.</strong> <%= flash.error %>
         </div>
       <% } %>
 
-      <form method="post" action="/contact" novalidate>
+      <!-- If you haven’t added a POST /contact handler yet, this form will display fine.
+           Once you wire the route, flash messages above will show successes/errors. -->
+      <form method="post" action="/contact" novalidate class="stack" style="--gap:12px;">
         <% if (csrf) { %><input type="hidden" name="_csrf" value="<%= csrf %>"><% } %>
 
-        <div style="display:grid; gap:12px;">
-          <div>
-            <label for="name" style="display:block; margin:0 0 6px;">Your Name</label>
-            <input id="name" name="name" type="text" placeholder="Your name"
-                   style="width:100%; padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,.10); background:var(--surface); color:var(--ink);">
-          </div>
+        <div>
+          <label for="name" style="display:block; margin:0 0 6px;">Your Name</label>
+          <input id="name" name="name" type="text" placeholder="Your name"
+                 autocomplete="name"
+                 style="width:100%; padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,.10); background:var(--surface); color:var(--ink);">
+        </div>
 
-          <div>
-            <label for="email" style="display:block; margin:0 0 6px;">Your Email</label>
-            <input id="email" name="email" type="email" placeholder="you@example.com"
-                   style="width:100%; padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,.10); background:var(--surface); color:var(--ink);">
-          </div>
+        <div>
+          <label for="email" style="display:block; margin:0 0 6px;">Your Email</label>
+          <input id="email" name="email" type="email" placeholder="you@example.com"
+                 autocomplete="email"
+                 style="width:100%; padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,.10); background:var(--surface); color:var(--ink);">
+        </div>
 
-          <div>
-            <label for="message" style="display:block; margin:0 0 6px;">Your Message</label>
-            <textarea id="message" name="message" rows="6" placeholder="Write your message…"
-                      style="width:100%; padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,.10); background:var(--surface); color:var(--ink);"></textarea>
-          </div>
+        <div>
+          <label for="message" style="display:block; margin:0 0 6px;">Your Message</label>
+          <textarea id="message" name="message" rows="6" placeholder="Write your message…"
+                    style="width:100%; padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,.10); background:var(--surface); color:var(--ink);"></textarea>
+        </div>
 
-          <div>
-            <button class="btn btn-primary" type="submit">Send Message</button>
-          </div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <button class="btn btn-primary" type="submit">Send Message</button>
+          <a class="btn btn-secondary" href="mailto:hello@booklantern.org">Or email us directly</a>
         </div>
       </form>
     </section>
   </main>
 
-  <%- include('./partials/footer.ejs') %>
+  <%- include('./partials/footer') %>
 </body>
 </html>
