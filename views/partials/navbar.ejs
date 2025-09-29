@@ -1,37 +1,38 @@
 <nav class="nav">
   <div class="nav__inner container">
     <!-- Brand -->
-    <a class="brand" href="/">
-      <img class="brand__icon" src="/public/logo.svg" alt="BookLantern" width="56" height="56" />
+    <a class="brand" href="/" aria-label="BookLantern home">
+      <img class="brand__icon" src="/public/logo.svg" alt="" width="64" height="64" />
       <span class="brand__wordmark">BookLantern</span>
     </a>
 
     <!-- Primary links -->
-    <ul class="nav__links">
+    <ul class="nav__links" aria-label="Primary">
       <li><a href="/read">Read</a></li>
       <li><a href="/watch">Watch</a></li>
       <li><a href="/about">About</a></li>
       <li><a href="/contact">Contact</a></li>
     </ul>
 
-    <!-- Search + actions -->
+    <!-- Search -->
+    <form class="nav__search" action="/search" method="get" role="search">
+      <input
+        class="input"
+        type="search"
+        name="q"
+        placeholder="Search free books…"
+        aria-label="Search free books"
+        value="<%= typeof q !== 'undefined' ? q : '' %>"
+      />
+      <button class="btn btn--dark" type="submit">Search</button>
+    </form>
+
+    <!-- Actions (theme + auth) -->
     <div class="nav__actions">
-      <form class="nav__search" action="/search" method="get" role="search">
-        <input
-          class="input"
-          type="search"
-          name="q"
-          placeholder="Search free books…"
-          aria-label="Search free books"
-          value="<%= typeof q !== 'undefined' ? q : '' %>"
-        />
-        <button class="btn btn--dark" type="submit">Search</button>
-      </form>
+      <button class="btn btn--ghost nav__theme" id="themeToggle" type="button" aria-label="Toggle theme">
+        <span id="themeGlyph" aria-hidden="true">🌙</span>
+      </button>
 
-      <!-- Theme toggle -->
-      <button class="btn btn--ghost nav__theme" id="themeToggle" type="button" aria-label="Toggle theme">🌙</button>
-
-      <!-- Auth -->
       <% if (isAuthenticated) { %>
         <a class="btn btn--ghost" href="/dashboard">Account</a>
         <form method="post" action="/logout" style="display:inline;">
@@ -46,25 +47,29 @@
 </nav>
 
 <script>
-  // Theme toggle (persists to localStorage)
+  // Robust theme toggle: reads/writes localStorage and updates emoji immediately.
   (function () {
     const KEY = 'bl-theme';
-    const btn = document.getElementById('themeToggle');
-    function apply(theme) {
-      document.documentElement.setAttribute('data-theme', theme);
-      if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    const root = document.documentElement;
+    const btn  = document.getElementById('themeToggle');
+    const glyph= document.getElementById('themeGlyph');
+
+    function setTheme(t) {
+      root.setAttribute('data-theme', t);
+      if (glyph) glyph.textContent = t === 'dark' ? '☀️' : '🌙';
     }
-    let saved = localStorage.getItem(KEY);
-    if (!saved) {
-      saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    apply(saved);
-    if (btn) {
-      btn.addEventListener('click', () => {
-        const next = (document.documentElement.getAttribute('data-theme') === 'dark') ? 'light' : 'dark';
-        localStorage.setItem(KEY, next);
-        apply(next);
-      });
-    }
+
+    // Initial theme: saved -> attribute -> media query -> light
+    let theme = localStorage.getItem(KEY)
+             || root.getAttribute('data-theme')
+             || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+    setTheme(theme);
+
+    btn && btn.addEventListener('click', () => {
+      theme = (root.getAttribute('data-theme') === 'dark') ? 'light' : 'dark';
+      localStorage.setItem(KEY, theme);
+      setTheme(theme);
+    });
   })();
 </script>
