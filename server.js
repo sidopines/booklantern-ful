@@ -10,7 +10,7 @@ const cookieParser = require('cookie-parser');
 const cookieSession = require('cookie-session');
 const csrf = require('csurf');
 const fetch = require('node-fetch'); // v2
-const { AbortController } = require('abort-controller');
+// ❌ removed: const { AbortController } = require('abort-controller');
 const NodeCache = require('node-cache');
 const { createClient } = require('@supabase/supabase-js');
 
@@ -226,13 +226,9 @@ app.get('/proxy', async (req, res) => {
     }
 
     const buf = await fetchWithTimeoutAndRetry(url, {
-      headers: {
-        // Some hosts are friendlier with a UA:
-        'User-Agent': 'BookLantern/1.0 (+https://booklantern.org)'
-      }
+      headers: { 'User-Agent': 'BookLantern/1.0 (+https://booklantern.org)' }
     }, 8000, 1); // 8s timeout, 1 retry
 
-    // A second request is needed to read headers—so we captured content-type during fetch:
     const { data, contentType } = buf;
     res.set('Content-Type', contentType || 'application/octet-stream');
     proxyCache.set(cacheKey, { buf: data, ct: contentType });
@@ -288,7 +284,7 @@ app.listen(PORT, () => {
 async function fetchWithTimeoutAndRetry(url, options = {}, timeoutMs = 8000, retries = 1) {
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const controller = new AbortController();
+    const controller = new AbortController(); // global in Node 20
     const t = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const r = await fetch(url, { ...options, signal: controller.signal });
@@ -309,11 +305,9 @@ async function fetchWithTimeoutAndRetry(url, options = {}, timeoutMs = 8000, ret
 // Replace relative "images/.." etc. inside Gutenberg HTML with absolute proxied URLs
 function rewritePgHtml(html, id) {
   const base = `https://www.gutenberg.org/files/${id}/${id}-h/`;
-  // src="images/..." or href="images/..."
   return html
     .replace(/(src|href)="\.?\/?images\/([^"]+)"/g, (_m, attr, file) =>
       `${attr}="/proxy?url=${encodeURIComponent(base + 'images/' + file)}"`)
-    // Also fix links to plain files like src="fileX.html"
     .replace(/(src|href)="(?!https?:\/\/)([^"]+)"/g, (_m, attr, rel) =>
       `${attr}="/proxy?url=${encodeURIComponent(base + rel)}"`);
 }
@@ -338,12 +332,11 @@ async function pickSomeBooks(kind) {
           id: String(b.id),
           title: b.title || `PG #${gid}`,
           author: (b.authors && b.authors[0] && b.authors[0].name) || '',
-          cover: cover ? `/proxy?url=${encodeURIComponent(cover)}` :
-                 `/proxy?url=${encodeURIComponent(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.cover.medium.jpg`)}`
+          cover: cover ? `/proxy?url=${encodeURIComponent(cover)}`
+                       : `/proxy?url=${encodeURIComponent(`https://www.gutenberg.org/cache/epub/${gid}/pg${gid}.cover.medium.jpg`)}`
         };
       }
     } catch (_) {}
-    // Fallback minimal card
     return {
       provider: 'pg',
       id: gid,
@@ -405,7 +398,6 @@ async function fetchFromProvider(provider, id) {
     const htmlUrl2 = `https://www.gutenberg.org/files/${id}/${id}-h/${id}-h.html`;
     const txtUrl   = `https://www.gutenberg.org/files/${id}/${id}.txt`;
 
-    // Try HTML first
     const html = await tryFetchText([htmlUrl1, htmlUrl2], 9000);
     if (html) {
       const fixed = rewritePgHtml(html, id);
@@ -438,7 +430,7 @@ async function fetchFromProvider(provider, id) {
 async function tryFetchText(urls, timeoutMs = 9000) {
   for (const u of urls) {
     try {
-      const controller = new AbortController();
+      const controller = new AbortController(); // global
       const t = setTimeout(() => controller.abort(), timeoutMs);
       const r = await fetch(u, {
         signal: controller.signal,
