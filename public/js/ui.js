@@ -1,170 +1,219 @@
-// public/js/ui.js
-(() => {
-  console.log("✅ ui.js loaded");
+// public/js/ui.js — UI behaviors + offline queue for Save/Notes
+(function () {
+  // Theme toggle
+  const toggle = document.querySelector('#theme-toggle');
+  if (toggle) {
+    toggle.addEventListener('click', () => {
+      const root = document.documentElement;
+      const cur = root.getAttribute('data-theme') || 'light';
+      const next = cur === 'light' ? 'dark' : 'light';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('bl_theme', next); } catch {}
+    });
+  }
 
-  // ===============================
-  // Carousel arrows (homepage)
-  // ===============================
-  document.querySelectorAll(".carousel").forEach(carousel => {
-    const track = carousel.querySelector(".carousel-track");
-    const prev = carousel.querySelector(".carousel-prev");
-    const next = carousel.querySelector(".carousel-next");
+  // Simple helper
+  const $ = (sel) => document.querySelector(sel);
 
-    if (track && prev && next) {
-      prev.addEventListener("click", () => {
-        track.scrollBy({ left: -300, behavior: "smooth" });
-      });
-      next.addEventListener("click", () => {
-        track.scrollBy({ left: 300, behavior: "smooth" });
+  // =========================
+  // Offline queue & background sync
+  // =========================
+  const QUEUE_KEY = 'blQueueV1';
+
+  function loadQueue() {
+    try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); } catch { return []; }
+  }
+  function saveQueue(q) {
+    try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch {}
+  }
+  function enqueue(req) {
+    const q = loadQueue();
+    q.push({ ts: Date.now(), ...req });
+    saveQueue(q);
+    requestSync();
+  }
+  function requestSync() {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then((reg) => {
+        if (reg.sync && reg.sync.register) {
+          reg.sync.register('bl-sync').catch(()=>{});
+        }
       });
     }
-  });
+  }
+  async function flushQueue() {
+    const q = loadQueue();
+    if (!q.length) return;
+    const still = [];
+    for (const item of q) {
+      try {
+        const res = await fetch(item.url, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify(item.body)
+        });
+        if (!res.ok) throw new Error('bad status');
+      } catch {
+        still.push(item);
+      }
+    }
+    saveQueue(still);
+  }
 
-  // ===============================
-  // Reader page setup
-  // ===============================
-  if (document.body.dataset.page === "reader") {
+  // Trigger flush when regains online
+  window.addEventListener('online', flushQueue);
+  // Trigger flush when SW asks via background sync
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (ev) => {
+      if (ev.data && ev.data.type === 'BL_SYNC') flushQueue();
+    });
+  }
+
+  // =========================
+  // Reader page behaviors
+  // =========================
+  const isReader = document.body && document.body.dataset && document.body.dataset.page === 'reader';
+  if (isReader) {
     const provider = document.body.dataset.provider;
     const bookId = document.body.dataset.bookId;
+    const flow = $('#flow');
+    const iframe = $('#doc');
+    const titleEl = $('#r-title');
 
-    const flow = document.getElementById("flow");
-    const doc = document.getElementById("doc");
-    const title = document.getElementById("r-title");
-    const badge = document.getElementById("r-badge");
+    // fetch book content
+    (async () => {
+      try {
+        const r = await fetch(`/api/book?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(bookId)}`);
+        const data = await r.json();
+        if (data.title) titleEl.textContent = data.title;
 
-    // Load book content
-    fetch(`/api/book?provider=${provider}&id=${bookId}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.type === "html") {
+        if (data.type === 'html') {
+          iframe.hidden = true;
           flow.hidden = false;
           flow.innerHTML = data.content;
-        } else if (data && data.url) {
-          doc.hidden = false;
-          doc.src = data.url;
-        }
-        if (data && data.title) title.textContent = data.title;
-        if (badge) badge.textContent = provider;
-      })
-      .catch(err => {
-        console.error("Book load failed", err);
-        flow.hidden = false;
-        flow.textContent = "⚠️ Could not load book content.";
-      });
-
-    // ===============================
-    // Listen button (TTS)
-    // ===============================
-    const listenBtn = document.getElementById("btn-listen");
-    const rateSlider = document.getElementById("rate");
-    let synth = window.speechSynthesis;
-    let utterance = null;
-
-    if (listenBtn) {
-      listenBtn.addEventListener("click", () => {
-        if (synth.speaking) {
-          synth.cancel();
-          listenBtn.setAttribute("aria-pressed", "false");
-        } else if (flow && !flow.hidden) {
-          utterance = new SpeechSynthesisUtterance(flow.innerText);
-          utterance.rate = parseFloat(rateSlider.value || "1");
-          synth.speak(utterance);
-          listenBtn.setAttribute("aria-pressed", "true");
-        }
-      });
-    }
-    if (rateSlider) {
-      rateSlider.addEventListener("input", () => {
-        if (utterance) {
-          utterance.rate = parseFloat(rateSlider.value);
-          if (synth.speaking) {
-            synth.cancel();
-            synth.speak(utterance);
-          }
-        }
-      });
-    }
-
-    // ===============================
-    // Font size controls
-    // ===============================
-    let fontSize = 18;
-    const decBtn = document.getElementById("btn-size-dec");
-    const incBtn = document.getElementById("btn-size-inc");
-    if (decBtn) decBtn.addEventListener("click", () => {
-      fontSize = Math.max(14, fontSize - 2);
-      flow.style.fontSize = fontSize + "px";
-    });
-    if (incBtn) incBtn.addEventListener("click", () => {
-      fontSize = Math.min(28, fontSize + 2);
-      flow.style.fontSize = fontSize + "px";
-    });
-
-    // ===============================
-    // Theme toggle
-    // ===============================
-    const themeBtn = document.getElementById("btn-theme");
-    if (themeBtn) {
-      themeBtn.addEventListener("click", () => {
-        document.body.classList.toggle("light");
-      });
-    }
-
-    // ===============================
-    // Bookmark + Save
-    // ===============================
-    const bookmarkBtn = document.getElementById("btn-bookmark");
-    const savedBtn = document.getElementById("btn-saved");
-    const key = `book-${provider}-${bookId}`;
-
-    if (bookmarkBtn) {
-      bookmarkBtn.addEventListener("click", () => {
-        localStorage.setItem(`${key}-bookmark`, Date.now());
-        alert("🔖 Bookmark saved!");
-      });
-    }
-    if (savedBtn) {
-      savedBtn.addEventListener("click", () => {
-        const saved = savedBtn.getAttribute("aria-pressed") === "true";
-        if (saved) {
-          localStorage.removeItem(`${key}-saved`);
-          savedBtn.setAttribute("aria-pressed", "false");
+        } else if (data.type === 'text') {
+          iframe.hidden = true;
+          flow.hidden = false;
+          flow.textContent = data.content;
+        } else if (data.type === 'pdf' || data.type === 'epub') {
+          flow.hidden = true;
+          iframe.hidden = false;
+          iframe.src = data.url;
         } else {
-          localStorage.setItem(`${key}-saved`, "true");
-          savedBtn.setAttribute("aria-pressed", "true");
+          iframe.hidden = true;
+          flow.hidden = false;
+          flow.innerHTML = `<p>Couldn’t load this book yet.</p>`;
+        }
+      } catch (e) {
+        iframe.hidden = true;
+        flow.hidden = false;
+        flow.innerHTML = `<p>Failed to load book.</p>`;
+      }
+    })();
+
+    // Listen (very basic TTS using SpeechSynthesis)
+    const btnListen = $('#btn-listen');
+    const rate = $('#rate');
+    let speaking = false;
+    function readTextFromFlow() {
+      return flow && !flow.hidden ? (flow.innerText || '').slice(0, 10000) : '';
+    }
+    if (btnListen) {
+      btnListen.addEventListener('click', () => {
+        if (!speaking) {
+          const text = readTextFromFlow();
+          if (!text) return;
+          const u = new SpeechSynthesisUtterance(text);
+          u.rate = parseFloat(rate.value || '1');
+          speechSynthesis.speak(u);
+          speaking = true;
+          btnListen.setAttribute('aria-pressed','true');
+          u.onend = () => { speaking = false; btnListen.setAttribute('aria-pressed','false'); };
+        } else {
+          speechSynthesis.cancel();
+          speaking = false;
+          btnListen.setAttribute('aria-pressed','false');
+        }
+      });
+      if (rate) rate.addEventListener('input', () => {
+        if (speaking) { speechSynthesis.cancel(); speaking = false; btnListen.setAttribute('aria-pressed','false'); }
+      });
+    }
+
+    // Save (library)
+    const btnSaved = $('#btn-saved');
+    if (btnSaved) {
+      btnSaved.addEventListener('click', async () => {
+        const payload = {
+          provider, id: bookId,
+          title: titleEl.textContent || '',
+          author: '', cover: ''
+        };
+        try {
+          const r = await fetch('/api/save', {
+            method: 'POST', headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (!r.ok) throw new Error('net');
+          btnSaved.setAttribute('aria-pressed','true');
+        } catch {
+          // offline -> enqueue
+          enqueue({ url:'/api/save', body: payload });
+          btnSaved.setAttribute('aria-pressed','true');
         }
       });
     }
 
-    // ===============================
-    // Notes panel
-    // ===============================
-    const notesBtn = document.getElementById("btn-notes");
-    const notesPanel = document.getElementById("notes");
-    const notesText = document.getElementById("notes-text");
-    const notesSave = document.getElementById("btn-notes-save");
-    const notesClose = document.getElementById("btn-notes-close");
-    const notesStatus = document.getElementById("notes-status");
+    // Notes
+    const notesBtn = $('#btn-notes');
+    const notesPanel = $('#notes');
+    const notesClose = $('#btn-notes-close');
+    const notesSave = $('#btn-notes-save');
+    const notesText = $('#notes-text');
+    const notesStatus = $('#notes-status');
 
     if (notesBtn && notesPanel) {
-      notesBtn.addEventListener("click", () => {
-        notesPanel.classList.add("active");
-      });
-    }
-    if (notesClose) {
-      notesClose.addEventListener("click", () => {
-        notesPanel.classList.remove("active");
-      });
-    }
-    if (notesSave) {
-      notesSave.addEventListener("click", () => {
-        const text = notesText.value.trim();
-        if (text) {
-          localStorage.setItem(`${key}-notes`, text);
-          notesStatus.textContent = "✅ Saved!";
-          setTimeout(() => (notesStatus.textContent = ""), 2000);
+      notesBtn.addEventListener('click', async () => {
+        notesPanel.classList.add('active');
+        notesStatus.textContent = 'Loading…';
+        try {
+          const r = await fetch(`/api/notes?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(bookId)}`);
+          const j = await r.json();
+          const items = (j.notes || []).map(n => `• ${new Date(n.created_at).toLocaleString()}: ${n.text}`).join('\n');
+          notesText.value = items ? (notesText.value ? notesText.value + '\n' + items : items) : (notesText.value || '');
+          notesStatus.textContent = items ? 'Loaded.' : 'No notes yet.';
+        } catch {
+          notesStatus.textContent = 'Offline. Notes will sync when online.';
         }
       });
     }
+    if (notesClose) notesClose.addEventListener('click', () => notesPanel.classList.remove('active'));
+    if (notesSave && notesText) {
+      notesSave.addEventListener('click', async () => {
+        const text = notesText.value.trim();
+        if (!text) return;
+        const body = { provider, id: bookId, text, pos: null };
+        try {
+          const r = await fetch('/api/notes', {
+            method: 'POST', headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify(body)
+          });
+          if (!r.ok) throw 0;
+          notesStatus.textContent = 'Saved.';
+        } catch {
+          enqueue({ url:'/api/notes', body });
+          notesStatus.textContent = 'Saved offline. Will sync.';
+        }
+      });
+    }
+
+    // Font size & theme buttons
+    const dec = $('#btn-size-dec'), inc = $('#btn-size-inc'), theme = $('#btn-theme'), bookmark = $('#btn-bookmark');
+    let fs = 18;
+    function applyFS(){ if (flow) flow.style.setProperty('--fs', `${fs}px`); }
+    if (dec) dec.addEventListener('click', ()=>{ fs=Math.max(14, fs-1); applyFS(); });
+    if (inc) inc.addEventListener('click', ()=>{ fs=Math.min(28, fs+1); applyFS(); });
+    if (theme) theme.addEventListener('click', ()=>{ const cur=document.documentElement.getAttribute('data-theme')||'light'; const next=cur==='light'?'dark':'light'; document.documentElement.setAttribute('data-theme',next); try{localStorage.setItem('bl_theme',next);}catch{} });
+    if (bookmark) bookmark.addEventListener('click', ()=>{ try{ localStorage.setItem(`bm:${provider}:${bookId}`, Date.now().toString()); }catch{} });
   }
 })();
