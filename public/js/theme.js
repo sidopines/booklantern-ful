@@ -1,77 +1,47 @@
-// public/js/theme.js
-// BookLantern theme controller: light / dark / auto
-// - Persists choice in localStorage("theme") as "light" | "dark" | "auto"
-// - Applies data-theme on <html>
-// - Syncs icon (🌙 for dark target, ☀️ for light target)
-// - Respects system Prefers-Color-Scheme when "auto"
-
 (function () {
-  const STORAGE_KEY = 'theme'; // "light" | "dark" | "auto"
-  const html = document.documentElement;
-  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  var LS_KEY = 'bl-theme';
 
-  // Elements (footer toggle is standard; support optional navbar toggle too)
-  const btn = document.getElementById('themeToggle') || document.querySelector('[data-theme-toggle]');
-  const icon = document.getElementById('themeIcon') || document.querySelector('[data-theme-icon]');
-
-  // ---- Core ----
-  function getStored() {
-    const v = localStorage.getItem(STORAGE_KEY);
-    return v === 'light' || v === 'dark' || v === 'auto' ? v : 'auto';
+  function apply(mode) {
+    if (mode === 'auto') {
+      try {
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        mode = prefersDark ? 'dark' : 'light';
+      } catch (e) { mode = 'light'; }
+    }
+    document.documentElement.setAttribute('data-theme', mode);
+    var icon = document.getElementById('themeIcon');
+    if (icon) icon.textContent = (mode === 'dark') ? '🌙' : '☀️';
   }
 
-  function effective(theme) {
-    // what actually gets rendered right now (light/dark)
-    if (theme === 'light') return 'light';
-    if (theme === 'dark') return 'dark';
-    return mq.matches ? 'dark' : 'light'; // auto
+  function current() {
+    try { return localStorage.getItem(LS_KEY) || 'auto'; }
+    catch (e) { return 'auto'; }
   }
 
-  function apply(theme) {
-    // theme param is "light" | "dark" | "auto"
-    // Set attribute to "light" or "dark" for CSS, keep the *selection* in data-theme-pref
-    const eff = effective(theme);
-    html.setAttribute('data-theme', eff);         // for CSS
-    html.setAttribute('data-theme-pref', theme);  // for debugging / reading current pref
-    if (icon) icon.textContent = eff === 'dark' ? '☀️' : '🌙'; // show the target you’d switch to
-    // Update button accessible label
-    if (btn) btn.setAttribute('aria-label', `Switch to ${eff === 'dark' ? 'light' : 'dark'} theme`);
+  function set(mode) {
+    try { localStorage.setItem(LS_KEY, mode); } catch (e) {}
+    apply(mode);
   }
 
-  function save(theme) {
-    localStorage.setItem(STORAGE_KEY, theme);
-  }
+  // Initialize on DOM ready (pre-paint script in head already set data-theme)
+  document.addEventListener('DOMContentLoaded', function () {
+    apply(current());
 
-  // Rotate: light -> dark -> auto -> light ...
-  function nextTheme(current) {
-    if (current === 'light') return 'dark';
-    if (current === 'dark') return 'auto';
-    return 'light'; // auto -> light
-  }
+    var btn = document.getElementById('themeToggle');
+    if (btn) {
+      btn.addEventListener('click', function () {
+        var m = current();
+        var next = (m === 'light') ? 'dark' : (m === 'dark') ? 'auto' : 'light';
+        set(next);
+      });
+    }
 
-  // ---- Init ----
-  const initial = getStored();
-  apply(initial);
-
-  // If system scheme changes while in "auto", update live
-  mq.addEventListener('change', () => {
-    if (getStored() === 'auto') apply('auto');
+    // If user changes system theme and we're in auto, reflect it
+    var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq) {
+      mq.addEventListener('change', function () {
+        if (current() === 'auto') apply('auto');
+      });
+    }
   });
-
-  // Click handler
-  if (btn) {
-    btn.addEventListener('click', () => {
-      const curr = getStored();
-      const next = nextTheme(curr);
-      save(next);
-      apply(next);
-    });
-  }
-
-  // Expose tiny API if other scripts need it
-  window.BLTheme = {
-    get: getStored,             // returns "light" | "dark" | "auto"
-    set: (t) => { save(t); apply(t); }, // set & apply
-    apply,                      // apply current pref to DOM
-  };
 })();
