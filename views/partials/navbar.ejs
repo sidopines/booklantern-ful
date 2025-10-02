@@ -1,37 +1,33 @@
-<!-- views/partials/navbar.ejs -->
-<nav class="site-nav">
-  <div class="nav-inner">
-    <a class="brand" href="/">
-      <img src="/public/logo.svg" alt="BookLantern" width="36" height="36" />
-      <span class="wordmark">BookLantern</span>
+<%
+// expects: isAuthenticated, user
+// uses theme.js which looks for [data-theme-toggle]
+%>
+<nav class="navbar">
+  <div class="container navbar__inner">
+    <a class="brand" href="/" aria-label="BookLantern home">
+      <img src="/public/logo.svg" alt="" width="20" height="20" style="vertical-align:middle">
+      <span class="brand__text">BookLantern</span>
     </a>
 
-    <ul class="nav-links">
+    <ul class="nav">
       <li><a href="/read">Read</a></li>
       <li><a href="/watch">Watch</a></li>
       <li><a href="/about">About</a></li>
       <li><a href="/contact">Contact</a></li>
     </ul>
 
-    <form class="nav-search" action="/search" method="get">
-      <input type="text" name="q" placeholder="Search free books..." aria-label="Search" />
-      <button class="btn btn--ghost" type="submit">Search</button>
+    <form class="nav-search" action="/search" method="get" role="search">
+      <label class="sr-only" for="q">Search free books</label>
+      <input id="q" name="q" type="search" placeholder="Search free books…" />
+      <button type="submit" class="btn btn--ghost">Search</button>
     </form>
 
     <div class="nav-actions">
-      <!-- single theme toggle button -->
-      <button id="themeToggle" class="btn btn--ghost" type="button" aria-label="Toggle theme">
-        <span id="themeIcon">🌙</span>
+      <button type="button" class="btn btn--ghost" data-theme-toggle aria-pressed="false" title="Toggle theme">
+        <span data-theme-icon>🌞</span>
       </button>
 
-      <% 
-        // Be defensive: compute auth state locally so this partial never throws.
-        const _user   = (typeof user !== 'undefined' && user) ? user : null;
-        const _authed = (typeof isAuthenticated !== 'undefined') ? !!isAuthenticated 
-                       : !!(_user && (_user.id || _user.email));
-      %>
-
-      <% if (_authed) { %>
+      <% if (isAuthenticated) { %>
         <a class="btn btn--ghost" href="/dashboard">Account</a>
         <form method="post" action="/logout" style="display:inline;">
           <button class="btn btn--primary" type="submit">Logout</button>
