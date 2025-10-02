@@ -1,5 +1,4 @@
 // scripts/generate-icons.js
-//
 // Generate PNG icon set from public/favicon.svg so all platforms are happy.
 
 const fs = require('fs');
@@ -36,7 +35,7 @@ const sharp = require('sharp');
     console.log('[icons] all icons generated from favicon.svg');
   } catch (err) {
     console.error('[icons] generation failed:', err);
-    // Do not hard-fail build; just log. The app can still run with SVG favicon.
+    // Don’t fail the build if icons fail to generate.
     process.exit(0);
   }
 })();
