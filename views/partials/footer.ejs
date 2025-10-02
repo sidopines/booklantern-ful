@@ -1,11 +1,10 @@
 <!-- views/partials/footer.ejs -->
 <footer class="site-footer">
-  <div class="container row" style="justify-content:space-between; align-items:center;">
-    <p class="muted" style="margin:0;">© <%= new Date().getFullYear() %> BookLantern. Free forever.</p>
+  <div class="container">
+    <p>&copy; <%= new Date().getFullYear() %> BookLantern. Free forever.</p>
   </div>
 </footer>
 
-<script src="/public/js/theme.js?v=<%= buildId %>" defer></script>
-<script src="/public/js/ui.js?v=<%= buildId %>" defer></script>
-</body>
-</html>
+<!-- Scripts -->
+<script src="/public/js/ui.js?v=<%= buildId %>"></script>
+<script src="/public/js/theme.js?v=<%= buildId %>"></script>
