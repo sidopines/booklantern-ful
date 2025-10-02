@@ -2,319 +2,59 @@
 const express = require('express');
 const router = express.Router();
 
-const fetchJsonRetry = require('../lib/fetchJsonRetry');
-const cache = require('../lib/cache');
-const normalizeBooks = require('../lib/normalizeBooks');
-const normalizePlain = require('../lib/normalizeBooks').fromPlain;
-const fallbackBooks = require('../data/fallbackBooks.json');
-
-// If you have local, admin-curated books, we can feature those too:
-let Book = null;
-try {
-  Book = require('../models/Book');
-} catch (_) {
-  // Optional model; ignore if not present
-}
-
-/**
- * In-memory cache helpers
- */
-function makeCache(ttlMs = 60 * 60 * 1000) {
+/** helpers */
+function pageVars(req, extra = {}) {
   return {
-    value: null,
-    expiresAt: 0,
-    async get(builder) {
-      const now = Date.now();
-      if (this.value && now < this.expiresAt) return this.value;
-      this.value = await builder();
-      this.expiresAt = now + ttlMs;
-      return this.value;
-    },
-    bust() {
-      this.value = null;
-      this.expiresAt = 0;
-    },
+    // nav/session
+    isAuthenticated: !!req.user,
+    user: req.user || null,
+
+    // basic meta defaults (can be overridden per page)
+    pageTitle: 'BookLantern',
+    pageDescription:
+      'Millions of free books from globally trusted libraries. One search, one clean reader.',
+
+    // utilities for partials
+    canonicalUrl: req.protocol + '://' + req.get('host') + req.originalUrl,
+    referrer: req.get('referer') || '/',
+    ...extra
   };
 }
 
-const featuredCache = makeCache(60 * 60 * 1000); // 1 hour
-const shelvesCache  = makeCache(60 * 60 * 1000); // 1 hour
-
-/**
- * Normalizer for local Book docs -> homepage card
- */
-function cardFromLocalBook(b) {
-  return {
-    identifier: String(b._id),
-    title: b.title,
-    creator: b.author || '',
-    cover: b.coverImage || '',
-    readerUrl: b.sourceUrl || '',
-    source: 'local',
-    description: b.description || '',
-    archiveId: '', // only for items we can open inside /read/book/:id
-  };
-}
-
-/**
- * Curated, known-good, ZERO-network “featured” items.
- * We intentionally prefer Gutenberg IDs here because they’re stable.
- * Covers use Gutenberg’s predictable pattern. Archive/Open Library show up on search.
- */
-function curatedFeatured() {
-  const pgCover = (id) =>
-    `https://www.gutenberg.org/cache/epub/${id}/pg${id}.cover.medium.jpg`;
-
-  return [
-    { // Pride and Prejudice
-      identifier: 'gutenberg:1342',
-      title: 'Pride and Prejudice',
-      creator: 'Jane Austen',
-      cover: pgCover(1342),
-      source: 'gutenberg',
-      readerUrl: 'https://www.gutenberg.org/ebooks/1342'
-    },
-    { // Sherlock Holmes
-      identifier: 'gutenberg:1661',
-      title: 'The Adventures of Sherlock Holmes',
-      creator: 'Arthur Conan Doyle',
-      cover: pgCover(1661),
-      source: 'gutenberg',
-      readerUrl: 'https://www.gutenberg.org/ebooks/1661'
-    },
-    { // Frankenstein
-      identifier: 'gutenberg:84',
-      title: 'Frankenstein',
-      creator: 'Mary Wollstonecraft Shelley',
-      cover: pgCover(84),
-      source: 'gutenberg',
-      readerUrl: 'https://www.gutenberg.org/ebooks/84'
-    },
-    { // Moby-Dick
-      identifier: 'gutenberg:2701',
-      title: 'Moby-Dick; or, The Whale',
-      creator: 'Herman Melville',
-      cover: pgCover(2701),
-      source: 'gutenberg',
-      readerUrl: 'https://www.gutenberg.org/ebooks/2701'
-    },
-    { // Alice
-      identifier: 'gutenberg:11',
-      title: "Alice's Adventures in Wonderland",
-      creator: 'Lewis Carroll',
-      cover: pgCover(11),
-      source: 'gutenberg',
-      readerUrl: 'https://www.gutenberg.org/ebooks/11'
-    },
-    { // Tale of Two Cities
-      identifier: 'gutenberg:98',
-      title: 'A Tale of Two Cities',
-      creator: 'Charles Dickens',
-      cover: pgCover(98),
-      source: 'gutenberg',
-      readerUrl: 'https://www.gutenberg.org/ebooks/98'
-    },
-    // A few “search cards” that link to /read with a query (good variety)
-    {
-      identifier: 'search:plato',
-      title: 'The Republic (Plato)',
-      creator: 'Plato',
-      cover: 'https://covers.openlibrary.org/b/subject/plato-M.jpg',
-      source: 'openlibrary',
-      readerUrl: '/read?query=Plato%20Republic'
-    },
-    {
-      identifier: 'search:socrates',
-      title: 'Dialogues on Socrates',
-      creator: 'Plato, Xenophon (various)',
-      cover: 'https://covers.openlibrary.org/b/subject/philosophy-M.jpg',
-      source: 'openlibrary',
-      readerUrl: '/read?query=Socrates'
-    },
-    {
-      identifier: 'search:bible',
-      title: 'King James Bible (Public Domain)',
-      creator: 'KJV (Public Domain)',
-      cover: 'https://covers.openlibrary.org/b/subject/bible-M.jpg',
-      source: 'openlibrary',
-      readerUrl: '/read?query=King%20James%20Bible'
-    },
-    {
-      identifier: 'search:science',
-      title: 'Popular Science Classics',
-      creator: 'Various',
-      cover: 'https://covers.openlibrary.org/b/subject/science-M.jpg',
-      source: 'openlibrary',
-      readerUrl: '/read?query=Science'
-    },
-    {
-      identifier: 'search:history',
-      title: 'Great Works of History',
-      creator: 'Various',
-      cover: 'https://covers.openlibrary.org/b/subject/history-M.jpg',
-      source: 'openlibrary',
-      readerUrl: '/read?query=History'
-    },
-    {
-      identifier: 'search:poetry',
-      title: 'Poetry Anthologies',
-      creator: 'Various',
-      cover: 'https://covers.openlibrary.org/b/subject/poetry-M.jpg',
-      source: 'openlibrary',
-      readerUrl: '/read?query=Poetry'
-    },
-  ];
-}
-
-/**
- * Curated shelves — instant, cached, and theme-based.
- * Each item uses the same card shape as featured.
- */
-function curatedShelves() {
-  const F = curatedFeatured();
-
-  // Helpers to clone a card with a different “title/cover/q”
-  const quickQueryCard = (title, q, coverSubject) => ({
-    identifier: `search:${q}`,
-    title,
-    creator: 'Various',
-    cover: `https://covers.openlibrary.org/b/subject/${encodeURIComponent(coverSubject)}-M.jpg`,
-    source: 'openlibrary',
-    readerUrl: `/read?query=${encodeURIComponent(q)}`
-  });
-
-  return [
-    {
-      title: 'Philosophy Corner',
-      q: 'Philosophy',
-      items: [
-        quickQueryCard('The Republic (Plato)', 'Plato Republic', 'philosophy'),
-        quickQueryCard('Dialogues on Socrates', 'Socrates', 'plato'),
-        quickQueryCard('Aristotle Essentials', 'Aristotle', 'philosophy'),
-        quickQueryCard('Stoicism & Wisdom', 'Stoicism', 'ethics'),
-      ],
-    },
-    {
-      title: 'Timeless Classics',
-      q: 'Classics',
-      items: F.filter(x => (x.source === 'gutenberg')).slice(0, 6),
-    },
-    {
-      title: 'Science Shelf',
-      q: 'Science',
-      items: [
-        quickQueryCard('Physics Primers', 'Physics', 'science'),
-        quickQueryCard('Biology Basics', 'Biology', 'biology'),
-        quickQueryCard('Astronomy & Space', 'Astronomy', 'astronomy'),
-        quickQueryCard('Mathematics Classics', 'Mathematics', 'mathematics'),
-      ],
-    },
-  ];
-}
-
-/* =========================
- * ROUTES
- * =======================*/
-
-// Home: server-side shelves with retry, cache, and fallback
-router.get('/', async (req, res) => {
-  try {
-    const key = 'home:shelves:v1.1';
-    let data = cache.get(key);
-    if (!data) {
-      const urls = [
-        'https://openlibrary.org/subjects/classics.json?limit=12',
-        'https://openlibrary.org/subjects/philosophy.json?limit=12',
-        'https://openlibrary.org/subjects/history.json?limit=12'
-      ];
-      const [classics, philosophy, history] = await Promise.all(
-        urls.map(u => fetchJsonRetry(u, { tries: 2, timeout: 8000 }))
-      );
-      data = {
-        trending: normalizeBooks((classics.works || []).slice(0, 10)),
-        philosophy: normalizeBooks((philosophy.works || []).slice(0, 10)),
-        history: normalizeBooks((history.works || []).slice(0, 10)),
-      };
-      cache.set(key, data, 60 * 60 * 1000);
-    }
-    return res.render('index', data);
-  } catch (e) {
-    console.error('home shelves failed; using fallback', e.message);
-    const sample = normalizePlain(fallbackBooks);
-    return res.render('index', {
-      trending: sample.slice(0, 6),
-      philosophy: sample.slice(6, 10),
-      history: sample.slice(10, 12)
-    });
-  }
+/** home */
+router.get('/', (req, res) => {
+  res.render('index', pageVars(req));
 });
 
-// Debug/health endpoints
-router.get('/health', (req, res) => res.json({ ok: true, ts: Date.now() }));
-router.get('/debug/covers', (req, res) => {
-  res.render('read', { items: normalizePlain(fallbackBooks) });
-});
-
+/** simple content pages already in your repo */
 router.get('/about', (req, res) => {
-  res.render('about', {
-    pageTitle: 'About',
-    pageDescription: 'Learn more about BookLantern\'s mission to make books accessible.'
-  });
+  res.render('about', pageVars(req, { pageTitle: 'About • BookLantern' }));
 });
 
 router.get('/contact', (req, res) => {
-  res.render('contact', {
-    pageTitle: 'Contact',
-    pageDescription: 'Get in touch with the BookLantern team.'
-  });
+  res.render('contact', pageVars(req, { pageTitle: 'Contact • BookLantern' }));
 });
 
-/**
- * Fast, cached endpoint for the homepage Featured grid.
- * 1) Prefer your local admin-curated Book docs (if any exist)
- * 2) Else fall back to a static curated list of known-good public domain items
- */
-router.get('/api/featured-books', async (req, res) => {
-  try {
-    const payload = await featuredCache.get(async () => {
-      // Try local DB first (admin-curated)
-      if (Book) {
-        try {
-          const localBooks = await Book.find({}).sort({ createdAt: -1 }).limit(12).lean();
-          if (localBooks && localBooks.length) {
-            return { items: localBooks.map(cardFromLocalBook) };
-          }
-        } catch (e) {
-          console.error('featured: local Book fetch failed:', e.message);
-        }
-      }
-      // Fallback to curated zero-network list
-      return { items: curatedFeatured() };
-    });
-
-    res.set('Cache-Control', 'public, max-age=900'); // 15 minutes for browsers/CDN
-    return res.json(payload);
-  } catch (e) {
-    console.error('featured endpoint error:', e);
-    return res.status(500).json({ items: [] });
-  }
+/** NEW: stub pages so links stop 404’ing */
+router.get('/read', (req, res) => {
+  res.render('read', pageVars(req, { pageTitle: 'Read • BookLantern' }));
 });
 
-/**
- * Curated shelves endpoint for the homepage.
- * Fully static + cached, instant response.
- */
-router.get('/api/shelves', async (req, res) => {
-  try {
-    const payload = await shelvesCache.get(async () => {
-      return { shelves: curatedShelves() };
-    });
-    res.set('Cache-Control', 'public, max-age=900');
-    return res.json(payload);
-  } catch (e) {
-    console.error('shelves endpoint error:', e);
-    return res.status(500).json({ shelves: [] });
-  }
+router.get('/watch', (req, res) => {
+  res.render('watch', pageVars(req, { pageTitle: 'Watch • BookLantern' }));
+});
+
+router.get('/login', (req, res) => {
+  res.render('login', pageVars(req, { pageTitle: 'Login • BookLantern' }));
+});
+
+router.get('/register', (req, res) => {
+  res.render('register', pageVars(req, { pageTitle: 'Create account • BookLantern' }));
+});
+
+/** 404 (keep at bottom) */
+router.use((req, res) => {
+  res.status(404).render('404', pageVars(req, { pageTitle: '404 • BookLantern' }));
 });
 
 module.exports = router;
