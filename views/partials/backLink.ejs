@@ -1,9 +1,8 @@
-<a
-  class="back"
-  href="<%= (typeof referrer !== 'undefined' && referrer) ? referrer : '/' %>"
-  aria-label="Go back"
-  onclick="if(document.referrer){history.back();return false;}"
-  style="display:inline-flex;align-items:center;gap:8px;text-decoration:none;margin:10px 16px;color:var(--ink-muted);font-weight:500;"
->
-  <span aria-hidden="true">←</span> Back
-</a>
+<%
+// Safe back link: works even if 'referrer' was never passed.
+const href =
+  (typeof referrer !== 'undefined' && referrer && typeof referrer === 'string')
+    ? referrer
+    : '/';
+%>
+<a class="btn btn--ghost" href="<%= href %>">← Back to Home</a>
