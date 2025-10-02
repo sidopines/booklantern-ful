@@ -1,11 +1,11 @@
 <footer class="site-footer">
-  <div class="container row" style="justify-content:space-between; align-items:center;">
-    <p class="muted" style="margin:0;">© <%= new Date().getFullYear() %> BookLantern. Free forever.</p>
+  <div class="container site-footer__inner">
+    <p>© <%= new Date().getFullYear() %> BookLantern. Free forever.</p>
+    <nav aria-label="Footer">
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
+      <a href="/read">Read</a>
+      <a href="/watch">Watch</a>
+    </nav>
   </div>
 </footer>
-
-<!-- Scripts -->
-<script src="/public/js/theme.js?v=<%= buildId %>" defer></script>
-<script src="/public/js/ui.js?v=<%= buildId %>" defer></script>
-</body>
-</html>
