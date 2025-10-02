@@ -1,48 +1,34 @@
+// public/js/theme.js
 (function () {
-  var LS_KEY = 'bl-theme';
+  var KEY = 'bl-theme'; // 'light' | 'dark' | 'auto'
+  var root = document.documentElement;
+  var btn = document.querySelector('[data-theme-toggle]');
+  var icon = document.querySelector('[data-theme-icon]');
 
-  function sysPrefersDark() {
-    try { return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; }
-    catch (e) { return false; }
-  }
-
-  function get() {
-    try { return localStorage.getItem(LS_KEY); } catch (e) { return null; }
-  }
-
-  function set(mode) {
-    try { localStorage.setItem(LS_KEY, mode); } catch (e) {}
+  function currentMode() {
+    var stored = localStorage.getItem(KEY);
+    if (!stored || stored === 'auto') {
+      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      return prefersDark ? 'dark' : 'light';
+    }
+    return stored;
   }
 
   function apply(mode) {
-    // fallback to system if nothing saved
-    if (!mode) mode = sysPrefersDark() ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', mode);
-    var icon = document.getElementById('themeIcon');
-    if (icon) icon.textContent = (mode === 'dark') ? '🌙' : '☀️';
+    root.setAttribute('data-theme', mode);
+    if (btn) btn.setAttribute('aria-pressed', String(mode === 'dark'));
+    if (icon) icon.textContent = mode === 'dark' ? '🌙' : '🌞';
   }
 
-  // Pre-apply whatever is saved (or system) ASAP
-  apply(get());
+  function toggle() {
+    var next = currentMode() === 'dark' ? 'light' : 'dark';
+    localStorage.setItem(KEY, next);
+    apply(next);
+  }
 
-  // Wire up the button (simple two-state)
-  document.addEventListener('DOMContentLoaded', function () {
-    var btn = document.getElementById('themeToggle');
-    if (!btn) return;
+  // init on load
+  apply(currentMode());
 
-    btn.addEventListener('click', function () {
-      var current = document.documentElement.getAttribute('data-theme') || (sysPrefersDark() ? 'dark' : 'light');
-      var next = current === 'dark' ? 'light' : 'dark';
-      set(next);
-      apply(next);
-    });
-
-    // If user changes OS theme and no explicit choice saved, follow system
-    var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
-    if (mq) {
-      mq.addEventListener('change', function () {
-        if (!get()) apply(null);
-      });
-    }
-  });
+  // click wiring
+  if (btn) btn.addEventListener('click', toggle);
 })();
