@@ -1,12 +1,18 @@
-<%- include('./partials/head', {
-  pageTitle: 'Largest Online Hub of Free Books',
-  pageDescription: 'Millions of free books from globally trusted libraries. One search, one clean reader.'
-}) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', {
+    pageTitle: 'Largest Online Hub of Free Books',
+    pageDescription: 'Millions of free books from globally trusted libraries. One search, one clean reader.',
+    canonicalUrl: canonicalUrl,
+    buildId: buildId
+  }) %>
+</head>
 <body>
   <%- include('./partials/navbar') %>
 
   <header class="hero">
-    <div class="container">
+    <div class="container hero-inner">
       <h1>Largest Online Hub of Free Books</h1>
       <p class="hero-sub">Millions of books from globally trusted libraries. One search, one clean reader.</p>
       <ul class="hero-points">
@@ -15,9 +21,9 @@
         <li>Clean reading experience</li>
       </ul>
 
-      <form class="search" action="/search" method="get">
-        <input type="text" name="q" placeholder="Search books, authors…" aria-label="Search">
-        <button class="btn" type="submit">Search</button>
+      <form class="search" action="/search" method="get" role="search">
+        <input type="text" name="q" placeholder="Search books, authors…" aria-label="Search" />
+        <button class="btn btn--primary" type="submit">Search</button>
       </form>
     </div>
   </header>
@@ -29,12 +35,12 @@
         <h2>Trending now</h2>
       </div>
       <div class="carousel">
-        <% const tList = Array.isArray(trending) ? trending : []; %>
+        <% const tList = (typeof trending !== 'undefined' && Array.isArray(trending)) ? trending : []; %>
         <% if (!tList.length) { %>
           <div class="empty">No books to show yet.</div>
         <% } else { %>
           <% tList.forEach(function(b){ %>
-            <%- include('./partials/bookCard', { b }) %>
+            <%- include('./partials/bookCard', { b: b }) %>
           <% }) %>
         <% } %>
       </div>
@@ -46,12 +52,12 @@
         <h2>Philosophy Picks</h2>
       </div>
       <div class="carousel">
-        <% const pList = Array.isArray(philosophy) ? philosophy : []; %>
+        <% const pList = (typeof philosophy !== 'undefined' && Array.isArray(philosophy)) ? philosophy : []; %>
         <% if (!pList.length) { %>
           <div class="empty">No books to show yet.</div>
         <% } else { %>
           <% pList.forEach(function(b){ %>
-            <%- include('./partials/bookCard', { b }) %>
+            <%- include('./partials/bookCard', { b: b }) %>
           <% }) %>
         <% } %>
       </div>
@@ -63,12 +69,12 @@
         <h2>History Picks</h2>
       </div>
       <div class="carousel">
-        <% const hList = Array.isArray(history) ? history : []; %>
+        <% const hList = (typeof history !== 'undefined' && Array.isArray(history)) ? history : []; %>
         <% if (!hList.length) { %>
           <div class="empty">No books to show yet.</div>
         <% } else { %>
           <% hList.forEach(function(b){ %>
-            <%- include('./partials/bookCard', { b }) %>
+            <%- include('./partials/bookCard', { b: b }) %>
           <% }) %>
         <% } %>
       </div>
@@ -76,3 +82,9 @@
   </main>
 
   <%- include('./partials/footer') %>
+
+  <!-- Global scripts (cache-busted) -->
+  <script src="/public/js/ui.js?v=<%= buildId %>"></script>
+  <script src="/public/js/theme.js?v=<%= buildId %>"></script>
+</body>
+</html>
