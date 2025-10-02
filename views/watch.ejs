@@ -1,7 +1,16 @@
-<%- include('./partials/head', { pageTitle: 'Watch - BookLantern' }) %>
+<%- include('./partials/head', {
+  pageTitle: 'Watch • BookLantern',
+  pageDescription: 'Curated literary videos and author talks.',
+  canonicalUrl: canonicalUrl,
+  buildId: buildId
+}) %>
 <body>
   <%- include('./partials/navbar') %>
-<%- include('./partials/backLink') %>
+
+  <!-- Safe back link: avoid "referrer is not defined" -->
+  <% var __safeRef = (typeof referrer !== 'undefined' ? referrer : null); %>
+  <%- include('./partials/backLink', { referrer: __safeRef }) %>
+
   <main class="stack" style="--gap:16px; max-width:1100px; margin:30px auto; padding:0 16px;">
     <h1>Watch</h1>
 
@@ -10,7 +19,7 @@
       <div class="card" style="padding:16px;">No videos yet. (Add them in Admin.)</div>
     <% } else { %>
       <div class="grid" style="--cols:4; gap:12px;">
-        <% list.forEach(v => { 
+        <% list.forEach(v => {
              const href  = v && v.url   ? v.url   : '#';
              const title = v && v.title ? v.title : 'Untitled video';
              const thumb = v && v.thumb ? v.thumb : null;
@@ -18,7 +27,8 @@
           <article class="card" style="overflow:hidden;">
             <a href="<%= href %>" target="_blank" rel="noopener noreferrer" class="stack" style="--gap:8px;">
               <% if (thumb) { %>
-                <img src="<%= thumb %>" alt="<%= title %>" loading="lazy" style="width:100%; aspect-ratio:16/9; object-fit:cover;">
+                <img src="<%= thumb %>" alt="<%= title %>" loading="lazy"
+                     style="width:100%; aspect-ratio:16/9; object-fit:cover;">
               <% } else { %>
                 <div style="width:100%; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; background:var(--surface-2); color:var(--ink-2);">
                   No thumbnail
@@ -35,5 +45,9 @@
   </main>
 
   <%- include('./partials/footer') %>
+
+  <!-- Global scripts (cache-busted) -->
+  <script src="/public/js/ui.js?v=<%= buildId %>"></script>
+  <script src="/public/js/theme.js?v=<%= buildId %>"></script>
 </body>
 </html>
