@@ -11,22 +11,22 @@
 <meta property="og:description" content="<%= (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Millions of free books from globally trusted libraries. One clean reader.' %>">
 <meta property="og:type" content="website">
 <meta property="og:url" content="<%= (typeof canonicalUrl !== 'undefined' && canonicalUrl) ? canonicalUrl : '' %>">
-<meta property="og:image" content="/apple-touch-icon.png">
+<meta property="og:image" content="/public/apple-touch-icon.png">
 
-<!-- Icons / PWA -->
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-<link rel="manifest" href="/site.webmanifest">
+<!-- Icons / PWA (served from /public) -->
+<link rel="icon" type="image/png" sizes="32x32" href="/public/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/public/favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/public/apple-touch-icon.png">
+<link rel="manifest" href="/public/site.webmanifest">
 
-<!-- Fonts (Soria already in your CSS build; this is here in case you’re pulling it) -->
+<!-- Fonts -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 
 <!-- CSS -->
 <link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>">
 
-<!-- Pre-paint theme init (so the toggle works and no flash of wrong theme) -->
+<!-- Pre-paint theme init -->
 <script>
   (function () {
     try {
