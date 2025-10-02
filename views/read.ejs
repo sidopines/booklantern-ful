@@ -1,7 +1,16 @@
-<%- include('./partials/head', { pageTitle: 'Read - BookLantern' }) %>
+<%- include('./partials/head', {
+  pageTitle: 'Read • BookLantern',
+  pageDescription: 'Read classic books in one clean reader — bookmarks, notes, and text-to-speech.',
+  canonicalUrl: canonicalUrl,
+  buildId: buildId
+}) %>
 <body>
+  <!-- Global nav -->
   <%- include('./partials/navbar') %>
-  <%- include('./partials/backLink', { referrer }) %>
+
+  <!-- Safe back link (prevents “referrer is not defined” crashes) -->
+  <% var __safeRef = (typeof referrer !== 'undefined' ? referrer : null); %>
+  <%- include('./partials/backLink', { referrer: __safeRef }) %>
 
   <main class="stack" style="--gap:16px; padding:16px;">
     <h1 id="title">Book Title</h1>
@@ -15,7 +24,7 @@
     <div id="reader" class="card" style="min-height:70vh; overflow:auto; padding:0;"></div>
     <div id="fallback" class="card" style="display:none; padding:16px;">Loading book...</div>
 
-    <!-- Notes area (simple, local) -->
+    <!-- Notes area (saved in localStorage per book) -->
     <section class="card" style="margin-top:16px; padding:12px;">
       <h3 style="margin-top:0;">Your Notes</h3>
       <div class="row" style="gap:8px; margin-bottom:8px;">
@@ -31,6 +40,7 @@
   <!-- EPUB.js (for .epub rendering) -->
   <script defer src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
 
+  <!-- Page logic -->
   <script>
   (async function () {
     const provider = "<%= provider %>";
@@ -193,7 +203,6 @@
         renderNotes();
       }
     });
-    // Ensure panel toggle jumps to input
     btnNotes.addEventListener('click', () => {
       noteInput.focus();
       noteInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -245,7 +254,7 @@
       // Cancel any previous utterances
       window.speechSynthesis.cancel();
       utter = new SpeechSynthesisUtterance(text);
-      utter.rate = 1; // comfortable pace
+      utter.rate = 1;
 
       utter.onstart = () => { speaking = true; paused = false; btnListen.textContent = '⏸ Paused'; };
       utter.onend   = () => { speaking = false; paused = false; btnListen.textContent = '🔊 Listen'; };
@@ -281,5 +290,9 @@
     }
   })();
   </script>
+
+  <!-- Global scripts (cache-busted) -->
+  <script src="/public/js/ui.js?v=<%= buildId %>"></script>
+  <script src="/public/js/theme.js?v=<%= buildId %>"></script>
 </body>
 </html>
