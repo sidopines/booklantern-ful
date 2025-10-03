@@ -1,37 +1,32 @@
-<!-- views/partials/bookCard.ejs -->
 <%
-// expects: { b } with fields: id, provider, title, author, cover
-const _id = b && (b.id || '');
-const _prov = b && (b.provider || '');
-const _title = b && (b.title || 'Untitled');
-const _author = b && (b.author || 'Unknown');
-const _cover = b && (b.cover || '');
-const href = (_prov && _id) ? `/read?provider=${encodeURIComponent(_prov)}&id=${encodeURIComponent(_id)}` : '#';
+// EXPECTS: { b }
+// b: { id?, title, author?, cover?, href, provider? }
+// Fallbacks kept minimal and neutral (no provider badges unless passed).
+const title   = (b && b.title)  ? String(b.title)  : 'Untitled';
+const author  = (b && b.author) ? String(b.author) : '';
+const href    = (b && b.href)   ? String(b.href)   : '#';
+const cover   = (b && b.cover)  ? String(b.cover)  : '/public/img/cover-fallback.svg';
+const altText = author ? `${title} — ${author}` : title;
 %>
 
-<article class="bl-card">
-  <a class="bl-card__link" href="<%= href %>">
-    <div class="bl-card__media">
-      <% if (_cover) { %>
-        <img
-          loading="lazy"
-          decoding="async"
-          src="<%= _cover %>"
-          alt="<%= _title %> — <%= _author %>"
-          class="bl-card__img"
-        />
-      <% } else { %>
-        <div class="bl-card__img bl-card__img--ph"></div>
-      <% } %>
-    </div>
-
-    <div class="bl-card__body">
-      <h4 class="bl-card__title clamp-2"><%= _title %></h4>
-      <div class="bl-card__author clamp-1"><%= _author %></div>
-    </div>
-
-    <div class="bl-card__cta">
-      <span class="btn btn-ghost">Read</span>
-    </div>
+<article class="bl-card" role="listitem">
+  <a class="bl-card__thumb" href="<%= href %>" aria-label="<%= altText %>">
+    <img
+      src="<%= cover %>"
+      alt="<%= altText %>"
+      loading="lazy"
+      decoding="async"
+      width="140"
+      height="210"
+    />
   </a>
+
+  <div class="bl-card__meta">
+    <h3 class="bl-card__title"><a href="<%= href %>"><%= title %></a></h3>
+    <% if (author) { %><p class="bl-card__author"><%= author %></p><% } %>
+  </div>
+
+  <div class="bl-card__cta">
+    <a class="btn bl-card__btn" href="<%= href %>">Read</a>
+  </div>
 </article>
