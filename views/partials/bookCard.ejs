@@ -1,45 +1,26 @@
+<!-- views/partials/bookCard.ejs -->
 <%
-// Safe item
-const item = b || {};
-const title = item.title || `${item.provider?.toUpperCase?.() || 'Item'} #${item.id || ''}`;
-const author = item.author || '';
-const href = `/read/${item.provider}/${item.id}`;
+  const title = b && b.title ? b.title : 'Untitled';
+  const author = b && b.author ? b.author : '';
+  const cover = b && b.cover ? b.cover : '/public/placeholder-cover.png';
+  const href = b && b.href ? b.href : '#';
 %>
 
-<article class="card" style="overflow:hidden;">
-  <a class="cover" href="<%= href %>" aria-label="Read: <%= title %>" style="display:block;border-radius:14px;overflow:hidden;background:var(--surface-soft);">
-    <!-- Aspect-ratio wrapper to normalize thumbnail sizes -->
-    <div style="position:relative;width:100%;aspect-ratio:2/3;overflow:hidden;">
-      <% if (item.cover) { %>
-        <img
-          src="<%= item.cover %>"
-          alt="<%= title %>"
-          loading="lazy"
-          decoding="async"
-          style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;"
-        >
-      <% } else { %>
-        <div
-          aria-label="No cover available"
-          style="position:absolute;inset:0;display:grid;place-items:center;font-size:1.6rem;opacity:.6;"
-        >📘</div>
-      <% } %>
+<article class="card book-card" style="overflow:hidden;">
+  <a class="stack" href="<%= href %>" style="--gap:8px; text-decoration:none;">
+    <div class="cover">
+      <img
+        src="<%= cover %>"
+        alt="<%= title %>"
+        loading="lazy"
+        decoding="async"
+        referrerpolicy="no-referrer"
+      />
+    </div>
+    <div class="meta stack" style="--gap:4px; padding:6px 8px 10px;">
+      <h3 class="title" title="<%= title %>"><%= title %></h3>
+      <% if (author) { %><p class="author"><%= author %></p><% } %>
+      <span class="btn btn-primary read-btn" aria-label="Read <%= title %>">Read</span>
     </div>
   </a>
-
-  <div class="meta" style="padding:10px 4px 2px;">
-    <h4 class="title" style="margin:0 0 4px;font-size:1rem;line-height:1.25;">
-      <a href="<%= href %>" style="color:var(--ink);text-decoration:none;">
-        <%= title %>
-      </a>
-    </h4>
-    <% if (author) { %>
-      <div class="author" style="font-size:.9rem;color:var(--ink-muted);margin-bottom:8px;"><%= author %></div>
-    <% } %>
-
-    <div class="row" style="gap:6px;margin-top:4px;">
-      <a class="btn tiny" href="<%= href %>">Read</a>
-      <a class="btn tiny ghost" href="<%= href %>#listen">Listen</a>
-    </div>
-  </div>
 </article>
