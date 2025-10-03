@@ -1,25 +1,37 @@
+<!-- views/partials/bookCard.ejs -->
 <%
-// expects b: { title, author, href, cover }
-const _title  = b && b.title  ? b.title  : 'Untitled';
-const _author = b && b.author ? b.author : '';
-const _href   = b && b.href   ? b.href   : '#';
-const _cover  = b && b.cover  ? b.cover  : '/public/img/cover-fallback.svg';
+// expects: { b } with fields: id, provider, title, author, cover
+const _id = b && (b.id || '');
+const _prov = b && (b.provider || '');
+const _title = b && (b.title || 'Untitled');
+const _author = b && (b.author || 'Unknown');
+const _cover = b && (b.cover || '');
+const href = (_prov && _id) ? `/read?provider=${encodeURIComponent(_prov)}&id=${encodeURIComponent(_id)}` : '#';
 %>
-<article class="book card">
-  <a class="stack" style="--gap:8px; text-decoration:none;" href="<%= _href %>">
-    <img
-      src="<%= _cover %>"
-      alt="<%= _title %>"
-      loading="lazy"
-      style="width:132px; height:198px; object-fit:cover; border-radius:10px;"
-      onerror="this.onerror=null;this.src='/public/img/cover-fallback.svg';"
-    >
-    <div class="stack" style="--gap:2px;">
-      <div class="line clamp-2" style="font-weight:600; max-width:132px;"><%= _title %></div>
-      <% if (_author) { %>
-        <div class="muted clamp-1" style="max-width:132px;"><%= _author %></div>
+
+<article class="bl-card">
+  <a class="bl-card__link" href="<%= href %>">
+    <div class="bl-card__media">
+      <% if (_cover) { %>
+        <img
+          loading="lazy"
+          decoding="async"
+          src="<%= _cover %>"
+          alt="<%= _title %> — <%= _author %>"
+          class="bl-card__img"
+        />
+      <% } else { %>
+        <div class="bl-card__img bl-card__img--ph"></div>
       <% } %>
-      <button class="btn" type="button" style="width:max-content;">Read</button>
+    </div>
+
+    <div class="bl-card__body">
+      <h4 class="bl-card__title clamp-2"><%= _title %></h4>
+      <div class="bl-card__author clamp-1"><%= _author %></div>
+    </div>
+
+    <div class="bl-card__cta">
+      <span class="btn btn-ghost">Read</span>
     </div>
   </a>
 </article>
