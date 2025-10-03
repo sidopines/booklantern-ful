@@ -1,125 +1,110 @@
-<%- include('./partials/head', {
-  pageTitle: 'Largest Online Hub of Free Books',
-  pageDescription: 'Millions of free books from globally trusted libraries. One search, one clean reader.'
-}) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', {
+    pageTitle: 'The best books are the ones that inspire — BookLantern',
+    pageDescription: 'Millions of free books from globally trusted libraries. No ads. Peace forever. Peaceful reading experience.'
+  }) %>
+  <!-- hero.css adds the hero layout and highlight pills -->
+  <link rel="stylesheet" href="/public/css/hero.css?v=<%= buildId %>">
+</head>
 <body>
   <%- include('./partials/navbar') %>
 
   <!-- HERO -->
-  <header class="hero">
-    <div class="hero__container">
-      <div class="hero__copy">
-        <p class="eyebrow">BookLantern</p>
-        <h1 class="hero__title">
-          The best <mark>books</mark><br>
-          are the ones that <mark>inspire</mark>
+  <header class="bl-hero">
+    <div class="bl-hero__wrap">
+      <div class="bl-hero__copy">
+        <div class="bl-eyebrow">BookLantern</div>
+        <h1 class="bl-hero__title">
+          The best <span class="bl-highlight">books</span><br>
+          are the ones that <span class="bl-highlight">inspire</span>
         </h1>
 
-        <form class="hero__search" action="/search" method="get">
-          <input type="text" name="q" placeholder="Search books, authors…" aria-label="Search">
+        <form class="bl-hero__search" action="/search" method="get" role="search" aria-label="Search the catalog">
+          <input type="text" name="q" placeholder="Search books, authors…" aria-label="Search books" />
           <button class="btn" type="submit">Search</button>
         </form>
 
-        <ul class="hero__bullets">
+        <ul class="bl-hero__points">
           <li>No ads</li>
           <li>Peace forever</li>
           <li>Peaceful reading experience</li>
         </ul>
       </div>
 
-      <!-- Clickable phone → /register -->
-      <a class="hero__phone" href="/register" aria-label="Create your BookLantern account">
-        <div class="phone">
-          <div class="phone__screen">
-            <!-- Famous book covers (no links needed) -->
-            <img loading="lazy" alt="Pride and Prejudice"  src="https://www.gutenberg.org/cache/epub/1342/pg1342.cover.medium.jpg">
-            <img loading="lazy" alt="Frankenstein"         src="https://www.gutenberg.org/cache/epub/84/pg84.cover.medium.jpg">
-            <img loading="lazy" alt="Moby-Dick"            src="https://www.gutenberg.org/cache/epub/2701/pg2701.cover.medium.jpg">
-            <img loading="lazy" alt="War and Peace"        src="https://www.gutenberg.org/cache/epub/2600/pg2600.cover.medium.jpg">
-            <img loading="lazy" alt="Origin of Species"    src="https://www.gutenberg.org/cache/epub/2009/pg2009.cover.medium.jpg">
-            <img loading="lazy" alt="Relativity"           src="https://www.gutenberg.org/cache/epub/30155/pg30155.cover.medium.jpg">
-          </div>
-        </div>
+      <!-- Right side: real covers collage (purely presentational). Click => register -->
+      <a class="bl-hero__collage" href="/register" aria-label="Create account">
+        <% const collage = (locals && Array.isArray(collageBooks)) ? collageBooks.slice(0,8) : []; %>
+        <% collage.forEach(function(b){ %>
+          <img
+            src="<%= b.cover %>"
+            alt="<%= (b.title || 'Book').replace(/"/g,'&quot;') %>"
+            loading="eager"
+            decoding="async">
+        <% }) %>
+        <span class="bl-hero__collage-cta">Create account →</span>
       </a>
     </div>
   </header>
 
-  <!-- ROWS -->
-  <main class="container">
+  <!-- SHELVES -->
+  <main class="container shelves">
+
     <!-- Trending -->
-    <section class="row">
-      <div class="row-head">
+    <section class="shelf">
+      <div class="shelf__head">
         <h2>Trending now</h2>
-        <a class="muted" href="/search?q=trending">Browse all</a>
+        <a class="shelf__see" href="/search?q=trending">Browse all</a>
       </div>
-      <div class="carousel">
-        <% const tList = Array.isArray(trending) ? trending : []; %>
-        <% if (!tList.length) { %>
-          <div class="empty">No books to show yet.</div>
-        <% } else { %>
-          <% tList.forEach(function(b){ %>
-            <%- include('./partials/bookCard', { b }) %>
-          <% }) %>
-        <% } %>
+      <div class="carousel" role="list">
+        <% (Array.isArray(trending) ? trending : []).forEach(function(b){ %>
+          <%- include('./partials/bookCard', { b }) %>
+        <% }) %>
       </div>
     </section>
 
     <!-- Philosophy -->
-    <section class="row">
-      <div class="row-head">
+    <section class="shelf">
+      <div class="shelf__head">
         <h2>Philosophy Picks</h2>
-        <a class="muted" href="/search?q=philosophy">See more</a>
+        <a class="shelf__see" href="/search?q=subject%3Aphilosophy">See more</a>
       </div>
-      <div class="carousel">
-        <% const pList = Array.isArray(philosophy) ? philosophy : []; %>
-        <% if (!pList.length) { %>
-          <div class="empty">No books to show yet.</div>
-        <% } else { %>
-          <% pList.forEach(function(b){ %>
-            <%- include('./partials/bookCard', { b }) %>
-          <% }) %>
-        <% } %>
+      <div class="carousel" role="list">
+        <% (Array.isArray(philosophy) ? philosophy : []).forEach(function(b){ %>
+          <%- include('./partials/bookCard', { b }) %>
+        <% }) %>
       </div>
     </section>
 
     <!-- History -->
-    <section class="row">
-      <div class="row-head">
+    <section class="shelf">
+      <div class="shelf__head">
         <h2>History Picks</h2>
-        <a class="muted" href="/search?q=history">See more</a>
+        <a class="shelf__see" href="/search?q=subject%3Ahistory">See more</a>
       </div>
-      <div class="carousel">
-        <% const hList = Array.isArray(history) ? history : []; %>
-        <% if (!hList.length) { %>
-          <div class="empty">No books to show yet.</div>
-        <% } else { %>
-          <% hList.forEach(function(b){ %>
-            <%- include('./partials/bookCard', { b }) %>
-          <% }) %>
-        <% } %>
+      <div class="carousel" role="list">
+        <% (Array.isArray(history) ? history : []).forEach(function(b){ %>
+          <%- include('./partials/bookCard', { b }) %>
+        <% }) %>
       </div>
     </section>
 
     <!-- Science -->
-    <section class="row">
-      <div class="row-head">
-        <h2>Science</h2>
-        <a class="muted" href="/search?q=science">See more</a>
+    <section class="shelf">
+      <div class="shelf__head">
+        <h2>Science Picks</h2>
+        <a class="shelf__see" href="/search?q=subject%3Ascience">See more</a>
       </div>
-      <div class="carousel">
-        <% const sList = Array.isArray(science) ? science : []; %>
-        <% if (!sList.length) { %>
-          <div class="empty">No books to show yet.</div>
-        <% } else { %>
-          <% sList.forEach(function(b){ %>
-            <%- include('./partials/bookCard', { b }) %>
-          <% }) %>
-        <% } %>
+      <div class="carousel" role="list">
+        <% (Array.isArray(science) ? science : []).forEach(function(b){ %>
+          <%- include('./partials/bookCard', { b }) %>
+        <% }) %>
       </div>
     </section>
 
-    <!-- Still curious panel -->
-    <section class="panel">
+    <!-- Soft “learn more” panel (like Everand’s “Still curious?”) -->
+    <section class="learnmore card">
       <h3>Still curious?</h3>
       <p>Let’s get to know each other better.</p>
       <a class="btn btn-primary" href="/about">Learn more about BookLantern</a>
@@ -127,5 +112,19 @@
   </main>
 
   <%- include('./partials/footer') %>
+
+  <!-- Keep carousels snappy with mouse-wheel and key nudges -->
+  <script>
+    (function(){
+      document.querySelectorAll('.carousel').forEach(function(row){
+        row.addEventListener('wheel', function(e){
+          if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) {
+            row.scrollLeft += e.deltaY;
+            e.preventDefault();
+          }
+        }, { passive:false });
+      });
+    })();
+  </script>
 </body>
 </html>
