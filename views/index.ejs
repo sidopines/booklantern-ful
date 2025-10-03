@@ -5,7 +5,6 @@
     pageTitle: 'The best books are the ones that inspire — BookLantern',
     pageDescription: 'Millions of free books from globally trusted libraries. No ads. Peace forever. Peaceful reading experience.'
   }) %>
-  <!-- hero.css adds the hero layout and highlight pills -->
   <link rel="stylesheet" href="/public/css/hero.css?v=<%= buildId %>">
 </head>
 <body>
@@ -22,7 +21,7 @@
         </h1>
 
         <form class="bl-hero__search" action="/search" method="get" role="search" aria-label="Search the catalog">
-          <input type="text" name="q" placeholder="Search books, authors…" aria-label="Search books" />
+          <input type="text" name="q" placeholder="Search books, authors…" aria-label="Search books">
           <button class="btn" type="submit">Search</button>
         </form>
 
@@ -33,17 +32,25 @@
         </ul>
       </div>
 
-      <!-- Right side: real covers collage (purely presentational). Click => register -->
-      <a class="bl-hero__collage" href="/register" aria-label="Create account">
-        <% const collage = (locals && Array.isArray(collageBooks)) ? collageBooks.slice(0,8) : []; %>
-        <% collage.forEach(function(b){ %>
-          <img
-            src="<%= b.cover %>"
-            alt="<%= (b.title || 'Book').replace(/"/g,'&quot;') %>"
-            loading="eager"
-            decoding="async">
-        <% }) %>
-        <span class="bl-hero__collage-cta">Create account →</span>
+      <!-- Right side: Kindle-style device mock (click → register) -->
+      <a class="bl-hero__device" href="/register" aria-label="Create account">
+        <div class="device">
+          <div class="screen" aria-hidden="true">
+            <!-- subtle unreadable “text lines” purely decorative -->
+            <% for (let i=0;i<18;i++){ %><span></span><% } %>
+          </div>
+        </div>
+        <svg class="pen" width="220" height="28" viewBox="0 0 220 28" aria-hidden="true">
+          <defs>
+            <linearGradient id="penBody" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#cbd5e1"/>
+              <stop offset="1" stop-color="#94a3b8"/>
+            </linearGradient>
+          </defs>
+          <rect x="8" y="8" rx="6" ry="6" width="204" height="12" fill="url(#penBody)"/>
+          <rect x="8" y="8" rx="6" ry="6" width="36" height="12" fill="#475569"/>
+          <polygon points="212,8 220,14 212,20" fill="#0f172a"/>
+        </svg>
       </a>
     </div>
   </header>
@@ -103,7 +110,7 @@
       </div>
     </section>
 
-    <!-- Soft “learn more” panel (like Everand’s “Still curious?”) -->
+    <!-- Learn more -->
     <section class="learnmore card">
       <h3>Still curious?</h3>
       <p>Let’s get to know each other better.</p>
@@ -113,7 +120,6 @@
 
   <%- include('./partials/footer') %>
 
-  <!-- Keep carousels snappy with mouse-wheel and key nudges -->
   <script>
     (function(){
       document.querySelectorAll('.carousel').forEach(function(row){
