@@ -8,7 +8,7 @@
 
   <main>
 
-    <!-- ===== Hero ===== -->
+    <!-- ===== Hero (Kindle-style device) ===== -->
     <section class="bl-hero">
       <div class="bl-hero__inner">
         <!-- Left copy -->
@@ -32,15 +32,25 @@
           </ul>
         </div>
 
-        <!-- Right: “device” mock (pure CSS) clickable to register -->
-        <a class="bl-device" href="/register" aria-label="Create account">
-          <div class="bl-device__screen">
-            <!-- decorative lines to suggest a reading page -->
-            <% for (let i = 0; i < 14; i++) { %>
-              <span class="bl-line"></span>
-            <% } %>
+        <!-- Right: Kindle-style device (click => register) -->
+        <a class="bl-device bl-device--kindle" href="/register" aria-label="Create account">
+          <div class="bl-device__bezel">
+            <div class="bl-device__camera" aria-hidden="true"></div>
+            <div class="bl-device__screen" aria-hidden="true">
+              <!-- Faux book page (blurred lines suggest text) -->
+              <div class="bl-page">
+                <div class="bl-page__title"></div>
+                <div class="bl-page__para"></div>
+                <div class="bl-page__para"></div>
+                <div class="bl-page__para short"></div>
+              </div>
+            </div>
           </div>
-          <div class="bl-device__shadow"></div>
+          <!-- Stylus/Pen -->
+          <div class="bl-pen" aria-hidden="true">
+            <div class="bl-pen__clip"></div>
+          </div>
+          <div class="bl-device__shadow" aria-hidden="true"></div>
         </a>
       </div>
     </section>
