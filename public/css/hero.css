@@ -1,198 +1,104 @@
 /* public/css/hero.css */
-/* Uses the same CSS variables defined in site.css. Theme toggle remains untouched. */
+/* Uses your existing CSS variables (ink, surface, etc.). */
 
 .hero {
-  background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2, rgba(0,0,0,.03)) 100%);
-  padding: clamp(24px, 4vw, 40px) 0;
-  border-bottom: 1px solid var(--border, rgba(0,0,0,.08));
+  background: radial-gradient(1000px 400px at 20% 0%, rgba(124,149,255,.08), transparent 60%),
+              radial-gradient(900px 380px at 85% -10%, rgba(250,208,44,.06), transparent 60%);
+  padding: clamp(32px, 6vw, 64px) 0;
 }
 
-.hero-inner {
+.hero__container {
   max-width: 1100px;
   margin: 0 auto;
   padding: 0 16px;
   display: grid;
   grid-template-columns: 1.2fr 1fr;
-  gap: clamp(16px, 4vw, 40px);
+  gap: clamp(24px, 4vw, 48px);
   align-items: center;
 }
 
 .eyebrow {
-  margin: 0 0 8px 0;
+  margin: 0 0 8px;
   font-size: .9rem;
-  color: var(--ink-2);
+  letter-spacing: .04em;
+  color: var(--ink-3, #667);
 }
 
-.hero-title {
-  margin: 0 0 10px 0;
-  font-size: clamp(2.1rem, 4vw, 3rem);
+.hero__title {
+  font-size: clamp(28px, 4.2vw, 44px);
   line-height: 1.1;
-  letter-spacing: -.02em;
+  margin: 0 0 16px;
 }
 
-.hl {
-  background: linear-gradient(0deg, transparent 58%, rgba(250, 224, 120, .9) 58%, rgba(250, 224, 120, .9) 96%, transparent 96%);
-  border-radius: 4px;
-  padding: 0 .15em;
+.hero__title mark {
+  background: #FBE44A;
+  color: inherit;
+  padding: 0 .25em;
+  border-radius: .25em;
+  box-decoration-break: clone;
 }
 
-.hero-sub {
-  margin: 0 0 14px 0;
-  color: var(--ink-2);
-  font-size: 1.05rem;
-}
-
-.hero-search {
+.hero__search {
   display: flex;
   gap: 8px;
-  align-items: center;
-  margin: 10px 0 16px 0;
+  margin: 12px 0 16px;
 }
 
-.hero-input {
+.hero__search input {
   flex: 1;
-  min-width: 220px;
-  height: 40px;
-  padding: 0 12px;
-  border-radius: 10px;
-  background: var(--surface-2);
-  color: var(--ink);
-  border: 1px solid var(--border);
 }
 
-.hero-btn {
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 10px;
-}
-
-.hero-points {
-  display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
+.hero__bullets {
+  list-style: none;
   padding: 0;
   margin: 0;
-  list-style: none;
   color: var(--ink-2);
-  font-size: .98rem;
 }
-.hero-points li::before { content: "•"; margin-right: 8px; color: var(--ink-3, #888); }
+.hero__bullets li { margin: 6px 0; }
 
-/* Visual: link wrapper so whole thing is clickable */
-.hero-visual {
-  display: grid;
-  place-items: center;
+/* Phone mock */
+.hero__phone {
+  display: block;
+  justify-self: center;
   text-decoration: none;
 }
-.hero-visual:focus-visible { outline: none; }
-.hero-visual:focus .phone { box-shadow: 0 0 0 3px var(--link, #5978ff), 0 20px 50px rgba(0,0,0,.2); }
-
-/* Phone */
 .phone {
-  width: clamp(220px, 36vw, 320px);
+  width: min(360px, 80vw);
   aspect-ratio: 9 / 19.5;
-  border-radius: 24px;
-  background: var(--surface-1, #111);
-  border: 1px solid var(--border);
-  box-shadow: 0 20px 50px rgba(0,0,0,.15);
-  position: relative;
-  overflow: hidden;
-  transition: transform .15s ease, box-shadow .2s ease;
-  cursor: pointer;
-}
-.phone:hover { transform: translateY(-2px); box-shadow: 0 26px 70px rgba(0,0,0,.2); }
-
-.phone-notch {
-  position: absolute;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 38%;
-  height: 12px;
-  background: var(--surface);
-  border-radius: 0 0 12px 12px;
-  opacity: .7;
-}
-
-.phone-screen {
-  position: absolute;
-  inset: 12px;
-  border-radius: 16px;
-  background: var(--surface);
+  border-radius: 28px;
+  background: var(--surface-1, #0f141b);
+  box-shadow:
+    0 10px 40px rgba(0,0,0,.25),
+    inset 0 0 0 3px rgba(255,255,255,.08);
+  padding: 18px;
   display: grid;
   place-items: center;
 }
-
-/* Famous book covers (loaded from Open Library by ISBN) */
-.shelf {
-  width: 85%;
+.phone__screen {
+  width: 100%;
+  height: 100%;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0));
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 1fr;
   gap: 8px;
+  padding: 16px;
+  overflow: hidden;
 }
-.shelf > div {
-  aspect-ratio: 3 / 4.5;
+.phone__screen img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   border-radius: 10px;
-  box-shadow: 0 4px 14px rgba(0,0,0,.18);
-  background-size: cover;
-  background-position: center;
+  filter: saturate(1.05) contrast(1.02);
 }
-
-/* Pride and Prejudice */
-.s1 { background-image: url("https://covers.openlibrary.org/b/isbn/0141439513-L.jpg"); }
-/* 1984 */
-.s2 { background-image: url("https://covers.openlibrary.org/b/isbn/0451524934-L.jpg"); }
-/* A Brief History of Time */
-.s3 { background-image: url("https://covers.openlibrary.org/b/isbn/0553380168-L.jpg"); }
-/* The Selfish Gene */
-.s4 { background-image: url("https://covers.openlibrary.org/b/isbn/0198788606-L.jpg"); }
-/* Moby-Dick */
-.s5 { background-image: url("https://covers.openlibrary.org/b/isbn/0142437247-L.jpg"); }
-/* The Origin of Species */
-.s6 { background-image: url("https://covers.openlibrary.org/b/isbn/1509827693-L.jpg"); }
-
-/* Sections below hero */
-.home-flow {
-  max-width: 1100px;
-  padding: 0 16px 28px;
-  margin: 0 auto;
-}
-
-.row-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-.row-head h2 { margin: 0; }
-.row-cta {
-  font-size: .95rem;
-  color: var(--link, #5978ff);
-  text-decoration: none;
-}
-.row-cta:hover { text-decoration: underline; }
-
-/* Still curious card */
-.still-curious {
-  text-align: center;
-  margin-top: 28px;
-  padding: 28px;
-}
-.still-curious h3 { margin-top: 0; }
 
 /* Responsive */
 @media (max-width: 900px) {
-  .hero-inner {
+  .hero__container {
     grid-template-columns: 1fr;
     text-align: left;
   }
-  .hero-visual { order: -1; margin-bottom: 8px; }
-  .hero-search { margin-top: 12px; }
-}
-
-@media (max-width: 480px) {
-  .hero-title { font-size: clamp(1.8rem, 8vw, 2.2rem); }
-  .hero-points { gap: 12px; }
-  .phone { width: 78%; }
+  .hero__phone { order: 2; }
 }
