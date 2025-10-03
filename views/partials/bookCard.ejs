@@ -1,26 +1,25 @@
-<!-- views/partials/bookCard.ejs -->
 <%
-  const title = b && b.title ? b.title : 'Untitled';
-  const author = b && b.author ? b.author : '';
-  const cover = b && b.cover ? b.cover : '/public/placeholder-cover.png';
-  const href = b && b.href ? b.href : '#';
+// expects b: { title, author, href, cover }
+const _title  = b && b.title  ? b.title  : 'Untitled';
+const _author = b && b.author ? b.author : '';
+const _href   = b && b.href   ? b.href   : '#';
+const _cover  = b && b.cover  ? b.cover  : '/public/img/cover-fallback.svg';
 %>
-
-<article class="card book-card" style="overflow:hidden;">
-  <a class="stack" href="<%= href %>" style="--gap:8px; text-decoration:none;">
-    <div class="cover">
-      <img
-        src="<%= cover %>"
-        alt="<%= title %>"
-        loading="lazy"
-        decoding="async"
-        referrerpolicy="no-referrer"
-      />
-    </div>
-    <div class="meta stack" style="--gap:4px; padding:6px 8px 10px;">
-      <h3 class="title" title="<%= title %>"><%= title %></h3>
-      <% if (author) { %><p class="author"><%= author %></p><% } %>
-      <span class="btn btn-primary read-btn" aria-label="Read <%= title %>">Read</span>
+<article class="book card">
+  <a class="stack" style="--gap:8px; text-decoration:none;" href="<%= _href %>">
+    <img
+      src="<%= _cover %>"
+      alt="<%= _title %>"
+      loading="lazy"
+      style="width:132px; height:198px; object-fit:cover; border-radius:10px;"
+      onerror="this.onerror=null;this.src='/public/img/cover-fallback.svg';"
+    >
+    <div class="stack" style="--gap:2px;">
+      <div class="line clamp-2" style="font-weight:600; max-width:132px;"><%= _title %></div>
+      <% if (_author) { %>
+        <div class="muted clamp-1" style="max-width:132px;"><%= _author %></div>
+      <% } %>
+      <button class="btn" type="button" style="width:max-content;">Read</button>
     </div>
   </a>
 </article>
