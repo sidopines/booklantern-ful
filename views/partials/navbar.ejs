@@ -1,40 +1,33 @@
-<%
-// expects: isAuthenticated, user
-// uses theme.js which looks for [data-theme-toggle]
-%>
-<nav class="navbar">
-  <div class="container navbar__inner">
-    <a class="brand" href="/" aria-label="BookLantern home">
-      <img src="/public/logo.svg" alt="" width="20" height="20" style="vertical-align:middle">
-      <span class="brand__text">BookLantern</span>
+<!-- views/partials/navbar.ejs -->
+<nav class="site-nav" aria-label="Primary" style="border-bottom:1px solid var(--border);">
+  <div class="container" style="display:flex; align-items:center; gap:16px; padding:10px 0;">
+    <a href="/" class="brand row" style="align-items:center; gap:10px; text-decoration:none;">
+      <img src="/public/favicon.svg" alt="" width="24" height="24" />
+      <strong>BookLantern</strong>
     </a>
 
-    <ul class="nav">
+    <ul class="row" style="gap:16px; margin:0; padding:0; list-style:none;">
       <li><a href="/read">Read</a></li>
       <li><a href="/watch">Watch</a></li>
       <li><a href="/about">About</a></li>
       <li><a href="/contact">Contact</a></li>
     </ul>
 
-    <form class="nav-search" action="/search" method="get" role="search">
-      <label class="sr-only" for="q">Search free books</label>
-      <input id="q" name="q" type="search" placeholder="Search free books…" />
-      <button type="submit" class="btn btn--ghost">Search</button>
-    </form>
+    <div class="row" style="gap:8px; margin-left:auto; align-items:center; flex-wrap:wrap;">
+      <form action="/search" method="get" class="row" style="gap:8px;">
+        <input class="input" name="q" placeholder="Search free books…" aria-label="Search free books…"
+               style="width:280px; max-width:40vw;">
+        <button class="btn" type="submit">Search</button>
+      </form>
 
-    <div class="nav-actions">
-      <button type="button" class="btn btn--ghost" data-theme-toggle aria-pressed="false" title="Toggle theme">
-        <span data-theme-icon>🌞</span>
-      </button>
+      <!-- theme toggle button is already handled by your theme.js, leave markup as is -->
+      <button id="themeToggle" class="btn" type="button" aria-label="Toggle theme" title="Toggle theme">🌓</button>
 
-      <% if (isAuthenticated) { %>
-        <a class="btn btn--ghost" href="/dashboard">Account</a>
-        <form method="post" action="/logout" style="display:inline;">
-          <button class="btn btn--primary" type="submit">Logout</button>
-        </form>
+      <% if (user) { %>
+        <a class="btn" href="/dashboard">Dashboard</a>
       <% } else { %>
-        <a class="btn btn--ghost" href="/login">Login</a>
-        <a class="btn btn--primary" href="/register">Create account</a>
+        <a class="btn" href="/login">Login</a>
+        <a class="btn" href="/register">Create account</a>
       <% } %>
     </div>
   </div>
