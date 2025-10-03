@@ -1,7 +1,7 @@
-/* HERO — clean editorial intro, no fake phone */
+/* HERO */
 .bl-hero {
   background:
-    radial-gradient(1200px 400px at 50% -50%, rgba(60,80,255,.08), transparent 70%),
+    radial-gradient(1200px 420px at 50% -60%, rgba(60,80,255,.08), transparent 70%),
     var(--app-bg, transparent);
   padding: 48px 0 24px;
 }
@@ -16,18 +16,8 @@
   align-items: center;
 }
 
-.bl-eyebrow {
-  font-size: .9rem;
-  color: var(--ink-3, #6b7280);
-  margin-bottom: 8px;
-}
-
-.bl-hero__title {
-  font-size: clamp(28px, 4.2vw, 44px);
-  line-height: 1.1;
-  margin: 0 0 16px;
-  letter-spacing: -0.01em;
-}
+.bl-eyebrow { font-size:.9rem; color:var(--ink-3,#6b7280); margin-bottom:8px; }
+.bl-hero__title { font-size:clamp(28px,4.2vw,44px); line-height:1.1; margin:0 0 16px; letter-spacing:-.01em; }
 
 .bl-highlight {
   background: linear-gradient(0deg, rgba(255,235,120,.9), rgba(255,235,120,.9));
@@ -36,66 +26,61 @@
   padding: 0 .15em;
 }
 
-.bl-hero__search {
-  display: flex;
-  gap: 8px;
-  margin: 10px 0 8px;
-}
-.bl-hero__search input{
-  flex:1;
-  min-width: 220px;
-}
+.bl-hero__search { display:flex; gap:8px; margin:10px 0 8px; }
+.bl-hero__search input { flex:1; min-width:220px; }
 
-.bl-hero__points{
-  display:flex; gap:16px; padding:0; margin:10px 0 0; list-style:none;
-  color: var(--ink-3, #6b7280);
-  flex-wrap: wrap;
+.bl-hero__points {
+  display:flex; gap:16px; padding:0; margin:10px 0 0; list-style:none; color:var(--ink-3,#6b7280); flex-wrap:wrap;
 }
-.bl-hero__points li::before{ content:"• "; opacity:.6; }
+.bl-hero__points li::before { content:"• "; opacity:.6; }
 
-/* Collage: grid of real covers; entire block links to /register */
-.bl-hero__collage{
+/* Device mock */
+.bl-hero__device { display:flex; flex-direction:column; align-items:center; gap:12px; text-decoration:none; }
+.bl-hero__device .device{
+  width:min(380px, 90%);
+  aspect-ratio: 10/19;
+  border-radius: 28px;
+  background: var(--surface-1,#fff);
+  box-shadow: 0 18px 60px rgba(0,0,0,.15), inset 0 0 0 2px rgba(0,0,0,.06);
+  padding: 18px;
+}
+.bl-hero__device .screen{
+  width:100%; height:100%;
+  border-radius: 18px;
+  background: #f5f5f2;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.05);
+  padding: 16px 14px;
   display:grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 1fr;
   gap: 8px;
-  position: relative;
-  padding: 8px;
-  border-radius: 24px;
-  background: var(--surface-1, #fff);
-  box-shadow: 0 10px 40px rgba(0,0,0,.08);
-  text-decoration: none;
 }
-.bl-hero__collage img{
+.bl-hero__device .screen span{
+  display:block;
   width:100%;
-  aspect-ratio: 3/4;
-  object-fit: cover;
-  border-radius: 10px;
-  background: #eee;
+  border-radius: 6px;
+  height: 10px;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,.18), rgba(0,0,0,.18)) left/70% 100% no-repeat,
+    linear-gradient(90deg, rgba(0,0,0,.08), rgba(0,0,0,.08));
+  opacity:.75;
+  filter: blur(.2px); /* unreadable impression */
 }
-.bl-hero__collage-cta{
-  position:absolute;
-  right:12px; bottom:12px;
-  background: var(--brand, #9AB0FF);
-  color: #0b1020;
-  font-weight: 600;
-  padding: 6px 10px;
-  border-radius: 10px;
-  box-shadow: 0 6px 20px rgba(0,0,0,.15);
-}
+.bl-hero__device .screen span:nth-child(3n){ width: 92%; }
+.bl-hero__device .screen span:nth-child(5n){ width: 80%; }
+.bl-hero__device .screen span:nth-child(7n){ width: 65%; }
 
-/* Shelves (rows) */
-.shelves { max-width: 1200px; margin: 16px auto 48px; padding: 0 16px; }
-.shelf { margin: 28px 0; }
+.bl-hero__device .pen{ opacity:.9; }
+
+.shelves { max-width:1200px; margin:16px auto 48px; padding:0 16px; }
+.shelf { margin:28px 0; }
 .shelf__head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
-.shelf__head h2 { margin:0; font-size: 1.25rem; }
-.shelf__see { font-size:.95rem; color: var(--link, #5670ff); text-decoration:none; }
+.shelf__head h2 { margin:0; font-size:1.25rem; }
+.shelf__see { font-size:.95rem; color:var(--link,#5670ff); text-decoration:none; }
 .shelf__see:hover { text-decoration:underline; }
 
-/* Learn more card */
-.learnmore { max-width: 680px; margin: 40px auto 0; text-align:center; padding: 24px; }
-.learnmore h3 { margin: 0 0 8px; }
+.learnmore { max-width:680px; margin:40px auto 0; text-align:center; padding:24px; }
+.learnmore h3 { margin:0 0 8px; }
 
 @media (max-width: 900px){
   .bl-hero__wrap{ grid-template-columns: 1fr; }
-  .bl-hero__collage{ order:-1; }
 }
