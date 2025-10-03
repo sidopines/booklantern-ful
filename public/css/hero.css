@@ -1,104 +1,101 @@
-/* public/css/hero.css */
-/* Uses your existing CSS variables (ink, surface, etc.). */
-
-.hero {
-  background: radial-gradient(1000px 400px at 20% 0%, rgba(124,149,255,.08), transparent 60%),
-              radial-gradient(900px 380px at 85% -10%, rgba(250,208,44,.06), transparent 60%);
-  padding: clamp(32px, 6vw, 64px) 0;
+/* HERO — clean editorial intro, no fake phone */
+.bl-hero {
+  background:
+    radial-gradient(1200px 400px at 50% -50%, rgba(60,80,255,.08), transparent 70%),
+    var(--app-bg, transparent);
+  padding: 48px 0 24px;
 }
 
-.hero__container {
-  max-width: 1100px;
+.bl-hero__wrap {
+  max-width: 1200px;
   margin: 0 auto;
   padding: 0 16px;
   display: grid;
   grid-template-columns: 1.2fr 1fr;
-  gap: clamp(24px, 4vw, 48px);
+  gap: 24px;
   align-items: center;
 }
 
-.eyebrow {
-  margin: 0 0 8px;
+.bl-eyebrow {
   font-size: .9rem;
-  letter-spacing: .04em;
-  color: var(--ink-3, #667);
+  color: var(--ink-3, #6b7280);
+  margin-bottom: 8px;
 }
 
-.hero__title {
+.bl-hero__title {
   font-size: clamp(28px, 4.2vw, 44px);
   line-height: 1.1;
   margin: 0 0 16px;
+  letter-spacing: -0.01em;
 }
 
-.hero__title mark {
-  background: #FBE44A;
-  color: inherit;
-  padding: 0 .25em;
-  border-radius: .25em;
-  box-decoration-break: clone;
+.bl-highlight {
+  background: linear-gradient(0deg, rgba(255,235,120,.9), rgba(255,235,120,.9));
+  box-shadow: 0 .35em 0 rgba(255,235,120,.9);
+  border-radius: 4px;
+  padding: 0 .15em;
 }
 
-.hero__search {
+.bl-hero__search {
   display: flex;
   gap: 8px;
-  margin: 12px 0 16px;
+  margin: 10px 0 8px;
+}
+.bl-hero__search input{
+  flex:1;
+  min-width: 220px;
 }
 
-.hero__search input {
-  flex: 1;
+.bl-hero__points{
+  display:flex; gap:16px; padding:0; margin:10px 0 0; list-style:none;
+  color: var(--ink-3, #6b7280);
+  flex-wrap: wrap;
 }
+.bl-hero__points li::before{ content:"• "; opacity:.6; }
 
-.hero__bullets {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  color: var(--ink-2);
-}
-.hero__bullets li { margin: 6px 0; }
-
-/* Phone mock */
-.hero__phone {
-  display: block;
-  justify-self: center;
+/* Collage: grid of real covers; entire block links to /register */
+.bl-hero__collage{
+  display:grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  position: relative;
+  padding: 8px;
+  border-radius: 24px;
+  background: var(--surface-1, #fff);
+  box-shadow: 0 10px 40px rgba(0,0,0,.08);
   text-decoration: none;
 }
-.phone {
-  width: min(360px, 80vw);
-  aspect-ratio: 9 / 19.5;
-  border-radius: 28px;
-  background: var(--surface-1, #0f141b);
-  box-shadow:
-    0 10px 40px rgba(0,0,0,.25),
-    inset 0 0 0 3px rgba(255,255,255,.08);
-  padding: 18px;
-  display: grid;
-  place-items: center;
-}
-.phone__screen {
-  width: 100%;
-  height: 100%;
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0));
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: 1fr;
-  gap: 8px;
-  padding: 16px;
-  overflow: hidden;
-}
-.phone__screen img {
-  width: 100%;
-  height: 100%;
+.bl-hero__collage img{
+  width:100%;
+  aspect-ratio: 3/4;
   object-fit: cover;
   border-radius: 10px;
-  filter: saturate(1.05) contrast(1.02);
+  background: #eee;
+}
+.bl-hero__collage-cta{
+  position:absolute;
+  right:12px; bottom:12px;
+  background: var(--brand, #9AB0FF);
+  color: #0b1020;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.15);
 }
 
-/* Responsive */
-@media (max-width: 900px) {
-  .hero__container {
-    grid-template-columns: 1fr;
-    text-align: left;
-  }
-  .hero__phone { order: 2; }
+/* Shelves (rows) */
+.shelves { max-width: 1200px; margin: 16px auto 48px; padding: 0 16px; }
+.shelf { margin: 28px 0; }
+.shelf__head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.shelf__head h2 { margin:0; font-size: 1.25rem; }
+.shelf__see { font-size:.95rem; color: var(--link, #5670ff); text-decoration:none; }
+.shelf__see:hover { text-decoration:underline; }
+
+/* Learn more card */
+.learnmore { max-width: 680px; margin: 40px auto 0; text-align:center; padding: 24px; }
+.learnmore h3 { margin: 0 0 8px; }
+
+@media (max-width: 900px){
+  .bl-hero__wrap{ grid-template-columns: 1fr; }
+  .bl-hero__collage{ order:-1; }
 }
