@@ -1,33 +1,31 @@
-<!-- Head partial: include this INSIDE your page <head> -->
+<!-- views/partials/head.ejs -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- Title & Description -->
 <title><%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern' %></title>
 <meta name="description" content="<%= (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Millions of free books from globally trusted libraries. One clean reader.' %>">
 
-<!-- Open Graph -->
 <meta property="og:title" content="<%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern' %>">
 <meta property="og:description" content="<%= (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Millions of free books from globally trusted libraries. One clean reader.' %>">
 <meta property="og:type" content="website">
 <meta property="og:url" content="<%= (typeof canonicalUrl !== 'undefined' && canonicalUrl) ? canonicalUrl : '' %>">
-<meta property="og:image" content="/public/apple-touch-icon.png">
+<meta property="og:image" content="/apple-touch-icon.png">
 
-<!-- Icons / PWA -->
-<link rel="icon" href="/public/favicon.svg" type="image/svg+xml">
-<link rel="icon" type="image/png" sizes="32x32" href="/public/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/public/favicon-16x16.png">
-<link rel="apple-touch-icon" sizes="180x180" href="/public/apple-touch-icon.png">
+<link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="manifest" href="/public/site.webmanifest">
 
-<!-- Fonts (optional preconnects) -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 
-<!-- CSS -->
+<!-- Your existing main stylesheet -->
 <link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>">
+<!-- New: carousel layout (theme-safe) -->
+<link rel="stylesheet" href="/public/css/carousel.css?v=<%= buildId %>">
 
-<!-- Pre-paint theme init (no flash of wrong theme) -->
+<!-- Pre-paint theme init (unchanged; keeps your toggle perfect) -->
 <script>
   (function () {
     try {
