@@ -1,136 +1,107 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <%- include('./partials/head', {
-    pageTitle: 'The best books are the ones that inspire — BookLantern',
-    pageDescription: 'Millions of free books from globally trusted libraries. No ads. Peace forever. Peaceful reading experience.'
-  }) %>
-  <link rel="stylesheet" href="/public/css/hero.css?v=<%= buildId %>">
-</head>
+<!-- views/index.ejs -->
+<%- include('./partials/head', {
+  pageTitle: 'Largest Online Hub of Free Books',
+  pageDescription: 'Millions of free books from globally trusted libraries. One search, one clean reader.'
+}) %>
 <body>
   <%- include('./partials/navbar') %>
 
-  <!-- HERO -->
-  <header class="bl-hero">
-    <div class="bl-hero__wrap">
-      <div class="bl-hero__copy">
-        <div class="bl-eyebrow">BookLantern</div>
-        <h1 class="bl-hero__title">
-          The best <span class="bl-highlight">books</span><br>
-          are the ones that <span class="bl-highlight">inspire</span>
-        </h1>
+  <main>
 
-        <form class="bl-hero__search" action="/search" method="get" role="search" aria-label="Search the catalog">
-          <input type="text" name="q" placeholder="Search books, authors…" aria-label="Search books">
-          <button class="btn" type="submit">Search</button>
-        </form>
+    <!-- ===== Hero ===== -->
+    <section class="bl-hero">
+      <div class="bl-hero__inner">
+        <!-- Left copy -->
+        <div class="bl-hero__copy">
+          <p class="eyebrow">BookLantern</p>
 
-        <ul class="bl-hero__points">
-          <li>No ads</li>
-          <li>Peace forever</li>
-          <li>Peaceful reading experience</li>
-        </ul>
-      </div>
+          <h1 class="bl-hero__title">
+            The best <span class="hl">books</span><br>
+            are the ones that <span class="hl">inspire</span>
+          </h1>
 
-      <!-- Right side: Kindle-style device mock (click → register) -->
-      <a class="bl-hero__device" href="/register" aria-label="Create account">
-        <div class="device">
-          <div class="screen" aria-hidden="true">
-            <!-- subtle unreadable “text lines” purely decorative -->
-            <% for (let i=0;i<18;i++){ %><span></span><% } %>
-          </div>
+          <form class="hero-search" action="/search" method="get" role="search">
+            <input type="text" name="q" placeholder="Search books, authors…" aria-label="Search">
+            <button class="btn" type="submit">Search</button>
+          </form>
+
+          <ul class="hero-points">
+            <li>No ads</li>
+            <li>Peace forever</li>
+            <li>Peaceful reading experience</li>
+          </ul>
         </div>
-        <svg class="pen" width="220" height="28" viewBox="0 0 220 28" aria-hidden="true">
-          <defs>
-            <linearGradient id="penBody" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stop-color="#cbd5e1"/>
-              <stop offset="1" stop-color="#94a3b8"/>
-            </linearGradient>
-          </defs>
-          <rect x="8" y="8" rx="6" ry="6" width="204" height="12" fill="url(#penBody)"/>
-          <rect x="8" y="8" rx="6" ry="6" width="36" height="12" fill="#475569"/>
-          <polygon points="212,8 220,14 212,20" fill="#0f172a"/>
-        </svg>
-      </a>
-    </div>
-  </header>
 
-  <!-- SHELVES -->
-  <main class="container shelves">
+        <!-- Right: “device” mock (pure CSS) clickable to register -->
+        <a class="bl-device" href="/register" aria-label="Create account">
+          <div class="bl-device__screen">
+            <!-- decorative lines to suggest a reading page -->
+            <% for (let i = 0; i < 14; i++) { %>
+              <span class="bl-line"></span>
+            <% } %>
+          </div>
+          <div class="bl-device__shadow"></div>
+        </a>
+      </div>
+    </section>
+
+    <!-- ===== Shelves ===== -->
+    <% const S = (typeof shelves === 'object' && shelves) ? shelves : {}; %>
 
     <!-- Trending -->
-    <section class="shelf">
-      <div class="shelf__head">
+    <section class="row">
+      <div class="row-head">
         <h2>Trending now</h2>
-        <a class="shelf__see" href="/search?q=trending">Browse all</a>
+        <a class="see-more" href="/search?q=trending">Browse all</a>
       </div>
       <div class="carousel" role="list">
-        <% (Array.isArray(trending) ? trending : []).forEach(function(b){ %>
+        <% (Array.isArray(S.trending) ? S.trending : []).forEach(function(b){ %>
           <%- include('./partials/bookCard', { b }) %>
         <% }) %>
       </div>
     </section>
 
     <!-- Philosophy -->
-    <section class="shelf">
-      <div class="shelf__head">
+    <section class="row">
+      <div class="row-head">
         <h2>Philosophy Picks</h2>
-        <a class="shelf__see" href="/search?q=subject%3Aphilosophy">See more</a>
+        <a class="see-more" href="/search?q=subject%3APhilosophy">See more</a>
       </div>
       <div class="carousel" role="list">
-        <% (Array.isArray(philosophy) ? philosophy : []).forEach(function(b){ %>
+        <% (Array.isArray(S.philosophy) ? S.philosophy : []).forEach(function(b){ %>
           <%- include('./partials/bookCard', { b }) %>
         <% }) %>
       </div>
     </section>
 
     <!-- History -->
-    <section class="shelf">
-      <div class="shelf__head">
+    <section class="row">
+      <div class="row-head">
         <h2>History Picks</h2>
-        <a class="shelf__see" href="/search?q=subject%3Ahistory">See more</a>
+        <a class="see-more" href="/search?q=subject%3AHistory">See more</a>
       </div>
       <div class="carousel" role="list">
-        <% (Array.isArray(history) ? history : []).forEach(function(b){ %>
+        <% (Array.isArray(S.history) ? S.history : []).forEach(function(b){ %>
           <%- include('./partials/bookCard', { b }) %>
         <% }) %>
       </div>
     </section>
 
     <!-- Science -->
-    <section class="shelf">
-      <div class="shelf__head">
+    <section class="row">
+      <div class="row-head">
         <h2>Science Picks</h2>
-        <a class="shelf__see" href="/search?q=subject%3Ascience">See more</a>
+        <a class="see-more" href="/search?q=subject%3AScience">See more</a>
       </div>
       <div class="carousel" role="list">
-        <% (Array.isArray(science) ? science : []).forEach(function(b){ %>
+        <% (Array.isArray(S.science) ? S.science : []).forEach(function(b){ %>
           <%- include('./partials/bookCard', { b }) %>
         <% }) %>
       </div>
     </section>
 
-    <!-- Learn more -->
-    <section class="learnmore card">
-      <h3>Still curious?</h3>
-      <p>Let’s get to know each other better.</p>
-      <a class="btn btn-primary" href="/about">Learn more about BookLantern</a>
-    </section>
   </main>
 
   <%- include('./partials/footer') %>
-
-  <script>
-    (function(){
-      document.querySelectorAll('.carousel').forEach(function(row){
-        row.addEventListener('wheel', function(e){
-          if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) {
-            row.scrollLeft += e.deltaY;
-            e.preventDefault();
-          }
-        }, { passive:false });
-      });
-    })();
-  </script>
 </body>
 </html>
