@@ -1,159 +1,118 @@
 // routes/index.js
 const express = require('express');
 const router = express.Router();
-const fetch = global.fetch || ((...args) => import('node-fetch').then(m => m.default(...args)));
 
-// --- helpers ---------------------------------------------------------------
-const buildId = Date.now(); // cache-buster for /public assets
-
-function referrerFrom(req) {
-  // sanitize to same-origin path only
-  const r = req.get('referer') || '';
-  try {
-    const u = new URL(r);
-    return u.origin === `${req.protocol}://${req.get('host')}` ? u.pathname + u.search : '/';
-  } catch {
-    return '/';
-  }
-}
-
-function pageOpts(req, extra = {}) {
+/**
+ * Helper: tiny book builder so our card partial has what it needs.
+ * Fields used by the card partial typically include:
+ *   - title, author, cover, href
+ * We point href to /read?provider=gutenberg&id=<pgId> where possible.
+ */
+function pg(id) {
   return {
-    buildId,
-    user: req.user || null,
-    canonicalUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
-    referrer: referrerFrom(req),
-    ...extra
+    href: `/read?provider=gutenberg&id=${id}`,
+    cover: `https://www.gutenberg.org/cache/epub/${id}/pg${id}.cover.medium.jpg`,
   };
 }
+function book({ title, author, subjects = [], href = '#', cover = null }) {
+  return { title, author, subjects, href, cover };
+}
 
-// Minimal “book card” objects: {title, author, cover, href}
-const SAMPLE_BOOKS = {
+/**
+ * Curated rows (favor science & biography; avoid kiddie/cartoons).
+ * Where there’s a well-known Project Gutenberg entry, we wire it.
+ * Otherwise we still render nice meta (your card handles no-cover gracefully).
+ */
+const ROWS = {
   trending: [
-    {
-      title: "Alice's Adventures in Wonderland",
-      author: "Lewis Carroll",
-      cover: "https://covers.openlibrary.org/b/OLID/OL7353617M-M.jpg",
-      href: "/read?provider=openlibrary&id=OL7353617M"
-    },
-    {
-      title: "The Picture of Dorian Gray",
-      author: "Oscar Wilde",
-      cover: "https://covers.openlibrary.org/b/OLID/OL26331930M-M.jpg",
-      href: "/read?provider=openlibrary&id=OL26331930M"
-    },
-    {
-      title: "A Tale of Two Cities",
-      author: "Charles Dickens",
-      cover: "https://covers.openlibrary.org/b/OLID/OL24374622M-M.jpg",
-      href: "/read?provider=openlibrary&id=OL24374622M"
-    }
+    // Science & biography flavored
+    book({ title: 'On the Origin of Species', author: 'Charles Darwin', subjects: ['Science', 'Biology'], ...pg(2009) }),
+    book({ title: 'Relativity: The Special and General Theory', author: 'Albert Einstein', subjects: ['Science', 'Physics'], ...pg(30155) }),
+    book({ title: 'Voyage of the Beagle', author: 'Charles Darwin', subjects: ['Travel', 'Science'], ...pg(3704) }),
+    book({ title: 'The Autobiography of Benjamin Franklin', author: 'Benjamin Franklin', subjects: ['Biography', 'History'], ...pg(20203) }),
+    book({ title: 'The Life of Pasteur', author: 'René Vallery-Radot', subjects: ['Biography', 'Science'], href: '#', cover: null }),
+    book({ title: 'Opticks', author: 'Isaac Newton', subjects: ['Science', 'Physics'], href: '#', cover: null }),
+    book({ title: 'The Problems of Philosophy', author: 'Bertrand Russell', subjects: ['Philosophy'], ...pg(5827) }),
+    book({ title: 'The Interpretation of Dreams', author: 'Sigmund Freud', subjects: ['Psychology'], ...pg(15489) })
   ],
+
   philosophy: [
-    {
-      title: "Meditations",
-      author: "Marcus Aurelius",
-      cover: "https://covers.openlibrary.org/b/OLID/OL24379826M-M.jpg",
-      href: "/read?provider=openlibrary&id=OL24379826M"
-    },
-    {
-      title: "Thus Spoke Zarathustra",
-      author: "Friedrich Nietzsche",
-      cover: "https://covers.openlibrary.org/b/OLID/OL24162224M-M.jpg",
-      href: "/read?provider=openlibrary&id=OL24162224M"
-    }
+    book({ title: 'Meditations', author: 'Marcus Aurelius', subjects: ['Philosophy', 'Stoicism'], ...pg(2680) }),
+    book({ title: 'Thus Spoke Zarathustra', author: 'Friedrich Nietzsche', subjects: ['Philosophy'], ...pg(1998) }),
+    book({ title: 'Beyond Good and Evil', author: 'Friedrich Nietzsche', subjects: ['Philosophy'], ...pg(4363) }),
+    book({ title: 'The Republic', author: 'Plato', subjects: ['Philosophy', 'Politics'], ...pg(1497) }),
+    book({ title: 'The Ethics', author: 'Benedict de Spinoza', subjects: ['Philosophy'], ...pg(3800) }),
+    book({ title: 'Utilitarianism', author: 'John Stuart Mill', subjects: ['Philosophy'], ...pg(11224) })
   ],
+
   history: [
-    {
-      title: "The Art of War",
-      author: "Sun Tzu",
-      cover: "https://covers.openlibrary.org/b/OLID/OL25430719M-M.jpg",
-      href: "/read?provider=openlibrary&id=OL25430719M"
-    },
-    {
-      title: "Gulliver’s Travels",
-      author: "Jonathan Swift",
-      cover: "https://covers.openlibrary.org/b/OLID/OL25435636M-M.jpg",
-      href: "/read?provider=openlibrary&id=OL25435636M"
-    }
-  ]
+    book({ title: 'The Histories', author: 'Herodotus', subjects: ['History'], ...pg(2707) }),
+    book({ title: 'A Short History of the World', author: 'H. G. Wells', subjects: ['History'], ...pg(35461) }),
+    book({ title: 'Gulliver’s Travels', author: 'Jonathan Swift', subjects: ['Satire', 'Travel'], ...pg(829) }),
+    book({ title: 'The Prince', author: 'Niccolò Machiavelli', subjects: ['Politics', 'History'], ...pg(1232) }),
+    book({ title: 'The Rights of Man', author: 'Thomas Paine', subjects: ['History', 'Politics'], ...pg(31270) }),
+    book({ title: 'The Souls of Black Folk', author: 'W. E. B. Du Bois', subjects: ['History', 'Sociology'], ...pg(408) })
+  ],
 };
 
-// --- page routes -----------------------------------------------------------
-router.get('/', (req, res) => {
-  res.render('index', pageOpts(req, {
-    trending: SAMPLE_BOOKS.trending,
-    philosophy: SAMPLE_BOOKS.philosophy,
-    history: SAMPLE_BOOKS.history
-  }));
-});
-
-router.get('/about', (req, res) => {
-  res.render('about', pageOpts(req));
-});
-
-router.get('/contact', (req, res) => {
-  res.render('contact', pageOpts(req));
-});
-
-router.get('/watch', (req, res) => {
-  // You can populate from DB later
-  res.status(200).render('watch', pageOpts(req, { videos: [] }));
-});
-
-router.get('/login', (req, res) => {
-  res.render('login', pageOpts(req, { csrfToken: '', next: req.query.next || '/' }));
-});
-
-router.get('/register', (req, res) => {
-  res.render('register', pageOpts(req, { csrfToken: '', next: req.query.next || '/' }));
-});
-
-// --- read route ------------------------------------------------------------
-// Supports /read?provider=openlibrary&id=OLxxxx
-// If missing, we show a friendly message instead of throwing 500.
-router.get('/read', (req, res) => {
-  const provider = (req.query.provider || '').trim();
-  const id = (req.query.id || '').trim();
-
-  if (!provider || !id) {
-    return res.status(200).render('read-missing', pageOpts(req));
-  }
-  return res.render('read', pageOpts(req, { provider, id }));
-});
-
-// --- very small API for the reader ----------------------------------------
-// Returns either EPUB url for openlibrary or simple HTML demo.
-router.get('/api/book', async (req, res) => {
-  const provider = (req.query.provider || '').trim();
-  const id = (req.query.id || '').trim();
-
-  try {
-    if (provider === 'openlibrary' && id) {
-      // Try to serve an EPUB url when available. If not, send basic HTML.
-      // (Open Library doesn’t guarantee a direct epub link per OLID; this is a demo fallback.)
-      return res.json({
-        type: 'html',
-        title: 'Sample Preview',
-        author: 'Open Library',
-        content: `<h2>Sample Preview</h2>
-          <p>This is a preview page for <code>${id}</code>. Integrate your real resolver here
-          (for example, fetch EPUB or HTML from your provider and pass its URL or contents).</p>`
-      });
+// Auto-compute a Science slice from everything above (unique by title).
+function computeScience(rows) {
+  const all = [...rows.trending, ...rows.philosophy, ...rows.history];
+  const seen = new Set();
+  const sci = [];
+  for (const b of all) {
+    const isSci =
+      (b.subjects || []).some(s =>
+        String(s).toLowerCase().includes('science') ||
+        String(s).toLowerCase().includes('biology') ||
+        String(s).toLowerCase().includes('physics')
+      );
+    if (isSci) {
+      const key = `${b.title}::${b.author}`;
+      if (!seen.has(key)) { seen.add(key); sci.push(b); }
     }
-
-    // default demo
-    return res.json({
-      type: 'text',
-      title: 'BookLantern Demo',
-      author: '',
-      content:
-        'Hello from BookLantern.\n\nProvide ?provider=openlibrary&id=OL7353617M to render a specific item.'
-    });
-  } catch (e) {
-    console.error('api/book error', e);
-    return res.status(500).json({ type: 'error', error: 'Failed to load book.' });
+    if (sci.length >= 12) break;
   }
+  // If not enough, top up with classic science titles:
+  while (sci.length < 12) {
+    const pad = [
+      book({ title: 'The Outline of Science', author: 'J. Arthur Thomson', subjects: ['Science'], href: '#', cover: null }),
+      book({ title: 'The Story of Chemistry', author: 'M. M. Pattison Muir', subjects: ['Science'], href: '#', cover: null }),
+      book({ title: 'Physics and Philosophy', author: 'James Jeans', subjects: ['Science'], href: '#', cover: null })
+    ];
+    for (const p of pad) {
+      const key = `${p.title}::${p.author}`;
+      if (!sci.some(x => `${x.title}::${x.author}` === key)) sci.push(p);
+      if (sci.length >= 12) break;
+    }
+    break;
+  }
+  return sci;
+}
+
+router.get('/', async (req, res) => {
+  const trending   = ROWS.trending;
+  const philosophy = ROWS.philosophy;
+  const history    = ROWS.history;
+  const science    = computeScience(ROWS);
+
+  // Render the homepage with all rows populated.
+  res.render('index', {
+    pageTitle: 'Largest Online Hub of Free Books',
+    pageDescription: 'Millions of free books from globally trusted libraries. One search, one clean reader.',
+    trending,
+    philosophy,
+    history,
+    science
+  });
+});
+
+// Simple static pages so your top nav doesn’t 404
+router.get('/about', (req, res) => {
+  res.render('static', { pageTitle: 'About – BookLantern', bodyHtml: '<p>About BookLantern.</p>' });
+});
+router.get('/contact', (req, res) => {
+  res.render('static', { pageTitle: 'Contact – BookLantern', bodyHtml: '<p>Contact us at hello@booklantern.org</p>' });
 });
 
 module.exports = router;
