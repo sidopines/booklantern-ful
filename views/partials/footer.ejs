@@ -1,11 +1,14 @@
-<footer class="site-footer">
-  <div class="container site-footer__inner">
-    <p>© <%= new Date().getFullYear() %> BookLantern. Free forever.</p>
+<!-- views/partials/footer.ejs -->
+<footer class="site-footer" style="border-top:1px solid var(--border); margin-top:40px;">
+  <div class="container" style="display:flex; justify-content:space-between; gap:16px; padding:18px 0; flex-wrap:wrap;">
+    <div class="muted">© <%= new Date().getFullYear() %> BookLantern. Free forever.</div>
     <nav aria-label="Footer">
-      <a href="/about">About</a>
-      <a href="/contact">Contact</a>
-      <a href="/read">Read</a>
-      <a href="/watch">Watch</a>
+      <ul class="row" style="gap:14px; list-style:none; margin:0; padding:0;">
+        <li><a href="/about">About</a></li>
+        <li><a href="/contact">Contact</a></li>
+        <li><a href="/read">Read</a></li>
+        <li><a href="/watch">Watch</a></li>
+      </ul>
     </nav>
   </div>
 </footer>
