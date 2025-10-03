@@ -3,116 +3,228 @@ const express = require('express');
 const router = express.Router();
 
 /**
- * Helper: tiny book builder so our card partial has what it needs.
- * Fields used by the card partial typically include:
- *   - title, author, cover, href
- * We point href to /read?provider=gutenberg&id=<pgId> where possible.
+ * Unified book shape we render in EJS:
+ * { id, title, author, href, cover, provider, subjects[] }
+ *
+ * Node 18+ has global fetch, so we use it directly.
  */
-function pg(id) {
-  return {
-    href: `/read?provider=gutenberg&id=${id}`,
-    cover: `https://www.gutenberg.org/cache/epub/${id}/pg${id}.cover.medium.jpg`,
-  };
+
+const SHELF_SIZE = 12;        // items per row
+const HERO_COLLAGE_SIZE = 8;  // covers in collage
+const CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes
+
+const cache = new Map();
+function setCache(key, value) { cache.set(key, { value, t: Date.now() }); }
+function getCache(key) {
+  const hit = cache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.t > CACHE_TTL_MS) { cache.delete(key); return null; }
+  return hit.value;
 }
-function book({ title, author, subjects = [], href = '#', cover = null }) {
-  return { title, author, subjects, href, cover };
+
+// ---------- Provider fetchers ----------
+
+async function fetchOpenLibrary(query, subject = null, limit = 30) {
+  const url = new URL('https://openlibrary.org/search.json');
+  url.searchParams.set('q', query || '');
+  url.searchParams.set('limit', String(limit));
+  if (subject) url.searchParams.set('subject', subject);
+
+  const res = await fetch(url, { headers: { 'User-Agent': 'BookLantern/1.0' }});
+  if (!res.ok) return [];
+  const data = await res.json();
+
+  return (data.docs || []).map(d => {
+    const title  = d.title || '';
+    const author = (d.author_name && d.author_name[0]) || '';
+    const olid   = (d.cover_edition_key || d.edition_key?.[0] || d.key || '').toString();
+    const cover  = d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg`
+                 : (olid ? `https://covers.openlibrary.org/b/olid/${olid}-L.jpg` : null);
+    const key    = d.key || ''; // e.g., "/works/OL82563W"
+    const href   = key ? `https://openlibrary.org${key}` : '#';
+    const subjects = d.subject ? d.subject.slice(0,6) : [];
+    return { id: `ol:${olid || key}`, title, author, href, cover, provider: 'openlibrary', subjects };
+  });
 }
 
-/**
- * Curated rows (favor science & biography; avoid kiddie/cartoons).
- * Where there’s a well-known Project Gutenberg entry, we wire it.
- * Otherwise we still render nice meta (your card handles no-cover gracefully).
- */
-const ROWS = {
-  trending: [
-    // Science & biography flavored
-    book({ title: 'On the Origin of Species', author: 'Charles Darwin', subjects: ['Science', 'Biology'], ...pg(2009) }),
-    book({ title: 'Relativity: The Special and General Theory', author: 'Albert Einstein', subjects: ['Science', 'Physics'], ...pg(30155) }),
-    book({ title: 'Voyage of the Beagle', author: 'Charles Darwin', subjects: ['Travel', 'Science'], ...pg(3704) }),
-    book({ title: 'The Autobiography of Benjamin Franklin', author: 'Benjamin Franklin', subjects: ['Biography', 'History'], ...pg(20203) }),
-    book({ title: 'The Life of Pasteur', author: 'René Vallery-Radot', subjects: ['Biography', 'Science'], href: '#', cover: null }),
-    book({ title: 'Opticks', author: 'Isaac Newton', subjects: ['Science', 'Physics'], href: '#', cover: null }),
-    book({ title: 'The Problems of Philosophy', author: 'Bertrand Russell', subjects: ['Philosophy'], ...pg(5827) }),
-    book({ title: 'The Interpretation of Dreams', author: 'Sigmund Freud', subjects: ['Psychology'], ...pg(15489) })
-  ],
+async function fetchGutenberg(query, topic = null, limit = 30) {
+  // Gutendex (Project Gutenberg) public API
+  const url = new URL('https://gutendex.com/books/');
+  if (query) url.searchParams.set('search', query);
+  if (topic) url.searchParams.set('topic', topic);
+  url.searchParams.set('page_size', String(Math.min(limit, 32)));
 
-  philosophy: [
-    book({ title: 'Meditations', author: 'Marcus Aurelius', subjects: ['Philosophy', 'Stoicism'], ...pg(2680) }),
-    book({ title: 'Thus Spoke Zarathustra', author: 'Friedrich Nietzsche', subjects: ['Philosophy'], ...pg(1998) }),
-    book({ title: 'Beyond Good and Evil', author: 'Friedrich Nietzsche', subjects: ['Philosophy'], ...pg(4363) }),
-    book({ title: 'The Republic', author: 'Plato', subjects: ['Philosophy', 'Politics'], ...pg(1497) }),
-    book({ title: 'The Ethics', author: 'Benedict de Spinoza', subjects: ['Philosophy'], ...pg(3800) }),
-    book({ title: 'Utilitarianism', author: 'John Stuart Mill', subjects: ['Philosophy'], ...pg(11224) })
-  ],
+  const res = await fetch(url, { headers: { 'User-Agent': 'BookLantern/1.0' }});
+  if (!res.ok) return [];
+  const data = await res.json();
 
-  history: [
-    book({ title: 'The Histories', author: 'Herodotus', subjects: ['History'], ...pg(2707) }),
-    book({ title: 'A Short History of the World', author: 'H. G. Wells', subjects: ['History'], ...pg(35461) }),
-    book({ title: 'Gulliver’s Travels', author: 'Jonathan Swift', subjects: ['Satire', 'Travel'], ...pg(829) }),
-    book({ title: 'The Prince', author: 'Niccolò Machiavelli', subjects: ['Politics', 'History'], ...pg(1232) }),
-    book({ title: 'The Rights of Man', author: 'Thomas Paine', subjects: ['History', 'Politics'], ...pg(31270) }),
-    book({ title: 'The Souls of Black Folk', author: 'W. E. B. Du Bois', subjects: ['History', 'Sociology'], ...pg(408) })
-  ],
-};
+  return (data.results || []).map(b => {
+    const title = b.title || '';
+    const author = (b.authors && b.authors[0] && b.authors[0].name) || '';
+    const cover = (b.formats && (b.formats['image/jpeg'] || b.formats['image/png'])) || null;
+    const href  = b.formats && (b.formats['text/html; charset=utf-8'] || b.formats['text/html'] || b.formats['application/epub+zip'] || b.formats['text/plain; charset=utf-8'] || b.formats['text/plain']) || '#';
+    const subjects = b.subjects || [];
+    return { id: `pg:${b.id}`, title, author, href, cover, provider: 'gutenberg', subjects };
+  });
+}
 
-// Auto-compute a Science slice from everything above (unique by title).
-function computeScience(rows) {
-  const all = [...rows.trending, ...rows.philosophy, ...rows.history];
+async function fetchArchiveOrg(query, subject = null, limit = 30) {
+  // Internet Archive advanced search (public domain books)
+  const params = new URLSearchParams({
+    q: `${query || ''} AND mediatype:texts`,
+    fl: 'identifier,title,creator,subject',
+    rows: String(limit),
+    output: 'json',
+    sort: 'downloads desc'
+  });
+  const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
+  const res = await fetch(url, { headers: { 'User-Agent': 'BookLantern/1.0' }});
+  if (!res.ok) return [];
+  const data = await res.json();
+  const docs = (data && data.response && data.response.docs) || [];
+
+  return docs.map(d => {
+    const id = d.identifier;
+    const title = d.title || '';
+    const author = Array.isArray(d.creator) ? d.creator[0] : (d.creator || '');
+    const cover = `https://archive.org/services/img/${id}`;
+    const href  = `https://archive.org/details/${id}`;
+    const subjects = Array.isArray(d.subject) ? d.subject : (d.subject ? [d.subject] : []);
+    return { id: `ia:${id}`, title, author, href, cover, provider: 'archive', subjects };
+  });
+}
+
+async function fetchLOC(query, subject = null, limit = 30) {
+  // Library of Congress digital collections (books)
+  const url = new URL('https://www.loc.gov/books/');
+  if (query) url.searchParams.set('q', query);
+  url.searchParams.set('fo', 'json');
+  url.searchParams.set('c', String(limit));
+
+  const res = await fetch(url, { headers: { 'User-Agent': 'BookLantern/1.0' }});
+  if (!res.ok) return [];
+  const data = await res.json();
+
+  return (data.results || []).map(r => {
+    const title = r.title || '';
+    const author = (r.creator && (Array.isArray(r.creator) ? r.creator[0] : r.creator)) || '';
+    // Prefer provided image; LOC results often include an 'image' or 'image_url'
+    const cover = r.image || (Array.isArray(r.image_url) ? r.image_url[0] : (r.image_url || null));
+    const href  = r.url || '#';
+    const subjects = r.subject || [];
+    const id = r.id || href;
+    return { id: `loc:${id}`, title, author, href, cover, provider: 'loc', subjects };
+  });
+}
+
+// ---------- Utilities ----------
+
+function pickUniqueByTitle(items, max) {
   const seen = new Set();
-  const sci = [];
-  for (const b of all) {
-    const isSci =
-      (b.subjects || []).some(s =>
-        String(s).toLowerCase().includes('science') ||
-        String(s).toLowerCase().includes('biology') ||
-        String(s).toLowerCase().includes('physics')
-      );
-    if (isSci) {
-      const key = `${b.title}::${b.author}`;
-      if (!seen.has(key)) { seen.add(key); sci.push(b); }
-    }
-    if (sci.length >= 12) break;
+  const out = [];
+  for (const it of items) {
+    const key = (it.title || '').trim().toLowerCase();
+    if (!key) continue;
+    if (seen.has(key)) continue;
+    // prefer ones with real cover
+    if (!it.cover || /placeholder|default|blank/i.test(it.cover)) continue;
+    seen.add(key);
+    out.push(it);
+    if (out.length >= max) break;
   }
-  // If not enough, top up with classic science titles:
-  while (sci.length < 12) {
-    const pad = [
-      book({ title: 'The Outline of Science', author: 'J. Arthur Thomson', subjects: ['Science'], href: '#', cover: null }),
-      book({ title: 'The Story of Chemistry', author: 'M. M. Pattison Muir', subjects: ['Science'], href: '#', cover: null }),
-      book({ title: 'Physics and Philosophy', author: 'James Jeans', subjects: ['Science'], href: '#', cover: null })
-    ];
-    for (const p of pad) {
-      const key = `${p.title}::${p.author}`;
-      if (!sci.some(x => `${x.title}::${x.author}` === key)) sci.push(p);
-      if (sci.length >= 12) break;
-    }
-    break;
-  }
-  return sci;
+  return out;
 }
+
+function filterBySubjects(items, keywords) {
+  const want = keywords.map(s => s.toLowerCase());
+  return items.filter(it => {
+    const subs = (it.subjects || []).map(s => (s || '').toLowerCase());
+    return subs.some(s => want.some(w => s.includes(w)));
+  });
+}
+
+// ---------- Home shelves composer ----------
+
+async function buildHomeShelves() {
+  const cached = getCache('homeShelves');
+  if (cached) return cached;
+
+  // Pull from all providers in parallel (generous limits; we’ll trim later)
+  const [olAll, pgAll, iaAll, locAll] = await Promise.all([
+    fetchOpenLibrary('classic OR popular OR science OR biography', null, 80),
+    fetchGutenberg('science OR biography OR philosophy OR history', null, 80),
+    fetchArchiveOrg('science OR biography OR philosophy OR history', null, 80),
+    fetchLOC('science OR biography OR philosophy OR history', null, 80)
+  ]);
+
+  const all = [...olAll, ...pgAll, ...iaAll, ...locAll];
+
+  // Shelves
+  const trending = pickUniqueByTitle(
+    [
+      ...filterBySubjects(all, ['science', 'physics', 'astronomy']),
+      ...filterBySubjects(all, ['biography', 'memoir']),
+      ...all
+    ],
+    SHELF_SIZE
+  );
+
+  const philosophy = pickUniqueByTitle(
+    [
+      ...filterBySubjects(all, ['philosophy', 'ethics', 'logic']),
+      ...filterBySubjects(all, ['stoicism', 'existentialism'])
+    ],
+    SHELF_SIZE
+  );
+
+  const history = pickUniqueByTitle(
+    [
+      ...filterBySubjects(all, ['history', 'war', 'civilization', 'biography'])
+    ],
+    SHELF_SIZE
+  );
+
+  const science = pickUniqueByTitle(
+    [
+      ...filterBySubjects(all, ['science', 'physics', 'astronomy', 'biology', 'chemistry', 'mathematics', 'geology'])
+    ],
+    SHELF_SIZE
+  );
+
+  // Hero collage: pick striking covers from trending+science
+  const collageCandidates = [...trending, ...science, ...philosophy, ...history];
+  const collageBooks = pickUniqueByTitle(collageCandidates, HERO_COLLAGE_SIZE);
+
+  const payload = { trending, philosophy, history, science, collageBooks };
+  setCache('homeShelves', payload);
+  return payload;
+}
+
+// ---------- Routes ----------
 
 router.get('/', async (req, res) => {
-  const trending   = ROWS.trending;
-  const philosophy = ROWS.philosophy;
-  const history    = ROWS.history;
-  const science    = computeScience(ROWS);
-
-  // Render the homepage with all rows populated.
-  res.render('index', {
-    pageTitle: 'Largest Online Hub of Free Books',
-    pageDescription: 'Millions of free books from globally trusted libraries. One search, one clean reader.',
-    trending,
-    philosophy,
-    history,
-    science
-  });
+  try {
+    const { trending, philosophy, history, science, collageBooks } = await buildHomeShelves();
+    res.render('index', {
+      trending,
+      philosophy,
+      history,
+      science,
+      collageBooks,
+      buildId: Date.now()
+    });
+  } catch (err) {
+    console.error('home shelves error', err);
+    res.status(500).render('error', {
+      code: 500,
+      message: 'Something went wrong'
+    });
+  }
 });
 
-// Simple static pages so your top nav doesn’t 404
-router.get('/about', (req, res) => {
-  res.render('static', { pageTitle: 'About – BookLantern', bodyHtml: '<p>About BookLantern.</p>' });
-});
-router.get('/contact', (req, res) => {
-  res.render('static', { pageTitle: 'Contact – BookLantern', bodyHtml: '<p>Contact us at hello@booklantern.org</p>' });
-});
+// keep your existing minor pages (about/contact/etc.) if they were here before.
+// Example:
+router.get('/about', (req, res) => res.render('about', { buildId: Date.now() }));
+router.get('/contact', (req, res) => res.render('contact', { buildId: Date.now() }));
 
 module.exports = router;
