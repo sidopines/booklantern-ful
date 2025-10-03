@@ -1,135 +1,158 @@
-/* public/css/carousel.css */
+/* ===========
+   Carousel shelves (polished)
+   - Scroll-snap rows with smooth momentum
+   - Subtle gradient edges
+   - Optional decorative chevrons (no JS required)
+   - Tight card layout rules so rows stay aligned
+   =========== */
 
-/* Horizontal shelf container */
-.bl-shelf {
-  margin: 28px 0;
-}
-
-.bl-shelf__head {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.bl-shelf__head h2 {
-  font-size: 1.2rem;
-  margin: 0;
-}
-.bl-shelf__more {
-  font-size: .9rem;
-  color: var(--ink-3);
-}
-
-/* Track with scroll-snap */
-.bl-shelf__track {
+/* --- Shelf container --- */
+.carousel {
+  --gap: 12px;
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 156px; /* card width */
-  gap: 12px;
+  grid-auto-columns: max-content;
+  gap: var(--gap);
   overflow-x: auto;
-  padding-bottom: 6px;
-  scroll-snap-type: x mandatory;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline proximity;
+  padding-inline: 4px;
+  padding-block: 6px;
   -webkit-overflow-scrolling: touch;
 }
-.bl-shelf__track::-webkit-scrollbar {
-  height: 10px;
-}
-.bl-shelf__track::-webkit-scrollbar-thumb {
-  background: var(--surface-3);
-  border-radius: 8px;
+
+/* fade edges so users see it scrolls */
+.carousel {
+  position: relative;
+  mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
 }
 
-/* Cards */
-.bl-card {
-  scroll-snap-align: start;
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  overflow: hidden;
-  transition: transform .12s ease, box-shadow .12s ease;
-  height: 260px; /* fixed = consistent rows */
-  display: flex;
-}
-.bl-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(0,0,0,.08);
-}
-.bl-card__link {
-  display: grid;
-  grid-template-rows: 1fr auto auto;
-  grid-template-columns: 1fr;
-  width: 100%;
-  text-decoration: none;
-  color: inherit;
-}
-
-/* Cover */
-.bl-card__media {
-  aspect-ratio: 2/3;
-  overflow: hidden;
-  background: var(--surface-2);
-}
-.bl-card__img {
-  width: 100%;
+/* Decorative chevrons (pure CSS, optional hint) */
+.carousel::before,
+.carousel::after {
+  content: "";
+  position: sticky;
+  top: 0;
+  width: 28px;
   height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  display: block;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: .45;
+}
+.carousel::before {
+  left: 0;
+  background-image:
+    radial-gradient(circle at 14px 50%, currentColor 3px, transparent 4px),
+    linear-gradient(to right, var(--surface, #ffffff), transparent 60%);
+}
+.carousel::after {
+  right: 0;
+  transform: scaleX(-1); /* mirror the glyph */
+  background-image:
+    radial-gradient(circle at 14px 50%, currentColor 3px, transparent 4px),
+    linear-gradient(to right, var(--surface, #ffffff), transparent 60%);
+}
+
+/* Reduce chevrons/fade when nothing to overflow (best effort) */
+@supports(selector(:has(+ *))) {
+  .carousel:not(:has(> *:nth-child(6)))::before,
+  .carousel:not(:has(> *:nth-child(6)))::after {
+    opacity: .15;
+  }
+}
+
+/* --- Cards inside shelves --- */
+.bl-card {
+  --thumb-w: 140px;
+  --thumb-h: 210px;
+  inline-size: calc(var(--thumb-w) + 16px); /* slight gutter for shadow */
+  scroll-snap-align: start;
+  display: grid;
+  grid-template-rows: auto 1fr auto; /* thumb / meta grows / cta */
+  gap: 8px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--surface-1, #fff);
+  box-shadow: 0 4px 14px rgba(0,0,0,.04);
+  border: 1px solid var(--border, rgba(0,0,0,.08));
+}
+
+.bl-card__thumb {
+  display: block;
+  inline-size: var(--thumb-w);
+  block-size: var(--thumb-h);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0,0,0,.12);
+  background: var(--surface-2, #f6f7f9);
+}
+.bl-card__thumb img {
+  inline-size: 100%;
+  block-size: 100%;
   object-fit: cover;
   display: block;
-}
-.bl-card__img--ph {
-  background: repeating-linear-gradient(
-    -45deg,
-    var(--surface-2), var(--surface-2) 10px,
-    var(--surface-3) 10px, var(--surface-3) 20px
-  );
+  background: #ddd;
 }
 
-/* Body */
-.bl-card__body {
-  padding: 8px 10px 0 10px;
-}
+/* Meta: tight, clamped lines so all cards match height */
+.bl-card__meta { min-block-size: 66px; display: grid; gap: 4px; }
 .bl-card__title {
   font-size: .92rem;
-  margin: 0 0 2px 0;
+  line-height: 1.2;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
+.bl-card__title a { text-decoration: none; color: var(--ink, #1a1a1a); }
+.bl-card__title a:hover { text-decoration: underline; }
+
 .bl-card__author {
   font-size: .82rem;
-  color: var(--ink-3);
+  color: var(--muted, #6b7280);
+  line-height: 1.2;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-/* CTA row pinned to bottom */
+/* CTA fixed height so button rows align */
 .bl-card__cta {
-  padding: 6px 10px 10px 10px;
+  display: grid;
+  align-items: end;
+  min-block-size: 36px;
+}
+.bl-card__btn {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 64px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  text-decoration: none;
 }
 
-/* Clamp helpers */
-.clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-.clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* Smaller screens: slightly smaller thumbs to fit more */
+@media (max-width: 640px) {
+  .bl-card { --thumb-w: 120px; --thumb-h: 180px; }
+}
 
-/* Optional chevrons (appear only if you add the buttons in markup) */
-.bl-shelf {
-  position: relative;
+/* Respect dark theme tokens if you use data-theme */
+:root[data-theme="dark"] .bl-card {
+  background: var(--surface-1, #121418);
+  border-color: var(--border, rgba(255,255,255,.08));
+  box-shadow: 0 6px 22px rgba(0,0,0,.35);
 }
-.bl-shelf__nav {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  gap: 8px;
-  width: 100%;
-  pointer-events: none;
+:root[data-theme="dark"] .carousel::before,
+:root[data-theme="dark"] .carousel::after {
+  background-image:
+    radial-gradient(circle at 14px 50%, currentColor 3px, transparent 4px),
+    linear-gradient(to right, var(--surface, #121418), transparent 60%);
 }
-.bl-shelf__btn {
-  pointer-events: all;
-  position: absolute;
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  display: grid; place-items: center;
-  box-shadow: 0 6px 16px rgba(0,0,0,.08);
-  cursor: pointer;
-  user-select: none;
-}
-.bl-shelf__btn--prev { left: -6px; }
-.bl-shelf__btn--next { right: -6px; }
-.bl-shelf__btn svg { width: 18px; height: 18px; }
