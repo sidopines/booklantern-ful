@@ -1,5 +1,5 @@
 <%- include('./partials/head', {
-  pageTitle: 'Read what you want — BookLantern',
+  pageTitle: 'Largest Online Hub of Free Books',
   pageDescription: 'Millions of free books from globally trusted libraries. One search, one clean reader.'
 }) %>
 <body>
@@ -7,54 +7,52 @@
 
   <!-- HERO -->
   <header class="hero">
-    <div class="hero-inner">
-      <div class="hero-copy">
-        <p class="eyebrow">Meet <strong>BookLantern</strong></p>
-        <h1 class="hero-title">
-          The best <span class="hl">stories</span><br/>
-          are the ones <span class="hl">you love.</span>
+    <div class="hero__container">
+      <div class="hero__copy">
+        <p class="eyebrow">BookLantern</p>
+        <h1 class="hero__title">
+          The best <mark>books</mark><br>
+          are the ones that <mark>inspire</mark>
         </h1>
-        <p class="hero-sub">
-          Thousands of timeless books from trusted libraries — ad-free, free forever, in one clean reader.
-        </p>
 
-        <form class="hero-search" action="/search" method="get" role="search" aria-label="Search books">
-          <input class="hero-input" type="text" name="q" placeholder="Search books, authors…" autocomplete="off">
-          <button class="btn btn-primary hero-btn" type="submit">Search</button>
+        <form class="hero__search" action="/search" method="get">
+          <input type="text" name="q" placeholder="Search books, authors…" aria-label="Search">
+          <button class="btn" type="submit">Search</button>
         </form>
 
-        <ul class="hero-points">
+        <ul class="hero__bullets">
           <li>No ads</li>
-          <li>Free forever</li>
-          <li>Clean reading experience</li>
+          <li>Peace forever</li>
+          <li>Peaceful reading experience</li>
         </ul>
       </div>
 
-      <div class="hero-visual" aria-hidden="true">
+      <!-- Clickable phone → /register -->
+      <a class="hero__phone" href="/register" aria-label="Create your BookLantern account">
         <div class="phone">
-          <div class="phone-notch"></div>
-          <div class="phone-screen">
-            <!-- Suggestive cover grid -->
-            <div class="shelf">
-              <div class="s1"></div><div class="s2"></div><div class="s3"></div>
-              <div class="s4"></div><div class="s5"></div><div class="s6"></div>
-            </div>
+          <div class="phone__screen">
+            <!-- Famous book covers grid -->
+            <img loading="lazy" alt="Pride and Prejudice"  src="https://www.gutenberg.org/cache/epub/1342/pg1342.cover.medium.jpg">
+            <img loading="lazy" alt="Frankenstein"         src="https://www.gutenberg.org/cache/epub/84/pg84.cover.medium.jpg">
+            <img loading="lazy" alt="Moby Dick"            src="https://www.gutenberg.org/cache/epub/2701/pg2701.cover.medium.jpg">
+            <img loading="lazy" alt="War and Peace"        src="https://www.gutenberg.org/cache/epub/2600/pg2600.cover.medium.jpg">
+            <img loading="lazy" alt="Origin of Species"    src="https://www.gutenberg.org/cache/epub/2009/pg2009.cover.medium.jpg">
+            <img loading="lazy" alt="Relativity"           src="https://www.gutenberg.org/cache/epub/30155/pg30155.cover.medium.jpg">
           </div>
         </div>
-      </div>
+      </a>
     </div>
   </header>
 
-  <!-- CONTENT -->
-  <main class="container home-flow">
+  <!-- ROWS -->
+  <main class="container">
     <!-- Trending -->
     <section class="row">
       <div class="row-head">
         <h2>Trending now</h2>
-        <a class="row-cta" href="/search?q=">Browse all</a>
+        <a class="muted" href="/search?q=trending">Browse all</a>
       </div>
-
-      <div class="carousel" data-carousel>
+      <div class="carousel">
         <% const tList = Array.isArray(trending) ? trending : []; %>
         <% if (!tList.length) { %>
           <div class="empty">No books to show yet.</div>
@@ -70,10 +68,9 @@
     <section class="row">
       <div class="row-head">
         <h2>Philosophy Picks</h2>
-        <a class="row-cta" href="/search?q=philosophy">See more</a>
+        <a class="muted" href="/search?q=philosophy">See more</a>
       </div>
-
-      <div class="carousel" data-carousel>
+      <div class="carousel">
         <% const pList = Array.isArray(philosophy) ? philosophy : []; %>
         <% if (!pList.length) { %>
           <div class="empty">No books to show yet.</div>
@@ -89,10 +86,9 @@
     <section class="row">
       <div class="row-head">
         <h2>History Picks</h2>
-        <a class="row-cta" href="/search?q=history">See more</a>
+        <a class="muted" href="/search?q=history">See more</a>
       </div>
-
-      <div class="carousel" data-carousel>
+      <div class="carousel">
         <% const hList = Array.isArray(history) ? history : []; %>
         <% if (!hList.length) { %>
           <div class="empty">No books to show yet.</div>
@@ -104,8 +100,26 @@
       </div>
     </section>
 
-    <!-- Teaser -->
-    <section class="still-curious card">
+    <!-- Science -->
+    <section class="row">
+      <div class="row-head">
+        <h2>Science</h2>
+        <a class="muted" href="/search?q=science">See more</a>
+      </div>
+      <div class="carousel">
+        <% const sList = Array.isArray(science) ? science : []; %>
+        <% if (!sList.length) { %>
+          <div class="empty">No books to show yet.</div>
+        <% } else { %>
+          <% sList.forEach(function(b){ %>
+            <%- include('./partials/bookCard', { b }) %>
+          <% }) %>
+        <% } %>
+      </div>
+    </section>
+
+    <!-- Still curious panel (kept minimal) -->
+    <section class="panel">
       <h3>Still curious?</h3>
       <p>Let’s get to know each other better.</p>
       <a class="btn btn-primary" href="/about">Learn more about BookLantern</a>
@@ -113,20 +127,5 @@
   </main>
 
   <%- include('./partials/footer') %>
-
-  <!-- tiny helper: natural wheel scrolling on carousels (no theme changes) -->
-  <script>
-    (function () {
-      var lists = document.querySelectorAll('[data-carousel]');
-      lists.forEach(function (el) {
-        el.addEventListener('wheel', function (e) {
-          if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-            el.scrollLeft += e.deltaY;
-            e.preventDefault();
-          }
-        }, { passive: false });
-      });
-    })();
-  </script>
 </body>
 </html>
