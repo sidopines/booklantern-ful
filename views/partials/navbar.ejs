@@ -1,34 +1,45 @@
 <!-- views/partials/navbar.ejs -->
-<nav class="site-nav" aria-label="Primary" style="border-bottom:1px solid var(--border);">
-  <div class="container" style="display:flex; align-items:center; gap:16px; padding:10px 0;">
-    <a href="/" class="brand row" style="align-items:center; gap:10px; text-decoration:none;">
-      <img src="/public/favicon.svg" alt="" width="24" height="24" />
-      <strong>BookLantern</strong>
-    </a>
+<nav class="topbar" role="navigation" aria-label="Primary">
+  <!-- Brand -->
+  <a class="brand row" href="/" aria-label="BookLantern home">
+    <img src="/public/favicon.svg" alt="" width="22" height="22" decoding="async" />
+    <span class="brand-name">BookLantern</span>
+  </a>
 
-    <ul class="row" style="gap:16px; margin:0; padding:0; list-style:none;">
-      <li><a href="/read">Read</a></li>
-      <li><a href="/watch">Watch</a></li>
-      <li><a href="/about">About</a></li>
-      <li><a href="/contact">Contact</a></li>
-    </ul>
+  <!-- Primary links -->
+  <ul class="nav-links row" role="menubar" aria-label="Site sections">
+    <li role="none"><a role="menuitem" href="/read">Read</a></li>
+    <li role="none"><a role="menuitem" href="/watch">Watch</a></li>
+    <li role="none"><a role="menuitem" href="/about">About</a></li>
+    <li role="none"><a role="menuitem" href="/contact">Contact</a></li>
+  </ul>
 
-    <div class="row" style="gap:8px; margin-left:auto; align-items:center; flex-wrap:wrap;">
-      <form action="/search" method="get" class="row" style="gap:8px;">
-        <input class="input" name="q" placeholder="Search free books…" aria-label="Search free books…"
-               style="width:280px; max-width:40vw;">
-        <button class="btn" type="submit">Search</button>
-      </form>
+  <!-- Search + Actions -->
+  <div class="actions row">
+    <form class="nav-search row" action="/search" method="get" role="search" aria-label="Search free books">
+      <input
+        class="input"
+        name="q"
+        type="search"
+        placeholder="Search free books…"
+        aria-label="Search free books"
+      />
+      <button class="btn" type="submit">Search</button>
+    </form>
 
-      <!-- theme toggle button is already handled by your theme.js, leave markup as is -->
-      <button id="themeToggle" class="btn" type="button" aria-label="Toggle theme" title="Toggle theme">🌓</button>
+    <!-- Theme toggle: keep both hooks so your existing theme.js keeps working -->
+    <button
+      id="themeToggle"
+      data-theme-toggle
+      class="btn icon-btn"
+      type="button"
+      aria-label="Toggle theme"
+      title="Toggle theme"
+    >
+      ●
+    </button>
 
-      <% if (user) { %>
-        <a class="btn" href="/dashboard">Dashboard</a>
-      <% } else { %>
-        <a class="btn" href="/login">Login</a>
-        <a class="btn" href="/register">Create account</a>
-      <% } %>
-    </div>
+    <a class="btn" href="/login">Login</a>
+    <a class="btn btn-primary" href="/register">Create account</a>
   </div>
 </nav>
