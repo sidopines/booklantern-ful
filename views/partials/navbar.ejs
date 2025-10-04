@@ -1,45 +1,32 @@
 <!-- views/partials/navbar.ejs -->
-<nav class="topbar" role="navigation" aria-label="Primary">
-  <!-- Brand -->
-  <a class="brand row" href="/" aria-label="BookLantern home">
-    <img src="/public/favicon.svg" alt="" width="22" height="22" decoding="async" />
-    <span class="brand-name">BookLantern</span>
-  </a>
+<header class="bl-topbar">
+  <div class="bl-topbar__inner">
+    <a class="brand" href="/">
+      <img src="/public/favicon.svg" alt="" width="18" height="18" aria-hidden="true">
+      <span>BookLantern</span>
+    </a>
 
-  <!-- Primary links -->
-  <ul class="nav-links row" role="menubar" aria-label="Site sections">
-    <li role="none"><a role="menuitem" href="/read">Read</a></li>
-    <li role="none"><a role="menuitem" href="/watch">Watch</a></li>
-    <li role="none"><a role="menuitem" href="/about">About</a></li>
-    <li role="none"><a role="menuitem" href="/contact">Contact</a></li>
-  </ul>
+    <nav class="links" aria-label="Primary">
+      <a href="/read">Read</a>
+      <a href="/watch">Watch</a>
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
+    </nav>
 
-  <!-- Search + Actions -->
-  <div class="actions row">
-    <form class="nav-search row" action="/search" method="get" role="search" aria-label="Search free books">
-      <input
-        class="input"
-        name="q"
-        type="search"
-        placeholder="Search free books…"
-        aria-label="Search free books"
-      />
+    <form class="search" action="/search" method="get" role="search" aria-label="Search free books">
+      <input type="text" name="q" placeholder="Search free books…" aria-label="Search free books">
       <button class="btn" type="submit">Search</button>
     </form>
 
-    <!-- Theme toggle: keep both hooks so your existing theme.js keeps working -->
-    <button
-      id="themeToggle"
-      data-theme-toggle
-      class="btn icon-btn"
-      type="button"
-      aria-label="Toggle theme"
-      title="Toggle theme"
-    >
-      ●
-    </button>
+    <div class="actions">
+      <!-- theme switch -->
+      <label class="themeSwitch" title="Toggle theme">
+        <input id="themeSwitch" type="checkbox" aria-label="Toggle dark mode">
+        <span class="knob" aria-hidden="true"></span>
+      </label>
 
-    <a class="btn" href="/login">Login</a>
-    <a class="btn btn-primary" href="/register">Create account</a>
+      <a class="btn" href="/login">Login</a>
+      <a class="btn btn-primary" href="/register">Create account</a>
+    </div>
   </div>
-</nav>
+</header>
