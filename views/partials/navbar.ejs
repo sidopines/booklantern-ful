@@ -1,14 +1,14 @@
 <!-- views/partials/navbar.ejs -->
 <header class="topbar" role="banner">
   <div class="topbar__inner">
-    <!-- Brand (left) -->
+    <!-- Left: brand -->
     <a class="brand row" href="/" aria-label="BookLantern – Home">
       <img class="brand-logo" src="/public/logo.svg" alt="" width="20" height="20" />
       <span class="brand-name">BookLantern</span>
     </a>
 
-    <!-- Everything else (right) -->
-    <div class="cluster row" role="navigation" aria-label="Site">
+    <!-- Center: primary nav + search -->
+    <nav class="center row" role="navigation" aria-label="Primary">
       <ul class="nav-links row">
         <li><a href="/read">Read</a></li>
         <li><a href="/watch">Watch</a></li>
@@ -20,34 +20,15 @@
         <input class="input" type="search" name="q" placeholder="Search free books…" aria-label="Search free books" />
         <button class="btn" type="submit">Search</button>
       </form>
+    </nav>
 
-      <!-- Keep this id so any existing theme code keeps working -->
+    <!-- Right: theme toggle (leave behavior untouched), auth buttons -->
+    <div class="right row">
       <button id="themeToggle" class="btn icon-btn" type="button" aria-label="Toggle theme">
         <span aria-hidden="true">●</span>
       </button>
-
-      <a class="btn" href="/login">Login</a>
+      <a class="btn btn-ghost" href="/login">Login</a>
       <a class="btn btn-primary" href="/register">Create account</a>
     </div>
   </div>
 </header>
-
-<!-- Safety net for the theme toggle: only takes over if you don't already wire it -->
-<script>
-(function () {
-  var btn = document.getElementById('themeToggle');
-  if (!btn) return;
-
-  // If another handler already attached, don't double-bind
-  if (btn.dataset.blBound === '1') return;
-  btn.dataset.blBound = '1';
-
-  var LS_KEY = 'bl-theme';
-  function setTheme(t){ document.documentElement.setAttribute('data-theme', t); try{ localStorage.setItem(LS_KEY, t); }catch(e){} }
-
-  btn.addEventListener('click', function () {
-    var cur = document.documentElement.getAttribute('data-theme') || 'light';
-    setTheme(cur === 'dark' ? 'light' : 'dark');
-  }, { passive: true });
-})();
-</script>
