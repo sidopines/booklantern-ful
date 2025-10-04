@@ -1,4 +1,3 @@
-<!-- views/index.ejs -->
 <%- include('./partials/head', {
   pageTitle: 'Largest Online Hub of Free Books',
   pageDescription: 'Millions of free books from globally trusted libraries. One search, one clean reader.'
@@ -6,63 +5,65 @@
 <body>
   <%- include('./partials/navbar') %>
 
-  <main>
+  <!-- HERO -->
+  <section class="bl-hero">
+    <div class="bl-hero__inner">
+      <!-- Left side: headline & search -->
+      <div class="bl-hero__copy">
+        <div class="eyebrow">BOOKLANTERN</div>
+        <h1 class="bl-hero__title">
+          The best <span class="hl">books</span><br>
+          are the ones that <span class="hl">inspire</span>
+        </h1>
 
-    <!-- ===== Hero (Kindle-style device) ===== -->
-    <section class="bl-hero">
-      <div class="bl-hero__inner">
-        <!-- Left copy -->
-        <div class="bl-hero__copy">
-          <p class="eyebrow">BookLantern</p>
+        <form class="bl-hero__search" action="/search" method="get">
+          <input name="q" type="text" placeholder="Search books, authors…" aria-label="Search books, authors…">
+          <button class="btn" type="submit">Search</button>
+        </form>
 
-          <h1 class="bl-hero__title">
-            The best <span class="hl">books</span><br>
-            are the ones that <span class="hl">inspire</span>
-          </h1>
-
-          <form class="hero-search" action="/search" method="get" role="search">
-            <input type="text" name="q" placeholder="Search books, authors…" aria-label="Search">
-            <button class="btn" type="submit">Search</button>
-          </form>
-
-          <ul class="hero-points">
-            <li>No ads</li>
-            <li>Peace forever</li>
-            <li>Peaceful reading experience</li>
-          </ul>
-        </div>
-
-        <!-- Right: Kindle-style device (click => register) -->
-        <a class="bl-device bl-device--kindle" href="/register" aria-label="Create account">
-          <div class="bl-device__bezel">
-            <div class="bl-device__camera" aria-hidden="true"></div>
-            <div class="bl-device__screen" aria-hidden="true">
-              <div class="bl-page">
-                <div class="bl-page__title"></div>
-                <div class="bl-page__para"></div>
-                <div class="bl-page__para"></div>
-                <div class="bl-page__para short"></div>
-              </div>
-            </div>
-          </div>
-          <div class="bl-pen" aria-hidden="true"><div class="bl-pen__clip"></div></div>
-          <div class="bl-device__shadow" aria-hidden="true"></div>
-        </a>
+        <ul class="bl-hero__points">
+          <li>No ads</li>
+          <li>Distraction-free</li>
+          <li>Peaceful reading experience</li>
+        </ul>
       </div>
-    </section>
 
-    <% const S = (typeof shelves === 'object' && shelves) ? shelves : {}; %>
+      <!-- Right side: Kindle-style device. Whole device links to /register -->
+      <a class="bl-hero__device" href="/register" aria-label="Create account">
+        <div class="device">
+          <div class="device__screen">
+            <!-- Faint “reading” lines (pure decoration) -->
+            <% for (let i = 0; i < 12; i++) { %>
+              <div class="line"></div>
+            <% } %>
+            <!-- Blurred mission text sitting “between” the lines -->
+            <p class="device__page-text" aria-hidden="true">
+              We are on a mission to connect readers world over with the largest collection of books.
+              Find yours now!
+            </p>
+          </div>
+          <div class="device__shadow"></div>
+          <div class="device__pen"></div>
+        </div>
+      </a>
+    </div>
+  </section>
 
+  <!-- SHELVES -->
+  <main class="container shelves">
     <!-- Trending -->
     <section class="row">
       <div class="row-head">
         <h2>Trending now</h2>
-        <a class="see-more" href="/search?q=trending">Browse all</a>
+        <a class="muted" href="/search?q=trending">Browse all</a>
       </div>
       <div class="carousel" role="list">
-        <% (Array.isArray(S.trending) ? S.trending : []).forEach(function(b){ %>
+        <% (shelves && Array.isArray(shelves.trending) ? shelves.trending : []).forEach(function(b){ %>
           <%- include('./partials/bookCard', { b }) %>
         <% }) %>
+        <% if (!(shelves && Array.isArray(shelves.trending) && shelves.trending.length)) { %>
+          <div class="empty">No books to show yet.</div>
+        <% } %>
       </div>
     </section>
 
@@ -70,12 +71,15 @@
     <section class="row">
       <div class="row-head">
         <h2>Philosophy Picks</h2>
-        <a class="see-more" href="/search?q=subject%3APhilosophy">See more</a>
+        <a class="muted" href="/search?q=subject%3APhilosophy">See more</a>
       </div>
       <div class="carousel" role="list">
-        <% (Array.isArray(S.philosophy) ? S.philosophy : []).forEach(function(b){ %>
+        <% (shelves && Array.isArray(shelves.philosophy) ? shelves.philosophy : []).forEach(function(b){ %>
           <%- include('./partials/bookCard', { b }) %>
         <% }) %>
+        <% if (!(shelves && Array.isArray(shelves.philosophy) && shelves.philosophy.length)) { %>
+          <div class="empty">No books to show yet.</div>
+        <% } %>
       </div>
     </section>
 
@@ -83,12 +87,15 @@
     <section class="row">
       <div class="row-head">
         <h2>History Picks</h2>
-        <a class="see-more" href="/search?q=subject%3AHistory">See more</a>
+        <a class="muted" href="/search?q=subject%3AHistory">See more</a>
       </div>
       <div class="carousel" role="list">
-        <% (Array.isArray(S.history) ? S.history : []).forEach(function(b){ %>
+        <% (shelves && Array.isArray(shelves.history) ? shelves.history : []).forEach(function(b){ %>
           <%- include('./partials/bookCard', { b }) %>
         <% }) %>
+        <% if (!(shelves && Array.isArray(shelves.history) && shelves.history.length)) { %>
+          <div class="empty">No books to show yet.</div>
+        <% } %>
       </div>
     </section>
 
@@ -96,17 +103,52 @@
     <section class="row">
       <div class="row-head">
         <h2>Science Picks</h2>
-        <a class="see-more" href="/search?q=subject%3AScience">See more</a>
+        <a class="muted" href="/search?q=subject%3AScience">See more</a>
       </div>
       <div class="carousel" role="list">
-        <% (Array.isArray(S.science) ? S.science : []).forEach(function(b){ %>
+        <% (shelves && Array.isArray(shelves.science) ? shelves.science : []).forEach(function(b){ %>
           <%- include('./partials/bookCard', { b }) %>
         <% }) %>
+        <% if (!(shelves && Array.isArray(shelves.science) && shelves.science.length)) { %>
+          <div class="empty">No books to show yet.</div>
+        <% } %>
       </div>
     </section>
-
   </main>
 
   <%- include('./partials/footer') %>
+
+  <!-- tiny hero tweaks just for the device text placement (safe to inline) -->
+  <style>
+    .bl-hero__device { display:inline-block; text-decoration:none; }
+    .bl-hero__device .device{
+      width: 260px; aspect-ratio: 3/4; background:#0e0e0f; border-radius:16px;
+      box-shadow: 0 14px 40px rgba(0,0,0,.25); position:relative; transform: rotate(-4deg);
+    }
+    .device__screen{
+      position:absolute; inset:14px; background:#f2f2f0; border-radius:10px;
+      overflow:hidden;
+    }
+    .device__shadow{
+      position:absolute; left:20%; right:20%; bottom:-10px; height:18px;
+      background: radial-gradient(50% 70% at 50% 0%, rgba(0,0,0,.25), transparent);
+      filter: blur(6px);
+    }
+    .device__pen{
+      position:absolute; right:12px; bottom:10px; width:84px; height:6px; border-radius:5px;
+      background:linear-gradient(90deg,#cfd2d7,#eef1f5); box-shadow:0 2px 6px rgba(0,0,0,.25);
+      transform: rotate(3deg);
+    }
+    .device__screen .line{
+      height:8px; margin:7px 14px; border-radius:3px; background:#d9dad7;
+      opacity:.7;
+    }
+    .device__page-text{
+      position:absolute; inset:16px 18px; line-height:1.35; font-size:.88rem;
+      color:#3b3e44; opacity:.55; filter: blur(.3px);
+    }
+    .bl-hero__device:hover .device{ transform: rotate(-2.5deg) translateY(-1px); transition:.2s ease; }
+    @media (max-width: 860px){ .bl-hero__device .device{ width:200px; } }
+  </style>
 </body>
 </html>
