@@ -1,185 +1,92 @@
 /* public/css/hero.css */
 
-/* Layout */
+/* Container sizing stays the same from your current file. */
 .bl-hero {
-  padding: clamp(28px, 4vw, 56px) 16px;
-}
-.bl-hero__inner {
-  max-width: 1200px;
-  margin: 0 auto;
+  max-width: 1120px;
+  margin: 24px auto 8px;
+  padding: 24px 16px 8px;
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-  align-items: center;
-  gap: clamp(16px, 3vw, 40px);
-}
-@media (max-width: 880px) {
-  .bl-hero__inner {
-    grid-template-columns: 1fr;
-  }
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 32px;
 }
 
-/* Copy */
-.eyebrow {
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  font-size: .8rem;
-  opacity: .7;
-  margin: 0 0 10px;
-}
-.bl-hero__title {
-  margin: 0 0 16px 0;
-  font-size: clamp(28px, 6vw, 48px);
-  line-height: 1.05;
-}
-.hl {
-  background: linear-gradient(0deg, rgba(154,176,255,.25), rgba(154,176,255,.25));
-  border-radius: .4em;
-  padding: .06em .2em;
-}
-.hero-search {
-  display: flex;
-  gap: 10px;
-  margin: 18px 0 12px;
-}
-.hero-search input[type="text"] {
-  flex: 1;
-  min-width: 220px;
-}
-.hero-points {
-  list-style: none;
-  padding: 0;
-  margin: 12px 0 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px 18px;
-  opacity: .9;
-}
-.hero-points li::before {
-  content: "•";
-  margin-right: 8px;
-  opacity: .5;
-}
+.bl-hero__title { font-size: clamp(28px, 3.6vw, 42px); line-height: 1.15; }
+.bl-hero__highlight { background: var(--hi, #F6EAA3); padding: .1em .3em; border-radius: .25em; }
 
-/* KINDLE-STYLE DEVICE */
-.bl-device {
-  position: relative;
-  display: inline-block;
+/* Kindle-style device is an anchor so it’s fully clickable */
+.bl-deviceLink {
+  display: block;
+  align-self: center;
   justify-self: center;
   text-decoration: none;
-  transform: rotate(-2deg);
+  transform: rotate(-3deg);
+  transition: transform .15s ease, filter .15s ease;
 }
-.bl-device__shadow {
-  position: absolute;
-  inset: auto 0 -18px 0;
-  height: 36px;
-  filter: blur(18px);
-  background: radial-gradient(ellipse at center, rgba(0,0,0,.25), rgba(0,0,0,0) 70%);
-  transform: translateZ(0);
-  pointer-events: none;
+.bl-deviceLink:hover { transform: rotate(-2deg) translateY(-2px); filter: drop-shadow(0 6px 18px rgba(0,0,0,.12)); }
+
+/* The device body */
+.bl-device {
+  width: clamp(220px, 32vw, 340px);
+  aspect-ratio: 3/4.4;
+  border-radius: 18px;
+  background: #111;
+  padding: 10px;
+  box-shadow: 0 10px 26px rgba(0,0,0,.18);
 }
 
-/* Bezel + screen */
-.bl-device__bezel {
-  width: clamp(260px, 40vw, 420px);
-  aspect-ratio: 3/4;
-  border-radius: 22px;
-  background: var(--surface-1, #10141c);
-  box-shadow:
-    0 10px 35px rgba(0,0,0,.35),
-    inset 0 0 0 2px rgba(255,255,255,.04);
-  position: relative;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-}
-.bl-device__camera {
-  position: absolute;
-  top: 10px;
-  width: 52px;
-  height: 6px;
-  border-radius: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(255,255,255,.08);
-}
+/* Screen area */
 .bl-device__screen {
-  width: 100%;
   height: 100%;
-  border-radius: 14px;
-  background: #e7e7e0; /* e-ink paper tone */
+  border-radius: 12px;
+  background: linear-gradient(#f3f3ef, #eceae6);
+  position: relative;
   overflow: hidden;
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
 }
 
-/* Faux page with blurred lines */
-.bl-page {
-  height: 100%;
-  padding: 20px 18px;
-  display: grid;
-  grid-auto-rows: min-content;
-  align-content: start;
-  gap: 14px;
-  filter: blur(.4px) contrast(.98);
-}
-.bl-page__title {
-  height: 20px;
-  width: 70%;
-  border-radius: 6px;
-  background:
-    linear-gradient(180deg, rgba(0,0,0,.14), rgba(0,0,0,.08));
-}
-.bl-page__para {
-  height: 112px;
-  border-radius: 8px;
+/* Faint ruled lines */
+.bl-device__lines {
+  position: absolute;
+  inset: 0;
   background:
     repeating-linear-gradient(
       to bottom,
-      rgba(0,0,0,.18) 0px,
-      rgba(0,0,0,.18) 2px,
-      rgba(0,0,0,0) 2px,
-      rgba(0,0,0,0) 16px
+      rgba(0,0,0,.10) 0,
+      rgba(0,0,0,.10) 1px,
+      transparent 28px,
+      transparent 30px
     );
-  opacity: .55;
-}
-.bl-page__para.short {
-  height: 72px;
+  filter: blur(.2px);
+  pointer-events: none;
 }
 
-/* Stylus/Pen */
-.bl-pen {
+/* Centered, more visible message */
+.bl-device__msg {
   position: absolute;
-  right: -18px;
-  bottom: 24px;
-  width: clamp(120px, 18vw, 160px);
-  height: clamp(10px, 2vw, 12px);
-  background: linear-gradient(90deg, #cfd3da, #aeb4be);
-  border-radius: 10px;
-  box-shadow:
-    0 8px 18px rgba(0,0,0,.25),
-    inset 0 0 0 1px rgba(0,0,0,.08);
-  transform: rotate(-8deg);
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  text-align: center;
+  font-size: clamp(13px, 1.45vw, 15px);
+  line-height: 1.35;
+  color: rgba(0,0,0,.72);     /* increased contrast */
+  text-shadow: 0 1px 0 rgba(255,255,255,.35); /* readability */
 }
-.bl-pen__clip {
+
+/* Small pen at bottom */
+.bl-device__pen {
   position: absolute;
-  left: 14%;
-  top: -6px;
-  width: 32px;
-  height: 10px;
-  border-radius: 8px 8px 2px 2px;
-  background: linear-gradient(90deg, #d8dbe1, #b7bcc6);
+  left: 55%;
+  bottom: -8px;
+  width: 36%;
+  height: 8px;
+  background: #d9dadd;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.25);
 }
 
-/* Small screens: center device, reduce rotation */
-@media (max-width: 880px) {
-  .bl-device { transform: rotate(-1deg); }
-  .bl-pen { display: none; }
+/* Stack on small screens */
+@media (max-width: 860px) {
+  .bl-hero { grid-template-columns: 1fr; gap: 18px; }
+  .bl-deviceLink { justify-self: start; transform: rotate(-2deg); }
 }
-
-/* Utilities (keep parity with site.css if present) */
-.row { margin: 28px auto; max-width: 1200px; padding: 0 16px; }
-.row-head {
-  display: flex; align-items: baseline; justify-content: space-between;
-  gap: 12px; margin-bottom: 10px;
-}
-.see-more { opacity: .8; font-size: .95rem; text-decoration: none; }
-.see-more:hover { text-decoration: underline; }
