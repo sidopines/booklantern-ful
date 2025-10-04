@@ -1,34 +1,38 @@
 // public/js/theme.js
 (function () {
-  var KEY = 'bl-theme'; // 'light' | 'dark' | 'auto'
-  var root = document.documentElement;
-  var btn = document.querySelector('[data-theme-toggle]');
-  var icon = document.querySelector('[data-theme-icon]');
+  var KEY = 'bl-theme';
+  var html = document.documentElement;
+  var sw = document.getElementById('themeSwitch');
 
-  function currentMode() {
-    var stored = localStorage.getItem(KEY);
-    if (!stored || stored === 'auto') {
-      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-      return prefersDark ? 'dark' : 'light';
+  function getTheme() {
+    try { return localStorage.getItem(KEY) || 'auto'; } catch { return 'auto'; }
+  }
+  function resolve(mode) {
+    if (mode === 'auto') {
+      try {
+        return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+      } catch { return 'light'; }
     }
-    return stored;
+    return mode;
   }
-
   function apply(mode) {
-    root.setAttribute('data-theme', mode);
-    if (btn) btn.setAttribute('aria-pressed', String(mode === 'dark'));
-    if (icon) icon.textContent = mode === 'dark' ? '🌙' : '🌞';
+    html.setAttribute('data-theme', resolve(mode));
+  }
+  function save(mode) {
+    try { localStorage.setItem(KEY, mode); } catch {}
   }
 
-  function toggle() {
-    var next = currentMode() === 'dark' ? 'light' : 'dark';
-    localStorage.setItem(KEY, next);
-    apply(next);
+  // init
+  var stored = getTheme();
+  apply(stored);
+  if (sw) {
+    // reflect current state on the switch: checked = dark
+    sw.checked = resolve(stored) === 'dark';
+
+    sw.addEventListener('change', function () {
+      var next = sw.checked ? 'dark' : 'light';
+      save(next);
+      apply(next);
+    });
   }
-
-  // init on load
-  apply(currentMode());
-
-  // click wiring
-  if (btn) btn.addEventListener('click', toggle);
 })();
