@@ -1,43 +1,13 @@
-/* public/css/footer.css */
+.site-footer { border-top: 1px solid var(--border); padding: 14px 0; }
+.site-footer__inner { display:flex; align-items:center; justify-content:space-between; gap: 16px; }
+.site-footer__legal { display:flex; align-items:center; gap:10px; }
+.site-footer__legal .brand { font-weight:600; opacity:.9; }
+.site-footer__legal .copy { opacity:.7; }
+.site-footer__links { display:flex; flex-wrap:wrap; gap:14px; }
+.site-footer__links a { opacity:.85; text-decoration:none; }
+.site-footer__links a:hover { text-decoration:underline; }
 
-footer.bl-footer {
-  border-top: 1px solid var(--border, rgba(0,0,0,.08));
-  margin-top: 32px;
-  padding: 14px 16px 24px;
-}
-
-.bl-footer__inner {
-  max-width: 1120px;
-  margin: 0 auto;
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  justify-content: flex-start;   /* left aligned */
-  flex-wrap: wrap;
-}
-
-.bl-footer__brand {
-  font-weight: 600;
-  margin-right: 8px;
-}
-
-.bl-footer__spacer {
-  width: 1px;
-  height: 18px;
-  background: var(--border, rgba(0,0,0,.1));
-  margin: 0 6px;
-}
-
-.bl-footer__nav a {
-  margin-right: 12px;
-}
-
-.bl-footer__copy {
-  opacity: .75;
-}
-
-/* Small screens: stack lines nicely but still left aligned */
-@media (max-width: 560px) {
-  .bl-footer__inner { row-gap: 8px; }
-  .bl-footer__spacer { display: none; }
+/* small screens: stack/center; wide: keep left-justified legal content */
+@media (max-width: 700px) {
+  .site-footer__inner { flex-direction:column; align-items:flex-start; }
 }
