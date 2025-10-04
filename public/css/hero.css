@@ -1,92 +1,70 @@
-/* public/css/hero.css */
-
-/* Container sizing stays the same from your current file. */
-.bl-hero {
-  max-width: 1120px;
-  margin: 24px auto 8px;
-  padding: 24px 16px 8px;
+/* ---- HERO ---- */
+.bl-hero { position: relative; z-index: 1; padding: 40px 0 10px; }
+.bl-hero .container { max-width: 1100px; }
+.bl-hero__inner {
   display: grid;
   grid-template-columns: 1.1fr 0.9fr;
   gap: 32px;
+  align-items: center;
+}
+.eyebrow { letter-spacing:.08em; font-size:.8rem; opacity:.7; margin:0 0 8px; }
+.bl-hero__title { font-size: clamp(28px, 4vw, 44px); line-height:1.15; margin:0 0 14px; }
+.hl { background: linear-gradient(180deg, rgba(154,176,255,.4), rgba(154,176,255,.15)); padding:0 .15em; border-radius:.35em; }
+
+.bl-hero__search { display:flex; gap:8px; margin:10px 0 12px; }
+.bl-hero__search input { flex:1; min-width:220px; }
+.bl-hero__points { display:flex; gap:18px; padding:0; margin:6px 0 0; list-style: none; opacity:.85; flex-wrap:wrap; }
+
+@media (max-width: 880px) {
+  .bl-hero__inner { grid-template-columns: 1fr; gap: 20px; }
 }
 
-.bl-hero__title { font-size: clamp(28px, 3.6vw, 42px); line-height: 1.15; }
-.bl-hero__highlight { background: var(--hi, #F6EAA3); padding: .1em .3em; border-radius: .25em; }
+/* Make sure nav items (incl. theme switch) are always clickable over hero */
+.header, .site-topbar, .topbar, nav[role="navigation"] { position: sticky; top: 0; z-index: 1000; }
 
-/* Kindle-style device is an anchor so it’s fully clickable */
-.bl-deviceLink {
-  display: block;
-  align-self: center;
-  justify-self: center;
-  text-decoration: none;
-  transform: rotate(-3deg);
-  transition: transform .15s ease, filter .15s ease;
-}
-.bl-deviceLink:hover { transform: rotate(-2deg) translateY(-2px); filter: drop-shadow(0 6px 18px rgba(0,0,0,.12)); }
-
-/* The device body */
-.bl-device {
-  width: clamp(220px, 32vw, 340px);
+/* ---- KINDLE-STYLE DEVICE ---- */
+.bl-device { display:block; justify-self:center; text-decoration:none; transform: translateY(6px) rotate(-3deg); }
+.bl-device__frame {
+  width: min(340px, 42vw);
   aspect-ratio: 3/4.4;
   border-radius: 18px;
-  background: #111;
-  padding: 10px;
-  box-shadow: 0 10px 26px rgba(0,0,0,.18);
+  background: #0f141b;
+  box-shadow: 0 18px 40px rgba(0,0,0,.25);
+  padding: 12px;
 }
-
-/* Screen area */
 .bl-device__screen {
+  position: relative;
+  width: 100%;
   height: 100%;
   border-radius: 12px;
-  background: linear-gradient(#f3f3ef, #eceae6);
-  position: relative;
+  background: #eae8e2;
   overflow: hidden;
 }
-
-/* Faint ruled lines */
-.bl-device__lines {
-  position: absolute;
-  inset: 0;
+/* lined-paper effect */
+.bl-device__paper {
+  position:absolute; inset:0;
   background:
-    repeating-linear-gradient(
-      to bottom,
-      rgba(0,0,0,.10) 0,
-      rgba(0,0,0,.10) 1px,
-      transparent 28px,
-      transparent 30px
-    );
-  filter: blur(.2px);
-  pointer-events: none;
+    repeating-linear-gradient(to bottom, transparent 0 22px, rgba(0,0,0,.08) 22px 23px);
+  display:flex; align-items:center; justify-content:center;
+  padding: 14% 10%;
+}
+/* centered, slightly blurred text for “reading” feel */
+.bl-device__text {
+  text-align:center;
+  font-size: clamp(12px, 2.1vw, 16px);
+  line-height: 1.5;
+  color: rgba(0,0,0,.78);
+  filter: blur(0.7px) contrast(1.1);
 }
 
-/* Centered, more visible message */
-.bl-device__msg {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 18px;
-  text-align: center;
-  font-size: clamp(13px, 1.45vw, 15px);
-  line-height: 1.35;
-  color: rgba(0,0,0,.72);     /* increased contrast */
-  text-shadow: 0 1px 0 rgba(255,255,255,.35); /* readability */
-}
-
-/* Small pen at bottom */
+/* little pen / stylus */
 .bl-device__pen {
-  position: absolute;
-  left: 55%;
-  bottom: -8px;
-  width: 36%;
-  height: 8px;
-  background: #d9dadd;
-  border-radius: 6px;
-  box-shadow: 0 2px 6px rgba(0,0,0,.25);
+  position:absolute; bottom:8px; right:12px; width:38%;
+  height: 8px; border-radius: 6px;
+  background: linear-gradient(90deg, #ddd, #f3f3f3);
+  box-shadow: 0 2px 4px rgba(0,0,0,.1);
 }
 
-/* Stack on small screens */
-@media (max-width: 860px) {
-  .bl-hero { grid-template-columns: 1fr; gap: 18px; }
-  .bl-deviceLink { justify-self: start; transform: rotate(-2deg); }
-}
+/* Hover affordance */
+.bl-device:hover .bl-device__frame { box-shadow: 0 22px 54px rgba(0,0,0,.3); transform: translateY(-1px); }
+.bl-device:active .bl-device__frame { transform: translateY(0); }
