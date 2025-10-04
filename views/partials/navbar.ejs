@@ -1,34 +1,32 @@
 <!-- views/partials/navbar.ejs -->
 <header class="topbar" role="banner">
-  <div class="topbar__inner">
-    <!-- Left: brand -->
-    <a class="brand row" href="/" aria-label="BookLantern – Home">
-      <img class="brand-logo" src="/public/logo.svg" alt="" width="20" height="20" />
-      <span class="brand-name">BookLantern</span>
-    </a>
+  <!-- Left: Brand -->
+  <a class="brand row" href="/" aria-label="BookLantern home">
+    <img src="/favicon-32x32.png" alt="" width="20" height="20" style="border-radius:6px;">
+    <span class="brand-name">BookLantern</span>
+  </a>
 
-    <!-- Center: primary nav + search -->
-    <nav class="center row" role="navigation" aria-label="Primary">
-      <ul class="nav-links row">
-        <li><a href="/read">Read</a></li>
-        <li><a href="/watch">Watch</a></li>
-        <li><a href="/about">About</a></li>
-        <li><a href="/contact">Contact</a></li>
-      </ul>
+  <!-- Center: Primary nav -->
+  <nav class="center" role="navigation" aria-label="Primary">
+    <ul class="nav-links row">
+      <li><a href="/read">Read</a></li>
+      <li><a href="/watch">Watch</a></li>
+      <li><a href="/about">About</a></li>
+      <li><a href="/contact">Contact</a></li>
+    </ul>
+  </nav>
 
-      <form class="nav-search row" action="/search" method="get" role="search">
-        <input class="input" type="search" name="q" placeholder="Search free books…" aria-label="Search free books" />
-        <button class="btn" type="submit">Search</button>
-      </form>
-    </nav>
+  <!-- Right: Search + theme toggle + auth -->
+  <div class="actions row">
+    <form class="nav-search row" action="/search" method="get" role="search" aria-label="Search free books">
+      <input class="input" type="text" name="q" placeholder="Search free books…" aria-label="Search free books">
+      <button class="btn" type="submit">Search</button>
+    </form>
 
-    <!-- Right: theme toggle (leave behavior untouched), auth buttons -->
-    <div class="right row">
-      <button id="themeToggle" class="btn icon-btn" type="button" aria-label="Toggle theme">
-        <span aria-hidden="true">●</span>
-      </button>
-      <a class="btn btn-ghost" href="/login">Login</a>
-      <a class="btn btn-primary" href="/register">Create account</a>
-    </div>
+    <!-- theme toggle (works with /public/js/theme.js) -->
+    <button id="themeToggle" class="btn icon-btn" type="button" aria-label="Toggle theme" aria-pressed="false">•</button>
+
+    <a class="btn auth-btn" href="/login">Login</a>
+    <a class="btn btn-primary auth-btn" href="/register">Create account</a>
   </div>
 </header>
