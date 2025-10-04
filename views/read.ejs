@@ -1,12 +1,13 @@
 <%- include('./partials/head', {
   pageTitle: 'Read • BookLantern',
-  pageDescription: 'Read classic books in one clean reader — bookmarks, notes, and text-to-speech.'
+  pageDescription: 'Read classic books in one clean reader — bookmarks, notes, and text-to-speech.',
+  canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
 }) %>
 <body>
   <%- include('./partials/navbar') %>
-  <%- include('./partials/backLink', { referrer: (typeof referrer !== 'undefined' ? referrer : null) }) %>
 
   <main class="stack" style="--gap:16px; padding:16px;">
+    <%- include('./partials/backLink', { referrer }) %>
     <h1 id="title">Book Title</h1>
 
     <div class="actions row" style="gap:8px; flex-wrap:wrap;">
@@ -18,7 +19,7 @@
     <div id="reader" class="card" style="min-height:70vh; overflow:auto; padding:0;"></div>
     <div id="fallback" class="card" style="display:none; padding:16px;">Loading book...</div>
 
-    <!-- Notes area (local only) -->
+    <!-- Notes -->
     <section class="card" style="margin-top:16px; padding:12px;">
       <h3 style="margin-top:0;">Your Notes</h3>
       <div class="row" style="gap:8px; margin-bottom:8px;">
@@ -31,11 +32,9 @@
 
   <%- include('./partials/footer') %>
 
-  <!-- EPUB.js -->
   <script defer src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
-
   <script>
-  (async function () {
+  (function () {
     const provider = "<%= provider %>";
     const id = "<%= id %>";
     const KEY_POS   = `bl:pos:${provider}:${id}`;
@@ -45,162 +44,118 @@
     const mount   = document.getElementById('reader');
     const fallback= document.getElementById('fallback');
 
-    // Controls
     const btnBookmark = document.getElementById('btnBookmark');
     const btnListen   = document.getElementById('btnListen');
     const btnNotes    = document.getElementById('btnNotes');
 
-    // Notes widgets
     const noteInput = document.getElementById('noteInput');
     const saveNote  = document.getElementById('saveNote');
     const notesList = document.getElementById('notesList');
 
-    // ---- Fetch book payload from our API ----
-    let data;
-    try {
-      const r = await fetch(`/api/book?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(id)}`);
-      data = await r.json();
-    } catch (e) {
-      console.error('Book API error:', e);
-      data = { type: 'error', error: 'Network error' };
-    }
+    // ---- Fetch book payload
+    fetch(`/api/book?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(id)}`)
+      .then(r => r.json())
+      .then(data => initReader(data))
+      .catch(() => showFallback('Network error'));
 
-    // Title
-    titleEl.textContent = [data?.title, data?.author].filter(Boolean).join(' — ') || 'Book';
-
-    // Render handlers
-    let rendition = null;
-
-    function restoreScroll() {
-      try {
-        const pos = JSON.parse(localStorage.getItem(KEY_POS) || 'null');
-        if (pos && pos.type === 'scroll' && typeof pos.y === 'number') {
-          mount.scrollTop = pos.y;
-        }
-      } catch {}
-    }
-    function saveScroll() {
-      const payload = { type: 'scroll', y: mount.scrollTop, ts: Date.now() };
-      localStorage.setItem(KEY_POS, JSON.stringify(payload));
-    }
-    function saveEpubCFI(cfi) {
-      const payload = { type: 'cfi', cfi, ts: Date.now() };
-      localStorage.setItem(KEY_POS, JSON.stringify(payload));
-    }
-    function getSavedPos() {
-      try { return JSON.parse(localStorage.getItem(KEY_POS) || 'null'); } catch { return null; }
-    }
-
-    if (data?.type === 'epub' && data?.epubUrl) {
-      try {
-        const book = ePub(data.epubUrl);
-        rendition = book.renderTo(mount, { width: "100%", height: "75vh", spread: "always" });
-
-        const saved = getSavedPos();
-        if (saved && saved.type === 'cfi' && saved.cfi) {
-          await rendition.display(saved.cfi);
-        } else {
-          await rendition.display();
-        }
-
-        rendition.on('relocated', (loc) => {
-          if (loc && loc.start && loc.start.cfi) saveEpubCFI(loc.start.cfi);
-        });
-      } catch (e) {
-        console.error('EPUB render error:', e);
-        fallback.style.display = 'block';
-        mount.style.display = 'none';
-      }
-    } else if (data?.type === 'html' || data?.type === 'text') {
-      mount.style.padding = '16px';
-      if (data.type === 'text') {
-        mount.innerHTML = `<pre style="white-space:pre-wrap;word-wrap:break-word;">${escapeHtml(data.content || '')}</pre>`;
-      } else {
-        mount.innerHTML = data.content || '<p>Not available.</p>';
-      }
-      restoreScroll();
-      mount.addEventListener('scroll', throttle(saveScroll, 400));
-    } else {
+    function showFallback(msg){
+      fallback.textContent = msg || 'Loading book...';
       fallback.style.display = 'block';
       mount.style.display = 'none';
     }
 
-    // Bookmark
-    btnBookmark.addEventListener('click', () => {
-      if (rendition) {
-        const loc = rendition.currentLocation();
-        const cfi = loc?.start?.cfi || null;
-        if (cfi) { saveEpubCFI(cfi); return flash('Bookmark saved'); }
+    function initReader(data){
+      titleEl.textContent = [data?.title, data?.author].filter(Boolean).join(' — ') || 'Book';
+
+      if (data?.type === 'epub' && data?.epubUrl){
+        try {
+          const book = ePub(data.epubUrl);
+          const rendition = book.renderTo(mount, { width: "100%", height: "75vh", spread: "always" });
+
+          const saved = getSavedPos();
+          if (saved && saved.type === 'cfi' && saved.cfi) rendition.display(saved.cfi);
+          else rendition.display();
+
+          rendition.on('relocated', loc => {
+            const cfi = loc?.start?.cfi;
+            if (cfi) localStorage.setItem(KEY_POS, JSON.stringify({ type:'cfi', cfi, ts:Date.now() }));
+          });
+
+          btnBookmark.addEventListener('click', () => {
+            const cfi = rendition.currentLocation()?.start?.cfi;
+            if (cfi){
+              localStorage.setItem(KEY_POS, JSON.stringify({ type:'cfi', cfi, ts:Date.now() }));
+              flash('Bookmark saved');
+            }
+          });
+        } catch(e){ showFallback('Unable to render EPUB.'); }
+        return;
       }
-      saveScroll();
-      flash('Bookmark saved');
-    });
+
+      // HTML / Text
+      mount.style.padding = '16px';
+      if (data?.type === 'text'){
+        mount.innerHTML = `<pre style="white-space:pre-wrap;word-wrap:break-word;">${escapeHtml(data.content||'')}</pre>`;
+      } else if (data?.type === 'html'){
+        mount.innerHTML = data.content || '<p>Not available.</p>';
+      } else {
+        showFallback('Book not available.');
+        return;
+      }
+
+      // scroll save/restore
+      const saved = getSavedPos();
+      if (saved && saved.type === 'scroll' && typeof saved.y === 'number') mount.scrollTop = saved.y;
+      mount.addEventListener('scroll', throttle(() => {
+        localStorage.setItem(KEY_POS, JSON.stringify({ type:'scroll', y: mount.scrollTop, ts:Date.now() }));
+      }, 400));
+    }
+
+    function getSavedPos(){ try { return JSON.parse(localStorage.getItem(KEY_POS)||'null'); } catch { return null; } }
 
     // Notes (local)
-    function loadNotes(){ try { return JSON.parse(localStorage.getItem(KEY_NOTES) || '[]'); } catch { return []; } }
-    function saveNotes(arr){ localStorage.setItem(KEY_NOTES, JSON.stringify(arr)); }
+    function loadNotes(){ try { return JSON.parse(localStorage.getItem(KEY_NOTES)||'[]'); } catch { return []; } }
+    function saveNotes(n){ localStorage.setItem(KEY_NOTES, JSON.stringify(n)); }
     function renderNotes(){
-      const notes = loadNotes();
-      notesList.innerHTML = '';
-      if (!notes.length) return (notesList.innerHTML = '<li style="opacity:.75;">No notes yet.</li>');
-      notes.forEach((n, idx) => {
+      const arr = loadNotes();
+      notesList.innerHTML = arr.length ? '' : '<li style="opacity:.75;">No notes yet.</li>';
+      arr.forEach((n, i) => {
         const li = document.createElement('li');
-        li.innerHTML = `<span>${escapeHtml(n.text)}</span> <button class="btn" style="padding:2px 8px;margin-left:8px;" data-del="${idx}">Delete</button>`;
+        li.innerHTML = `<span>${escapeHtml(n.text)}</span> <button class="btn" data-del="${i}" style="padding:2px 8px;margin-left:8px;">Delete</button>`;
         notesList.appendChild(li);
       });
     }
     saveNote.addEventListener('click', () => {
-      const val = (noteInput.value || '').trim();
-      if (!val) return;
-      const arr = loadNotes();
-      arr.push({ text: val, ts: Date.now() });
-      saveNotes(arr);
-      noteInput.value = '';
-      renderNotes();
-      flash('Note saved');
+      const val = (noteInput.value||'').trim(); if (!val) return;
+      const arr = loadNotes(); arr.push({ text: val, ts: Date.now() }); saveNotes(arr); noteInput.value=''; renderNotes(); flash('Note saved');
     });
-    notesList.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-del]');
-      if (!btn) return;
-      const idx = +btn.getAttribute('data-del');
-      const arr = loadNotes();
-      if (idx >= 0 && idx < arr.length) { arr.splice(idx, 1); saveNotes(arr); renderNotes(); }
-    });
-    btnNotes.addEventListener('click', () => {
-      noteInput.focus();
-      noteInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    notesList.addEventListener('click', e => {
+      const btn = e.target.closest('button[data-del]'); if (!btn) return;
+      const idx = +btn.getAttribute('data-del'); const arr = loadNotes();
+      if (idx>=0 && idx < arr.length){ arr.splice(idx,1); saveNotes(arr); renderNotes(); }
     });
     renderNotes();
 
-    // Listen (TTS for HTML/TXT)
-    let speaking=false, paused=false;
+    // Listen (simple)
+    let speaking=false, paused=false, utter=null;
     btnListen.addEventListener('click', () => {
       if (!('speechSynthesis' in window)) return flash('Text-to-speech not supported.');
-      if (speaking) {
-        if (!paused){ speechSynthesis.pause(); paused=true; btnListen.textContent='⏸ Paused'; }
-        else { speechSynthesis.resume(); paused=false; btnListen.textContent='🔊 Listen'; }
-        return;
-      }
-      const text = (mount && mount.textContent || '').trim().replace(/\s+/g,' ');
-      if (!text) return flash('Listening is available after the content loads.');
-      speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.rate = 1;
-      u.onstart = () => { speaking=true; paused=false; btnListen.textContent='⏸ Paused'; };
-      u.onend   = () => { speaking=false; paused=false; btnListen.textContent='🔊 Listen'; };
-      u.onerror = () => { speaking=false; paused=false; btnListen.textContent='🔊 Listen'; };
-      speechSynthesis.speak(u);
+      if (speaking){ paused ? speechSynthesis.resume() : speechSynthesis.pause(); paused = !paused; btnListen.textContent = paused ? '⏸ Paused' : '🔊 Listen'; return; }
+      const text = mount.textContent?.trim(); if (!text) return flash('Load content first.');
+      speechSynthesis.cancel(); utter = new SpeechSynthesisUtterance(text); utter.rate=1;
+      utter.onstart = ()=>{ speaking=true; btnListen.textContent='⏸ Paused'; };
+      utter.onend   = ()=>{ speaking=false; paused=false; btnListen.textContent='🔊 Listen'; };
+      utter.onerror = ()=>{ speaking=false; paused=false; btnListen.textContent='🔊 Listen'; };
+      speechSynthesis.speak(utter);
     });
 
-    // Utils
+    // utils
     function flash(msg){
-      const el = document.createElement('div');
-      el.textContent = msg;
-      el.style.cssText = 'position:fixed;right:16px;bottom:16px;padding:10px 12px;border-radius:12px;background:rgba(0,0,0,.75);color:#fff;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,.25)';
-      document.body.appendChild(el); setTimeout(()=>el.remove(),1500);
+      const el=document.createElement('div');
+      el.textContent=msg; Object.assign(el.style,{position:'fixed',right:'16px',bottom:'16px',padding:'10px 12px',borderRadius:'12px',background:'rgba(0,0,0,.75)',color:'#fff',zIndex:9999,boxShadow:'0 6px 20px rgba(0,0,0,.25)'}); document.body.appendChild(el); setTimeout(()=>el.remove(),1500);
     }
-    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-    function throttle(fn, wait){ let t=0; return function(){ const n=Date.now(); if(n-t>wait){ t=n; fn.apply(this, arguments); } }; }
+    function escapeHtml(s){return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+    function throttle(fn, wait){ let t=0; return function(){ const n=Date.now(); if(n-t>wait){ t=n; fn.apply(this,arguments);} }; }
   })();
   </script>
 </body>
