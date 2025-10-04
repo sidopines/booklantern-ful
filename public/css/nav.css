@@ -1,38 +1,40 @@
 /* public/css/nav.css
-   Centered, single-row, sticky navbar. Theme-safe (uses your variables only). */
+   Single-row, centered container; everything except the logo aligns right. */
 
-/* Bar background + stickiness */
+/* Sticky bar above hero */
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 1000;                 /* keeps toggle/controls clickable above hero */
+  z-index: 1000;
   background: var(--surface, transparent);
   backdrop-filter: saturate(120%) blur(4px);
   -webkit-backdrop-filter: saturate(120%) blur(4px);
   border-bottom: 1px solid var(--surface-2, transparent);
 }
 
-/* Inner container controls width & the 3 areas (brand | links | actions) */
+/* Inner layout: [brand] | [cluster-right] */
 .topbar__inner {
   max-width: 1200px;
   margin: 0 auto;
   padding: 10px 16px;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr;
   align-items: center;
   gap: 12px;
 }
 
-/* Common helpers */
+/* Helpers */
 .topbar .row { display: flex; align-items: center; gap: 10px; }
 
-/* Brand */
+/* Brand (left) */
 .topbar .brand { text-decoration: none; }
-.topbar .brand-logo { display: block; width: 20px; height: 20px; }
+.topbar .brand-logo { width: 20px; height: 20px; display: block; }
 .topbar .brand-name { font-weight: 700; color: var(--ink, currentColor); }
 
-/* Primary links: inline, no bullets; pushed toward the right by default */
-.topbar .primary-nav { justify-self: end; }
+/* Right cluster = links + search + toggle + auth */
+.topbar .cluster { justify-content: flex-end; gap: 14px; }
+
+/* Links */
 .topbar .nav-links {
   list-style: none;
   margin: 0;
@@ -48,15 +50,14 @@
 }
 .topbar .nav-links a:hover { background: var(--surface-2, rgba(0,0,0,.06)); }
 
-/* Actions (right) */
-.topbar .actions { gap: 10px; justify-self: end; }
+/* Search */
 .topbar .nav-search { gap: 8px; }
 .topbar .nav-search .input {
   width: min(42vw, 360px);
   min-width: 160px;
 }
 
-/* Compact icon-like button for the theme toggle */
+/* Theme toggle button (compact) */
 .topbar .icon-btn {
   width: 30px;
   height: 30px;
@@ -66,12 +67,9 @@
   place-items: center;
 }
 
-/* ---------- Small screens: keep it ONE row, allow gentle scrolling ---------- */
+/* ---------- Small screens: keep one row; allow scroll in links ---------- */
 @media (max-width: 920px) {
-  .topbar__inner {
-    padding: 8px 12px;
-    gap: 10px;
-  }
+  .topbar__inner { padding: 8px 12px; gap: 10px; }
   .topbar .nav-search .input { width: min(36vw, 220px); }
   .topbar .nav-links { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
   .topbar .nav-links::-webkit-scrollbar { height: 8px; }
@@ -82,11 +80,8 @@
 }
 
 @media (max-width: 540px) {
-  .topbar__inner { grid-template-columns: auto 1fr; }
-  /* On very small screens, keep actions on the far right; compress search */
-  .topbar .actions { grid-column: 2 / 3; justify-content: flex-end; gap: 8px; }
+  .topbar .brand-name { display: none; }         /* save space */
   .topbar .nav-search .input { width: 42vw; min-width: 120px; }
-  .topbar .brand-name { display: none; }      /* icon-only to save space */
   .topbar .btn { padding: 6px 8px; }
   .topbar .btn.btn-primary { white-space: nowrap; }
 }
