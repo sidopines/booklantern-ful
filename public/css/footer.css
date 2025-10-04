@@ -1,69 +1,43 @@
-/* public/css/footer.css
-   Clean, theme-aware footer that matches the topbar look. */
+/* public/css/footer.css */
 
-.site-footer {
-  margin-top: 40px;
-  border-top: 1px solid var(--border, rgba(0,0,0,.1));
-  background: var(--surface, transparent);
+footer.bl-footer {
+  border-top: 1px solid var(--border, rgba(0,0,0,.08));
+  margin-top: 32px;
+  padding: 14px 16px 24px;
 }
 
-.site-footer .footer-inner {
-  display: grid;
-  grid-template-columns: 1fr auto;
+.bl-footer__inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: flex;
+  gap: 16px;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  max-width: 1200px;
-  margin-inline: auto;
-}
-
-.site-footer .row { display: inline-flex; align-items: center; gap: 10px; }
-
-.site-footer .brand-name {
-  font-weight: 600;
-  color: var(--ink, currentColor);
-}
-
-.site-footer .copy {
-  color: var(--ink-2, currentColor);
-  opacity: .9;
-}
-
-/* Links */
-.site-footer .footer-links {
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
+  justify-content: flex-start;   /* left aligned */
   flex-wrap: wrap;
 }
 
-.site-footer .footer-links a {
-  text-decoration: none;
-  color: var(--ink-2, currentColor);
-  padding: 4px 6px;
-  border-radius: 8px;
+.bl-footer__brand {
+  font-weight: 600;
+  margin-right: 8px;
 }
 
-.site-footer .footer-links a:hover {
-  background: var(--surface-2, rgba(0,0,0,.06));
+.bl-footer__spacer {
+  width: 1px;
+  height: 18px;
+  background: var(--border, rgba(0,0,0,.1));
+  margin: 0 6px;
 }
 
-/* ---------- Responsive ---------- */
-@media (max-width: 820px) {
-  .site-footer .footer-inner {
-    grid-template-columns: 1fr;
-    row-gap: 10px;
-    text-align: center;
-  }
-  .site-footer .footer-brand {
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-  .site-footer .footer-links {
-    justify-content: center;
-  }
+.bl-footer__nav a {
+  margin-right: 12px;
 }
 
-@media (max-width: 480px) {
-  .site-footer .brand-name { display: none; } /* keep it minimal on tiny screens */
+.bl-footer__copy {
+  opacity: .75;
+}
+
+/* Small screens: stack lines nicely but still left aligned */
+@media (max-width: 560px) {
+  .bl-footer__inner { row-gap: 8px; }
+  .bl-footer__spacer { display: none; }
 }
