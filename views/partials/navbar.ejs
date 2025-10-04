@@ -1,13 +1,16 @@
 <!-- views/partials/navbar.ejs -->
-<header class="topbar" role="banner">
-  <!-- Left: Brand -->
-  <a class="brand row" href="/" aria-label="BookLantern home">
-    <img src="/favicon-32x32.png" alt="" width="20" height="20" style="border-radius:6px;">
-    <span class="brand-name">BookLantern</span>
-  </a>
+<header class="topbar">
+  <!-- Left: brand -->
+  <div class="row">
+    <a class="brand row" href="/" aria-label="BookLantern home" style="gap:8px;">
+      <!-- Uses your generated favicon; swap to /apple-touch-icon.png if you prefer -->
+      <img src="/public/favicon.svg" alt="" width="22" height="22" style="display:block;" />
+      <span class="brand-name">BookLantern</span>
+    </a>
+  </div>
 
-  <!-- Center: Primary nav -->
-  <nav class="center" role="navigation" aria-label="Primary">
+  <!-- Center: primary nav -->
+  <nav class="row" role="navigation" aria-label="Primary">
     <ul class="nav-links row">
       <li><a href="/read">Read</a></li>
       <li><a href="/watch">Watch</a></li>
@@ -16,17 +19,14 @@
     </ul>
   </nav>
 
-  <!-- Right: Search + theme toggle + auth -->
+  <!-- Right: search + auth (no theme toggle per your request) -->
   <div class="actions row">
-    <form class="nav-search row" action="/search" method="get" role="search" aria-label="Search free books">
-      <input class="input" type="text" name="q" placeholder="Search free books…" aria-label="Search free books">
+    <form class="nav-search row" action="/search" method="get">
+      <input class="input" type="search" name="q" placeholder="Search free books…" aria-label="Search free books">
       <button class="btn" type="submit">Search</button>
     </form>
 
-    <!-- theme toggle (works with /public/js/theme.js) -->
-    <button id="themeToggle" class="btn icon-btn" type="button" aria-label="Toggle theme" aria-pressed="false">•</button>
-
-    <a class="btn auth-btn" href="/login">Login</a>
-    <a class="btn btn-primary auth-btn" href="/register">Create account</a>
+    <a class="btn" href="/login">Login</a>
+    <a class="btn btn-primary" href="/register">Create account</a>
   </div>
 </header>
