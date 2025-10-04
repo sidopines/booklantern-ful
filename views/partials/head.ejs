@@ -21,12 +21,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 
 <link rel="stylesheet" href="/public/css/site.css?v=<%= buildId %>">
-<link rel="stylesheet" href="/public/css/hero.css?v=<%= buildId %>">
 <link rel="stylesheet" href="/public/css/carousel.css?v=<%= buildId %>">
 <link rel="stylesheet" href="/public/css/nav.css?v=<%= buildId %>">
+<link rel="stylesheet" href="/public/css/hero.css?v=<%= buildId %>">
 <link rel="stylesheet" href="/public/css/footer.css?v=<%= buildId %>">
 
-<!-- Theme init (unchanged) -->
+<!-- Pre-paint theme init (no flash). -->
 <script>
   (function () {
     try {
@@ -42,3 +42,6 @@
     }
   })();
 </script>
+
+<!-- Theme toggle behavior (required for the switch to work) -->
+<script defer src="/public/js/theme.js?v=<%= buildId %>"></script>
