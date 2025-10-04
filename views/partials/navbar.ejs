@@ -7,24 +7,21 @@
       <span class="brand-name">BookLantern</span>
     </a>
 
-    <!-- Primary links (kept, but aligned toward the right as requested) -->
-    <nav class="primary-nav" role="navigation" aria-label="Primary">
+    <!-- Everything else (right) -->
+    <div class="cluster row" role="navigation" aria-label="Site">
       <ul class="nav-links row">
         <li><a href="/read">Read</a></li>
         <li><a href="/watch">Watch</a></li>
         <li><a href="/about">About</a></li>
         <li><a href="/contact">Contact</a></li>
       </ul>
-    </nav>
 
-    <!-- Actions (right) -->
-    <div class="actions row">
       <form class="nav-search row" action="/search" method="get" role="search">
         <input class="input" type="search" name="q" placeholder="Search free books…" aria-label="Search free books" />
         <button class="btn" type="submit">Search</button>
       </form>
 
-      <!-- Theme toggle (kept the same id so theme.js continues to work) -->
+      <!-- Keep this id so any existing theme code keeps working -->
       <button id="themeToggle" class="btn icon-btn" type="button" aria-label="Toggle theme">
         <span aria-hidden="true">●</span>
       </button>
@@ -34,3 +31,23 @@
     </div>
   </div>
 </header>
+
+<!-- Safety net for the theme toggle: only takes over if you don't already wire it -->
+<script>
+(function () {
+  var btn = document.getElementById('themeToggle');
+  if (!btn) return;
+
+  // If another handler already attached, don't double-bind
+  if (btn.dataset.blBound === '1') return;
+  btn.dataset.blBound = '1';
+
+  var LS_KEY = 'bl-theme';
+  function setTheme(t){ document.documentElement.setAttribute('data-theme', t); try{ localStorage.setItem(LS_KEY, t); }catch(e){} }
+
+  btn.addEventListener('click', function () {
+    var cur = document.documentElement.getAttribute('data-theme') || 'light';
+    setTheme(cur === 'dark' ? 'light' : 'dark');
+  }, { passive: true });
+})();
+</script>
