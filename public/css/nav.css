@@ -94,3 +94,10 @@
   .topbar .btn { padding: 6px 8px; }
   .topbar .btn.btn-primary { white-space: nowrap; }
 }
+
+/* ---------- Always keep the nav above hero/device (fixes toggle click) ---------- */
+.header, .site-topbar, .topbar, nav[role="navigation"] {
+  position: sticky;
+  top: 0;
+  z-index: 1000; /* ensures theme toggle is always clickable */
+}
