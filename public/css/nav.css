@@ -1,7 +1,6 @@
 /* public/css/nav.css
-   Single-row, centered container; everything except the logo aligns right. */
+   Three zones: left brand, centered nav, right controls. One row, sticky. */
 
-/* Sticky bar above hero */
 .topbar {
   position: sticky;
   top: 0;
@@ -12,35 +11,39 @@
   border-bottom: 1px solid var(--surface-2, transparent);
 }
 
-/* Inner layout: [brand] | [cluster-right] */
+/* Container grid: [left] [center grows] [right] */
 .topbar__inner {
   max-width: 1200px;
   margin: 0 auto;
   padding: 10px 16px;
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 12px;
+  column-gap: 16px;
 }
 
-/* Helpers */
+/* Flex helpers */
 .topbar .row { display: flex; align-items: center; gap: 10px; }
 
 /* Brand (left) */
-.topbar .brand { text-decoration: none; }
+.topbar .brand { text-decoration: none; gap: 8px; }
 .topbar .brand-logo { width: 20px; height: 20px; display: block; }
 .topbar .brand-name { font-weight: 700; color: var(--ink, currentColor); }
 
-/* Right cluster = links + search + toggle + auth */
-.topbar .cluster { justify-content: flex-end; gap: 14px; }
+/* Center cluster */
+.topbar .center {
+  justify-content: center;
+  gap: 16px;
+  min-width: 0; /* allow center to shrink on small screens */
+}
 
-/* Links */
+/* Primary links (center) */
 .topbar .nav-links {
   list-style: none;
   margin: 0;
   padding: 0;
   gap: 14px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 .topbar .nav-links a {
   text-decoration: none;
@@ -50,14 +53,17 @@
 }
 .topbar .nav-links a:hover { background: var(--surface-2, rgba(0,0,0,.06)); }
 
-/* Search */
+/* Search (shorter) */
 .topbar .nav-search { gap: 8px; }
 .topbar .nav-search .input {
-  width: min(42vw, 360px);
-  min-width: 160px;
+  width: clamp(160px, 28vw, 280px); /* shorter than before */
+  min-width: 140px;
 }
 
-/* Theme toggle button (compact) */
+/* Right cluster */
+.topbar .right { justify-content: flex-end; gap: 10px; }
+
+/* Theme toggle button – keep compact; do not alter behavior */
 .topbar .icon-btn {
   width: 30px;
   height: 30px;
@@ -67,21 +73,39 @@
   place-items: center;
 }
 
-/* ---------- Small screens: keep one row; allow scroll in links ---------- */
-@media (max-width: 920px) {
-  .topbar__inner { padding: 8px 12px; gap: 10px; }
-  .topbar .nav-search .input { width: min(36vw, 220px); }
-  .topbar .nav-links { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
-  .topbar .nav-links::-webkit-scrollbar { height: 8px; }
-  .topbar .nav-links::-webkit-scrollbar-thumb {
-    background: var(--border, rgba(255,255,255,.2));
-    border-radius: 999px;
-  }
+/* Make Login and Create account visually consistent */
+.topbar .btn,
+.topbar .btn.btn-primary,
+.topbar .btn.btn-ghost {
+  min-width: 98px;                 /* equal width look */
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: 12px;
 }
 
-@media (max-width: 540px) {
-  .topbar .brand-name { display: none; }         /* save space */
-  .topbar .nav-search .input { width: 42vw; min-width: 120px; }
-  .topbar .btn { padding: 6px 8px; }
-  .topbar .btn.btn-primary { white-space: nowrap; }
+/* If your global .btn styles differ, these ensure equal height */
+.topbar .btn,
+.topbar .btn.btn-primary,
+.topbar .btn.btn-ghost {
+  line-height: 1.1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Small screens: keep one row; allow the center to compress */
+@media (max-width: 920px) {
+  .topbar__inner { padding: 8px 12px; column-gap: 12px; }
+  .topbar .center { gap: 10px; }
+  .topbar .nav-links { gap: 10px; }
+  .topbar .nav-search .input { width: clamp(140px, 32vw, 220px); }
+}
+
+@media (max-width: 620px) {
+  .topbar .brand-name { display: none; } /* save space, keep logo */
+  .topbar .nav-links { display: none; } /* prioritize search + buttons */
+  .topbar .nav-search .input { width: clamp(120px, 40vw, 200px); }
+  .topbar .btn,
+  .topbar .btn.btn-primary,
+  .topbar .btn.btn-ghost { min-width: 86px; padding: 6px 10px; }
 }
