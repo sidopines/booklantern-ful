@@ -11,6 +11,7 @@
     "postinstall": "node scripts/generate-icons.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
     "axios": "^1.7.2",
     "compression": "^1.7.4",
     "cookie-parser": "^1.4.6",
