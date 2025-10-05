@@ -1,32 +1,63 @@
 <!-- views/partials/navbar.ejs -->
-<header class="topbar">
+<header class="topbar" role="navigation" aria-label="Primary">
   <!-- Left: brand -->
-  <div class="row">
-    <a class="brand row" href="/" aria-label="BookLantern home" style="gap:8px;">
-      <!-- Uses your generated favicon; swap to /apple-touch-icon.png if you prefer -->
-      <img src="/public/favicon.svg" alt="" width="22" height="22" style="display:block;" />
-      <span class="brand-name">BookLantern</span>
-    </a>
-  </div>
+  <a class="brand row" href="/">
+    <img src="/public/img/brand.svg" alt="" width="22" height="22"
+         onerror="this.onerror=null;this.src='/public/favicon.svg';" />
+    <span class="brand-name">BookLantern</span>
+  </a>
 
-  <!-- Center: primary nav -->
-  <nav class="row" role="navigation" aria-label="Primary">
-    <ul class="nav-links row">
-      <li><a href="/read">Read</a></li>
-      <li><a href="/watch">Watch</a></li>
-      <li><a href="/about">About</a></li>
-      <li><a href="/contact">Contact</a></li>
-    </ul>
-  </nav>
+  <!-- Center: primary links -->
+  <ul class="nav-links row" aria-label="Site">
+    <li><a href="/read">Read</a></li>
+    <li><a href="/watch">Watch</a></li>
+    <li><a href="/about">About</a></li>
+    <li><a href="/contact">Contact</a></li>
+  </ul>
 
-  <!-- Right: search + auth (no theme toggle per your request) -->
+  <!-- Right: search + toggle + auth -->
   <div class="actions row">
-    <form class="nav-search row" action="/search" method="get">
-      <input class="input" type="search" name="q" placeholder="Search free books…" aria-label="Search free books">
+    <form class="nav-search row" action="/search" method="get" role="search">
+      <input class="input" type="text" name="q" placeholder="Search free books…" aria-label="Search free books">
       <button class="btn" type="submit">Search</button>
     </form>
 
+    <!-- Theme toggle (works with /public/js/theme.js; also has a tiny fallback below) -->
+    <button id="themeToggle" class="btn icon-btn" type="button" aria-label="Toggle theme" aria-pressed="false" title="Toggle theme">
+      <span aria-hidden="true">•</span>
+    </button>
+
     <a class="btn" href="/login">Login</a>
-    <a class="btn btn-primary" href="/register">Create account</a>
+    <a class="btn btn-primary equal" href="/register">Create account</a>
   </div>
 </header>
+
+<script>
+/* Fallback wiring in case /public/js/theme.js is missing.
+   If your theme.js is present (as linked in head.ejs), both are safe (idempotent). */
+(function () {
+  var btn = document.getElementById('themeToggle');
+  if (!btn) return;
+  var KEY = 'bl-theme';
+  function getMode(){
+    try{
+      var m = localStorage.getItem(KEY) || 'auto';
+      if (m === 'auto') {
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        m = prefersDark ? 'dark' : 'light';
+      }
+      return m;
+    }catch(e){ return 'light'; }
+  }
+  function setMode(m){
+    try{ localStorage.setItem(KEY, m); }catch(e){}
+    document.documentElement.setAttribute('data-theme', m);
+    btn.setAttribute('aria-pressed', m === 'dark');
+  }
+  setMode(getMode());
+  btn.addEventListener('click', function(){
+    var current = getMode();
+    setMode(current === 'dark' ? 'light' : 'dark');
+  });
+})();
+</script>
