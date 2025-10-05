@@ -1,64 +1,52 @@
 /* public/css/footer.css
-   Left-aligned footer that sits visually at the bottom-left.
-   Uses your existing class names AND supports the alt names you shared. */
+   Footer stays bottom-left for the brand/copyright, links aligned to the right. */
 
-/* Base container */
 .site-footer {
   border-top: 1px solid var(--border);
-  padding: 16px 24px; /* a bit more breathing room as requested */
-  background: var(--surface, transparent);
-  color: var(--ink, currentColor);
+  padding: 16px 24px;
 }
 
-/* Inner layout: left-aligned row, wraps on small widths */
-.site-footer__inner,
-.footer-inner {
+.site-footer__inner {
   display: flex;
   align-items: center;
-  justify-content: flex-start; /* keep everything on the left */
-  gap: 18px;
-  flex-wrap: wrap;
+  gap: 16px;
+  /* Keep two sides apart: left (brand) and right (links) */
+  justify-content: space-between;
 }
 
-/* Left block: brand + copyright */
-.site-footer__legal,
-.footer-left {
+.site-footer__legal {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
 }
-.site-footer__legal .brand {
-  font-weight: 600;
-  opacity: .9;
-}
-.site-footer__legal .copy {
-  opacity: .7;
+
+.site-footer__legal .brand { font-weight: 600; opacity: .9; }
+.site-footer__legal .copy  { opacity: .7; }
+
+/* Push links all the way to the right */
+.site-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-left: auto;              /* <— ensures right alignment */
+  justify-content: flex-end;
 }
 
-/* Right block: links */
-.site-footer__links,
-.footer-links {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-.site-footer__links a,
-.footer-links a {
+.site-footer__links a {
   opacity: .85;
   text-decoration: none;
-  color: var(--ink-2, currentColor);
 }
-.site-footer__links a:hover,
-.footer-links a:hover {
-  text-decoration: underline;
-}
+.site-footer__links a:hover { text-decoration: underline; }
 
-/* Small screens: keep it compact but still left-aligned */
+/* Small screens: stack but keep left-aligned for readability */
 @media (max-width: 700px) {
-  .site-footer__inner,
-  .footer-inner {
+  .site-footer__inner {
     flex-direction: column;
-    align-items: flex-start; /* left edge */
+    align-items: flex-start;
     gap: 10px;
+  }
+  .site-footer__links {
+    margin-left: 0;
+    justify-content: flex-start;
   }
 }
