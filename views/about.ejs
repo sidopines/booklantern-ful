@@ -3,67 +3,90 @@
 <head>
   <%- include('./partials/head', {
     pageTitle: 'About • BookLantern',
-    pageDescription: 'We connect readers worldwide with the largest collection of books — distraction-free.',
+    pageDescription: 'We connect readers worldwide with the largest collection of books—free, distraction-free, and easy to discover.',
     canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
   }) %>
 
-  <!-- Page-scoped aesthetics for About (kept here to avoid touching global CSS) -->
+  <!-- Page-scoped polish (theme-safe: only uses your CSS variables) -->
   <style>
-    .about-page { padding: 28px 0 40px; }
-    .about-page .stack { display: grid; gap: 18px; }
-    .about-page .section { margin-top: 36px; }
-    .about-page h1 { margin: 0 0 8px; line-height: 1.1; }
-    .about-page .lead { max-width: 72ch; opacity: .95; }
-    .about-card {
-      background: var(--surface-2, transparent);
-      border: 1px solid var(--border, rgba(0,0,0,.1));
-      border-radius: 16px;
-      padding: 16px 18px;
+    .about-wrap { max-width: 1120px; margin: 30px auto 0; padding: 0 16px; }
+    .about-header { margin: 16px 0 22px; }
+    .about-title { font-size: clamp(1.9rem, 3.2vw, 2.4rem); line-height: 1.2; margin: 0 0 12px; }
+    .about-lede {
+      max-width: 780px;                /* widened for comfortable reading */
+      line-height: 1.66;
+      opacity: .96;
     }
-    .about-card h2 { margin: 0 0 10px; font-size: 1.25rem; }
-    .about-card ul { margin: 0; padding-left: 1.25rem; }
-    .about-card li { margin: 6px 0; }
 
-    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+    /* Section rhythm */
+    .about-section { margin-top: clamp(30px, 6vw, 58px); }
 
-    /* Subtle motion on hover, scoped to this page only */
-    .about-page .btn {
-      transition: transform .15s ease, box-shadow .15s ease;
-      will-change: transform;
+    /* Soft card with subtle hover lift */
+    .card-soft {
+      background: var(--surface-2, rgba(0,0,0,.04));
+      border: 1px solid var(--border, rgba(0,0,0,.08));
+      border-radius: 14px;
+      padding: clamp(16px, 2.7vw, 24px) clamp(16px, 3.1vw, 26px);
+      box-shadow: 0 0 0 rgba(0,0,0,0);
+      transition: transform .22s ease, box-shadow .22s ease, background-color .22s ease, border-color .22s ease;
     }
-    .about-page .btn:hover { transform: translateY(-2px); }
-    .about-page .btn:active { transform: translateY(0); }
+    .card-soft:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 28px rgba(0,0,0,.06);
+      background: var(--surface-2, rgba(0,0,0,.05));
+      border-color: var(--border, rgba(0,0,0,.12));
+    }
 
-    /* Comfortable spacing on very small screens */
-    @media (max-width: 640px) {
-      .about-page { padding-top: 20px; }
-      .about-page .section { margin-top: 28px; }
+    .about-h2 { font-size: clamp(1.25rem, 2.2vw, 1.45rem); margin: 0 0 12px; }
+    .about-list { margin: 12px 0 0; padding-left: 18px; line-height: 1.58; }
+
+    .about-cta-copy { max-width: 780px; line-height: 1.62; margin: 10px 0 18px; }
+    .cta-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    /* Button polish: keep consistent hover feel, using your .btn base */
+    .cta-row .btn { transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease; }
+    .cta-row .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 20px rgba(0,0,0,.06); }
+
+    .link-underline { text-decoration: underline; text-underline-offset: 2px; }
+    .link-underline:hover { opacity: .9; }
+
+    /* Subtle entrance fade (ties to homepage) */
+    .fade-up { opacity: 0; transform: translateY(6px); animation: fadeUp .48s ease-out forwards; }
+    .fade-up.delay-1 { animation-delay: .06s; }
+    .fade-up.delay-2 { animation-delay: .12s; }
+    .fade-up.delay-3 { animation-delay: .18s; }
+    @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+
+    @media (min-width: 1200px) {
+      .about-wrap { margin-top: 36px; }
     }
   </style>
 </head>
+
 <body>
   <%- include('./partials/navbar') %>
 
-  <main class="container about-page">
-    <!-- safe back link -->
-    <% var __safeRef = (typeof referrer !== 'undefined' ? referrer : null); %>
-    <%- include('./partials/backLink', { referrer: __safeRef }) %>
+  <main class="about-wrap">
+    <!-- Back -->
+    <div class="fade-up" style="margin-bottom: 8px;">
+      <a href="javascript:history.back()" class="link-underline" aria-label="Go back">← Back</a>
+    </div>
 
-    <!-- Title & mission -->
-    <section class="section stack">
-      <h1>About BookLantern</h1>
-      <p class="lead">
+    <!-- Intro -->
+    <header class="about-header fade-up delay-1">
+      <h1 class="about-title">About BookLantern</h1>
+      <p class="about-lede">
         We are on a mission to connect readers world over with the largest collection of books.
         By making millions of books from globally trusted libraries accessible at your fingertips,
         BookLantern is committed to the idea that knowledge should be free and easily discoverable for everyone.
       </p>
-    </section>
+    </header>
 
-    <!-- What makes us different -->
-    <section class="section">
-      <div class="about-card">
-        <h2>What Makes Us Different</h2>
-        <ul>
+    <!-- What Makes Us Different -->
+    <section class="about-section fade-up delay-2">
+      <div class="card-soft">
+        <h2 class="about-h2">What Makes Us Different</h2>
+        <ul class="about-list">
           <li><strong>Universal Search</strong> across multiple public-domain and open-access sources.</li>
           <li><strong>Clean Reader</strong> optimized for focus and comprehension.</li>
           <li><strong>Trusted Content</strong> from reputable libraries and archives.</li>
@@ -72,17 +95,17 @@
       </div>
     </section>
 
-    <!-- Start your journey -->
-    <section class="section stack">
-      <h2>Start Your Journey Here</h2>
-      <p class="lead" style="max-width: 70ch;">
+    <!-- Start Your Journey -->
+    <section class="about-section fade-up delay-3">
+      <h2 class="about-h2">Start Your Journey Here</h2>
+      <p class="about-cta-copy">
         Discover your next favorite book now and we would love to hear your feedback and
-        <a href="/contact">experience here</a>.
+        <a class="link-underline" href="/contact">experience here</a>.
       </p>
-      <div class="actions">
-        <a class="btn" href="/search">Browse Books</a>
+      <div class="cta-row">
+        <a class="btn" href="/read">Browse Books</a>
         <a class="btn" href="/watch">Watch Videos</a>
-        <a class="btn btn-primary" href="/contact">Contact Us</a>
+        <a class="btn" href="/contact">Contact Us</a>
       </div>
     </section>
   </main>
