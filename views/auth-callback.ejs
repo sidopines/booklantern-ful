@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', {
+    pageTitle: 'Secure Redirect • BookLantern',
+    pageDescription: 'Complete your login or password update.',
+    canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
+  }) %>
+</head>
+<body>
+  <%- include('./partials/navbar') %>
+  <main class="container" style="max-width:720px; margin:28px auto; padding:0 16px;">
+    <h1>Almost there…</h1>
+    <p class="ink-2" id="state">Verifying session…</p>
+
+    <form id="pwForm" class="card" style="padding:16px; display:none;">
+      <div class="stack" style="--gap:10px;">
+        <input class="input" type="password" id="newpw" placeholder="New password" required>
+        <button class="btn btn-primary" type="submit">Update password</button>
+        <div id="msg" class="ink-2"></div>
+      </div>
+    </form>
+  </main>
+  <%- include('./partials/footer') %>
+
+  <script>
+  (async function(){
+    const sb = window.supabaseClient;
+    const state = document.getElementById('state');
+    const params = new URLSearchParams(location.hash.slice(1));
+    const type = params.get('type');
+
+    if (type === 'recovery') {
+      state.textContent = 'Enter a new password:';
+      document.getElementById('pwForm').style.display = 'block';
+      document.getElementById('pwForm').addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const pw = document.getElementById('newpw').value;
+        const { error } = await sb.auth.updateUser({ password: pw });
+        if (error) { document.getElementById('msg').textContent = error.message; return; }
+        location.href = '/';
+      });
+      return;
+    }
+
+    // OAuth / email confirmations land here.
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) { state.textContent = 'Signed in. Redirecting…'; location.href = '/'; }
+    else { state.textContent = 'Session not found. You can close this tab and try logging in again.'; }
+  })();
+  </script>
+</body>
+</html>
