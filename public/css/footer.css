@@ -1,13 +1,64 @@
-.site-footer { border-top: 1px solid var(--border); padding: 14px 0; }
-.site-footer__inner { display:flex; align-items:center; justify-content:space-between; gap: 16px; }
-.site-footer__legal { display:flex; align-items:center; gap:10px; }
-.site-footer__legal .brand { font-weight:600; opacity:.9; }
-.site-footer__legal .copy { opacity:.7; }
-.site-footer__links { display:flex; flex-wrap:wrap; gap:14px; }
-.site-footer__links a { opacity:.85; text-decoration:none; }
-.site-footer__links a:hover { text-decoration:underline; }
+/* public/css/footer.css
+   Left-aligned footer that sits visually at the bottom-left.
+   Uses your existing class names AND supports the alt names you shared. */
 
-/* small screens: stack/center; wide: keep left-justified legal content */
+/* Base container */
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding: 16px 24px; /* a bit more breathing room as requested */
+  background: var(--surface, transparent);
+  color: var(--ink, currentColor);
+}
+
+/* Inner layout: left-aligned row, wraps on small widths */
+.site-footer__inner,
+.footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start; /* keep everything on the left */
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+/* Left block: brand + copyright */
+.site-footer__legal,
+.footer-left {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.site-footer__legal .brand {
+  font-weight: 600;
+  opacity: .9;
+}
+.site-footer__legal .copy {
+  opacity: .7;
+}
+
+/* Right block: links */
+.site-footer__links,
+.footer-links {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.site-footer__links a,
+.footer-links a {
+  opacity: .85;
+  text-decoration: none;
+  color: var(--ink-2, currentColor);
+}
+.site-footer__links a:hover,
+.footer-links a:hover {
+  text-decoration: underline;
+}
+
+/* Small screens: keep it compact but still left-aligned */
 @media (max-width: 700px) {
-  .site-footer__inner { flex-direction:column; align-items:flex-start; }
+  .site-footer__inner,
+  .footer-inner {
+    flex-direction: column;
+    align-items: flex-start; /* left edge */
+    gap: 10px;
+  }
 }
