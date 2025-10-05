@@ -1,49 +1,53 @@
 /* public/css/footer.css
-   Footer stays bottom-left for the brand/copyright, links aligned to the right. */
+   Brand stays bottom-left; links align to the right on wide screens.
+   Comfortable line-height so it never looks “stuffed”. */
 
 .site-footer {
   border-top: 1px solid var(--border);
   padding: 16px 24px;
+  line-height: 1.35;                /* prevent cramped text */
+  background: var(--surface, transparent);
 }
 
+/* Center to page width; allow wrapping when narrow */
 .site-footer__inner {
+  max-width: var(--container, 1200px);
+  margin: 0 auto;
   display: flex;
   align-items: center;
   gap: 16px;
-  /* Keep two sides apart: left (brand) and right (links) */
-  justify-content: space-between;
+  justify-content: space-between;   /* left block vs right block */
+  flex-wrap: wrap;                  /* drop to next line gracefully */
 }
 
 .site-footer__legal {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 10px;
 }
+.site-footer__legal .brand { font-weight: 600; opacity: .9; text-decoration: none; }
+.site-footer__legal .copy  { opacity: .75; }
 
-.site-footer__legal .brand { font-weight: 600; opacity: .9; }
-.site-footer__legal .copy  { opacity: .7; }
-
-/* Push links all the way to the right */
+/* Push links to the right on wide screens */
 .site-footer__links {
   display: flex;
-  flex-wrap: wrap;
   gap: 14px;
-  margin-left: auto;              /* <— ensures right alignment */
+  margin-left: auto;
   justify-content: flex-end;
+  flex-wrap: wrap;
 }
-
 .site-footer__links a {
-  opacity: .85;
   text-decoration: none;
+  color: var(--ink-2, currentColor);
+  opacity: .9;
+  padding: 2px 0;
 }
 .site-footer__links a:hover { text-decoration: underline; }
 
-/* Small screens: stack but keep left-aligned for readability */
+/* Small screens: stack, left-align for readability */
 @media (max-width: 700px) {
   .site-footer__inner {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
+    justify-content: flex-start;
   }
   .site-footer__links {
     margin-left: 0;
