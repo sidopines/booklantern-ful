@@ -1,9 +1,12 @@
-<%- include('./partials/head', {
-  pageTitle: 'Watch • BookLantern',
-  pageDescription: 'Curated literary videos and author talks.',
-  canonicalUrl: canonicalUrl,
-  buildId: buildId
-}) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', {
+    pageTitle: 'Watch • BookLantern',
+    pageDescription: 'Curated literary videos and author talks.',
+    canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
+  }) %>
+</head>
 <body>
   <%- include('./partials/navbar') %>
 
@@ -46,8 +49,7 @@
 
   <%- include('./partials/footer') %>
 
-  <!-- Global scripts (cache-busted) -->
-  <script src="/public/js/ui.js?v=<%= buildId %>"></script>
-  <script src="/public/js/theme.js?v=<%= buildId %>"></script>
+  <!-- (No extra theme.js here; it already loads from head.ejs) -->
+  <script src="/public/js/ui.js?v=<%= typeof buildId !== 'undefined' ? buildId : '' %>"></script>
 </body>
 </html>
