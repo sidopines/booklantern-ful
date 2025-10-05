@@ -1,13 +1,19 @@
-<%- include('./partials/head', {
-  pageTitle: 'Read • BookLantern',
-  pageDescription: 'Read classic books in one clean reader — bookmarks, notes, and text-to-speech.',
-  canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
-}) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', {
+    pageTitle: 'Read • BookLantern',
+    pageDescription: 'Read classic books in one clean reader — bookmarks, notes, and text-to-speech.',
+    canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
+  }) %>
+</head>
 <body>
   <%- include('./partials/navbar') %>
 
   <main class="stack" style="--gap:16px; padding:16px;">
-    <%- include('./partials/backLink', { referrer }) %>
+    <% var __safeRef = (typeof referrer !== 'undefined' ? referrer : null); %>
+    <%- include('./partials/backLink', { referrer: __safeRef }) %>
+
     <h1 id="title">Book Title</h1>
 
     <div class="actions row" style="gap:8px; flex-wrap:wrap;">
@@ -32,7 +38,9 @@
 
   <%- include('./partials/footer') %>
 
+  <!-- EPUB.js for .epub rendering -->
   <script defer src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+
   <script>
   (function () {
     const provider = "<%= provider %>";
