@@ -20,8 +20,7 @@ const FALLBACK = {
       provider: "openlibrary",
       title: "On the Origin of Species",
       author: "Charles Darwin",
-      cover:
-        "https://covers.openlibrary.org/b/olid/OL25442902M-L.jpg",
+      cover: "https://covers.openlibrary.org/b/olid/OL25442902M-L.jpg",
       href: "/read?provider=openlibrary&id=OL25442902M",
       subjects: ["Science", "Biology"],
     },
@@ -40,8 +39,7 @@ const FALLBACK = {
       provider: "openlibrary",
       title: "The Autobiography of Benjamin Franklin",
       author: "Benjamin Franklin",
-      cover:
-        "https://covers.openlibrary.org/b/olid/OL24374150M-L.jpg",
+      cover: "https://covers.openlibrary.org/b/olid/OL24374150M-L.jpg",
       href: "/read?provider=openlibrary&id=OL24374150M",
       subjects: ["Biography", "History"],
     },
@@ -50,8 +48,7 @@ const FALLBACK = {
       provider: "gutenberg",
       title: "The Republic",
       author: "Plato",
-      cover:
-        "https://www.gutenberg.org/cache/epub/1497/pg1497.cover.medium.jpg",
+      cover: "https://www.gutenberg.org/cache/epub/1497/pg1497.cover.medium.jpg",
       href: "/read?provider=gutenberg&id=1497",
       subjects: ["Philosophy"],
     },
@@ -60,8 +57,7 @@ const FALLBACK = {
       provider: "openlibrary",
       title: "Opticks",
       author: "Isaac Newton",
-      cover:
-        "https://covers.openlibrary.org/b/olid/OL24263840M-L.jpg",
+      cover: "https://covers.openlibrary.org/b/olid/OL24263840M-L.jpg",
       href: "/read?provider=openlibrary&id=OL24263840M",
       subjects: ["Science", "Physics"],
     },
@@ -70,8 +66,7 @@ const FALLBACK = {
       provider: "gutenberg",
       title: "Gulliver’s Travels",
       author: "Jonathan Swift",
-      cover:
-        "https://www.gutenberg.org/cache/epub/829/pg829.cover.medium.jpg",
+      cover: "https://www.gutenberg.org/cache/epub/829/pg829.cover.medium.jpg",
       href: "/read?provider=gutenberg&id=829",
       subjects: ["Fiction", "Satire"],
     },
@@ -80,8 +75,7 @@ const FALLBACK = {
       provider: "openlibrary",
       title: "The Prince",
       author: "Niccolò Machiavelli",
-      cover:
-        "https://covers.openlibrary.org/b/olid/OL27665455M-L.jpg",
+      cover: "https://covers.openlibrary.org/b/olid/OL27665455M-L.jpg",
       href: "/read?provider=openlibrary&id=OL27665455M",
       subjects: ["Politics", "History"],
     },
@@ -90,8 +84,7 @@ const FALLBACK = {
       provider: "gutenberg",
       title: "The Art of War",
       author: "Sun Tzu",
-      cover:
-        "https://www.gutenberg.org/cache/epub/132/pg132.cover.medium.jpg",
+      cover: "https://www.gutenberg.org/cache/epub/132/pg132.cover.medium.jpg",
       href: "/read?provider=gutenberg&id=132",
       subjects: ["Strategy", "History"],
     },
@@ -103,8 +96,7 @@ const FALLBACK = {
       provider: "gutenberg",
       title: "Ethics",
       author: "Benedict de Spinoza",
-      cover:
-        "https://www.gutenberg.org/cache/epub/3800/pg3800.cover.medium.jpg",
+      cover: "https://www.gutenberg.org/cache/epub/3800/pg3800.cover.medium.jpg",
       href: "/read?provider=gutenberg&id=3800",
       subjects: ["Philosophy"],
     },
@@ -113,8 +105,7 @@ const FALLBACK = {
       provider: "gutenberg",
       title: "Thus Spoke Zarathustra",
       author: "Friedrich Nietzsche",
-      cover:
-        "https://www.gutenberg.org/cache/epub/1998/pg1998.cover.medium.jpg",
+      cover: "https://www.gutenberg.org/cache/epub/1998/pg1998.cover.medium.jpg",
       href: "/read?provider=gutenberg&id=1998",
       subjects: ["Philosophy"],
     },
@@ -133,8 +124,7 @@ const FALLBACK = {
       provider: "gutenberg",
       title: "Meditations",
       author: "Marcus Aurelius",
-      cover:
-        "https://www.gutenberg.org/cache/epub/2680/pg2680.cover.medium.jpg",
+      cover: "https://www.gutenberg.org/cache/epub/2680/pg2680.cover.medium.jpg",
       href: "/read?provider=gutenberg&id=2680",
       subjects: ["Philosophy", "Stoicism"],
     },
@@ -143,8 +133,7 @@ const FALLBACK = {
       provider: "gutenberg",
       title: "The Republic",
       author: "Plato",
-      cover:
-        "https://www.gutenberg.org/cache/epub/1497/pg1497.cover.medium.jpg",
+      cover: "https://www.gutenberg.org/cache/epub/1497/pg1497.cover.medium.jpg",
       href: "/read?provider=gutenberg&id=1497",
       subjects: ["Philosophy"],
     },
@@ -156,8 +145,7 @@ const FALLBACK = {
       provider: "gutenberg",
       title: "The Histories",
       author: "Herodotus",
-      cover:
-        "https://www.gutenberg.org/cache/epub/2707/pg2707.cover.medium.jpg",
+      cover: "https://www.gutenberg.org/cache/epub/2707/pg2707.cover.medium.jpg",
       href: "/read?provider=gutenberg&id=2707",
       subjects: ["History"],
     },
@@ -166,18 +154,17 @@ const FALLBACK = {
       provider: "openlibrary",
       title: "The Souls of Black Folk",
       author: "W. E. B. Du Bois",
-      cover:
-        "https://covers.openlibrary.org/b/olid/OL24378309M-L.jpg",
+      cover: "https://covers.openlibrary.org/b/olid/OL24378309M-L.jpg",
       href: "/read?provider=openlibrary&id=OL24378309M",
       subjects: ["History", "Sociology"],
     },
     {
       id: "pg-decline-fall",
       provider: "gutenberg",
-      title: "The History of the Decline and Fall of the Roman Empire (Vol. 1)",
+      title:
+        "The History of the Decline and Fall of the Roman Empire (Vol. 1)",
       author: "Edward Gibbon",
-      cover:
-        "https://www.gutenberg.org/cache/epub/731/pg731.cover.medium.jpg",
+      cover: "https://www.gutenberg.org/cache/epub/731/pg731.cover.medium.jpg",
       href: "/read?provider=gutenberg&id=731",
       subjects: ["History"],
     },
@@ -186,8 +173,7 @@ const FALLBACK = {
       provider: "openlibrary",
       title: "Pride and Prejudice",
       author: "Jane Austen",
-      cover:
-        "https://covers.openlibrary.org/b/olid/OL25428444M-L.jpg",
+      cover: "https://covers.openlibrary.org/b/olid/OL25428444M-L.jpg",
       href: "/read?provider=openlibrary&id=OL25428444M",
       subjects: ["Fiction", "History"],
     },
@@ -209,8 +195,7 @@ const FALLBACK = {
       provider: "openlibrary",
       title: "On the Origin of Species",
       author: "Charles Darwin",
-      cover:
-        "https://covers.openlibrary.org/b/olid/OL25442902M-L.jpg",
+      cover: "https://covers.openlibrary.org/b/olid/OL25442902M-L.jpg",
       href: "/read?provider=openlibrary&id=OL25442902M",
       subjects: ["Science", "Biology"],
     },
@@ -219,8 +204,7 @@ const FALLBACK = {
       provider: "openlibrary",
       title: "Opticks",
       author: "Isaac Newton",
-      cover:
-        "https://covers.openlibrary.org/b/olid/OL24263840M-L.jpg",
+      cover: "https://covers.openlibrary.org/b/olid/OL24263840M-L.jpg",
       href: "/read?provider=openlibrary&id=OL24263840M",
       subjects: ["Science", "Physics"],
     },
@@ -281,5 +265,24 @@ router.get("/read", (req, res) => res.render("read", { provider: "", id: "" }));
 router.get("/watch", (req, res) => res.render("watch", { videos: [] }));
 router.get("/login", (req, res) => res.render("login", { csrfToken: "" }));
 router.get("/register", (req, res) => res.render("register", { csrfToken: "" }));
+
+// Terms & Privacy
+router.get("/terms", (req, res) => {
+  const canonicalUrl = `${req.protocol}://${req.get("host")}/terms`;
+  res.render("terms", {
+    canonicalUrl,
+    buildId: res.locals.buildId || Date.now(),
+    referrer: req.get("Referrer") || null,
+  });
+});
+
+router.get("/privacy", (req, res) => {
+  const canonicalUrl = `${req.protocol}://${req.get("host")}/privacy`;
+  res.render("privacy", {
+    canonicalUrl,
+    buildId: res.locals.buildId || Date.now(),
+    referrer: req.get("Referrer") || null,
+  });
+});
 
 module.exports = router;
