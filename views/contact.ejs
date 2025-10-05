@@ -3,87 +3,71 @@
 <head>
   <%- include('./partials/head', {
     pageTitle: 'Contact • BookLantern',
-    pageDescription: 'Send questions or feedback any time.',
+    pageDescription: 'Send us feedback, questions, or partnership inquiries.',
     canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
   }) %>
+  <style>
+    .contact-wrap { max-width: 920px; margin: 28px auto 40px; padding: 0 16px; }
+    .intro { color: var(--ink-2); margin-top: 6px; margin-bottom: 24px; }
+    .form-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.04); transition: transform .2s, box-shadow .2s; }
+    .form-card:hover{ transform: translateY(-1px); box-shadow: 0 16px 40px rgba(0,0,0,.06); }
+    .field { margin: 12px 0 16px; }
+    .field label { display:block; font-weight:600; margin-bottom:6px; }
+    .field .input, .field textarea { width:100%; }
+    .field textarea { min-height: 160px; resize: vertical; }
+    .row-actions { margin-top: 10px; }
+    .alert { padding: 12px 14px; border-radius: 12px; margin: 12px 0 18px; font-weight: 500; }
+    .alert-success { background: rgba(16,185,129,.12); color: #065f46; border: 1px solid rgba(16,185,129,.3); }
+    .alert-error { background: rgba(239,68,68,.12); color:#7f1d1d; border:1px solid rgba(239,68,68,.3); }
+    .hp { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
+  </style>
 </head>
 <body>
   <%- include('./partials/navbar') %>
 
-  <main class="container" style="max-width: 980px; margin: 32px auto; padding: 0 16px;">
-    <a href="javascript:history.back()" class="row" style="gap:6px; text-decoration:none; color:var(--ink-2); margin-bottom:14px;">← Back</a>
+  <main class="contact-wrap">
+    <a href="/" class="row" style="gap:6px; text-decoration:none; color:var(--ink-2);"><span>← Back</span></a>
+    <h1 style="margin:10px 0 6px;">Contact Us</h1>
+    <p class="intro">We’d love to hear from you. Send questions or feedback any time.</p>
 
-    <h1 style="margin: 0 0 10px 0;">Contact Us</h1>
-    <p style="margin:0 0 24px 0; color: var(--ink-2);">We’d love to hear from you. Send questions or feedback any time.</p>
+    <% if (typeof sent !== 'undefined' && sent) { %>
+      <div class="alert alert-success" role="status" aria-live="polite">
+        Thank you — your message has been sent. We’ll get back to you soon.
+      </div>
+    <% } %>
 
-    <form id="contactForm" class="stack" style="--gap:14px; max-width: 720px;" method="post" action="/api/contact">
-      <label class="stack" style="--gap:8px;">
-        <span>Your Name</span>
-        <input class="input" name="name" type="text" placeholder="Your name" required>
-      </label>
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="alert alert-error" role="alert">
+        <%= error %>
+      </div>
+    <% } %>
 
-      <label class="stack" style="--gap:8px;">
-        <span>Your Email</span>
-        <input class="input" name="email" type="email" placeholder="you@example.com" required>
-      </label>
+    <form class="form-card" action="/contact" method="post" novalidate>
+      <div class="hp">
+        <label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+      </div>
 
-      <label class="stack" style="--gap:8px;">
-        <span>Your Message</span>
-        <textarea class="input" name="message" placeholder="Write your message…" rows="6" required></textarea>
-      </label>
+      <div class="field">
+        <label for="name">Your Name</label>
+        <input id="name" name="name" class="input" type="text" placeholder="Your name" value="<%= (old && old.name) ? old.name : '' %>" required>
+      </div>
 
-      <button class="btn btn-primary" type="submit" style="width: fit-content;">Send Message</button>
+      <div class="field">
+        <label for="email">Your Email</label>
+        <input id="email" name="email" class="input" type="email" placeholder="you@example.com" value="<%= (old && old.email) ? old.email : '' %>" required>
+      </div>
+
+      <div class="field">
+        <label for="message">Your Message</label>
+        <textarea id="message" name="message" class="input" placeholder="Write your message..." required><%= (old && old.message) ? old.message : '' %></textarea>
+      </div>
+
+      <div class="row-actions">
+        <button class="btn btn-primary" type="submit">Send Message</button>
+      </div>
     </form>
   </main>
 
   <%- include('./partials/footer') %>
-
-  <script>
-    (function () {
-      var form = document.getElementById('contactForm');
-      if (!form) return;
-
-      form.addEventListener('submit', async function (e) {
-        e.preventDefault();
-        const fd = new FormData(form);
-        const payload = {
-          name: fd.get('name')?.toString().trim(),
-          email: fd.get('email')?.toString().trim(),
-          message: fd.get('message')?.toString().trim()
-        };
-
-        if (!payload.name || !payload.email || !payload.message) {
-          return alert('Please fill out all fields.');
-        }
-
-        const res = await fetch('/api/contact', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (res.ok) {
-          form.reset();
-          toast('Thanks! Your message has been sent.');
-        } else {
-          const t = await res.text();
-          toast('Sorry, something went wrong: ' + t, true);
-        }
-      });
-
-      function toast(msg, danger){
-        const el = document.createElement('div');
-        el.textContent = msg;
-        Object.assign(el.style, {
-          position:'fixed', right:'16px', bottom:'16px',
-          padding:'10px 12px', borderRadius:'12px',
-          background: danger ? 'rgba(220,68,68,.92)' : 'rgba(0,0,0,.78)',
-          color:'#fff', zIndex:9999, boxShadow:'0 8px 28px rgba(0,0,0,.25)'
-        });
-        document.body.appendChild(el);
-        setTimeout(()=> el.remove(), 2200);
-      }
-    })();
-  </script>
 </body>
 </html>
