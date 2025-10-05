@@ -6,6 +6,22 @@
     pageDescription: 'Read classic books in one clean reader — bookmarks, notes, and text-to-speech.',
     canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
   }) %>
+
+  <!-- Supabase browser SDK (safe: if keys are missing, we no-op) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    (function () {
+      // These will be empty strings if not passed from server; the guards below avoid errors.
+      var SB_URL  = "<%= (process.env && process.env.SUPABASE_URL) ? process.env.SUPABASE_URL : '' %>";
+      var SB_ANON = "<%= (process.env && process.env.SUPABASE_ANON_KEY) ? process.env.SUPABASE_ANON_KEY : '' %>";
+
+      if (SB_URL && SB_ANON && window.supabase) {
+        try {
+          window.supabaseClient = window.supabase.createClient(SB_URL, SB_ANON);
+        } catch (_) { /* ignore */ }
+      }
+    })();
+  </script>
 </head>
 <body>
   <%- include('./partials/navbar') %>
@@ -42,7 +58,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
 
   <script>
-  (function () {
+  (async function () {
     const provider = "<%= provider %>";
     const id = "<%= id %>";
     const KEY_POS   = `bl:pos:${provider}:${id}`;
@@ -60,7 +76,54 @@
     const saveNote  = document.getElementById('saveNote');
     const notesList = document.getElementById('notesList');
 
-    // ---- Fetch book payload
+    // -------------- Supabase helpers (silent no-ops if not configured) --------------
+    async function getSupabaseUser(){
+      try {
+        const sb = window.supabaseClient; if (!sb) return null;
+        const { data: { user } } = await sb.auth.getUser();
+        return user || null;
+      } catch (_) { return null; }
+    }
+
+    async function fetchCloudPosition(){
+      try {
+        const sb = window.supabaseClient; if (!sb) return null;
+        const user = await getSupabaseUser(); if (!user) return null;
+
+        const { data, error } = await sb
+          .from('reading_positions')
+          .select('pos_type,cfi,scroll,updated_at')
+          .eq('user_id', user.id)
+          .eq('provider', provider)
+          .eq('book_id', id)
+          .order('updated_at', { ascending: false })
+          .limit(1);
+
+        if (error || !data || !data.length) return null;
+        return data[0];
+      } catch (_) { return null; }
+    }
+
+    async function saveCloudPosition(kind, value){
+      try {
+        const sb = window.supabaseClient; if (!sb) return;
+        const user = await getSupabaseUser(); if (!user) return;
+
+        const payload = {
+          user_id: user.id,
+          provider,
+          book_id: id,
+          pos_type: kind,
+          cfi:   (kind === 'cfi'   ? value : null),
+          scroll:(kind === 'scroll'? value : null),
+          updated_at: new Date().toISOString()
+        };
+        await sb.from('reading_positions')
+                .upsert(payload, { onConflict: 'user_id,provider,book_id' });
+      } catch (_) { /* ignore cloud failure */ }
+    }
+
+    // -------------- Fetch book payload --------------
     fetch(`/api/book?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(id)}`)
       .then(r => r.json())
       .then(data => initReader(data))
@@ -72,27 +135,46 @@
       mount.style.display = 'none';
     }
 
-    function initReader(data){
+    async function initReader(data){
       titleEl.textContent = [data?.title, data?.author].filter(Boolean).join(' — ') || 'Book';
 
+      // -------------------- EPUB flow --------------------
       if (data?.type === 'epub' && data?.epubUrl){
         try {
           const book = ePub(data.epubUrl);
           const rendition = book.renderTo(mount, { width: "100%", height: "75vh", spread: "always" });
 
-          const saved = getSavedPos();
-          if (saved && saved.type === 'cfi' && saved.cfi) rendition.display(saved.cfi);
-          else rendition.display();
+          // Prefer cloud if newer; otherwise local; then default start
+          const localSaved = getSavedPos();
+          let initialCFI = (localSaved && localSaved.type === 'cfi') ? localSaved.cfi : null;
+
+          try {
+            const cloud = await fetchCloudPosition();
+            if (cloud && cloud.pos_type === 'cfi' && cloud.cfi) {
+              // Compare timestamps if we have them both
+              const localTs = localSaved?.ts || 0;
+              const cloudTs = cloud?.updated_at ? Date.parse(cloud.updated_at) : 0;
+              if (cloudTs && cloudTs >= localTs) initialCFI = cloud.cfi;
+            }
+          } catch (_) { /* ignore */ }
+
+          if (initialCFI) await rendition.display(initialCFI);
+          else await rendition.display();
 
           rendition.on('relocated', loc => {
             const cfi = loc?.start?.cfi;
-            if (cfi) localStorage.setItem(KEY_POS, JSON.stringify({ type:'cfi', cfi, ts:Date.now() }));
+            if (cfi){
+              localStorage.setItem(KEY_POS, JSON.stringify({ type:'cfi', cfi, ts:Date.now() }));
+              // Cloud (best-effort)
+              saveCloudPosition('cfi', cfi);
+            }
           });
 
-          btnBookmark.addEventListener('click', () => {
+          btnBookmark.addEventListener('click', async () => {
             const cfi = rendition.currentLocation()?.start?.cfi;
             if (cfi){
               localStorage.setItem(KEY_POS, JSON.stringify({ type:'cfi', cfi, ts:Date.now() }));
+              saveCloudPosition('cfi', cfi);
               flash('Bookmark saved');
             }
           });
@@ -100,7 +182,7 @@
         return;
       }
 
-      // HTML / Text
+      // -------------------- HTML / Text flow --------------------
       mount.style.padding = '16px';
       if (data?.type === 'text'){
         mount.innerHTML = `<pre style="white-space:pre-wrap;word-wrap:break-word;">${escapeHtml(data.content||'')}</pre>`;
@@ -111,17 +193,33 @@
         return;
       }
 
-      // scroll save/restore
-      const saved = getSavedPos();
-      if (saved && saved.type === 'scroll' && typeof saved.y === 'number') mount.scrollTop = saved.y;
+      // Scroll save/restore (local first, then try cloud)
+      const localSaved = getSavedPos();
+      if (localSaved && localSaved.type === 'scroll' && typeof localSaved.y === 'number') {
+        mount.scrollTop = localSaved.y;
+      }
+      try {
+        const cloud = await fetchCloudPosition();
+        if (cloud && cloud.pos_type === 'scroll' && Number.isFinite(cloud.scroll)){
+          const localTs = localSaved?.ts || 0;
+          const cloudTs = cloud?.updated_at ? Date.parse(cloud.updated_at) : 0;
+          if (cloudTs && cloudTs >= localTs) mount.scrollTop = cloud.scroll;
+        }
+      } catch (_) {}
+
       mount.addEventListener('scroll', throttle(() => {
-        localStorage.setItem(KEY_POS, JSON.stringify({ type:'scroll', y: mount.scrollTop, ts:Date.now() }));
+        const y = mount.scrollTop|0;
+        localStorage.setItem(KEY_POS, JSON.stringify({ type:'scroll', y, ts:Date.now() }));
+        saveCloudPosition('scroll', y);
       }, 400));
     }
 
-    function getSavedPos(){ try { return JSON.parse(localStorage.getItem(KEY_POS)||'null'); } catch { return null; } }
+    function getSavedPos(){
+      try { return JSON.parse(localStorage.getItem(KEY_POS)||'null'); }
+      catch { return null; }
+    }
 
-    // Notes (local)
+    // -------------------- Notes (local only) --------------------
     function loadNotes(){ try { return JSON.parse(localStorage.getItem(KEY_NOTES)||'[]'); } catch { return []; } }
     function saveNotes(n){ localStorage.setItem(KEY_NOTES, JSON.stringify(n)); }
     function renderNotes(){
@@ -144,7 +242,7 @@
     });
     renderNotes();
 
-    // Listen (simple)
+    // -------------------- Listen (simple TTS) --------------------
     let speaking=false, paused=false, utter=null;
     btnListen.addEventListener('click', () => {
       if (!('speechSynthesis' in window)) return flash('Text-to-speech not supported.');
@@ -157,10 +255,18 @@
       speechSynthesis.speak(utter);
     });
 
-    // utils
+    // -------------------- utils --------------------
     function flash(msg){
       const el=document.createElement('div');
-      el.textContent=msg; Object.assign(el.style,{position:'fixed',right:'16px',bottom:'16px',padding:'10px 12px',borderRadius:'12px',background:'rgba(0,0,0,.75)',color:'#fff',zIndex:9999,boxShadow:'0 6px 20px rgba(0,0,0,.25)'}); document.body.appendChild(el); setTimeout(()=>el.remove(),1500);
+      el.textContent=msg;
+      Object.assign(el.style,{
+        position:'fixed',right:'16px',bottom:'16px',
+        padding:'10px 12px',borderRadius:'12px',
+        background:'rgba(0,0,0,.75)',color:'#fff',zIndex:9999,
+        boxShadow:'0 6px 20px rgba(0,0,0,.25)'
+      });
+      document.body.appendChild(el);
+      setTimeout(()=>el.remove(),1500);
     }
     function escapeHtml(s){return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
     function throttle(fn, wait){ let t=0; return function(){ const n=Date.now(); if(n-t>wait){ t=n; fn.apply(this,arguments);} }; }
