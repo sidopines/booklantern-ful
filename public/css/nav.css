@@ -1,40 +1,37 @@
 /* public/css/nav.css
-   Balanced three-zone topbar: brand (left), links (center), actions (right).
-   Keeps one row on small screens; theme-safe using your CSS variables. */
+   Single-row, centered links; logo left; search+toggle+auth right.
+   Theme-safe (uses your CSS variables). Sticky so it stays clickable. */
 
-.topbar {
+.header, .site-topbar, .topbar, nav[role="navigation"] {
   position: sticky;
   top: 0;
-  z-index: 1000;                 /* keeps toggle clickable above hero */
-  --h-pad: 16px;
+  z-index: 1000;
+  backdrop-filter: saturate(120%) blur(6px);
+}
+
+.topbar {
+  --h-pad: 20px;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 12px;
-  padding: 10px var(--h-pad);
-  background: var(--surface, transparent);
+  gap: 14px;
+  padding: 12px var(--h-pad);
+  background: color-mix(in oklab, var(--surface, #fff) 90%, transparent);
+  border-bottom: 1px solid var(--surface-2, rgba(0,0,0,.06));
 }
 
-/* helpers */
-.topbar .row { display: inline-flex; align-items: center; gap: 10px; }
+/* Common rows */
+.topbar .row { display: flex; align-items: center; gap: 10px; }
 
-/* brand */
-.topbar .brand { text-decoration: none; }
-.topbar .brand-name {
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--ink, currentColor);
-}
+/* Brand (left) */
+.topbar .brand { text-decoration: none; gap: 8px; }
+.topbar .brand img { border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+.topbar .brand-name { font-weight: 700; color: var(--ink, currentColor); }
 
-/* center nav */
-.topbar .center { display: flex; justify-content: center; }
+/* Center links */
 .topbar .nav-links {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: inline-flex;
-  gap: 16px;
-  flex-wrap: wrap;
+  list-style: none; margin: 0; padding: 0;
+  justify-content: center; gap: 18px; flex-wrap: nowrap;
 }
 .topbar .nav-links a {
   text-decoration: none;
@@ -44,58 +41,35 @@
 }
 .topbar .nav-links a:hover { background: var(--surface-2, rgba(0,0,0,.06)); }
 
-/* right actions */
+/* Right actions */
 .topbar .actions { gap: 10px; }
 
-/* search field shortened */
+/* Search */
 .topbar .nav-search { gap: 8px; }
 .topbar .nav-search .input {
-  width: clamp(220px, 28vw, 360px);
-  min-width: 200px;
+  width: clamp(180px, 28vw, 340px); /* shorter than before */
 }
 
-/* equal-sized auth buttons */
-.topbar .auth-btn {
-  min-width: 112px;
-  text-align: center;
-  justify-content: center;
-}
-
-/* compact icon-like button for the theme toggle */
+/* Toggle button (compact) */
 .topbar .icon-btn {
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border-radius: 10px;
-  display: inline-grid;
-  place-items: center;
+  width: 34px; height: 34px; padding: 0;
+  border-radius: 10px; display: inline-grid; place-items: center;
 }
 
-/* ---------- Small screens: keep it ONE row, allow gentle scrolling ---------- */
-@media (max-width: 960px) {
-  .topbar { --h-pad: 12px; gap: 10px; }
+/* Make auth buttons balanced */
+.topbar .btn.equal, .topbar .btn { min-height: 34px; }
+.topbar .btn.equal { min-width: 132px; } /* Login & Create account similar width */
 
-  /* keep nav links on one line with horizontal scroll if needed */
-  .topbar .nav-links {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: thin;
-    -webkit-overflow-scrolling: touch;
-  }
-  .topbar .nav-links::-webkit-scrollbar { height: 8px; }
-  .topbar .nav-links::-webkit-scrollbar-thumb {
-    background: var(--border, rgba(0,0,0,.2));
-    border-radius: 999px;
-  }
-
-  /* tighten search so everything fits */
-  .topbar .nav-search .input { width: clamp(160px, 30vw, 260px); min-width: 150px; }
-  .topbar .actions { gap: 8px; }
-  .topbar .auth-btn { min-width: 100px; }
+/* ---------- Responsive ---------- */
+@media (max-width: 980px) {
+  .topbar { --h-pad: 14px; gap: 10px; }
+  .topbar .nav-links { gap: 14px; overflow-x: auto; scrollbar-width: thin; }
+  .topbar .nav-search .input { width: clamp(150px, 32vw, 260px); }
 }
 
-@media (max-width: 520px) {
-  .topbar .brand-name { display: none; }     /* icon-only brand to save space */
-  .topbar .nav-search .input { width: 46vw; min-width: 130px; }
-  .topbar .btn { padding: 6px 8px; }
+@media (max-width: 640px) {
+  .topbar { grid-template-columns: auto 1fr auto; }
+  .topbar .brand-name { display: none; } /* icon-only to save space */
+  .topbar .nav-links { gap: 12px; }
+  .topbar .btn.equal { min-width: 112px; }
 }
