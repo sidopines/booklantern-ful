@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', {
+    pageTitle: 'Privacy Policy • BookLantern',
+    pageDescription: 'How BookLantern collects, uses, and protects information.',
+    canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : ''),
+    buildId: (typeof buildId !== 'undefined' ? buildId : '')
+  }) %>
+  <style>
+    .policy { max-width: 900px; margin: 32px auto 64px; padding: 0 16px; }
+    .policy h1 { margin: 8px 0 18px; }
+    .policy h2 { margin: 28px 0 10px; font-size: 1.15rem; }
+    .policy p, .policy li { line-height: 1.6; }
+    .callout { background: var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin: 10px 0 18px; }
+    .policy ul { padding-left: 20px; }
+    .policy .small { opacity:.75; font-size:.95rem; }
+  </style>
+</head>
+<body>
+  <%- include('./partials/navbar') %>
+
+  <% var __safeRef = (typeof referrer !== 'undefined' ? referrer : null); %>
+  <%- include('./partials/backLink', { referrer: __safeRef }) %>
+
+  <main class="policy">
+    <h1>Privacy Policy</h1>
+    <p class="small">Last updated: <%= (new Date()).toISOString().slice(0,10) %></p>
+
+    <div class="callout">
+      We’re committed to a distraction-free experience. We don’t sell your data and we avoid third-party ads.
+    </div>
+
+    <h2>1) Scope</h2>
+    <p>This policy explains what information BookLantern (“we”, “us”) collects when you use our website and services, how we use it, and the choices you have.</p>
+
+    <h2>2) Information We Collect</h2>
+    <ul>
+      <li><strong>Account data</strong> (if you create one): email, password (hashed), and basic profile details you provide.</li>
+      <li><strong>Service logs</strong>: IP address, browser type, device info, pages visited, and timestamps—used for security and operational analytics.</li>
+      <li><strong>Search & browse metadata</strong>: queries and interactions, aggregated to improve relevance and reliability.</li>
+      <li><strong>Cookies/local storage</strong>: essentials like session, theme preference, and feature flags.</li>
+    </ul>
+
+    <h2>3) What We Don’t Collect</h2>
+    <ul>
+      <li>No third-party ad trackers.</li>
+      <li>No payment card data (the Service is free).</li>
+      <li>No precise location tracking.</li>
+    </ul>
+
+    <h2>4) Local-Only Reader Data</h2>
+    <p>Bookmarks, notes, and reading position created in the reader are stored on your device (e.g., browser localStorage). We do not receive this data unless we launch an explicit sync feature in the future and you opt in.</p>
+
+    <h2>5) How We Use Information</h2>
+    <ul>
+      <li>Provide and maintain the Service (account, search, book delivery).</li>
+      <li>Improve relevance, performance, and reliability.</li>
+      <li>Prevent abuse and ensure security.</li>
+      <li>Respond to support requests and legal obligations.</li>
+    </ul>
+
+    <h2>6) Legal Bases (EU/UK)</h2>
+    <ul>
+      <li><em>Contract necessity</em> – to provide the Service you request.</li>
+      <li><em>Legitimate interests</em> – to secure and improve the Service.</li>
+      <li><em>Consent</em> – where required (e.g., optional features).</li>
+      <li><em>Legal obligation</em> – to comply with law.</li>
+    </ul>
+
+    <h2>7) Retention</h2>
+    <ul>
+      <li>Account data: for the life of your account or until deletion.</li>
+      <li>Server logs: typically 30–90 days unless needed for security or investigations.</li>
+      <li>Local-only reader data: remains on your device until you clear it.</li>
+    </ul>
+
+    <h2>8) Sharing</h2>
+    <ul>
+      <li>Service providers (e.g., hosting) under confidentiality obligations.</li>
+      <li>Legal requests when we are compelled by law.</li>
+      <li>We do <strong>not</strong> sell personal information.</li>
+    </ul>
+
+    <h2>9) Cookies</h2>
+    <p>We use essential cookies/local storage for session management, theme preference, and core functionality. You can control cookies in your browser settings; some features may not work without them.</p>
+
+    <h2>10) Security</h2>
+    <p>We use industry-standard measures to protect your information. No method of transmission or storage is 100% secure; use the Service at your own risk.</p>
+
+    <h2>11) Children</h2>
+    <p>The Service is not directed to children under 13 (or the minimum age in your jurisdiction). If we learn we’ve collected personal information from a child, we will delete it.</p>
+
+    <h2>12) International Transfers</h2>
+    <p>Data may be processed in the United States or other countries where our providers operate. We take steps to safeguard transfers as required by law.</p>
+
+    <h2>13) Your Rights</h2>
+    <p>Depending on your location, you may have rights to access, correct, delete, or export your data; to object or restrict certain processing; and to withdraw consent where applicable. To exercise rights, please <a href="/contact">contact us</a>.</p>
+
+    <h2>14) Changes to this Policy</h2>
+    <p>We may update this policy. We’ll post the new version here and update the “Last updated” date.</p>
+
+    <h2>15) Contact</h2>
+    <p>Questions or requests? Please <a href="/contact">contact us</a>.</p>
+  </main>
+
+  <%- include('./partials/footer') %>
+</body>
+</html>
