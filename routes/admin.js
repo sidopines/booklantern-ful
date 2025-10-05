@@ -1,6 +1,46 @@
 // routes/admin.js
 const express = require('express');
 const router = express.Router();
+
+// ---------------- Supabase admin endpoint (token-gated) ----------------
+const { createClient } = require('@supabase/supabase-js');
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY // server-only key
+);
+
+/**
+ * Admin API: Delete a Supabase Auth user by UUID
+ * Usage (terminal/Postman):
+ * curl -X POST https://booklantern.org/admin/delete-user \
+ *   -H "X-Admin-Token: YOUR_ADMIN_API_TOKEN" \
+ *   -H "Content-Type: application/json" \
+ *   -d '{"user_id":"<supabase-auth-user-uuid>"}'
+ *
+ * Notes:
+ * - Placed BEFORE session middleware so it can be used headlessly with only the token.
+ * - Do NOT expose this token client-side.
+ */
+router.post('/delete-user', async (req, res) => {
+  const token = req.get('X-Admin-Token');
+  if (!token || token !== process.env.ADMIN_API_TOKEN) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const { user_id } = req.body || {};
+  if (!user_id) return res.status(400).json({ error: 'user_id required' });
+
+  try {
+    const { error } = await supabase.auth.admin.deleteUser(user_id);
+    if (error) throw error;
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Delete user failed:', err.message || err);
+    return res.status(500).json({ error: 'Delete failed' });
+  }
+});
+
+// ---------------- Your existing (session-gated) Admin UI routes ----------------
 const { ensureAuthenticated, ensureAdmin } = require('../middleware/auth');
 
 // Models
@@ -25,7 +65,7 @@ const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch
 function ok(res, path) { return res.redirect(`${path}${path.includes('?') ? '&' : '?'}ok=1`); }
 function err(res, path, msg='error') { return res.redirect(`${path}${path.includes('?') ? '&' : '?'}err=${encodeURIComponent(msg)}`); }
 
-// Guard all admin routes
+// Guard all admin UI routes (after the token-gated endpoint above)
 router.use(ensureAuthenticated, ensureAdmin);
 
 /* Dashboard */
@@ -141,13 +181,13 @@ router.post('/books', ah(async (req, res) => {
     coverImage: coverImage.trim(),
     description: description.trim()
   });
-  bustHomeCaches();   // ← ensure homepage picks up new books immediately
+  bustHomeCaches();   // ensure homepage picks up new books immediately
   return ok(res, '/admin/books');
 }));
 
 router.post('/books/:id/delete', ah(async (req, res) => {
   await Book.findByIdAndDelete(req.params.id);
-  bustHomeCaches();   // ← ensure homepage removes deleted books
+  bustHomeCaches();   // ensure homepage removes deleted books
   return ok(res, '/admin/books');
 }));
 
