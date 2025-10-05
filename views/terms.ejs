@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', {
+    pageTitle: 'Terms of Service • BookLantern',
+    pageDescription: 'The terms that govern your use of BookLantern.',
+    canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : ''),
+    buildId: (typeof buildId !== 'undefined' ? buildId : '')
+  }) %>
+  <style>
+    .policy { max-width: 900px; margin: 32px auto 64px; padding: 0 16px; }
+    .policy h1 { margin: 8px 0 18px; }
+    .policy h2 { margin: 28px 0 10px; font-size: 1.15rem; }
+    .policy p, .policy li { line-height: 1.6; }
+    .callout { background: var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin: 10px 0 18px; }
+    .policy ul { padding-left: 20px; }
+    .policy .small { opacity:.75; font-size:.95rem; }
+  </style>
+</head>
+<body>
+  <%- include('./partials/navbar') %>
+
+  <% var __safeRef = (typeof referrer !== 'undefined' ? referrer : null); %>
+  <%- include('./partials/backLink', { referrer: __safeRef }) %>
+
+  <main class="policy">
+    <h1>Terms of Service</h1>
+    <p class="small">Last updated: <%= (new Date()).toISOString().slice(0,10) %></p>
+
+    <div class="callout">
+      BookLantern is a distraction-free way to discover and read books from public-domain and open-access sources.  
+      By using our site, you agree to these Terms.
+    </div>
+
+    <h2>1) Acceptance of Terms</h2>
+    <p>By accessing or using BookLantern (the “Service”), you agree to be bound by these Terms and by our Privacy Policy. If you do not agree, please do not use the Service.</p>
+
+    <h2>2) What We Provide</h2>
+    <p>We index free, legally available books from trusted libraries and archives and offer a clean reading interface. Some items link out to their original providers. Availability can change based on the source.</p>
+
+    <h2>3) Accounts</h2>
+    <ul>
+      <li>You cannot browse without an account. Certain features require one.</li>
+      <li>You are responsible for your account credentials and any activity under your account.</li>
+      <li>We may suspend or terminate accounts that violate these Terms.</li>
+    </ul>
+
+    <h2>4) Acceptable Use</h2>
+    <ul>
+      <li>Use the Service only for lawful purposes and in a way that does not infringe on others’ rights.</li>
+      <li>Do not scrape, bulk-download, disrupt, reverse-engineer, or misuse the Service.</li>
+      <li>Respect the terms of our content providers; some items may have specific usage notes in their source pages.</li>
+    </ul>
+
+    <h2>5) Content & Intellectual Property</h2>
+    <ul>
+      <li>Many books are in the public domain or released for open access by rights holders. We do not claim ownership over such content.</li>
+      <li>Site design, logos, UI elements, and our own text are © BookLantern and may not be copied without permission.</li>
+      <li>If you believe material is used improperly, contact us (see “Contact” below). We honor legitimate takedown requests.</li>
+    </ul>
+
+    <h2>6) Your Submissions</h2>
+    <p>If you send us feedback or suggestions, you grant BookLantern a non-exclusive, worldwide, royalty-free license to use that feedback to improve the Service. Notes and bookmarks you create in the reader are stored locally on your device unless we explicitly add a sync feature in the future.</p>
+
+    <h2>7) Third-Party Links</h2>
+    <p>Links to libraries/archives are provided for convenience. We are not responsible for third-party sites, policies, or content.</p>
+
+    <h2>8) Disclaimers</h2>
+    <ul>
+      <li>The Service is provided “as is” and “as available.” We make no warranties regarding accuracy, availability, or fitness for a particular purpose.</li>
+      <li>We do not provide legal advice about copyright status; always check the source’s license terms for your jurisdiction.</li>
+    </ul>
+
+    <h2>9) Limitation of Liability</h2>
+    <p>To the fullest extent permitted by law, BookLantern and its contributors shall not be liable for indirect, incidental, special, consequential, or exemplary damages, or for lost profits or data, arising from your use of the Service.</p>
+
+    <h2>10) Indemnity</h2>
+    <p>You agree to indemnify and hold harmless BookLantern from claims arising out of your misuse of the Service or violation of these Terms.</p>
+
+    <h2>11) Changes & Termination</h2>
+    <p>We may modify or discontinue the Service or these Terms at any time. We will post updates on this page. Continued use after changes constitutes acceptance.</p>
+
+    <h2>12) Governing Law</h2>
+    <p>Unless your local law requires otherwise, these Terms are governed by the laws of the United States and the State of California, without regard to conflict-of-law rules, and the venue for disputes will be San Francisco, California.</p>
+
+    <h2>13) Contact</h2>
+    <p>Questions or takedown notices: please <a href="/contact">contact us</a>.</p>
+  </main>
+
+  <%- include('./partials/footer') %>
+</body>
+</html>
