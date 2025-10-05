@@ -3,76 +3,86 @@
 <head>
   <%- include('./partials/head', {
     pageTitle: 'About • BookLantern',
-    pageDescription: 'We are on a mission to connect readers world over with the largest collection of books—free, distraction-free, and easy to discover.',
+    pageDescription: 'We connect readers worldwide with the largest collection of books — distraction-free.',
     canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
   }) %>
 
-  <!-- Organization JSON-LD for better SEO -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    "name": "BookLantern",
-    "url": "https://booklantern.org",
-    "logo": "https://booklantern.org/apple-touch-icon.png",
-    "sameAs": ["https://booklantern.org"]
-  }
-  </script>
+  <!-- Page-scoped aesthetics for About (kept here to avoid touching global CSS) -->
+  <style>
+    .about-page { padding: 28px 0 40px; }
+    .about-page .stack { display: grid; gap: 18px; }
+    .about-page .section { margin-top: 36px; }
+    .about-page h1 { margin: 0 0 8px; line-height: 1.1; }
+    .about-page .lead { max-width: 72ch; opacity: .95; }
+    .about-card {
+      background: var(--surface-2, transparent);
+      border: 1px solid var(--border, rgba(0,0,0,.1));
+      border-radius: 16px;
+      padding: 16px 18px;
+    }
+    .about-card h2 { margin: 0 0 10px; font-size: 1.25rem; }
+    .about-card ul { margin: 0; padding-left: 1.25rem; }
+    .about-card li { margin: 6px 0; }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+
+    /* Subtle motion on hover, scoped to this page only */
+    .about-page .btn {
+      transition: transform .15s ease, box-shadow .15s ease;
+      will-change: transform;
+    }
+    .about-page .btn:hover { transform: translateY(-2px); }
+    .about-page .btn:active { transform: translateY(0); }
+
+    /* Comfortable spacing on very small screens */
+    @media (max-width: 640px) {
+      .about-page { padding-top: 20px; }
+      .about-page .section { margin-top: 28px; }
+    }
+  </style>
 </head>
 <body>
   <%- include('./partials/navbar') %>
 
-  <!-- Safe back link -->
-  <% var __safeRef = (typeof referrer !== 'undefined' ? referrer : null); %>
-  <%- include('./partials/backLink', { referrer: __safeRef }) %>
+  <main class="container about-page">
+    <!-- safe back link -->
+    <% var __safeRef = (typeof referrer !== 'undefined' ? referrer : null); %>
+    <%- include('./partials/backLink', { referrer: __safeRef }) %>
 
-  <main class="container" style="max-width: 1100px; margin: 24px auto 40px; padding: 0 16px;">
-    <header style="margin-bottom: 18px;">
-      <h1 style="margin: 0 0 10px;">About BookLantern</h1>
-      <p style="margin: 0; opacity: .9;">
+    <!-- Title & mission -->
+    <section class="section stack">
+      <h1>About BookLantern</h1>
+      <p class="lead">
         We are on a mission to connect readers world over with the largest collection of books.
         By making millions of books from globally trusted libraries accessible at your fingertips,
-        BookLantern is committed to the idea that knowledge should be free and easily discoverable
-        for everyone.
+        BookLantern is committed to the idea that knowledge should be free and easily discoverable for everyone.
       </p>
-    </header>
-
-    <!-- What makes us different -->
-    <section class="card" style="padding: 16px 18px; margin: 22px 0;">
-      <h2 style="margin: 0 0 10px;">What Makes Us Different</h2>
-      <ul style="margin: 0; padding-left: 22px;">
-        <li><strong>Universal Search</strong> across multiple public-domain and open-access sources.</li>
-        <li><strong>Clean Reader</strong> optimized for focus and comprehension.</li>
-        <li><strong>Trusted Content</strong> from reputable libraries and archives.</li>
-        <li><strong>Always Free</strong> — no subscriptions and no ads.</li>
-      </ul>
     </section>
 
-    <!-- Trust row (credibility) -->
-    <section class="card" style="padding: 14px 18px; margin: 16px 0;">
-      <div style="opacity:.85; font-weight:600; margin-bottom:8px;">Sources we index</div>
-      <div class="row" style="gap:18px; flex-wrap:wrap;">
-        <span style="opacity:.75;">Internet Archive</span>
-        <span style="opacity:.75;">Project Gutenberg</span>
-        <span style="opacity:.75;">Open Library</span>
-        <span style="opacity:.75;">HathiTrust</span>
-        <span style="opacity:.75;">Library of Congress</span>
+    <!-- What makes us different -->
+    <section class="section">
+      <div class="about-card">
+        <h2>What Makes Us Different</h2>
+        <ul>
+          <li><strong>Universal Search</strong> across multiple public-domain and open-access sources.</li>
+          <li><strong>Clean Reader</strong> optimized for focus and comprehension.</li>
+          <li><strong>Trusted Content</strong> from reputable libraries and archives.</li>
+          <li><strong>Always Free</strong> — no subscriptions and no ads.</li>
+        </ul>
       </div>
     </section>
 
     <!-- Start your journey -->
-    <section style="margin-top: 22px;">
-      <h2 style="margin: 0 0 10px;">Start Your Journey Here</h2>
-      <p style="margin: 0 0 12px; opacity:.9;">
+    <section class="section stack">
+      <h2>Start Your Journey Here</h2>
+      <p class="lead" style="max-width: 70ch;">
         Discover your next favorite book now and we would love to hear your feedback and
         <a href="/contact">experience here</a>.
       </p>
-      <div class="row" style="gap:10px; flex-wrap:wrap; margin-top:8px;">
-        <a class="btn btn-primary" href="/search" aria-label="Browse books">Browse Books</a>
-        <a class="btn" href="/watch" aria-label="Watch videos">Watch Videos</a>
-        <a class="btn" href="/contact" aria-label="Contact us" style="background:var(--surface-2);">
-          Contact Us
-        </a>
+      <div class="actions">
+        <a class="btn" href="/search">Browse Books</a>
+        <a class="btn" href="/watch">Watch Videos</a>
+        <a class="btn btn-primary" href="/contact">Contact Us</a>
       </div>
     </section>
   </main>
