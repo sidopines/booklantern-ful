@@ -1,0 +1,16 @@
+<!-- views/partials/flash.ejs -->
+<%
+// Props:
+//   message: required string
+//   type: 'success' | 'error' | 'info'  (default: 'success')
+const t = (typeof type === 'string' && type) || 'success';
+const accent = t === 'error' ? 'var(--danger, #e5484d)' :
+               t === 'info'  ? 'var(--border, rgba(0,0,0,.15))' :
+                               'var(--accent, #6e8efb)';
+%>
+<div class="card" role="status" aria-live="polite"
+     style="padding:12px 14px; display:flex; gap:10px; align-items:center; border-left:4px solid <%= accent %>;">
+  <div style="font-size:1.05rem;">
+    <%= message %>
+  </div>
+</div>
