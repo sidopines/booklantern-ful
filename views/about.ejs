@@ -1,34 +1,33 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <%- include('./partials/head.ejs', {
+  <%- include('./partials/head', {
     pageTitle: 'About • BookLantern',
-    pageDescription: 'Connecting readers with the world’s largest collection of free books.'
+    pageDescription: 'What BookLantern stands for: free, trusted books in one clean reader.',
+    canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
   }) %>
 </head>
 <body>
-  <%- include('./partials/navbar.ejs') %>
+  <%- include('./partials/navbar') %>
 
-  <header class="hero">
-    <div class="container hero-inner">
-      <%- include('./partials/backLink') %>
-      <h1 class="page-title">About BookLantern</h1>
-      <p class="page-sub">Connecting readers with the world’s largest collection of free books.</p>
-    </div>
-  </header>
+  <!-- Back link (safe) -->
+  <% var __safeRef = (typeof referrer !== 'undefined' ? referrer : null); %>
+  <%- include('./partials/backLink', { referrer: __safeRef }) %>
 
-  <main class="container page-pad">
-    <section class="panel" style="margin-bottom:18px;">
-      <h2 style="margin:0 0 10px;">Our Mission</h2>
-      <p style="margin:0;">
-        BookLantern makes millions of books from globally trusted libraries accessible through one
-        simple, clean interface. Knowledge should be free and easily discoverable for everyone.
+  <main class="container" style="max-width: 1000px; padding: 24px 16px 48px;">
+    <header style="margin-bottom: 18px;">
+      <h1 style="margin: 6px 0 8px;">About BookLantern</h1>
+      <p style="opacity:.85; margin: 0;">
+        We are on a mission to connect readers world over with the largest collection of books.
+        By making millions of books from globally trusted libraries accessible at your fingertips,
+        BookLantern is committed to the idea that knowledge should be free and easily
+        discoverable for everyone.
       </p>
-    </section>
+    </header>
 
-    <section class="panel" style="margin-bottom:18px;">
-      <h2 style="margin:0 0 10px;">What Makes Us Different</h2>
-      <ul style="margin:0; padding-left:18px; line-height:1.7;">
+    <section class="card" style="padding:18px; margin: 18px 0;">
+      <h2 style="margin-top:0;">What Makes Us Different</h2>
+      <ul style="margin: 10px 0 0 20px; line-height:1.6;">
         <li><strong>Universal Search</strong> across multiple public-domain and open-access sources.</li>
         <li><strong>Clean Reader</strong> optimized for focus and comprehension.</li>
         <li><strong>Trusted Content</strong> from reputable libraries and archives.</li>
@@ -36,16 +35,19 @@
       </ul>
     </section>
 
-    <section class="panel">
-      <h2 style="margin:0 0 8px;">Start Reading</h2>
-      <p style="margin:0 0 12px;">Discover your next favorite book now.</p>
-      <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <a class="btn btn-primary" href="/read">Browse Books</a>
-        <a class="btn btn-secondary" href="/watch">Watch Videos</a>
+    <section style="margin-top: 24px;">
+      <h2 style="margin: 0 0 6px;">Start Your Journey Here</h2>
+      <p style="margin: 0 0 12px; opacity:.9;">
+        Discover your next favorite book now and we would love to hear your feedback and
+        <a href="/contact">experience here</a>.
+      </p>
+      <div class="row" style="gap:10px; flex-wrap:wrap; margin-top:8px;">
+        <a class="btn btn-primary" href="/search" aria-label="Browse books">Browse Books</a>
+        <a class="btn" href="/watch" aria-label="Watch videos">Watch Videos</a>
       </div>
     </section>
   </main>
 
-  <%- include('./partials/footer.ejs') %>
+  <%- include('./partials/footer') %>
 </body>
 </html>
