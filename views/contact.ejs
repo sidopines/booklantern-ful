@@ -1,68 +1,89 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <%- include('./partials/head.ejs', {
+  <%- include('./partials/head', {
     pageTitle: 'Contact • BookLantern',
-    pageDescription: 'Contact BookLantern — we’d love to hear from you.'
+    pageDescription: 'Send questions or feedback any time.',
+    canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
   }) %>
 </head>
 <body>
-  <%- include('./partials/navbar.ejs') %>
+  <%- include('./partials/navbar') %>
 
-  <header class="hero">
-    <div class="container hero-inner">
-      <%- include('./partials/backLink') %>
-      <h1 class="page-title">Contact Us</h1>
-      <p class="page-sub">We’d love to hear from you. Send questions or feedback any time.</p>
-    </div>
-  </header>
+  <main class="container" style="max-width: 980px; margin: 32px auto; padding: 0 16px;">
+    <a href="javascript:history.back()" class="row" style="gap:6px; text-decoration:none; color:var(--ink-2); margin-bottom:14px;">← Back</a>
 
-  <main class="container page-pad">
-    <section class="panel" style="max-width:720px; margin-inline:auto;">
-      <% const csrf = (typeof csrfToken !== 'undefined') ? csrfToken : null; %>
-      <% const flash = (typeof messages !== 'undefined' && messages) ? messages : {}; %>
+    <h1 style="margin: 0 0 10px 0;">Contact Us</h1>
+    <p style="margin:0 0 24px 0; color: var(--ink-2);">We’d love to hear from you. Send questions or feedback any time.</p>
 
-      <% if (flash.success) { %>
-        <div class="panel" style="background:rgba(76, 175, 80, .15); border:1px solid rgba(76,175,80,.35); margin-bottom:12px;">
-          <strong>Thanks!</strong> <%= flash.success %>
-        </div>
-      <% } %>
-      <% if (flash.error) { %>
-        <div class="panel" style="background:rgba(244, 67, 54, .12); border:1px solid rgba(244,67,54,.35); margin-bottom:12px;">
-          <strong>Oops.</strong> <%= flash.error %>
-        </div>
-      <% } %>
+    <form id="contactForm" class="stack" style="--gap:14px; max-width: 720px;" method="post" action="/api/contact">
+      <label class="stack" style="--gap:8px;">
+        <span>Your Name</span>
+        <input class="input" name="name" type="text" placeholder="Your name" required>
+      </label>
 
-      <form method="post" action="/contact" novalidate>
-        <% if (csrf) { %><input type="hidden" name="_csrf" value="<%= csrf %>"><% } %>
+      <label class="stack" style="--gap:8px;">
+        <span>Your Email</span>
+        <input class="input" name="email" type="email" placeholder="you@example.com" required>
+      </label>
 
-        <div style="display:grid; gap:12px;">
-          <div>
-            <label for="name" style="display:block; margin:0 0 6px;">Your Name</label>
-            <input id="name" name="name" type="text" placeholder="Your name"
-                   style="width:100%; padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,.10); background:var(--surface); color:var(--ink);">
-          </div>
+      <label class="stack" style="--gap:8px;">
+        <span>Your Message</span>
+        <textarea class="input" name="message" placeholder="Write your message…" rows="6" required></textarea>
+      </label>
 
-          <div>
-            <label for="email" style="display:block; margin:0 0 6px;">Your Email</label>
-            <input id="email" name="email" type="email" placeholder="you@example.com"
-                   style="width:100%; padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,.10); background:var(--surface); color:var(--ink);">
-          </div>
-
-          <div>
-            <label for="message" style="display:block; margin:0 0 6px;">Your Message</label>
-            <textarea id="message" name="message" rows="6" placeholder="Write your message…"
-                      style="width:100%; padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,.10); background:var(--surface); color:var(--ink);"></textarea>
-          </div>
-
-          <div>
-            <button class="btn btn-primary" type="submit">Send Message</button>
-          </div>
-        </div>
-      </form>
-    </section>
+      <button class="btn btn-primary" type="submit" style="width: fit-content;">Send Message</button>
+    </form>
   </main>
 
-  <%- include('./partials/footer.ejs') %>
+  <%- include('./partials/footer') %>
+
+  <script>
+    (function () {
+      var form = document.getElementById('contactForm');
+      if (!form) return;
+
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const payload = {
+          name: fd.get('name')?.toString().trim(),
+          email: fd.get('email')?.toString().trim(),
+          message: fd.get('message')?.toString().trim()
+        };
+
+        if (!payload.name || !payload.email || !payload.message) {
+          return alert('Please fill out all fields.');
+        }
+
+        const res = await fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          form.reset();
+          toast('Thanks! Your message has been sent.');
+        } else {
+          const t = await res.text();
+          toast('Sorry, something went wrong: ' + t, true);
+        }
+      });
+
+      function toast(msg, danger){
+        const el = document.createElement('div');
+        el.textContent = msg;
+        Object.assign(el.style, {
+          position:'fixed', right:'16px', bottom:'16px',
+          padding:'10px 12px', borderRadius:'12px',
+          background: danger ? 'rgba(220,68,68,.92)' : 'rgba(0,0,0,.78)',
+          color:'#fff', zIndex:9999, boxShadow:'0 8px 28px rgba(0,0,0,.25)'
+        });
+        document.body.appendChild(el);
+        setTimeout(()=> el.remove(), 2200);
+      }
+    })();
+  </script>
 </body>
 </html>
