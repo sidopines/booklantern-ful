@@ -2,7 +2,7 @@
 const express = require("express");
 const router = express.Router();
 
-// --- Lazy-load Supabase client so the app still boots if the lib isn't installed yet
+// --- Lazy-load Supabase client so the app still boots if lib isn't installed
 let createClient;
 try {
   ({ createClient } = require("@supabase/supabase-js"));
@@ -59,7 +59,22 @@ router.get("/debug-auth", (req, res) => {
 });
 
 /**
- * TEMP: try inserting a debug row into public.contact_messages and
+ * NEW: quick env check (no secrets leaked)
+ * GET /admin/env-check
+ */
+router.get("/env-check", (req, res) => {
+  if (requireAdminToken(req, res) !== true) return;
+  res.json({
+    ok: true,
+    env: {
+      has_SUPABASE_URL: !!process.env.SUPABASE_URL,
+      has_SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    }
+  });
+});
+
+/**
+ * TEMP (POST): try inserting a debug row into public.contact_messages and
  * return verbose Supabase error if it fails.
  * POST /admin/debug-contact-insert
  */
@@ -81,12 +96,11 @@ router.post("/debug-contact-insert", async (req, res) => {
         name: "Debug User",
         email: "debug@booklantern.org",
         message: "Debug insert from /admin/debug-contact-insert",
-        ip,            // inet column; accepts IPv4/IPv6 strings
-        user_agent: ua // nullable text column
+        ip,
+        user_agent: ua
       });
 
     if (error) {
-      // Return verbose details so we can fix quickly
       return res.status(500).json({
         ok: false,
         error: error.message || String(error),
@@ -99,6 +113,49 @@ router.post("/debug-contact-insert", async (req, res) => {
     return res.json({ ok: true });
   } catch (e) {
     console.error("[admin] debug-contact-insert unexpected error:", e);
+    return res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+/**
+ * NEW (GET variant): same insert as above but via GET (no body/HTTP2 quirks)
+ * GET /admin/debug-contact-insert-get
+ */
+router.get("/debug-contact-insert-get", async (req, res) => {
+  if (requireAdminToken(req, res) !== true) return;
+
+  const sb = getSupabase();
+  if (!sb) {
+    return res.status(503).json({ ok: false, error: "Admin API disabled (missing Supabase config)" });
+  }
+
+  try {
+    const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || null;
+    const ua = req.get("user-agent") || null;
+
+    const { error } = await sb
+      .from("contact_messages")
+      .insert({
+        name: "Debug GET",
+        email: "debug-get@booklantern.org",
+        message: "Debug insert from /admin/debug-contact-insert-get",
+        ip,
+        user_agent: ua
+      });
+
+    if (error) {
+      return res.status(500).json({
+        ok: false,
+        error: error.message || String(error),
+        details: error.details || null,
+        hint: error.hint || null,
+        code: error.code || null
+      });
+    }
+
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("[admin] debug-contact-insert-get unexpected error:", e);
     return res.status(500).json({ ok: false, error: String(e && e.message || e) });
   }
 });
