@@ -1,12 +1,10 @@
-// routes/index.js
+// routes/index.js — site pages + contact (CommonJS)
 const express = require("express");
 const router = express.Router();
-const supabaseAdmin = require("../supabaseAdmin");   // may be null if env missing
-const { sendContactNotification } = require("../mailer");
+const supabaseAdmin = require("../supabaseAdmin");
+const sendContactEmail = require('../mail/sendContact'); // optional email notification
 
-/**
- * Minimal, robust home data pipeline with curated fallbacks.
- */
+// ---------------- Curated fallback shelves (unchanged) ----------------
 const FALLBACK = {
   trending: [
     { id: "ol-origin-darwin", provider: "openlibrary", title: "On the Origin of Species", author: "Charles Darwin",
@@ -98,85 +96,78 @@ function ensureShelf(name, maybe, min = 8) {
   return clamp((FALLBACK[name] || []).map(norm), 24);
 }
 
-// ---------- Routes ----------
+// ---------------- Routes ----------------
 router.get("/", (req, res) => {
   const provided = (req.app && req.app.locals && req.app.locals.shelves) || {};
   const shelves = {
-    trending: ensureShelf("trending", provided.trending),
-    philosophy: ensureShelf("philosophy", provided.philosophy),
-    history: ensureShelf("history", provided.history),
-    science: ensureShelf("science", provided.science),
+    trending:  ensureShelf("trending",  provided.trending),
+    philosophy:ensureShelf("philosophy",provided.philosophy),
+    history:   ensureShelf("history",   provided.history),
+    science:   ensureShelf("science",   provided.science),
   };
   res.render("index", { shelves });
 });
 
-// Static pages
-router.get("/about", (req, res) => res.render("about"));
-router.get("/contact", (req, res) =>
-  res.render("contact", {
-    sent: req.query.sent === "1" // shows success flash after submit
-  })
-);
-router.get("/read", (req, res) => res.render("read", { provider: "", id: "" }));
-router.get("/watch", (req, res) => res.render("watch", { videos: [] }));
-router.get("/login", (req, res) => res.render("login", { csrfToken: "" }));
-router.get("/register", (req, res) => res.render("register", { csrfToken: "" }));
+// pages
+router.get("/about",   (_req, res) => res.render("about"));
+router.get("/read",    ( _req, res) => res.render("read",   { provider: "", id: "" }));
+router.get("/watch",   (_req, res) => res.render("watch",  { videos: [] }));
+router.get("/login",   (_req, res) => res.render("login",  { csrfToken: "" }));
+router.get("/register",(_req, res) => res.render("register",{ csrfToken: "" }));
 
-// Terms & Privacy
 router.get("/terms", (req, res) => {
   const canonicalUrl = `${req.protocol}://${req.get("host")}/terms`;
-  res.render("terms", {
-    canonicalUrl,
-    buildId: res.locals.buildId || Date.now(),
-    referrer: req.get("Referrer") || null,
-  });
+  res.render("terms", { canonicalUrl, buildId: res.locals.buildId || Date.now(), referrer: req.get("Referrer") || null });
 });
 router.get("/privacy", (req, res) => {
   const canonicalUrl = `${req.protocol}://${req.get("host")}/privacy`;
-  res.render("privacy", {
-    canonicalUrl,
-    buildId: res.locals.buildId || Date.now(),
-    referrer: req.get("Referrer") || null,
-  });
+  res.render("privacy", { canonicalUrl, buildId: res.locals.buildId || Date.now(), referrer: req.get("Referrer") || null });
 });
 
-// Contact: DB + Email (graceful if services unavailable)
+// contact (GET shows flash if ?sent=1)
+router.get("/contact", (req, res) =>
+  res.render("contact", { sent: req.query.sent === "1" })
+);
+
+// contact (POST writes to DB + optional email)
 router.post("/contact", async (req, res) => {
+  console.log("[contact] received", {
+    name:  req.body?.name,
+    email: req.body?.email,
+    len:   (req.body?.message || '').length,
+  });
+
   try {
     const name    = String(req.body.name || "").trim();
     const email   = String(req.body.email || "").trim();
     const message = String(req.body.message || "").trim();
 
     if (!name || !email || !message) {
+      console.warn("[contact] missing field(s)");
       return res.status(400).render("contact", { sent: false, error: "Please fill all fields." });
     }
 
-    // record to DB (if admin client configured)
-    try {
-      if (supabaseAdmin) {
-        const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.ip || null;
-        const ua = req.get('User-Agent') || null;
+    if (!supabaseAdmin) {
+      console.warn("[contact] Supabase not configured; skipping write.");
+    } else {
+      const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || null;
+      const ua = req.get('User-Agent') || null;
 
-        const { error } = await supabaseAdmin
-          .from("contact_messages")
-          .insert({ name, email, message, ip, user_agent: ua });
+      const { error } = await supabaseAdmin
+        .from("contact_messages")
+        .insert({ name, email, message, ip, user_agent: ua });
 
-        if (error) console.error("[contact] insert failed:", error.message);
+      if (error) {
+        console.error("[contact] insert failed:", error.message);
       } else {
-        console.warn("[contact] Supabase not configured; skipping DB write.");
+        console.log("[contact] insert ok");
       }
-    } catch (e) {
-      console.error("[contact] DB write error:", e);
     }
 
-    // email notification (best-effort)
-    try {
-      await sendContactNotification({ name, email, message, ip: req.ip, userAgent: req.get('User-Agent') });
-    } catch (e) {
-      console.error("[contact] email send error:", e?.response?.data || e.message);
-    }
+    // Optional: email a copy to the inbox
+    sendContactEmail({ name, email, message });
 
-    // success UX (prevents resubmits on refresh)
+    // Redirect (prevents form re-submit on refresh)
     return res.redirect(303, "/contact?sent=1");
   } catch (e) {
     console.error("[contact] unexpected error:", e);
