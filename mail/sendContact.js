@@ -1,80 +1,99 @@
-// mail/sendContact.js (final)
-// Sends a notification email for Contact Us via Mailjet if configured.
-// If Mailjet module or credentials are missing, it logs and safely no-ops.
+// mail/sendContact.js
+// Lightweight Mailjet wrapper to notify you when someone submits Contact form.
+// Safe no-op if MAILJET creds are missing (so it won't crash your app).
 
 let Mailjet = null;
 try {
-  // Optional dependency; if not installed, we skip email.
   Mailjet = require('node-mailjet');
-} catch (_) {
-  Mailjet = null;
+} catch {
+  // If the dep isn't installed, we silently no-op.
 }
 
-const API_KEY =
-  process.env.MAILJET_API_KEY ||
-  process.env.MJ_API_KEY ||
-  '';
-const SECRET_KEY =
-  process.env.MAILJET_SECRET_KEY ||
-  process.env.MJ_SECRET_KEY ||
-  '';
-const FROM_EMAIL =
-  process.env.SMTP_FROM ||
-  process.env.MJ_FROM ||
-  process.env.SUPPORT_INBOX ||
-  'info@booklantern.org';
-const TO_EMAIL =
-  process.env.SUPPORT_INBOX ||
-  FROM_EMAIL;
+const FROM_EMAIL = process.env.CONTACT_FROM_EMAIL || 'info@booklantern.org';
+const TO_EMAIL   = process.env.CONTACT_NOTIFY_TO || 'info@booklantern.org';
 
-// Basic HTML escape for user content
-function esc(s = '') {
-  return String(s).replace(/[&<>"]/g, c => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'
-  })[c]);
+function isConfigured() {
+  return Boolean(
+    Mailjet &&
+    process.env.MAILJET_API_KEY &&
+    process.env.MAILJET_SECRET_KEY &&
+    TO_EMAIL
+  );
 }
 
 /**
- * sendContact({ name, email, message }) -> { ok: boolean, skipped?: boolean }
+ * sendContact({ name, email, message, ip, userAgent })
+ * Returns true on success, false on no-op or failure.
  */
-module.exports = async function sendContact({ name, email, message }) {
-  // If not fully configured, don’t error; just log and skip.
-  if (!Mailjet || !API_KEY || !SECRET_KEY) {
-    console.warn('[mail] Mailjet not configured; skipping contact email.');
-    return { ok: false, skipped: true };
+async function sendContact({ name, email, message, ip, userAgent }) {
+  if (!isConfigured()) {
+    console.warn('[mail] Mailjet not configured — skipping email send.');
+    return false;
   }
 
-  const client = Mailjet.apiConnect(API_KEY, SECRET_KEY);
+  const client = Mailjet.apiConnect(
+    process.env.MAILJET_API_KEY,
+    process.env.MAILJET_SECRET_KEY
+  );
 
-  const now = new Date().toISOString();
-  const subject = 'New contact message — BookLantern';
+  const subject = `New contact message — ${name || 'Unknown'}`;
+  const text = [
+    `You received a new contact message on BookLantern.`,
+    '',
+    `Name:    ${name || ''}`,
+    `Email:   ${email || ''}`,
+    `IP:      ${ip || ''}`,
+    `Agent:   ${userAgent || ''}`,
+    '',
+    'Message:',
+    message || ''
+  ].join('\n');
 
-  const TextPart = `From: ${name} <${email}>\n\n${message}\n\nSent: ${now}`;
-  const HTMLPart = `
-    <p><strong>From:</strong> ${esc(name)} &lt;${esc(email)}&gt;</p>
-    <p>${esc(message).replace(/\n/g,'<br>')}</p>
-    <p style="color:#999">Sent: ${esc(now)}</p>
+  const html = `
+    <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; line-height:1.6;">
+      <h2 style="margin:0 0 10px;">New contact message</h2>
+      <table style="border-collapse:collapse; font-size:14px">
+        <tr><td style="padding:2px 8px 2px 0; color:#555;">Name:</td><td>${escapeHtml(name || '')}</td></tr>
+        <tr><td style="padding:2px 8px 2px 0; color:#555;">Email:</td><td>${escapeHtml(email || '')}</td></tr>
+        <tr><td style="padding:2px 8px 2px 0; color:#555;">IP:</td><td>${escapeHtml(ip || '')}</td></tr>
+        <tr><td style="padding:2px 8px 2px 0; color:#555;">Agent:</td><td>${escapeHtml(userAgent || '')}</td></tr>
+      </table>
+      <hr style="border:none;border-top:1px solid #eee; margin:12px 0;">
+      <pre style="white-space:pre-wrap; font-size:14px; margin:0">${escapeHtml(message || '')}</pre>
+    </div>
   `;
 
-  const payload = {
-    Messages: [
-      {
-        From: { Email: FROM_EMAIL, Name: 'BookLantern' },
-        To:   [{ Email: TO_EMAIL,  Name: 'BookLantern' }],
-        ReplyTo: { Email: email, Name: name || email },
-        Subject: subject,
-        TextPart,
-        HTMLPart
-      }
-    ]
-  };
+  try {
+    const res = await client
+      .post('send', { version: 'v3.1' })
+      .request({
+        Messages: [
+          {
+            From: { Email: FROM_EMAIL, Name: 'BookLantern' },
+            To:   [{ Email: TO_EMAIL,  Name: 'BookLantern Inbox' }],
+            Subject: subject,
+            TextPart: text,
+            HTMLPart: html
+          }
+        ]
+      });
 
-  const res = await client.post('send', { version: 'v3.1' }).request(payload);
-  const ok = Array.isArray(res?.body?.Messages);
-
-  if (!ok) {
-    console.warn('[mail] Mailjet response unexpected:', res?.body);
-    return { ok: false };
+    const ok = Array.isArray(res?.body?.Messages) && res.body.Messages[0]?.Status === 'success';
+    if (!ok) {
+      console.warn('[mail] Mailjet send returned unexpected response:', res?.body);
+    }
+    return ok;
+  } catch (err) {
+    console.error('[mail] Mailjet send failed:', err?.message || err);
+    return false;
   }
-  return { ok: true };
-};
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+module.exports = sendContact;
