@@ -1,4 +1,5 @@
-// routes/index.js (final)
+// routes/index.js — final
+
 const express = require("express");
 const router = express.Router();
 
@@ -6,17 +7,16 @@ const router = express.Router();
 let supabaseAdmin = null;
 try {
   supabaseAdmin = require("../supabaseAdmin"); // exports a client or null
-} catch (_) {
-  // keep running even if file/module isn't present
+} catch {
   supabaseAdmin = null;
 }
 
-// Optional Mailjet (only used if env keys are present)
-let Mailjet = null;
+// Optional email notifier (safe no-op if not configured)
+let sendContact = null;
 try {
-  Mailjet = require("node-mailjet");
-} catch (_) {
-  Mailjet = null;
+  sendContact = require("../mail/sendContact"); // exports async function or throws if missing
+} catch {
+  sendContact = null;
 }
 
 /* ----------------------------------
@@ -103,7 +103,9 @@ const norm = (b = {}) => ({
   title: String(b.title || "Untitled"),
   author: String(b.author || b.authors || "").toString(),
   cover: String(b.cover || ""),
-  href: b.href || `/read?provider=${encodeURIComponent(b.provider || "openlibrary")}&id=${encodeURIComponent(b.id || "")}`,
+  href:
+    b.href ||
+    `/read?provider=${encodeURIComponent(b.provider || "openlibrary")}&id=${encodeURIComponent(b.id || "")}`,
   subjects: Array.isArray(b.subjects) ? b.subjects : [],
 });
 function ensureShelf(name, maybe, min = 8) {
@@ -121,24 +123,24 @@ function ensureShelf(name, maybe, min = 8) {
 router.get("/", (req, res) => {
   const provided = (req.app && req.app.locals && req.app.locals.shelves) || {};
   const shelves = {
-    trending:  ensureShelf("trending",  provided.trending),
-    philosophy:ensureShelf("philosophy",provided.philosophy),
-    history:   ensureShelf("history",   provided.history),
-    science:   ensureShelf("science",   provided.science),
+    trending: ensureShelf("trending", provided.trending),
+    philosophy: ensureShelf("philosophy", provided.philosophy),
+    history: ensureShelf("history", provided.history),
+    science: ensureShelf("science", provided.science),
   };
   res.render("index", { shelves });
 });
 
 // Static pages
-router.get("/about",   (_req, res) => res.render("about"));
-router.get("/watch",   (_req, res) => res.render("watch", { videos: [] }));
-router.get("/login",   (_req, res) => res.render("login", { csrfToken: "" }));
-router.get("/register",(_req, res) => res.render("register", { csrfToken: "" }));
+router.get("/about", (_req, res) => res.render("about"));
+router.get("/watch", (_req, res) => res.render("watch", { videos: [] }));
+router.get("/login", (_req, res) => res.render("login", { csrfToken: "" }));
+router.get("/register", (_req, res) => res.render("register", { csrfToken: "" }));
 
-// Read page (expects provider & id via query in real use)
+// Read (expects provider & id via query)
 router.get("/read", (req, res) => {
   const provider = String(req.query.provider || "");
-  const id       = String(req.query.id || "");
+  const id = String(req.query.id || "");
   res.render("read", { provider, id });
 });
 
@@ -160,94 +162,54 @@ router.get("/privacy", (req, res) => {
   });
 });
 
-// Contact (GET: show; POST: store to Supabase and optionally email via Mailjet)
+// Contact (GET/POST)
 router.get("/contact", (req, res) => {
-  const sent  = req.query.sent === "1";
+  const sent = req.query.sent === "1";
   const error = req.query.error || "";
   res.render("contact", { sent, error });
 });
 
 router.post("/contact", async (req, res) => {
   try {
-    const name    = String(req.body.name || "").trim();
-    const email   = String(req.body.email || "").trim();
+    const name = String(req.body.name || "").trim();
+    const email = String(req.body.email || "").trim();
     const message = String(req.body.message || "").trim();
 
     if (!name || !email || !message) {
       return res.status(400).render("contact", { sent: false, error: "Please fill all fields." });
     }
 
-    // Insert into Supabase (server-side) if configured
-    const ip         = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || null;
-    const user_agent = req.get("User-Agent") || null;
+    const ip =
+      req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+      req.ip ||
+      null;
+    const userAgent = req.get("User-Agent") || null;
 
+    // DB insert (safe if Supabase configured)
     if (supabaseAdmin && typeof supabaseAdmin.from === "function") {
       const { error } = await supabaseAdmin
         .from("contact_messages")
-        .insert({ name, email, message, ip, user_agent });
-
+        .insert({ name, email, message, ip, user_agent: userAgent });
       if (error) {
         console.error("[contact] insert failed:", error.message);
-        // Continue to success UX; we don't want to show an error page here
       }
     } else {
       console.warn("[contact] Supabase not configured; skipping DB insert.");
     }
 
-    // Optional: email notification to you via Mailjet (only if env is present)
-    await maybeSendMailjetEmail({ name, email, message });
+    // Email notify (fire-and-forget)
+    if (typeof sendContact === "function") {
+      sendContact({ name, email, message, ip, userAgent }).catch((e) =>
+        console.warn("[contact] email send failed:", e?.message || e)
+      );
+    }
 
-    // Redirect to avoid resubmission on refresh
+    // Clean redirect to avoid resubmission
     return res.redirect(303, "/contact?sent=1");
   } catch (e) {
     console.error("[contact] unexpected error:", e);
     return res.redirect(303, "/contact?sent=1");
   }
 });
-
-/* ----------------------------------
-   Helpers
------------------------------------ */
-
-async function maybeSendMailjetEmail({ name, email, message }) {
-  try {
-    if (!Mailjet) return; // module not installed
-    const apiKey    = process.env.MAILJET_API_KEY;
-    const secretKey = process.env.MAILJET_SECRET_KEY;
-    const fromEmail = process.env.MAILJET_SENDER || "info@booklantern.org";
-    const toEmail   = process.env.MAILJET_TO || "info@booklantern.org";
-
-    if (!apiKey || !secretKey) return; // not configured
-
-    const mj = Mailjet.apiConnect(apiKey, secretKey);
-    const html = `
-      <div style="font-family:Helvetica,Arial,sans-serif;">
-        <h2 style="margin:0 0 8px;">New contact message</h2>
-        <p style="margin:0 0 6px;"><strong>Name:</strong> ${escapeHtml(name)}</p>
-        <p style="margin:0 0 6px;"><strong>Email:</strong> ${escapeHtml(email)}</p>
-        <p style="margin:10px 0 0;"><strong>Message:</strong><br>${escapeHtml(message).replace(/\n/g,'<br>')}</p>
-      </div>
-    `;
-
-    await mj.post("send", { version: "v3.1" }).request({
-      Messages: [
-        {
-          From: { Email: fromEmail, Name: "BookLantern" },
-          To:   [{ Email: toEmail,   Name: "BookLantern" }],
-          Subject: "New contact message",
-          HTMLPart: html
-        }
-      ]
-    });
-  } catch (err) {
-    console.error("[contact] Mailjet send failed:", err?.message || err);
-  }
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => (
-    { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]
-  ));
-}
 
 module.exports = router;
