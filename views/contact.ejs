@@ -35,8 +35,18 @@
     </section>
 
     <!-- Contact form -->
-    <form class="stack card" action="/contact" method="post"
-          style="--gap:14px; padding:16px;">
+    <form class="stack card" action="/contact" method="post" style="--gap:14px; padding:16px;">
+      <!-- CSRF (if your middleware injects csrfToken) -->
+      <% if (typeof csrfToken !== 'undefined') { %>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <% } %>
+
+      <!-- Honeypot: bots fill this; users never see it -->
+      <div style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">
+        <label for="website">Your website (leave empty)</label>
+        <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+      </div>
+
       <div class="stack" style="--gap:6px;">
         <label for="name">Your Name</label>
         <input id="name" name="name" class="input" type="text" placeholder="Your name"
