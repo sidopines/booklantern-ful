@@ -11,6 +11,7 @@ try {
   console.warn("[admin] @supabase/supabase-js not installed yet.");
 }
 
+// Create Supabase client (Service Role)
 function getSupabase() {
   if (supabase) return supabase;
   if (!createClient) return null;
@@ -22,7 +23,9 @@ function getSupabase() {
     console.warn("[admin] Supabase not configured; admin API disabled.");
     return null;
   }
+
   supabase = createClient(url, key);
+  console.log("[admin] Supabase client initialized.");
   return supabase;
 }
 
@@ -56,6 +59,51 @@ router.post("/delete-user", async (req, res) => {
     console.error("Delete user failed:", err.message);
     return res.status(500).json({ error: "Delete failed" });
   }
+});
+
+/**
+ * Debug Contact Insert — verifies Supabase + table write
+ * POST /admin/debug-contact-insert
+ * Headers: X-Admin-Token: <ADMIN_API_TOKEN>
+ */
+router.post("/debug-contact-insert", async (req, res) => {
+  const token = req.get("X-Admin-Token");
+  if (!token || token !== process.env.ADMIN_API_TOKEN) {
+    return res.status(403).json({ ok: false, error: "Unauthorized" });
+  }
+
+  const sb = getSupabase();
+  if (!sb) {
+    return res
+      .status(503)
+      .json({ ok: false, error: "Supabase client not configured" });
+  }
+
+  try {
+    const { data, error } = await sb
+      .from("contact_messages")
+      .insert({
+        name: "Debug",
+        email: "debug@booklantern.org",
+        message: "Test from /admin/debug-contact-insert",
+        ip: null,
+        user_agent: null,
+      })
+      .select();
+
+    if (error) throw error;
+
+    console.log("[admin] Debug contact insert OK:", data?.[0]?.id || "(no id)");
+    return res.status(200).json({ ok: true, data });
+  } catch (err) {
+    console.error("[admin] Debug contact insert failed:", err.message);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Simple sanity ping
+router.get("/", (_req, res) => {
+  res.status(200).send("Admin API active");
 });
 
 module.exports = router;
