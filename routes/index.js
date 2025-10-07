@@ -1,17 +1,12 @@
 // routes/index.js
 const express = require("express");
 const router = express.Router();
-const supabaseAdmin = require("../supabaseAdmin"); // ← optional client (may be null)
+const supabaseAdmin = require("../supabaseAdmin");   // may be null if env missing
+const { sendContactNotification } = require("../mailer");
 
 /**
- * Minimal, robust home data pipeline:
- * - Looks for req.app.locals.shelves (if you hydrate it elsewhere)
- * - Applies light normalization
- * - If any shelf is missing or too small, it falls back to a curated set
- *   so the homepage NEVER looks empty.
+ * Minimal, robust home data pipeline with curated fallbacks.
  */
-
-// ---- Curated fallbacks (diverse, real covers) ----
 const FALLBACK = {
   trending: [
     { id: "ol-origin-darwin", provider: "openlibrary", title: "On the Origin of Species", author: "Charles Darwin",
@@ -39,7 +34,6 @@ const FALLBACK = {
       cover: "https://www.gutenberg.org/cache/epub/132/pg132.cover.medium.jpg",
       href: "/read?provider=gutenberg&id=132", subjects: ["Strategy", "History"] },
   ],
-
   philosophy: [
     { id: "pg-ethics", provider: "gutenberg", title: "Ethics", author: "Benedict de Spinoza",
       cover: "https://www.gutenberg.org/cache/epub/3800/pg3800.cover.medium.jpg",
@@ -57,7 +51,6 @@ const FALLBACK = {
       cover: "https://www.gutenberg.org/cache/epub/1497/pg1497.cover.medium.jpg",
       href: "/read?provider=gutenberg&id=1497", subjects: ["Philosophy"] },
   ],
-
   history: [
     { id: "pg-history-herodotus", provider: "gutenberg", title: "The Histories", author: "Herodotus",
       cover: "https://www.gutenberg.org/cache/epub/2707/pg2707.cover.medium.jpg",
@@ -72,7 +65,6 @@ const FALLBACK = {
       cover: "https://covers.openlibrary.org/b/olid/OL25428444M-L.jpg",
       href: "/read?provider=openlibrary&id=OL25428444M", subjects: ["Fiction","History"] },
   ],
-
   science: [
     { id: "pg-relativity", provider: "gutenberg", title: "Relativity: The Special and General Theory", author: "Albert Einstein",
       cover: "https://www.gutenberg.org/cache/epub/30155/pg30155.cover.medium.jpg",
@@ -89,7 +81,6 @@ const FALLBACK = {
   ],
 };
 
-// ---- helpers ----
 const clamp = (arr, n) => (Array.isArray(arr) ? arr.slice(0, n) : []);
 const norm = (b = {}) => ({
   id: String(b.id || b.key || ""),
@@ -107,7 +98,7 @@ function ensureShelf(name, maybe, min = 8) {
   return clamp((FALLBACK[name] || []).map(norm), 24);
 }
 
-// ---- routes ----
+// ---------- Routes ----------
 router.get("/", (req, res) => {
   const provided = (req.app && req.app.locals && req.app.locals.shelves) || {};
   const shelves = {
@@ -119,11 +110,11 @@ router.get("/", (req, res) => {
   res.render("index", { shelves });
 });
 
-// static pages
+// Static pages
 router.get("/about", (req, res) => res.render("about"));
 router.get("/contact", (req, res) =>
   res.render("contact", {
-    sent: req.query.sent === "1" // show success flash after submit
+    sent: req.query.sent === "1" // shows success flash after submit
   })
 );
 router.get("/read", (req, res) => res.render("read", { provider: "", id: "" }));
@@ -131,7 +122,7 @@ router.get("/watch", (req, res) => res.render("watch", { videos: [] }));
 router.get("/login", (req, res) => res.render("login", { csrfToken: "" }));
 router.get("/register", (req, res) => res.render("register", { csrfToken: "" }));
 
-// Terms & Privacy (already linked in footer)
+// Terms & Privacy
 router.get("/terms", (req, res) => {
   const canonicalUrl = `${req.protocol}://${req.get("host")}/terms`;
   res.render("terms", {
@@ -149,31 +140,43 @@ router.get("/privacy", (req, res) => {
   });
 });
 
-// ---- Contact: safe server-side insert (no crash if Supabase missing) ----
+// Contact: DB + Email (graceful if services unavailable)
 router.post("/contact", async (req, res) => {
   try {
-    const name = String(req.body.name || "").trim();
-    const email = String(req.body.email || "").trim();
+    const name    = String(req.body.name || "").trim();
+    const email   = String(req.body.email || "").trim();
     const message = String(req.body.message || "").trim();
+
     if (!name || !email || !message) {
-      // bad input – but keep UX friendly
       return res.status(400).render("contact", { sent: false, error: "Please fill all fields." });
     }
 
-    // If Supabase admin client is missing, don't crash; log and continue.
-    if (!supabaseAdmin) {
-      console.warn("[contact] Supabase not configured; skipping write.");
-    } else {
-      const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || null;
-      const { error } = await supabaseAdmin
-        .from("contact_messages")
-        .insert({ name, email, message, ip });
-      if (error) {
-        console.error("[contact] insert failed:", error.message);
+    // record to DB (if admin client configured)
+    try {
+      if (supabaseAdmin) {
+        const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.ip || null;
+        const ua = req.get('User-Agent') || null;
+
+        const { error } = await supabaseAdmin
+          .from("contact_messages")
+          .insert({ name, email, message, ip, user_agent: ua });
+
+        if (error) console.error("[contact] insert failed:", error.message);
+      } else {
+        console.warn("[contact] Supabase not configured; skipping DB write.");
       }
+    } catch (e) {
+      console.error("[contact] DB write error:", e);
     }
 
-    // Redirect to show a clean success state (prevents resubmits on refresh)
+    // email notification (best-effort)
+    try {
+      await sendContactNotification({ name, email, message, ip: req.ip, userAgent: req.get('User-Agent') });
+    } catch (e) {
+      console.error("[contact] email send error:", e?.response?.data || e.message);
+    }
+
+    // success UX (prevents resubmits on refresh)
     return res.redirect(303, "/contact?sent=1");
   } catch (e) {
     console.error("[contact] unexpected error:", e);
