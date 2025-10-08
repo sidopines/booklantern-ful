@@ -1,6 +1,8 @@
 // mail/sendContact.js
-// Lightweight Mailjet wrapper to notify you when someone submits Contact form.
-// Safe no-op if MAILJET creds are missing (so it won't crash your app).
+// Mailjet wrapper for the Contact form.
+// - Safe no-op if Mailjet isn’t configured
+// - From: always your domain (DMARC aligned)
+// - Reply-To: visitor’s email (so you can reply from your inbox)
 
 let Mailjet = null;
 try {
@@ -21,6 +23,9 @@ function isConfigured() {
   );
 }
 
+const EMAIL_RE =
+  /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+
 /**
  * sendContact({ name, email, message, ip, userAgent })
  * Returns true on success, false on no-op or failure.
@@ -36,12 +41,16 @@ async function sendContact({ name, email, message, ip, userAgent }) {
     process.env.MAILJET_SECRET_KEY
   );
 
-  const subject = `New contact message — ${name || 'Unknown'}`;
+  const safeName  = (name || '').toString().trim() || 'Unknown';
+  const safeEmail = (email || '').toString().trim();
+  const useReplyTo = EMAIL_RE.test(safeEmail);
+
+  const subject = `New contact message — ${safeName}`;
   const text = [
     `You received a new contact message on BookLantern.`,
     '',
-    `Name:    ${name || ''}`,
-    `Email:   ${email || ''}`,
+    `Name:    ${safeName}`,
+    `Email:   ${safeEmail}`,
     `IP:      ${ip || ''}`,
     `Agent:   ${userAgent || ''}`,
     '',
@@ -53,8 +62,8 @@ async function sendContact({ name, email, message, ip, userAgent }) {
     <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; line-height:1.6;">
       <h2 style="margin:0 0 10px;">New contact message</h2>
       <table style="border-collapse:collapse; font-size:14px">
-        <tr><td style="padding:2px 8px 2px 0; color:#555;">Name:</td><td>${escapeHtml(name || '')}</td></tr>
-        <tr><td style="padding:2px 8px 2px 0; color:#555;">Email:</td><td>${escapeHtml(email || '')}</td></tr>
+        <tr><td style="padding:2px 8px 2px 0; color:#555;">Name:</td><td>${escapeHtml(safeName)}</td></tr>
+        <tr><td style="padding:2px 8px 2px 0; color:#555;">Email:</td><td>${escapeHtml(safeEmail)}</td></tr>
         <tr><td style="padding:2px 8px 2px 0; color:#555;">IP:</td><td>${escapeHtml(ip || '')}</td></tr>
         <tr><td style="padding:2px 8px 2px 0; color:#555;">Agent:</td><td>${escapeHtml(userAgent || '')}</td></tr>
       </table>
@@ -63,22 +72,29 @@ async function sendContact({ name, email, message, ip, userAgent }) {
     </div>
   `;
 
+  const msg = {
+    From: { Email: FROM_EMAIL, Name: 'BookLantern' }, // DMARC-aligned
+    To:   [{ Email: TO_EMAIL,  Name: 'BookLantern Inbox' }],
+    Subject: subject,
+    TextPart: text,
+    HTMLPart: html,
+    CustomID: 'contact_form_notification'
+  };
+
+  // Set Reply-To to the visitor so you can reply directly from your mailbox.
+  if (useReplyTo) {
+    msg.ReplyTo = { Email: safeEmail, Name: safeName };
+  }
+
   try {
     const res = await client
       .post('send', { version: 'v3.1' })
-      .request({
-        Messages: [
-          {
-            From: { Email: FROM_EMAIL, Name: 'BookLantern' },
-            To:   [{ Email: TO_EMAIL,  Name: 'BookLantern Inbox' }],
-            Subject: subject,
-            TextPart: text,
-            HTMLPart: html
-          }
-        ]
-      });
+      .request({ Messages: [msg] });
 
-    const ok = Array.isArray(res?.body?.Messages) && res.body.Messages[0]?.Status === 'success';
+    const ok =
+      Array.isArray(res?.body?.Messages) &&
+      res.body.Messages[0]?.Status === 'success';
+
     if (!ok) {
       console.warn('[mail] Mailjet send returned unexpected response:', res?.body);
     }
@@ -93,7 +109,9 @@ function escapeHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 module.exports = sendContact;
