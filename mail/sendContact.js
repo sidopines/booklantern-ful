@@ -1,17 +1,15 @@
 // mail/sendContact.js
-// Mailjet wrapper for the Contact form.
-// - Safe no-op if Mailjet isn’t configured
-// - From: always your domain (DMARC aligned)
-// - Reply-To: visitor’s email (so you can reply from your inbox)
+// Final version — optimized for verified Mailjet domain and full DMARC alignment.
 
 let Mailjet = null;
 try {
   Mailjet = require('node-mailjet');
 } catch {
-  // If the dep isn't installed, we silently no-op.
+  console.warn('[mail] Mailjet dependency not installed — skipping email send.');
 }
 
 const FROM_EMAIL = process.env.CONTACT_FROM_EMAIL || 'info@booklantern.org';
+const FROM_NAME  = 'BookLantern';
 const TO_EMAIL   = process.env.CONTACT_NOTIFY_TO || 'info@booklantern.org';
 
 function isConfigured() {
@@ -23,12 +21,9 @@ function isConfigured() {
   );
 }
 
-const EMAIL_RE =
-  /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
-
 /**
  * sendContact({ name, email, message, ip, userAgent })
- * Returns true on success, false on no-op or failure.
+ * Sends form submissions from the website to your verified BookLantern inbox.
  */
 async function sendContact({ name, email, message, ip, userAgent }) {
   if (!isConfigured()) {
@@ -41,16 +36,12 @@ async function sendContact({ name, email, message, ip, userAgent }) {
     process.env.MAILJET_SECRET_KEY
   );
 
-  const safeName  = (name || '').toString().trim() || 'Unknown';
-  const safeEmail = (email || '').toString().trim();
-  const useReplyTo = EMAIL_RE.test(safeEmail);
-
-  const subject = `New contact message — ${safeName}`;
+  const subject = `📩 New contact message from ${name || 'Visitor'}`;
   const text = [
-    `You received a new contact message on BookLantern.`,
+    `You received a new contact form message from BookLantern.org`,
     '',
-    `Name:    ${safeName}`,
-    `Email:   ${safeEmail}`,
+    `Name:    ${name || ''}`,
+    `Email:   ${email || ''}`,
     `IP:      ${ip || ''}`,
     `Agent:   ${userAgent || ''}`,
     '',
@@ -62,8 +53,8 @@ async function sendContact({ name, email, message, ip, userAgent }) {
     <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; line-height:1.6;">
       <h2 style="margin:0 0 10px;">New contact message</h2>
       <table style="border-collapse:collapse; font-size:14px">
-        <tr><td style="padding:2px 8px 2px 0; color:#555;">Name:</td><td>${escapeHtml(safeName)}</td></tr>
-        <tr><td style="padding:2px 8px 2px 0; color:#555;">Email:</td><td>${escapeHtml(safeEmail)}</td></tr>
+        <tr><td style="padding:2px 8px 2px 0; color:#555;">Name:</td><td>${escapeHtml(name || '')}</td></tr>
+        <tr><td style="padding:2px 8px 2px 0; color:#555;">Email:</td><td>${escapeHtml(email || '')}</td></tr>
         <tr><td style="padding:2px 8px 2px 0; color:#555;">IP:</td><td>${escapeHtml(ip || '')}</td></tr>
         <tr><td style="padding:2px 8px 2px 0; color:#555;">Agent:</td><td>${escapeHtml(userAgent || '')}</td></tr>
       </table>
@@ -72,32 +63,28 @@ async function sendContact({ name, email, message, ip, userAgent }) {
     </div>
   `;
 
-  const msg = {
-    From: { Email: FROM_EMAIL, Name: 'BookLantern' }, // DMARC-aligned
-    To:   [{ Email: TO_EMAIL,  Name: 'BookLantern Inbox' }],
-    Subject: subject,
-    TextPart: text,
-    HTMLPart: html,
-    CustomID: 'contact_form_notification'
-  };
-
-  // Set Reply-To to the visitor so you can reply directly from your mailbox.
-  if (useReplyTo) {
-    msg.ReplyTo = { Email: safeEmail, Name: safeName };
-  }
-
   try {
     const res = await client
       .post('send', { version: 'v3.1' })
-      .request({ Messages: [msg] });
+      .request({
+        Messages: [
+          {
+            From: { Email: FROM_EMAIL, Name: FROM_NAME },
+            To: [{ Email: TO_EMAIL, Name: 'BookLantern Inbox' }],
+            ReplyTo: { Email: email || FROM_EMAIL, Name: name || 'Visitor' },
+            Subject: subject,
+            TextPart: text,
+            HTMLPart: html,
+            Headers: {
+              'X-Mailer': 'BookLantern Contact Form',
+              'X-Source': 'contact-form',
+            }
+          }
+        ]
+      });
 
-    const ok =
-      Array.isArray(res?.body?.Messages) &&
-      res.body.Messages[0]?.Status === 'success';
-
-    if (!ok) {
-      console.warn('[mail] Mailjet send returned unexpected response:', res?.body);
-    }
+    const ok = Array.isArray(res?.body?.Messages) && res.body.Messages[0]?.Status === 'success';
+    if (!ok) console.warn('[mail] Unexpected Mailjet response:', res?.body);
     return ok;
   } catch (err) {
     console.error('[mail] Mailjet send failed:', err?.message || err);
@@ -110,8 +97,7 @@ function escapeHtml(s) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/"/g, '&quot;');
 }
 
 module.exports = sendContact;
