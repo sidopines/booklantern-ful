@@ -9,105 +9,99 @@
 </head>
 <body>
   <%- include('./partials/navbar') %>
-
   <main class="container" style="max-width:700px; margin:28px auto; padding:0 16px;">
     <h1>Login</h1>
-    <p class="ink-2">Use email & password, or continue with Google / Apple.</p>
+    <p class="ink-2">Use email &amp; password, or continue with Google / Apple.</p>
 
-    <% if (typeof confirmed !== 'undefined' && confirmed) { %>
-      <div class="card" style="padding:12px; margin-top:12px; border-left:4px solid #3fb950; background:#f0fff4;">
-        ✅ Your email has been verified. You can log in now.
-      </div>
-    <% } %>
-
-    <% if (typeof reset !== 'undefined' && reset) { %>
-      <div class="card" style="padding:12px; margin-top:12px; border-left:4px solid #0969da; background:#f0f6ff;">
-        ✉️ Check your inbox for a password reset link.
-      </div>
-    <% } %>
+    <!-- status banner -->
+    <div id="banner" class="card" style="display:none; padding:10px; margin:12px 0;"></div>
 
     <form id="loginForm" class="card" style="padding:16px; margin-top:12px;">
       <div class="stack" style="--gap:10px;">
         <input class="input" type="email" id="email" placeholder="you@example.com" required>
         <input class="input" type="password" id="password" placeholder="Your password" required>
-
         <div class="row" style="gap:8px; flex-wrap:wrap;">
           <button class="btn btn-primary" type="submit">Log in</button>
           <button class="btn" id="reset" type="button">Send reset link</button>
         </div>
 
-        <div class="ink-2" style="margin-top:4px;">
-          <a href="#" id="forgot">Forgot password?</a>
-        </div>
+        <div class="ink-2" style="margin-top:-6px;">Forgot password?</div>
 
-        <div class="row" style="gap:8px; flex-wrap:wrap; margin-top:8px;">
+        <div class="row" style="gap:8px; flex-wrap:wrap;">
           <button class="btn" id="google" type="button">Continue with Google</button>
-          <button class="btn" id="apple"  type="button">Continue with Apple</button>
+          <button class="btn" id="apple" type="button">Continue with Apple</button>
         </div>
-
-        <div id="msg" class="ink-2" style="margin-top:8px;"></div>
+        <div id="msg" class="ink-2"></div>
       </div>
     </form>
   </main>
-
   <%- include('./partials/footer') %>
 
   <script>
   (function(){
-    // You already create this globally elsewhere
+    // --- helpers ---
     const sb = window.supabaseClient;
+    const banner = document.getElementById('banner');
+    const msgEl = document.getElementById('msg');
 
-    const $ = (id) => document.getElementById(id);
-    const setMsg = (text, type) => {
-      const el = $('msg');
-      el.textContent = text || '';
-      el.style.color = type === 'error' ? '#b3261e' : (type === 'ok' ? '#1a7f37' : '');
-    };
+    function setBanner(text, ok){
+      if (!text) { banner.style.display='none'; banner.textContent=''; return; }
+      banner.style.display='block';
+      banner.textContent = text;
+      banner.style.background = ok ? 'var(--green-1, #e6f7ed)' : 'var(--ink-1, #f5f5f5)';
+      banner.style.border = '1px solid rgba(0,0,0,.08)';
+    }
+    function setMsg(t){ msgEl.textContent = t || ''; }
 
-    // If already logged in, go to /account
-    (async () => {
-      try {
-        const { data: { session } } = await sb.auth.getSession();
-        if (session) location.replace('/account');
-      } catch {}
+    // --- show banners from query flags ---
+    (function showQueryBanner(){
+      try{
+        const qp = new URLSearchParams(location.search);
+        if (qp.has('confirmed')) {
+          setBanner('✅ Your email has been verified. You can log in now.', true);
+        } else if (qp.has('reset')) {
+          setBanner('📬 Check your inbox for a password reset link.', false);
+        }
+      }catch(e){}
     })();
 
-    $('loginForm').addEventListener('submit', async (e)=>{
+    // --- form login ---
+    document.getElementById('loginForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
       setMsg('');
-      const email = $('email').value.trim();
-      const password = $('password').value;
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
       const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) return setMsg(error.message, 'error');
+      if (error) return setMsg(error.message);
       location.href = '/account';
     });
 
-    async function sendReset(){
+    // --- reset link ---
+    document.getElementById('reset').addEventListener('click', async ()=>{
       setMsg('');
-      const email = $('email').value.trim();
-      if (!email) return setMsg('Enter your email first.', 'error');
-      const origin = (location && location.origin) || '<%= process.env.SITE_URL || "" %>';
-      const redirectTo = origin + '/auth/callback'; // your CF rule maps this to /login?reset=1
+      const email = document.getElementById('email').value.trim();
+      if (!email) return setMsg('Enter your email first.');
+      const redirectTo = (location.origin || '<%= process.env.SITE_URL || "" %>') + '/auth/callback?type=recovery';
       const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
-      if (error) return setMsg(error.message, 'error');
-      setMsg('Reset link sent. Check your email.', 'ok');
-    }
-
-    $('reset').addEventListener('click', sendReset);
-    $('forgot').addEventListener('click', (e) => { e.preventDefault(); sendReset(); });
-
-    $('google').addEventListener('click', async ()=>{
-      const origin = (location && location.origin) || '<%= process.env.SITE_URL || "" %>';
-      const redirectTo = origin + '/auth/callback';
-      const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
-      if (error) setMsg(error.message, 'error');
+      if (error) return setMsg(error.message);
+      location.href = '/login?reset=1';
     });
 
-    $('apple').addEventListener('click', async ()=>{
-      const origin = (location && location.origin) || '<%= process.env.SITE_URL || "" %>';
-      const redirectTo = origin + '/auth/callback';
-      const { error } = await sb.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo } });
-      if (error) setMsg(error.message, 'error');
+    // --- OAuth ---
+    function getRedirectBase(){
+      return (location.origin || '<%= process.env.SITE_URL || "" %>');
+    }
+    document.getElementById('google').addEventListener('click', async ()=>{
+      await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: getRedirectBase() + '/auth/callback' }
+      });
+    });
+    document.getElementById('apple').addEventListener('click', async ()=>{
+      await sb.auth.signInWithOAuth({
+        provider: 'apple',
+        options: { redirectTo: getRedirectBase() + '/auth/callback' }
+      });
     });
   })();
   </script>
