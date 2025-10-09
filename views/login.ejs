@@ -18,11 +18,13 @@
 
     <form id="loginForm" class="card" style="padding:16px; margin-top:12px;">
       <div class="stack" style="--gap:10px;">
-        <input class="input" type="email" id="email" placeholder="you@example.com" required>
-        <input class="input" type="password" id="password" placeholder="Your password" required>
+        <input class="input" type="email" id="email" placeholder="you@example.com" autocomplete="email" required>
+        <input class="input" type="password" id="password" placeholder="Your password" autocomplete="current-password" required>
+
         <div class="row" style="gap:8px; flex-wrap:wrap;">
           <button class="btn btn-primary" type="submit">Log in</button>
           <button class="btn" id="reset" type="button">Send reset link</button>
+          <a class="btn" href="/register">Create account</a>
         </div>
 
         <div class="ink-2" style="margin-top:-6px;">Forgot password?</div>
@@ -31,7 +33,8 @@
           <button class="btn" id="google" type="button">Continue with Google</button>
           <button class="btn" id="apple" type="button">Continue with Apple</button>
         </div>
-        <div id="msg" class="ink-2"></div>
+
+        <div id="msg" class="ink-2" role="status" aria-live="polite"></div>
       </div>
     </form>
   </main>
@@ -39,10 +42,14 @@
 
   <script>
   (function(){
-    // --- helpers ---
     const sb = window.supabaseClient;
     const banner = document.getElementById('banner');
     const msgEl = document.getElementById('msg');
+
+    // Already signed in? Go to Account.
+    sb.auth.getUser().then(({ data })=>{
+      if (data && data.user) location.href = '/account';
+    });
 
     function setBanner(text, ok){
       if (!text) { banner.style.display='none'; banner.textContent=''; return; }
@@ -53,7 +60,7 @@
     }
     function setMsg(t){ msgEl.textContent = t || ''; }
 
-    // --- show banners from query flags ---
+    // Show banners only when query flags exist
     (function showQueryBanner(){
       try{
         const qp = new URLSearchParams(location.search);
@@ -65,7 +72,7 @@
       }catch(e){}
     })();
 
-    // --- form login ---
+    // Email/password login
     document.getElementById('loginForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
       setMsg('');
@@ -76,7 +83,7 @@
       location.href = '/account';
     });
 
-    // --- reset link ---
+    // Password reset
     document.getElementById('reset').addEventListener('click', async ()=>{
       setMsg('');
       const email = document.getElementById('email').value.trim();
@@ -87,21 +94,13 @@
       location.href = '/login?reset=1';
     });
 
-    // --- OAuth ---
-    function getRedirectBase(){
-      return (location.origin || '<%= process.env.SITE_URL || "" %>');
-    }
+    // OAuth
+    function base(){ return (location.origin || '<%= process.env.SITE_URL || "" %>'); }
     document.getElementById('google').addEventListener('click', async ()=>{
-      await sb.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: getRedirectBase() + '/auth/callback' }
-      });
+      await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: base() + '/auth/callback' } });
     });
     document.getElementById('apple').addEventListener('click', async ()=>{
-      await sb.auth.signInWithOAuth({
-        provider: 'apple',
-        options: { redirectTo: getRedirectBase() + '/auth/callback' }
-      });
+      await sb.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo: base() + '/auth/callback' } });
     });
   })();
   </script>
