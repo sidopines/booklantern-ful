@@ -36,11 +36,6 @@ app.get('/sw.js', (req, res) => {
   });
 });
 
-// Optional: stop favicon 404 noise seen in logs
-app.get(['/favicon.ico', '/favicon-16x16.png', '/favicon-32x32.png', '/apple-touch-icon.png', '/apple-touch-icon-precomposed.png'], (req, res) => {
-  res.redirect(302, '/public/favicon.svg');
-});
-
 // ---------- Safe locals for EJS (theme/footer rely on buildId) ----------
 const BUILD_ID = Date.now().toString();
 app.use((req, res, next) => {
@@ -58,15 +53,18 @@ app.use((req, res, next) => {
   next();
 });
 
-// ---------- Per-route locals for login banners ----------
-// Cloudflare redirects /auth/callback → /login?confirmed=1 (or ?reset=1).
-// This middleware exposes those flags to views/login.ejs.
-app.use((req, res, next) => {
-  if (req.path === '/login') {
-    res.locals.confirmed = req.query.confirmed === '1';
-    res.locals.reset = req.query.reset === '1';
+// ---------- Minimal auth callback shim ----------
+// This ensures *any* hit to /auth/callback resolves, so Cloudflare or
+// email clients never see a 404. We also mark it non-cacheable.
+app.get('/auth/callback', (req, res) => {
+  const t = String(req.query.type || '').toLowerCase();
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+
+  if (t === 'recovery') {
+    return res.redirect(302, '/login?reset=1');
   }
-  next();
+  // default for email confirmations, magic links, OAuth return etc.
+  return res.redirect(302, '/login?confirmed=1');
 });
 
 // ---------- Mount routes explicitly ----------
