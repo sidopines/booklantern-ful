@@ -9,35 +9,39 @@
 </head>
 <body>
   <%- include('./partials/navbar') %>
+
   <main class="container" style="max-width:700px; margin:28px auto; padding:0 16px;">
     <h1>Login</h1>
-    <p class="ink-2">Use email &amp; password, or continue with Google / Apple.</p>
+    <p class="ink-2">Use your email and password, or continue with Google / Apple.</p>
 
     <!-- status banner -->
     <div id="banner" class="card" style="display:none; padding:10px; margin:12px 0;"></div>
 
-    <form id="loginForm" class="card" style="padding:16px; margin-top:12px;">
+    <form id="loginForm" class="card" style="padding:16px; margin-top:12px;" novalidate>
       <div class="stack" style="--gap:10px;">
         <input class="input" type="email" id="email" placeholder="you@example.com" autocomplete="email" required>
         <input class="input" type="password" id="password" placeholder="Your password" autocomplete="current-password" required>
 
         <div class="row" style="gap:8px; flex-wrap:wrap;">
-          <button class="btn btn-primary" type="submit">Log in</button>
+          <button class="btn btn-primary" type="submit" id="loginBtn">Log in</button>
           <button class="btn" id="reset" type="button">Send reset link</button>
-          <a class="btn" href="/register">Create account</a>
+          <a class="btn" href="/register">Don’t have an account? Create one</a>
         </div>
 
-        <div class="ink-2" style="margin-top:-6px;">Forgot password?</div>
+        <div class="ink-2" style="margin-top:-6px;">Forgot password? Use the reset link above.</div>
+
+        <hr style="border:none; border-top:1px solid rgba(0,0,0,.08); margin:6px 0;">
 
         <div class="row" style="gap:8px; flex-wrap:wrap;">
           <button class="btn" id="google" type="button">Continue with Google</button>
           <button class="btn" id="apple" type="button">Continue with Apple</button>
         </div>
 
-        <div id="msg" class="ink-2" role="status" aria-live="polite"></div>
+        <div id="msg" class="ink-2"></div>
       </div>
     </form>
   </main>
+
   <%- include('./partials/footer') %>
 
   <script>
@@ -45,62 +49,79 @@
     const sb = window.supabaseClient;
     const banner = document.getElementById('banner');
     const msgEl = document.getElementById('msg');
-
-    // Already signed in? Go to Account.
-    sb.auth.getUser().then(({ data })=>{
-      if (data && data.user) location.href = '/account';
-    });
+    const loginBtn = document.getElementById('loginBtn');
 
     function setBanner(text, ok){
-      if (!text) { banner.style.display='none'; banner.textContent=''; return; }
+      if (!text) {
+        banner.style.display='none';
+        banner.textContent='';
+        return;
+      }
       banner.style.display='block';
       banner.textContent = text;
       banner.style.background = ok ? 'var(--green-1, #e6f7ed)' : 'var(--ink-1, #f5f5f5)';
       banner.style.border = '1px solid rgba(0,0,0,.08)';
     }
+
     function setMsg(t){ msgEl.textContent = t || ''; }
 
-    // Show banners only when query flags exist
-    (function showQueryBanner(){
-      try{
+    function getBase(){ return (location.origin || '<%= process.env.SITE_URL || "" %>'); }
+
+    // --- Show banners from query params ---
+    (function(){
+      try {
         const qp = new URLSearchParams(location.search);
-        if (qp.has('confirmed')) {
-          setBanner('✅ Your email has been verified. You can log in now.', true);
-        } else if (qp.has('reset')) {
-          setBanner('📬 Check your inbox for a password reset link.', false);
-        }
-      }catch(e){}
+        if (qp.has('confirmed')) setBanner('✅ Your email has been verified. You can log in now.', true);
+        else if (qp.has('reset')) setBanner('📬 Check your inbox for a password reset link.', false);
+      } catch(e) {}
     })();
 
-    // Email/password login
+    // --- Email/password login ---
     document.getElementById('loginForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
       setMsg('');
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
+
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Signing in…';
+
       const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) return setMsg(error.message);
+      if (error) {
+        setMsg(error.message);
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Log in';
+        return;
+      }
+
+      // Redirect to account/dashboard
       location.href = '/account';
     });
 
-    // Password reset
+    // --- Reset link ---
     document.getElementById('reset').addEventListener('click', async ()=>{
       setMsg('');
       const email = document.getElementById('email').value.trim();
       if (!email) return setMsg('Enter your email first.');
-      const redirectTo = (location.origin || '<%= process.env.SITE_URL || "" %>') + '/auth/callback?type=recovery';
+      const redirectTo = getBase() + '/auth/callback?type=recovery';
       const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
       if (error) return setMsg(error.message);
       location.href = '/login?reset=1';
     });
 
-    // OAuth
-    function base(){ return (location.origin || '<%= process.env.SITE_URL || "" %>'); }
+    // --- OAuth ---
     document.getElementById('google').addEventListener('click', async ()=>{
-      await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: base() + '/auth/callback' } });
+      await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: getBase() + '/auth/callback' }
+      });
     });
+
     document.getElementById('apple').addEventListener('click', async ()=>{
-      await sb.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo: base() + '/auth/callback' } });
+      await sb.auth.signInWithOAuth({
+        provider: 'apple',
+        options: { redirectTo: getBase() + '/auth/callback' }
+      });
     });
   })();
   </script>
