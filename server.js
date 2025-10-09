@@ -53,47 +53,16 @@ app.use((req, res, next) => {
   next();
 });
 
-// ---------- Minimal first-party pages ----------
-app.get('/login', (req, res) => {
-  res.set('Cache-Control', 'no-store');
-  try {
-    res.render('login'); // views/login.ejs you shared
-  } catch (e) {
-    res.status(500).send('Login page error.');
-  }
-});
-
-// Real /account route (server page, populated client-side via Supabase)
-app.get('/account', (req, res) => {
-  res.set('Cache-Control', 'no-store');
-  try {
-    // We pass along any server-side user if you later add sessions; the page also hydrates via Supabase JS.
-    res.render('account', { user: res.locals.user || null });
-  } catch (e) {
-    res.status(500).send('Account page error.');
-  }
-});
-
-// Supabase OAuth/email links land here; redirect to friendly URLs used by login.ejs
-app.get('/auth/callback', (req, res) => {
-  const { type, error_description } = req.query || {};
-  if (error_description) {
-    return res.redirect('/login?error=' + encodeURIComponent(error_description));
-  }
-
-  // Password recovery email
-  if (type === 'recovery') return res.redirect('/login?reset=1');
-
-  // New signup / magic link / email verification confirmation
-  if (type === 'signup' || type === 'magiclink' || type === 'email_verification') {
-    return res.redirect('/login?confirmed=1');
-  }
-
-  // Default: just send to login (the page will show nothing special)
-  return res.redirect('/login');
-});
-
 // ---------- Mount routes explicitly ----------
+// Mount the auth shim FIRST so its exact paths (/auth/callback, /login, /account) win.
+try {
+  const loginShim = require('./routes/loginShim'); // new file
+  app.use('/', loginShim);
+  console.log('[routes] mounted loginShim router at /');
+} catch (e) {
+  console.error('[routes] failed to mount ./routes/loginShim:', e);
+}
+
 try {
   const indexRoutes = require('./routes/index'); // exports an express.Router()
   app.use('/', indexRoutes);
