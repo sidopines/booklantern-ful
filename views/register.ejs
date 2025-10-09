@@ -9,93 +9,119 @@
 </head>
 <body>
   <%- include('./partials/navbar') %>
+
   <main class="container" style="max-width:700px; margin:28px auto; padding:0 16px;">
     <h1>Create account</h1>
-    <p class="ink-2">Use your email & a password, or continue with Google / Apple.</p>
+    <p class="ink-2">
+      Use email &amp; password (we’ll email you a confirmation link), or continue with Google / Apple for instant access.
+    </p>
 
-    <form id="regForm" class="card" style="padding:16px; margin-top:12px;">
+    <!-- status banner -->
+    <div id="banner" class="card" style="display:none; padding:10px; margin:12px 0;"></div>
+
+    <form id="regForm" class="card" style="padding:16px; margin-top:12px;" novalidate>
       <div class="stack" style="--gap:10px;">
         <input class="input" type="email" id="email" placeholder="you@example.com" autocomplete="email" required>
-        <input class="input" type="password" id="password" placeholder="Create a password (min 8 chars)" minlength="8" autocomplete="new-password" required>
-        <input class="input" type="password" id="password2" placeholder="Confirm password" minlength="8" autocomplete="new-password" required>
-
-        <label class="row" style="gap:8px; align-items:center;">
-          <input type="checkbox" id="tos" required>
-          <span>I agree to the <a href="/terms">Terms</a> and <a href="/privacy">Privacy</a>.</span>
-        </label>
+        <input class="input" type="password" id="password" placeholder="Create a password (min 8 chars)" autocomplete="new-password" minlength="8" required>
 
         <div class="row" style="gap:8px; flex-wrap:wrap;">
-          <button class="btn btn-primary" type="submit" id="createBtn">Create account</button>
-          <a class="btn" href="/login">I already have an account</a>
+          <button class="btn btn-primary" id="createBtn" type="submit">Create account</button>
+          <a class="btn" href="/login">Already have an account? Log in</a>
         </div>
+
+        <hr style="border:none; border-top:1px solid rgba(0,0,0,.08); margin:6px 0;">
 
         <div class="row" style="gap:8px; flex-wrap:wrap;">
           <button class="btn" id="google" type="button">Continue with Google</button>
           <button class="btn" id="apple" type="button">Continue with Apple</button>
         </div>
 
-        <div id="msg" class="ink-2" role="status" aria-live="polite"></div>
+        <div id="msg" class="ink-2"></div>
       </div>
     </form>
+
+    <p class="ink-2" style="margin-top:8px;">
+      Tip: If you used Google before with this email, click <em>Continue with Google</em> or go to <a href="/login">Login</a> and use <em>Send reset link</em> to set a password.
+    </p>
   </main>
+
   <%- include('./partials/footer') %>
 
   <script>
   (function(){
-    const sb  = window.supabaseClient;
-    const $   = (id)=>document.getElementById(id);
-    const msg = (t, ok)=>{ const el = $('msg'); el.textContent = t||''; el.style.color = ok ? 'var(--ok, #146c2e)' : 'inherit'; };
-    const busy = (b)=>{ $('createBtn').disabled = b; };
+    const sb = window.supabaseClient;
+    const banner = document.getElementById('banner');
+    const msgEl = document.getElementById('msg');
+    const createBtn = document.getElementById('createBtn');
 
-    // If already signed in, go straight to Account
-    sb.auth.getUser().then(({ data })=>{
-      if (data && data.user) location.href = '/account';
-    });
+    function setBanner(text, tone){ // tone: 'ok' | 'info' | 'err'
+      if (!text) { banner.style.display='none'; banner.textContent=''; return; }
+      banner.style.display='block';
+      banner.textContent = text;
+      const bg = tone === 'ok' ? 'var(--green-1, #e6f7ed)'
+                : tone === 'err' ? 'var(--red-1, #fdecea)'
+                : 'var(--ink-1, #f5f5f5)';
+      banner.style.background = bg;
+      banner.style.border = '1px solid rgba(0,0,0,.08)';
+    }
+    function setMsg(t){ msgEl.textContent = t || ''; }
 
-    $('regForm').addEventListener('submit', async (e)=>{
+    function getRedirectBase(){ return (location.origin || '<%= process.env.SITE_URL || "" %>'); }
+
+    // Email/password registration
+    document.getElementById('regForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
-      msg('');
-      busy(true);
+      setBanner('', 'info'); setMsg('');
 
-      const email = $('email').value.trim();
-      const p1 = $('password').value;
-      const p2 = $('password2').value;
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      if (!email) return setMsg('Please enter your email.');
+      if (!password || password.length < 8) return setMsg('Password must be at least 8 characters.');
 
-      if (p1.length < 8) { msg('Password must be at least 8 characters.'); busy(false); return; }
-      if (p1 !== p2)     { msg('Passwords do not match.'); busy(false); return; }
-      if (!$('tos').checked) { msg('Please accept the Terms & Privacy to continue.'); busy(false); return; }
-
-      const redirectTo = (location.origin || '<%= process.env.SITE_URL || "" %>') + '/auth/callback';
+      createBtn.disabled = true;
+      createBtn.textContent = 'Creating…';
 
       try {
-        const { error } = await sb.auth.signUp({
-          email,
-          password: p1,
+        const redirectTo = getRedirectBase() + '/auth/callback?type=signup';
+        const { data, error } = await sb.auth.signUp({
+          email, password,
           options: { emailRedirectTo: redirectTo }
         });
-        if (error) { msg(error.message); busy(false); return; }
 
-        msg('Confirmation link sent. Check your inbox to verify your email.', true);
+        if (error) {
+          // Common helpful messages
+          if (String(error.message || '').toLowerCase().includes('already registered')) {
+            setBanner('This email already has an account. Use "Continue with Google" (if you signed up that way) or go to Login → "Send reset link" to set a password.', 'info');
+          } else {
+            setBanner(error.message || 'Could not create account.', 'err');
+          }
+          return;
+        }
 
-        // Lock the form after success
-        ['email','password','password2','tos','createBtn'].forEach(id=>{
-          const el = $(id); if (el) el.disabled = true;
-        });
-      } catch (err) {
-        msg(err?.message || 'Something went wrong.');
+        // Success (Supabase will send confirmation email via Mailjet)
+        setBanner('📬 Check your inbox for a confirmation link. Click it, and you can log in.', 'ok');
+        setMsg('If the email doesn’t arrive, check spam/promotions. From: info@booklantern.org');
+        document.getElementById('regForm').reset();
+      } catch (e2) {
+        setBanner('Unexpected error creating your account. Please try again.', 'err');
       } finally {
-        busy(false);
+        createBtn.disabled = false;
+        createBtn.textContent = 'Create account';
       }
     });
 
-    // OAuth options
-    function base(){ return (location.origin || '<%= process.env.SITE_URL || "" %>'); }
-
-    $('google').addEventListener('click', async ()=>{
-      await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: base() + '/auth/callback' } });
+    // OAuth buttons
+    document.getElementById('google').addEventListener('click', async ()=>{
+      await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: getRedirectBase() + '/auth/callback' }
+      });
     });
-    $('apple').addEventListener('click', async ()=>{
-      await sb.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo: base() + '/auth/callback' } });
+    document.getElementById('apple').addEventListener('click', async ()=>{
+      await sb.auth.signInWithOAuth({
+        provider: 'apple',
+        options: { redirectTo: getRedirectBase() + '/auth/callback' }
+      });
     });
   })();
   </script>
