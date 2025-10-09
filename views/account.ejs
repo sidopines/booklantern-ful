@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <%- include('./partials/head', { pageTitle: 'Your Account - BookLantern' }) %>
+  <%- include('./partials/head', { pageTitle: 'Your Account • BookLantern' }) %>
 </head>
 <body>
   <%- include('./partials/navbar') %>
@@ -9,53 +9,48 @@
   <main class="stack" style="--gap:20px; max-width:880px; margin:40px auto; padding:0 16px;">
     <h1>Your Account</h1>
 
-    <div id="ssrBlock" style="<%= user ? '' : 'display:none' %>">
-      <% if (user) { %>
-        <div class="card stack" style="--gap:12px; padding:16px;">
-          <div><strong>Name:</strong>  <%= user.name  || '-' %></div>
-          <div><strong>Email:</strong> <%= user.email || '-' %></div>
-          <div><strong>Role:</strong>  <%= user.role  || 'subscriber' %></div>
-          <button id="signOutSsr" class="btn">Sign out</button>
-        </div>
-      <% } %>
+    <div id="accountCard" class="card stack" style="--gap:12px; padding:16px;">
+      <div class="ink-2">Loading your profile…</div>
     </div>
 
-    <div id="csrBlock" style="<%= user ? 'display:none' : '' %>">
-      <div class="card stack" style="--gap:12px; padding:16px;">
-        <div id="who">Loading your account…</div>
-        <div class="row" style="gap:8px;">
-          <button id="signOut" class="btn">Sign out</button>
-          <a class="btn" href="/">Back to Home</a>
-        </div>
-      </div>
+    <div class="row" style="gap:10px;">
+      <button id="signOut" class="btn">Sign out</button>
     </div>
   </main>
 
   <%- include('./partials/footer') %>
 
   <script>
-    // Use the already-created global client
+  (async function(){
     const sb = window.supabaseClient;
+    const card = document.getElementById('accountCard');
 
-    (async () => {
-      // If server didn't render a user, try client side
-      const csrBlock = document.getElementById('csrBlock');
-      if (csrBlock && csrBlock.style.display !== 'none') {
-        const who = document.getElementById('who');
-        const { data: { session } } = await sb.auth.getSession();
-        if (!session) {
-          location.replace('/login');
-          return;
-        }
-        who.textContent = `Logged in as ${session.user.email}`;
-      }
+    function renderError(text){
+      card.innerHTML = '<div class="ink-2">' + (text || 'Could not load your account details.') + '</div>';
+    }
 
-      const so = document.getElementById('signOut');
-      const so2 = document.getElementById('signOutSsr');
-      const signOut = async () => { await sb.auth.signOut(); location.replace('/'); };
-      if (so)  so.addEventListener('click',  signOut);
-      if (so2) so2.addEventListener('click', signOut);
-    })();
+    try{
+      const { data: { user }, error } = await sb.auth.getUser();
+      if (error || !user) return renderError();
+
+      const email = user.email || '(no email)';
+      const name = (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || '(no name)';
+      const role = (user.app_metadata && user.app_metadata.role) || 'subscriber';
+
+      card.innerHTML = `
+        <div><strong>Name:</strong> ${name}</div>
+        <div><strong>Email:</strong> ${email}</div>
+        <div><strong>Role:</strong> ${role}</div>
+      `;
+    }catch(e){
+      renderError();
+    }
+
+    document.getElementById('signOut').addEventListener('click', async ()=>{
+      await sb.auth.signOut();
+      location.href = '/';
+    });
+  })();
   </script>
 </body>
 </html>
