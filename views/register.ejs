@@ -11,20 +11,30 @@
   <%- include('./partials/navbar') %>
   <main class="container" style="max-width:700px; margin:28px auto; padding:0 16px;">
     <h1>Create account</h1>
-    <p class="ink-2">We’ll email a confirmation link.</p>
+    <p class="ink-2">Use your email & a password, or continue with Google / Apple.</p>
 
     <form id="regForm" class="card" style="padding:16px; margin-top:12px;">
       <div class="stack" style="--gap:10px;">
-        <input class="input" type="email" id="email" placeholder="you@example.com" required>
-        <input class="input" type="password" id="password" placeholder="Create a password (min 6 chars)" required>
+        <input class="input" type="email" id="email" placeholder="you@example.com" autocomplete="email" required>
+        <input class="input" type="password" id="password" placeholder="Create a password (min 8 chars)" minlength="8" autocomplete="new-password" required>
+        <input class="input" type="password" id="password2" placeholder="Confirm password" minlength="8" autocomplete="new-password" required>
+
+        <label class="row" style="gap:8px; align-items:center;">
+          <input type="checkbox" id="tos" required>
+          <span>I agree to the <a href="/terms">Terms</a> and <a href="/privacy">Privacy</a>.</span>
+        </label>
+
         <div class="row" style="gap:8px; flex-wrap:wrap;">
-          <button class="btn btn-primary" type="submit">Create account</button>
+          <button class="btn btn-primary" type="submit" id="createBtn">Create account</button>
+          <a class="btn" href="/login">I already have an account</a>
         </div>
+
         <div class="row" style="gap:8px; flex-wrap:wrap;">
           <button class="btn" id="google" type="button">Continue with Google</button>
           <button class="btn" id="apple" type="button">Continue with Apple</button>
         </div>
-        <div id="msg" class="ink-2"></div>
+
+        <div id="msg" class="ink-2" role="status" aria-live="polite"></div>
       </div>
     </form>
   </main>
@@ -32,27 +42,60 @@
 
   <script>
   (function(){
-    const sb = window.supabaseClient;
-    const msg = (t)=>{ document.getElementById('msg').textContent = t || ''; };
+    const sb  = window.supabaseClient;
+    const $   = (id)=>document.getElementById(id);
+    const msg = (t, ok)=>{ const el = $('msg'); el.textContent = t||''; el.style.color = ok ? 'var(--ok, #146c2e)' : 'inherit'; };
+    const busy = (b)=>{ $('createBtn').disabled = b; };
 
-    document.getElementById('regForm').addEventListener('submit', async (e)=>{
+    // If already signed in, go straight to Account
+    sb.auth.getUser().then(({ data })=>{
+      if (data && data.user) location.href = '/account';
+    });
+
+    $('regForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
       msg('');
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
+      busy(true);
+
+      const email = $('email').value.trim();
+      const p1 = $('password').value;
+      const p2 = $('password2').value;
+
+      if (p1.length < 8) { msg('Password must be at least 8 characters.'); busy(false); return; }
+      if (p1 !== p2)     { msg('Passwords do not match.'); busy(false); return; }
+      if (!$('tos').checked) { msg('Please accept the Terms & Privacy to continue.'); busy(false); return; }
+
       const redirectTo = (location.origin || '<%= process.env.SITE_URL || "" %>') + '/auth/callback';
-      const { error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } });
-      if (error) return msg(error.message);
-      msg('Check your inbox to confirm your email.');
+
+      try {
+        const { error } = await sb.auth.signUp({
+          email,
+          password: p1,
+          options: { emailRedirectTo: redirectTo }
+        });
+        if (error) { msg(error.message); busy(false); return; }
+
+        msg('Confirmation link sent. Check your inbox to verify your email.', true);
+
+        // Lock the form after success
+        ['email','password','password2','tos','createBtn'].forEach(id=>{
+          const el = $(id); if (el) el.disabled = true;
+        });
+      } catch (err) {
+        msg(err?.message || 'Something went wrong.');
+      } finally {
+        busy(false);
+      }
     });
 
-    document.getElementById('google').addEventListener('click', async ()=>{
-      const redirectTo = (location.origin || '<%= process.env.SITE_URL || "" %>') + '/auth/callback';
-      await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+    // OAuth options
+    function base(){ return (location.origin || '<%= process.env.SITE_URL || "" %>'); }
+
+    $('google').addEventListener('click', async ()=>{
+      await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: base() + '/auth/callback' } });
     });
-    document.getElementById('apple').addEventListener('click', async ()=>{
-      const redirectTo = (location.origin || '<%= process.env.SITE_URL || "" %>') + '/auth/callback';
-      await sb.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo } });
+    $('apple').addEventListener('click', async ()=>{
+      await sb.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo: base() + '/auth/callback' } });
     });
   })();
   </script>
