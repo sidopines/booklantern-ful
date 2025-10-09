@@ -1,7 +1,7 @@
 <!-- views/partials/navbar.ejs -->
 <header class="topbar" role="navigation" aria-label="Primary">
   <!-- Left: brand -->
-  <a class="brand row" href="/" aria-label="BookLantern home">
+  <a class="brand row" href="/">
     <img src="/public/img/brand.svg" alt="" width="22" height="22"
          onerror="this.onerror=null;this.src='/public/favicon.svg';" />
     <span class="brand-name">BookLantern</span>
@@ -27,25 +27,71 @@
       <span aria-hidden="true">•</span>
     </button>
 
-    <!-- Auth (guest vs user). Server can hint via res.locals.isAuthenticated; JS will finalize. -->
-    <% const _isAuth = (typeof isAuthenticated !== 'undefined' && isAuthenticated) ? true : false; %>
-
-    <!-- Guest actions -->
-    <div id="guestActions" class="row" style="<%= _isAuth ? 'display:none' : '' %>">
+    <!-- Auth (guest vs user). Default to guest to avoid logged-in info flicker. -->
+    <div id="auth-guest" class="row" style="gap:8px;">
       <a class="btn" href="/login">Login</a>
       <a class="btn btn-primary equal" href="/register">Create account</a>
     </div>
 
-    <!-- User actions -->
-    <div id="userActions" class="row" style="<%= _isAuth ? '' : 'display:none' %>">
+    <div id="auth-user" class="row" style="gap:8px; display:none;" aria-hidden="true">
       <a class="btn" href="/account">Account</a>
-      <button id="signOutBtn" class="btn" type="button">Sign out</button>
+      <button id="navSignOut" class="btn" type="button">Sign out</button>
     </div>
   </div>
 </header>
 
 <script>
-/* -------- Theme toggle fallback (idempotent with /public/js/theme.js) -------- */
+/* ---------- Auth state swap (Supabase) ---------- */
+(function () {
+  var guest = document.getElementById('auth-guest');
+  var user = document.getElementById('auth-user');
+  var sb = window.supabaseClient;
+
+  function showGuest(){
+    if (guest){ guest.style.display = 'flex'; guest.setAttribute('aria-hidden', 'false'); }
+    if (user){ user.style.display = 'none'; user.setAttribute('aria-hidden', 'true'); }
+  }
+  function showUser(){
+    if (user){ user.style.display = 'flex'; user.setAttribute('aria-hidden', 'false'); }
+    if (guest){ guest.style.display = 'none'; guest.setAttribute('aria-hidden', 'true'); }
+  }
+
+  async function refreshAuthUI() {
+    try {
+      if (!sb || !sb.auth || !sb.auth.getUser) { showGuest(); return; }
+      var res = await sb.auth.getUser();
+      if (res && res.data && res.data.user) {
+        showUser();
+      } else {
+        showGuest();
+      }
+    } catch (e) {
+      // On any error, prefer the safer guest state.
+      showGuest();
+    }
+  }
+
+  // Initial check
+  refreshAuthUI();
+
+  // Keep it in sync if auth changes (e.g., another tab logs in/out)
+  try {
+    sb && sb.auth && sb.auth.onAuthStateChange && sb.auth.onAuthStateChange(function(){ refreshAuthUI(); });
+  } catch (e) {}
+
+  // Sign out button
+  var signOutBtn = document.getElementById('navSignOut');
+  if (signOutBtn) {
+    signOutBtn.addEventListener('click', async function(){
+      try { await (sb && sb.auth && sb.auth.signOut ? sb.auth.signOut() : Promise.resolve()); } catch (e) {}
+      // After sign out, send them home.
+      location.href = '/';
+    });
+  }
+})();
+
+/* ---------- Theme toggle fallback ----------
+   If your /public/js/theme.js is present (as linked in head.ejs), both are safe (idempotent). */
 (function () {
   var btn = document.getElementById('themeToggle');
   if (!btn) return;
@@ -70,43 +116,5 @@
     var current = getMode();
     setMode(current === 'dark' ? 'light' : 'dark');
   });
-})();
-
-/* -------- Auth UI swap (Supabase) --------
-   Swaps Login/Create with Account/Sign out if a session exists.
-   Works even without server sessions. */
-(function () {
-  var sb = window.supabaseClient;
-  var g = document.getElementById('guestActions');
-  var u = document.getElementById('userActions');
-  function showGuest(){ if(g) g.style.display=''; if(u) u.style.display='none'; }
-  function showUser(){ if(g) g.style.display='none'; if(u) u.style.display=''; }
-
-  // no client -> leave whatever server rendered
-  if (!sb || !sb.auth) return;
-
-  // initial state
-  sb.auth.getUser().then(function(res){
-    if (res && res.data && res.data.user) showUser(); else showGuest();
-  }).catch(showGuest);
-
-  // react to changes
-  try {
-    sb.auth.onAuthStateChange(function(event, session){
-      if (session && session.user) showUser(); else showGuest();
-    });
-  } catch(_) {}
-
-  // sign out button
-  var signOut = document.getElementById('signOutBtn');
-  if (signOut) {
-    signOut.addEventListener('click', function(){
-      signOut.disabled = true;
-      Promise.resolve()
-        .then(function(){ return sb.auth.signOut(); })
-        .catch(function(){ /* ignore */ })
-        .finally(function(){ window.location.href = '/'; });
-    });
-  }
 })();
 </script>
