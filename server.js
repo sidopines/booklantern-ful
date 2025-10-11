@@ -52,6 +52,20 @@ app.use((req, res, next) => {
   next();
 });
 
+/* ============================================================
+   FIX: Direct Supabase callback route before other routers.
+   This prevents redirects like /login?reset=1#.
+   ============================================================ */
+app.get(/^\/auth\/callback(?:\/.*)?$/, (req, res) => {
+  try {
+    const canonicalUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+    return res.render('auth-callback', { canonicalUrl });
+  } catch (e) {
+    console.error('[auth-callback] render failed:', e);
+    return res.status(500).send('Auth callback error');
+  }
+});
+
 // ---------- Mount routes explicitly ----------
 // Mount the auth shim FIRST so its exact paths (/auth/callback, /login, /register, /account) win.
 try {
