@@ -1,16 +1,20 @@
-<%- include('./partials/head', { pageTitle: 'Your Account • BookLantern' }) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', { pageTitle: 'Your Account • BookLantern' }) %>
+</head>
 <body>
   <%- include('./partials/navbar') %>
 
   <main class="stack" style="--gap:20px; max-width:880px; margin:40px auto; padding:0 16px;">
     <h1>Your Account</h1>
 
-    <!-- Server-side render (if you later attach sessions) -->
+    <!-- Server-side render (harmless placeholder if you add sessions later) -->
     <% if (user) { %>
       <div class="card stack" style="--gap:12px; padding:16px;">
-        <div><strong>Name:</strong> <%= user.name || user.user_metadata?.name || '' %></div>
+        <div><strong>Name:</strong> <%= user.name || (user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name)) || '' %></div>
         <div><strong>Email:</strong> <%= user.email %></div>
-        <div><strong>Role:</strong> <%= user.role || user.app_metadata?.role || 'reader' %></div>
+        <div><strong>Role:</strong> <%= (user.role || (user.app_metadata && user.app_metadata.role)) || 'reader' %></div>
       </div>
     <% } %>
 
@@ -20,8 +24,13 @@
       <div><strong>Email:</strong> <span id="acc-email">—</span></div>
       <div><strong>Role:</strong> <span id="acc-role">reader</span></div>
 
+      <!-- Optional helper: let OAuth-only users create a password -->
+      <div id="pwHelper" class="ink-2" style="margin-top:6px; display:none;">
+        You signed in with a provider. If you want, you can also set a password:
+      </div>
       <div class="row" style="gap:8px; flex-wrap:wrap; margin-top:8px;">
         <a class="btn" href="/read">Go to Library</a>
+        <button id="setPasswordBtn" class="btn" type="button" style="display:none;">Create or Reset Password</button>
         <button id="acc-signout" class="btn" type="button">Sign out</button>
       </div>
     </div>
@@ -36,30 +45,63 @@
   <script>
   (async function () {
     const sb = window.supabaseClient;
+
+    if (!sb) {
+      // If the client failed to boot for some reason
+      document.getElementById('accountEmpty').style.display = 'block';
+      console.warn('[account] supabase client missing.');
+      return;
+    }
+
     try {
       const { data, error } = await sb.auth.getUser();
       if (error) throw error;
 
       const user = data && data.user;
-      const hasServerUser = <%= !!user %>; // whether server rendered user existed
 
       if (user) {
         // Show client card
-        var card = document.getElementById('accountClient');
+        const card = document.getElementById('accountClient');
         card.style.display = 'block';
 
-        var name = user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name) || '';
+        const name = (user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name)) || '';
         document.getElementById('acc-name').textContent = name || '—';
         document.getElementById('acc-email').textContent = user.email || '—';
 
-        var role = (user.app_metadata && user.app_metadata.role) || 'reader';
+        const role = (user.app_metadata && user.app_metadata.role) || 'reader';
         document.getElementById('acc-role').textContent = role;
 
+        // Detect if the user signed in via OAuth only (no password).
+        // Heuristic: if identities include 'google'/'apple', show helper.
+        const providers = (user.identities || []).map(i => i.provider);
+        const usedOAuth = providers.some(p => p === 'google' || p === 'apple');
+
+        if (usedOAuth) {
+          const helper = document.getElementById('pwHelper');
+          const btn = document.getElementById('setPasswordBtn');
+          helper.style.display = 'block';
+          btn.style.display = 'inline-block';
+
+          btn.addEventListener('click', async () => {
+            const email = user.email;
+            if (!email) { alert('No email found for this account.'); return; }
+            btn.disabled = true;
+            const prev = btn.textContent;
+            btn.textContent = 'Sending email…';
+            const { error: rerr } = await sb.auth.resetPasswordForEmail(email, {
+              redirectTo: location.origin + '/auth/callback?type=recovery'
+            });
+            if (rerr) {
+              alert('Error: ' + (rerr.message || 'Could not send email.'));
+              btn.disabled = false; btn.textContent = prev;
+            } else {
+              btn.textContent = 'Email sent ✔';
+            }
+          });
+        }
+
         document.getElementById('acc-signout').addEventListener('click', async function(){
-          try {
-            await sb.auth.signOut();
-          } catch (e) {}
-          // Send them to home after signout
+          try { await sb.auth.signOut(); } catch (e) {}
           location.href = '/';
         });
       } else {
@@ -67,7 +109,7 @@
         document.getElementById('accountEmpty').style.display = 'block';
       }
     } catch (e) {
-      console.warn('Account load failed:', e);
+      console.warn('[account] load failed:', e);
       document.getElementById('accountEmpty').style.display = 'block';
     }
   })();
