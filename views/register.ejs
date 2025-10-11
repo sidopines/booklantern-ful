@@ -42,69 +42,80 @@
   <%- include('./partials/footer') %>
 
   <script>
-  (function(){
-    const sb = window.supabaseClient;
-    const banner = document.getElementById('banner');
-    const msgEl = document.getElementById('msg');
-    const createBtn = document.getElementById('createBtn');
+(function(){
+  // --- helpers ---
+  const banner = document.getElementById('banner');
+  const msgEl  = document.getElementById('msg');
+  const createBtn = document.getElementById('createBtn');
 
-    function base(){ return (location.origin || '<%= process.env.SITE_URL || "" %>'); }
-    function redirectUrl(){ return base() + '/auth/callback'; }
+  function base(){ return (location.origin || '<%= process.env.SITE_URL || "" %>'); }
+  function redirectUrl(){ return base() + '/auth/callback'; }
+  function setBanner(text, ok){
+    if (!text){ banner.style.display='none'; banner.textContent=''; return; }
+    banner.style.display='block';
+    banner.textContent = text;
+    banner.style.background = ok ? 'var(--green-1, #e6f7ed)' : 'var(--ink-1, #f5f5f5)';
+    banner.style.border = '1px solid rgba(0,0,0,.08)';
+  }
+  function setMsg(t){ msgEl.textContent = t || ''; }
 
-    function setBanner(text, variant){
-      if (!text){ banner.style.display='none'; banner.textContent=''; return; }
-      banner.style.display='block';
-      banner.textContent = text;
-      const ok = variant === 'ok';
-      banner.style.background = ok ? 'var(--green-1, #e6f7ed)' : 'var(--ink-1, #f5f5f5)';
-      banner.style.border = '1px solid rgba(0,0,0,.08)';
-    }
-    function setMsg(t){ msgEl.textContent = t || ''; }
+  // --- HARD GUARD: make it obvious if supabase isn't present ---
+  const sb = window.supabaseClient;
+  if (!sb) {
+    setBanner('⚠️ Sign up is temporarily unavailable (auth client not loaded). Hard-refresh this page and try again.', false);
+    console.error('supabaseClient is missing on /register. Check that your global init script runs on this page.');
+  }
 
-    // --- Create account (email+password) ---
-    document.getElementById('regForm').addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      setMsg(''); setBanner('');
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
+  // --- Create account ---
+  document.getElementById('regForm').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    if (!sb) return; // already surfaced above
 
-      if (!email || !password){ setMsg('Enter email and a password (min 8 characters).'); return; }
-      if (password.length < 8){ setMsg('Password must be at least 8 characters.'); return; }
+    setMsg(''); setBanner('');
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
 
-      createBtn.disabled = true; const prev = createBtn.textContent; createBtn.textContent = 'Creating…';
+    if (!email || !password){ setMsg('Enter email and a password (min 8 characters).'); return; }
+    if (password.length < 8){ setMsg('Password must be at least 8 characters.'); return; }
 
-      try{
-        const { data, error } = await sb.auth.signUp({
-          email, password,
-          options: { emailRedirectTo: redirectUrl() }
-        });
+    const prev = createBtn.textContent;
+    createBtn.disabled = true; createBtn.textContent = 'Creating…';
 
-        if (error){
-          // Common useful messages (rate limit, duplicate user, SMTP failures)
-          setMsg(error.message);
-          createBtn.disabled = false; createBtn.textContent = prev;
-          return;
-        }
+    try {
+      const { data, error } = await sb.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: redirectUrl() }
+      });
 
-        // Supabase returns a user object even when email needs confirmation.
-        // We stay on the page and show a clear instruction.
-        setBanner('📬 Check your inbox and click the verification link to finish creating your account.', 'ok');
+      console.log('[register] signUp result:', { data, error });
+
+      if (error) {
+        // Show the exact server message to the user
+        setBanner('❌ ' + (error.message || 'Sign up failed.'), false);
         setMsg('');
-      }catch(err){
-        setMsg(err && err.message ? err.message : 'Something went wrong creating your account.');
-      }finally{
-        createBtn.disabled = false; createBtn.textContent = prev;
+        return;
       }
-    });
 
-    // --- OAuth quick paths ---
-    document.getElementById('google').addEventListener('click', async ()=>{
-      await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: redirectUrl() } });
-    });
-    document.getElementById('apple').addEventListener('click', async ()=>{
-      await sb.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo: redirectUrl() } });
-    });
-  })();
-  </script>
+      // If confirm-email is ON, user must click the email link
+      setBanner('📬 Check your inbox and click the verification link to finish creating your account.', true);
+      setMsg('');
+    } catch (err) {
+      console.error('[register] unexpected error:', err);
+      setBanner('❌ Something went wrong creating your account.', false);
+    } finally {
+      createBtn.disabled = false; createBtn.textContent = prev;
+    }
+  });
+
+  // --- OAuth quick paths ---
+  document.getElementById('google').addEventListener('click', async ()=>{
+    await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: redirectUrl() } });
+  });
+  document.getElementById('apple').addEventListener('click', async ()=>{
+    await sb.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo: redirectUrl() } });
+  });
+})();
+</script>
 </body>
 </html>
