@@ -1,26 +1,26 @@
 // routes/loginShim.js
-// Minimal routes to support auth flows + account page without server sessions.
+// Minimal routes for Supabase auth flows + account page (no server sessions)
 
 const express = require('express');
 const router = express.Router();
 
-/** Helper to build an absolute canonical URL for meta tags */
+/** Absolute canonical URL for meta tags */
 function canonical(req) {
   return `${req.protocol}://${req.get('host')}${req.originalUrl}`;
 }
 
 /**
- * Auth callback page (handles ALL cases: signup confirm, OAuth, recovery, magic links).
- * Supabase will redirect here with tokens after you click links in email.
+ * 🔐 Auth callback endpoint
+ * Supabase will redirect here after:
+ *  - email verification (type=signup|invitation|magiclink)
+ *  - password recovery (type=recovery)
+ *
+ * IMPORTANT: Do NOT redirect this route elsewhere.
+ * The page's JS (auth-callback.ejs) completes the flow:
+ *  - shows the "set new password" form for recovery
+ *  - finalizes sessions for other flows
  */
-router.get('/auth/callback', (req, res) => {
-  res.render('auth-callback', {
-    canonicalUrl: canonical(req),
-  });
-});
-
-/** Back-compat: if anything hits /auth/callback/... keep rendering the same page */
-router.get(/^\/auth\/callback(?:.*)?$/, (req, res) => {
+router.get(['/auth/callback', /^\/auth\/callback(?:\/.*)?$/], (req, res) => {
   res.render('auth-callback', {
     canonicalUrl: canonical(req),
   });
@@ -33,7 +33,7 @@ router.get('/login', (req, res) => {
   });
 });
 
-/** Register page — dedicated view */
+/** Optional: “register” uses its own view; change if you want it to reuse login */
 router.get('/register', (req, res) => {
   res.render('register', {
     canonicalUrl: canonical(req),
