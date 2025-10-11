@@ -1,59 +1,64 @@
 // routes/loginShim.js
-// Minimal, robust routes for login/register/account and Supabase auth flows.
-// IMPORTANT: We DO NOT redirect away from /auth/callback — we render a page there
-// so the URL fragment (#access_token…) remains available to client JS.
+// Minimal routes to support auth flows + account page without server sessions.
 
 const express = require('express');
 const router = express.Router();
 
-/** Absolute canonical URL for meta tags */
+/** Helper to build an absolute canonical URL for meta tags */
 function canonical(req) {
   return `${req.protocol}://${req.get('host')}${req.originalUrl}`;
 }
 
-/** Make sure sensitive auth pages are never cached by intermediaries/browsers */
-function noCache(res) {
-  res.set({
-    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-    Pragma: 'no-cache',
-    Expires: '0',
-    'Surrogate-Control': 'no-store',
-  });
-}
+/**
+ * Catch stray password-reset / confirm links that (incorrectly) land on our domain:
+ *   https://booklantern.org/auth/v1/verify?...  (404 without this)
+ * We 302 to the real Supabase endpoint, preserving the query string.
+ */
+router.get(/^\/auth\/v1\/verify(?:.*)?$/, (req, res) => {
+  const supabaseUrl = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+  if (!supabaseUrl) return res.status(500).send('Auth not configured');
+
+  const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  const to = `${supabaseUrl}/auth/v1/verify${qs}`;
+  return res.redirect(302, to);
+});
 
 /**
- * Supabase redirects (email confirm, OAuth, recovery) land here.
- * We render an HTML page (views/auth-callback.ejs) that:
- *  - Listens for Supabase auth events
- *  - If PASSWORD_RECOVERY → shows "set new password" UI and calls updateUser({ password })
- *  - Otherwise → sends user to /login?confirmed=1 (or straight to /account)
- *
- * We match /auth/callback and anything under it to be future-proof.
+ * Handle Supabase redirects after OAuth / magic links / email confirmations.
+ * Examples:
+ *   /auth/callback
+ *   /auth/callback?type=signup
+ *   /auth/callback?type=recovery
+ *   /auth/callback?type=magiclink
  */
-router.get(/^\/auth\/callback(?:\/.*)?$/, (req, res) => {
-  noCache(res);
-  return res.render('auth-callback', {
-    canonicalUrl: canonical(req),
-  });
+router.get(/^\/auth\/callback(?:.*)?$/, (req, res) => {
+  const type = (req.query.type || '').toLowerCase();
+
+  // Decide the banner query we show on /login
+  let to = '/login?confirmed=1';
+  if (type === 'recovery' || type === 'invitation' || type === 'magiclink') {
+    to = '/login?reset=1';
+  }
+  return res.redirect(302, to);
 });
 
 /** Login page (email/password + Google/Apple buttons) */
 router.get('/login', (req, res) => {
-  return res.render('login', {
+  res.render('login', {
     canonicalUrl: canonical(req),
   });
 });
 
-/** Register page (dedicated view, not an alias of /login) */
+/** Register page — render the dedicated view */
 router.get('/register', (req, res) => {
-  return res.render('register', {
+  res.render('register', {
     canonicalUrl: canonical(req),
   });
 });
 
-/** Account page (client reads Supabase session to show user info) */
+/** Account page (client pulls profile via Supabase on the page) */
 router.get('/account', (req, res) => {
-  return res.render('account', {
+  res.render('account', {
     canonicalUrl: canonical(req),
   });
 });
