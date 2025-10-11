@@ -9,30 +9,32 @@
   <main class="stack" style="--gap:20px; max-width:880px; margin:40px auto; padding:0 16px;">
     <h1>Your Account</h1>
 
-    <!-- Server-side render (harmless placeholder if you add sessions later) -->
+    <!-- If you later add server sessions, this block will render; otherwise client takes over -->
     <% if (user) { %>
       <div class="card stack" style="--gap:12px; padding:16px;">
-        <div><strong>Name:</strong> <%= user.name || (user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name)) || '' %></div>
+        <div><strong>Name:</strong> <%= user.name || user.user_metadata?.name || '' %></div>
         <div><strong>Email:</strong> <%= user.email %></div>
-        <div><strong>Role:</strong> <%= (user.role || (user.app_metadata && user.app_metadata.role)) || 'reader' %></div>
+        <div><strong>Role:</strong> <%= user.role || user.app_metadata?.role || 'reader' %></div>
       </div>
     <% } %>
 
-    <!-- Client-side hydrate via Supabase (works today even without server sessions) -->
+    <!-- Client-side via Supabase -->
     <div id="accountClient" class="card stack" style="--gap:12px; padding:16px; display:none;">
       <div><strong>Name:</strong> <span id="acc-name">—</span></div>
       <div><strong>Email:</strong> <span id="acc-email">—</span></div>
       <div><strong>Role:</strong> <span id="acc-role">reader</span></div>
 
-      <!-- Optional helper: let OAuth-only users create a password -->
-      <div id="pwHelper" class="ink-2" style="margin-top:6px; display:none;">
+      <p id="acc-note" class="ink-2" style="margin:4px 0 0 0; display:none;">
         You signed in with a provider. If you want, you can also set a password:
-      </div>
+      </p>
+
       <div class="row" style="gap:8px; flex-wrap:wrap; margin-top:8px;">
         <a class="btn" href="/read">Go to Library</a>
-        <button id="setPasswordBtn" class="btn" type="button" style="display:none;">Create or Reset Password</button>
+        <button id="acc-reset" class="btn" type="button">Create or Reset Password</button>
         <button id="acc-signout" class="btn" type="button">Sign out</button>
       </div>
+
+      <div id="acc-msg" class="ink-2" style="margin-top:6px;"></div>
     </div>
 
     <div id="accountEmpty" class="card" style="padding:16px; display:none;">
@@ -45,71 +47,54 @@
   <script>
   (async function () {
     const sb = window.supabaseClient;
-
-    if (!sb) {
-      // If the client failed to boot for some reason
-      document.getElementById('accountEmpty').style.display = 'block';
-      console.warn('[account] supabase client missing.');
-      return;
-    }
+    const base = location.origin || '<%= process.env.SITE_URL || "" %>';
+    const msg = document.getElementById('acc-msg');
 
     try {
       const { data, error } = await sb.auth.getUser();
       if (error) throw error;
 
       const user = data && data.user;
-
       if (user) {
-        // Show client card
         const card = document.getElementById('accountClient');
         card.style.display = 'block';
 
-        const name = (user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name)) || '';
+        const name =
+          (user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name)) || '';
         document.getElementById('acc-name').textContent = name || '—';
         document.getElementById('acc-email').textContent = user.email || '—';
+        document.getElementById('acc-role').textContent =
+          (user.app_metadata && user.app_metadata.role) || 'reader';
 
-        const role = (user.app_metadata && user.app_metadata.role) || 'reader';
-        document.getElementById('acc-role').textContent = role;
-
-        // Detect if the user signed in via OAuth only (no password).
-        // Heuristic: if identities include 'google'/'apple', show helper.
-        const providers = (user.identities || []).map(i => i.provider);
-        const usedOAuth = providers.some(p => p === 'google' || p === 'apple');
-
-        if (usedOAuth) {
-          const helper = document.getElementById('pwHelper');
-          const btn = document.getElementById('setPasswordBtn');
-          helper.style.display = 'block';
-          btn.style.display = 'inline-block';
-
-          btn.addEventListener('click', async () => {
-            const email = user.email;
-            if (!email) { alert('No email found for this account.'); return; }
-            btn.disabled = true;
-            const prev = btn.textContent;
-            btn.textContent = 'Sending email…';
-            const { error: rerr } = await sb.auth.resetPasswordForEmail(email, {
-              redirectTo: location.origin + '/auth/callback?type=recovery'
-            });
-            if (rerr) {
-              alert('Error: ' + (rerr.message || 'Could not send email.'));
-              btn.disabled = false; btn.textContent = prev;
-            } else {
-              btn.textContent = 'Email sent ✔';
-            }
-          });
+        // Show a small note if this session came from OAuth (no password yet)
+        const hasPassword = !!user.password_updated_at; // present for email/pass accounts after first set
+        if (!hasPassword) {
+          document.getElementById('acc-note').style.display = 'block';
         }
 
-        document.getElementById('acc-signout').addEventListener('click', async function(){
+        // Always allow the user to (create or) reset a password
+        document.getElementById('acc-reset').addEventListener('click', async () => {
+          msg.textContent = '';
+          try {
+            const { error } = await sb.auth.resetPasswordForEmail(user.email, {
+              redirectTo: base + '/auth/callback?type=recovery',
+            });
+            if (error) throw error;
+            msg.textContent = '📬 Check your inbox for a password reset link.';
+          } catch (e) {
+            msg.textContent = e.message || 'Could not send reset email.';
+          }
+        });
+
+        document.getElementById('acc-signout').addEventListener('click', async () => {
           try { await sb.auth.signOut(); } catch (e) {}
           location.href = '/';
         });
       } else {
-        // Not logged in
         document.getElementById('accountEmpty').style.display = 'block';
       }
     } catch (e) {
-      console.warn('[account] load failed:', e);
+      console.warn('Account load failed:', e);
       document.getElementById('accountEmpty').style.display = 'block';
     }
   })();
