@@ -11,12 +11,11 @@ function canonical(req) {
 
 /**
  * Handle Supabase redirects after OAuth / magic links / email confirmations.
- * Examples we normalize:
+ * Examples:
  *   /auth/callback
  *   /auth/callback?type=signup
  *   /auth/callback?type=recovery
- *   /auth/callback... (anything after still matches)
- * Also fixes accidental copies like “… → should redirect …” by matching any suffix.
+ *   /auth/callback?type=magiclink
  */
 router.get(/^\/auth\/callback(?:.*)?$/, (req, res) => {
   const type = (req.query.type || '').toLowerCase();
@@ -29,19 +28,16 @@ router.get(/^\/auth\/callback(?:.*)?$/, (req, res) => {
   return res.redirect(302, to);
 });
 
-/** Show login (email/password + Google/Apple buttons) */
+/** Login page (email/password + Google/Apple buttons) */
 router.get('/login', (req, res) => {
   res.render('login', {
     canonicalUrl: canonical(req),
   });
 });
 
-/**
- * Optional: Show “register” as the same screen as login (since we use email link / OAuth).
- * If you later add a dedicated views/register.ejs, change this route to render it.
- */
+/** Register page — render the dedicated view */
 router.get('/register', (req, res) => {
-  res.render('login', {
+  res.render('register', {
     canonicalUrl: canonical(req),
   });
 });
