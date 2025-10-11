@@ -39,7 +39,6 @@ app.get('/sw.js', (req, res) => {
 // ---------- Safe locals for EJS (theme/footer rely on buildId) ----------
 const BUILD_ID = Date.now().toString();
 app.use((req, res, next) => {
-  // If you add sessions/auth later, this won’t error:
   res.locals.isAuthenticated = Boolean(
     (req.session && req.session.user) || req.user || req.authUser
   );
@@ -54,9 +53,9 @@ app.use((req, res, next) => {
 });
 
 // ---------- Mount routes explicitly ----------
-// Mount the auth shim FIRST so its exact paths (/auth/callback, /login, /account) win.
+// Mount the auth shim FIRST so its exact paths (/auth/callback, /login, /register, /account) win.
 try {
-  const loginShim = require('./routes/loginShim'); // new file
+  const loginShim = require('./routes/loginShim');
   app.use('/', loginShim);
   console.log('[routes] mounted loginShim router at /');
 } catch (e) {
