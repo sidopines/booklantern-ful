@@ -9,44 +9,118 @@
 </head>
 <body>
   <%- include('./partials/navbar') %>
+
   <main class="container" style="max-width:720px; margin:28px auto; padding:0 16px;">
     <h1>Almost there…</h1>
     <p class="ink-2" id="state">Verifying session…</p>
 
-    <form id="pwForm" class="card" style="padding:16px; display:none;">
+    <!-- Password reset / set form (for recovery links) -->
+    <form id="pwForm" class="card" style="padding:16px; display:none;" novalidate>
       <div class="stack" style="--gap:10px;">
-        <input class="input" type="password" id="newpw" placeholder="New password" required>
-        <button class="btn btn-primary" type="submit">Update password</button>
+        <input class="input" type="password" id="newpw" placeholder="New password (min 8 chars)" required autocomplete="new-password">
+        <button class="btn btn-primary" type="submit" id="pwBtn">Update password</button>
         <div id="msg" class="ink-2"></div>
       </div>
     </form>
   </main>
+
   <%- include('./partials/footer') %>
 
   <script>
   (async function(){
     const sb = window.supabaseClient;
-    const state = document.getElementById('state');
-    const params = new URLSearchParams(location.hash.slice(1));
-    const type = params.get('type');
+    const stateEl = document.getElementById('state');
+    const formEl  = document.getElementById('pwForm');
+    const msgEl   = document.getElementById('msg');
+    const btnEl   = document.getElementById('pwBtn');
 
-    if (type === 'recovery') {
-      state.textContent = 'Enter a new password:';
-      document.getElementById('pwForm').style.display = 'block';
-      document.getElementById('pwForm').addEventListener('submit', async (e)=>{
+    function getParamAll(name){
+      // Supabase may send params in the hash (#type=recovery&access_token=...)
+      // or in the query (?type=recovery&code=...).
+      try {
+        const h = new URLSearchParams(location.hash.slice(1));
+        if (h.has(name)) return h.get(name);
+      } catch(e){}
+      try {
+        const q = new URLSearchParams(location.search);
+        if (q.has(name)) return q.get(name);
+      } catch(e){}
+      return null;
+    }
+
+    function go(href){ location.href = href; }
+
+    if (!sb) {
+      stateEl.textContent = 'Auth client not loaded. Please close this tab, hard-refresh the previous page, and try again.';
+      return;
+    }
+
+    // Identify the flow type (recovery, signup, magiclink, oauth, email_change…)
+    const flowType =
+      (getParamAll('type') || '').toLowerCase() ||
+      'unknown';
+
+    // If this is a password recovery / set-password link, show the UI immediately.
+    if (flowType === 'recovery') {
+      stateEl.textContent = 'Enter a new password:';
+      formEl.style.display = 'block';
+
+      formEl.addEventListener('submit', async (e)=>{
         e.preventDefault();
-        const pw = document.getElementById('newpw').value;
-        const { error } = await sb.auth.updateUser({ password: pw });
-        if (error) { document.getElementById('msg').textContent = error.message; return; }
-        location.href = '/';
+        msgEl.textContent = '';
+        const pw = document.getElementById('newpw').value || '';
+        if (pw.length < 8) { msgEl.textContent = 'Password must be at least 8 characters.'; return; }
+
+        btnEl.disabled = true;
+        const prev = btnEl.textContent;
+        btnEl.textContent = 'Updating…';
+
+        try {
+          const { error } = await sb.auth.updateUser({ password: pw });
+          if (error) {
+            msgEl.textContent = error.message || 'Could not update your password.';
+            btnEl.disabled = false; btnEl.textContent = prev;
+            return;
+          }
+          // Send back to login with a helpful banner.
+          go('/login?reset=1');
+        } catch (err) {
+          msgEl.textContent = (err && err.message) ? err.message : 'An unexpected error occurred.';
+          btnEl.disabled = false; btnEl.textContent = prev;
+        }
       });
       return;
     }
 
-    // OAuth / email confirmations land here.
-    const { data: { session } } = await sb.auth.getSession();
-    if (session) { state.textContent = 'Signed in. Redirecting…'; location.href = '/'; }
-    else { state.textContent = 'Session not found. You can close this tab and try logging in again.'; }
+    // For other flows (OAuth, email confirmation, magic links):
+    // 1) If a session is already present, send the user to their account.
+    // 2) If this was an email confirmation (signup/email_change), prefer the confirmed banner on /login.
+    try {
+      const { data: { session }, error } = await sb.auth.getSession();
+      if (error) {
+        stateEl.textContent = 'Could not verify session. You can close this tab and try logging in again.';
+        return;
+      }
+
+      // If we landed here after email confirmation, show the verified banner on /login.
+      if (flowType === 'signup' || flowType === 'email_change' || flowType === 'magiclink') {
+        // If session exists, we could also send to /account — but the banner on /login is clearer.
+        go('/login?confirmed=1');
+        return;
+      }
+
+      if (session) {
+        stateEl.textContent = 'Signed in. Redirecting…';
+        go('/account');
+      } else {
+        // No session found; this can happen if the link was opened long after expiration, etc.
+        stateEl.textContent = 'Session not found. You can close this tab and try logging in again.';
+      }
+    } catch (err) {
+      stateEl.textContent = 'Could not complete sign in. You can close this tab and try again.';
+      // Optional: console for diagnostics
+      console.warn('[auth-callback] error', err);
+    }
   })();
   </script>
 </body>
