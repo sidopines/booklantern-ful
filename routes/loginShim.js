@@ -3,34 +3,40 @@ const express = require('express');
 const router = express.Router();
 
 /**
- * This router owns the exact auth endpoints so nothing else intercepts them.
- * It only renders views and does NOT redirect away from /auth/callback.
+ * /auth/open
+ * Handles PKCE-style email links: /auth/open?type=recovery&th=<token_hash>
+ * We render a tiny page that runs supabase.auth.verifyOtp(...) in the browser,
+ * and then sends the user to /auth/callback?type=recovery
  */
-
-// Login page
-router.get('/login', (req, res) => {
-  const canonicalUrl = `${req.protocol}://${req.get('host')}/login`;
-  res.render('login', { canonicalUrl });
+router.get('/auth/open', (req, res) => {
+  const type = String(req.query.type || '');
+  const th   = String(req.query.th || '');
+  // Render the view either way; the client JS will show an error if missing.
+  res.render('auth-open', {
+    pageTitle: 'Almost there…',
+    pageDescription: 'Continue resetting your password.',
+    canonicalUrl: req.protocol + '://' + req.get('host') + req.originalUrl,
+    type,
+    th
+  });
 });
 
-// Register page (if you keep it)
-router.get('/register', (req, res) => {
-  const canonicalUrl = `${req.protocol}://${req.get('host')}/register`;
-  res.render('register', { canonicalUrl, csrfToken: '' });
-});
-
-// Supabase returns here for all link-based auth: recovery, email confirm, magic link, PKCE
+/**
+ * /auth/callback
+ * A neutral page that finalizes auth in the browser (tokens in hash / PKCE exchanges)
+ * Your existing views/auth-callback.ejs contains the password update form logic.
+ */
 router.get('/auth/callback', (req, res) => {
-  const canonicalUrl = `${req.protocol}://${req.get('host')}/auth/callback`;
-  // DO NOT redirect here. We must render so the client JS can read tokens from the hash
-  // (e.g., #access_token=...&refresh_token=...) and call supabase.auth.setSession.
-  res.render('auth-callback', { canonicalUrl });
+  res.render('auth-callback', {
+    pageTitle: 'Almost there…',
+    pageDescription: 'Complete your login or password update.',
+    canonicalUrl: req.protocol + '://' + req.get('host') + req.originalUrl
+  });
 });
 
-// Optional: account page shell (if you want)
-router.get('/account', (req, res) => {
-  const canonicalUrl = `${req.protocol}://${req.get('host')}/account`;
-  res.render('account', { canonicalUrl });
-});
+// (Optional convenience redirects used elsewhere in your app)
+router.get('/login', (_req, res, next) => next());     // handled by views/login.ejs via index router
+router.get('/register', (_req, res, next) => next());  // handled by index router
+router.get('/account', (_req, res, next) => next());   // handled by index router
 
 module.exports = router;
