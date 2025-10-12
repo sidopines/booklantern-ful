@@ -52,41 +52,39 @@
     const loginBtn = document.getElementById('loginBtn');
 
     function setBanner(text, kind){
-      // kind: 'ok' | 'info' | 'warn'
-      if (!text) { banner.style.display='none'; banner.textContent=''; return; }
+      if (!text) {
+        banner.style.display='none';
+        banner.textContent='';
+        return;
+      }
       banner.style.display='block';
       banner.textContent = text;
-      const bg =
-        kind === 'ok'   ? '#e6f7ed' :
-        kind === 'warn' ? '#fff7e6' :
-                          '#f5f5f5';
-      banner.style.background = bg;
-      banner.style.border = '1px solid rgba(0,0,0,.08)';
+      // simple coloring by kind
+      if (kind === 'ok') {
+        banner.style.background = '#e6f7ed';
+        banner.style.border = '1px solid #b7ebc6';
+      } else if (kind === 'warn') {
+        banner.style.background = '#fff7e6';
+        banner.style.border = '1px solid #ffe7ba';
+      } else {
+        banner.style.background = '#f5f5f5';
+        banner.style.border = '1px solid rgba(0,0,0,.08)';
+      }
     }
 
     function setMsg(t){ msgEl.textContent = t || ''; }
     function getBase(){ return (location.origin || '<%= process.env.SITE_URL || "" %>'); }
 
-    // --- Banners from query/hash ---
+    // --- Show banners from query params ---
     (function(){
       try {
         const qp = new URLSearchParams(location.search);
         if (qp.has('confirmed')) setBanner('✅ Your email has been verified. You can log in now.', 'ok');
-        if (qp.get('reset') === '1')   setBanner('📬 Check your inbox for a password reset link.', 'info');
-        if (qp.get('reset') === 'done') setBanner('✅ Your password has been updated. Please log in.', 'ok');
-
-        // If Supabase ever appends an error in the hash, surface it
-        if (location.hash && location.hash.length > 1) {
-          const hp = new URLSearchParams(location.hash.slice(1));
-          const err = hp.get('error') || hp.get('error_code');
-          const desc = hp.get('error_description');
-          if (err) {
-            const nice = desc || (err === 'otp_expired'
-              ? 'Reset link expired. Please request a new one.'
-              : 'Something went wrong with the reset link. Please try again.');
-            setBanner('⚠️ ' + nice, 'warn');
-          }
-        }
+        else if (qp.get('reset') === '1') setBanner('📬 Check your inbox for a password reset link.', 'info');
+        else if (qp.get('reset') === 'done') setBanner('✅ Your password has been updated. Please log in.', 'ok');
+        // Optional: show error passed back by providers
+        const err = qp.get('error_description') || qp.get('error');
+        if (err) setBanner(err, 'warn');
       } catch(e) {}
     })();
 
@@ -110,22 +108,24 @@
       location.href = '/account';
     });
 
-    // --- Reset link (Supabase-hosted reset page; returns to /login?reset=done) ---
+    // --- Reset link (DASHBOARD-ONLY FLOW) ---
     document.getElementById('reset').addEventListener('click', async ()=>{
       setMsg('');
       const email = document.getElementById('email').value.trim();
       if (!email) return setMsg('Enter your email first.');
 
-      const { error } = await sb.auth.resetPasswordForEmail(email, {
-        redirectTo: getBase() + '/login?reset=done'
-      });
+      // IMPORTANT CHANGE:
+      // Send users to a simple "done" page on your site after they finish on Supabase’s password UI.
+      const redirectTo = getBase() + '/login?reset=done';
+
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
       if (error) return setMsg(error.message);
 
-      // Show “check your inbox” banner
+      // Show "check your inbox" banner
       location.href = '/login?reset=1';
     });
 
-    // --- OAuth (unchanged) ---
+    // --- OAuth ---
     document.getElementById('google').addEventListener('click', async ()=>{
       await sb.auth.signInWithOAuth({
         provider: 'google',
