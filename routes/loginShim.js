@@ -3,36 +3,35 @@ const express = require('express');
 const router = express.Router();
 
 /**
- * IMPORTANT:
- * - /auth/callback must RENDER a page that can read the URL hash.
- * - Do NOT redirect here, or you will lose the access_token/refresh_token in the hash.
+ * DO NOT redirect from these routes.
+ * They must render a page that can read the URL hash
+ * (access_token / refresh_token) from Supabase.
  */
 
-// Supabase auth finishes here (email confirmation, magic link, password recovery)
-router.get('/auth/callback', (req, res) => {
-  // This renders views/auth-callback.ejs (which you already have)
-  res.render('auth-callback', {
-    canonicalUrl: `${req.protocol}://${req.get('host')}/auth/callback${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`
-  });
+// helper to build a canonical url for <head>
+function canonical(req) {
+  const base = `${req.protocol}://${req.get('host')}`;
+  const qs   = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  return `${base}${req.path}${qs}`;
+}
+
+// Supabase callback target for email links, password recovery, OAuth code, etc.
+router.get(['/auth/callback', '/auth/callback/'], (req, res) => {
+  res.render('auth-callback', { canonicalUrl: canonical(req) });
 });
 
-// Optional conveniences (only keep these if you are serving login/register here)
+// Safety net: if anything else under /auth/ is called by mistake, still render.
+router.get('/auth/*', (req, res) => {
+  res.render('auth-callback', { canonicalUrl: canonical(req) });
+});
+
+// Optional convenience routes (render-only)
 router.get('/login', (req, res) => {
-  res.render('login', {
-    canonicalUrl: `${req.protocol}://${req.get('host')}/login${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`
-  });
+  res.render('login', { canonicalUrl: canonical(req) });
 });
 
 router.get('/register', (req, res) => {
-  res.render('register', {
-    canonicalUrl: `${req.protocol}://${req.get('host')}/register`
-  });
-});
-
-router.get('/account', (req, res, next) => {
-  // If you render account elsewhere, remove this block.
-  // Otherwise you can render a simple account page here.
-  next();
+  res.render('register', { canonicalUrl: canonical(req) });
 });
 
 module.exports = router;
