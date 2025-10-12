@@ -51,28 +51,42 @@
     const msgEl = document.getElementById('msg');
     const loginBtn = document.getElementById('loginBtn');
 
-    function setBanner(text, ok){
-      if (!text) {
-        banner.style.display='none';
-        banner.textContent='';
-        return;
-      }
+    function setBanner(text, kind){
+      // kind: 'ok' | 'info' | 'warn'
+      if (!text) { banner.style.display='none'; banner.textContent=''; return; }
       banner.style.display='block';
       banner.textContent = text;
-      banner.style.background = ok ? 'var(--green-1, #e6f7ed)' : 'var(--ink-1, #f5f5f5)';
+      const bg =
+        kind === 'ok'   ? '#e6f7ed' :
+        kind === 'warn' ? '#fff7e6' :
+                          '#f5f5f5';
+      banner.style.background = bg;
       banner.style.border = '1px solid rgba(0,0,0,.08)';
     }
 
     function setMsg(t){ msgEl.textContent = t || ''; }
-
     function getBase(){ return (location.origin || '<%= process.env.SITE_URL || "" %>'); }
 
-    // --- Show banners from query params ---
+    // --- Banners from query/hash ---
     (function(){
       try {
         const qp = new URLSearchParams(location.search);
-        if (qp.has('confirmed')) setBanner('✅ Your email has been verified. You can log in now.', true);
-        else if (qp.has('reset')) setBanner('📬 Check your inbox for a password reset link.', false);
+        if (qp.has('confirmed')) setBanner('✅ Your email has been verified. You can log in now.', 'ok');
+        if (qp.get('reset') === '1')   setBanner('📬 Check your inbox for a password reset link.', 'info');
+        if (qp.get('reset') === 'done') setBanner('✅ Your password has been updated. Please log in.', 'ok');
+
+        // If Supabase ever appends an error in the hash, surface it
+        if (location.hash && location.hash.length > 1) {
+          const hp = new URLSearchParams(location.hash.slice(1));
+          const err = hp.get('error') || hp.get('error_code');
+          const desc = hp.get('error_description');
+          if (err) {
+            const nice = desc || (err === 'otp_expired'
+              ? 'Reset link expired. Please request a new one.'
+              : 'Something went wrong with the reset link. Please try again.');
+            setBanner('⚠️ ' + nice, 'warn');
+          }
+        }
       } catch(e) {}
     })();
 
@@ -93,23 +107,25 @@
         loginBtn.textContent = 'Log in';
         return;
       }
-
-      // Redirect to account/dashboard
       location.href = '/account';
     });
 
-    // --- Reset link ---
+    // --- Reset link (Supabase-hosted reset page; returns to /login?reset=done) ---
     document.getElementById('reset').addEventListener('click', async ()=>{
       setMsg('');
       const email = document.getElementById('email').value.trim();
       if (!email) return setMsg('Enter your email first.');
-      const redirectTo = getBase() + '/auth/callback?type=recovery';
-      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+
+      const { error } = await sb.auth.resetPasswordForEmail(email, {
+        redirectTo: getBase() + '/login?reset=done'
+      });
       if (error) return setMsg(error.message);
+
+      // Show “check your inbox” banner
       location.href = '/login?reset=1';
     });
 
-    // --- OAuth ---
+    // --- OAuth (unchanged) ---
     document.getElementById('google').addEventListener('click', async ()=>{
       await sb.auth.signInWithOAuth({
         provider: 'google',
