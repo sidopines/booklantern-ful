@@ -1,43 +1,38 @@
 // routes/loginShim.js
-// Minimal routes to support Supabase auth flows without server sessions.
-
 const express = require('express');
 const router = express.Router();
 
-/** Helper to build an absolute canonical URL for meta tags */
-function canonical(req) {
-  return `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-}
-
 /**
- * IMPORTANT: render a real page for /auth/callback so the client JS
- * can read tokens from the URL hash and complete the flow.
+ * IMPORTANT:
+ * - /auth/callback must RENDER a page that can read the URL hash.
+ * - Do NOT redirect here, or you will lose the access_token/refresh_token in the hash.
  */
+
+// Supabase auth finishes here (email confirmation, magic link, password recovery)
 router.get('/auth/callback', (req, res) => {
+  // This renders views/auth-callback.ejs (which you already have)
   res.render('auth-callback', {
-    canonicalUrl: canonical(req),
+    canonicalUrl: `${req.protocol}://${req.get('host')}/auth/callback${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`
   });
 });
 
-/** Login page (email/password + Google/Apple buttons) */
+// Optional conveniences (only keep these if you are serving login/register here)
 router.get('/login', (req, res) => {
   res.render('login', {
-    canonicalUrl: canonical(req),
+    canonicalUrl: `${req.protocol}://${req.get('host')}/login${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`
   });
 });
 
-/** Register page */
 router.get('/register', (req, res) => {
   res.render('register', {
-    canonicalUrl: canonical(req),
+    canonicalUrl: `${req.protocol}://${req.get('host')}/register`
   });
 });
 
-/** Account page (client pulls profile via Supabase on the page) */
-router.get('/account', (req, res) => {
-  res.render('account', {
-    canonicalUrl: canonical(req),
-  });
+router.get('/account', (req, res, next) => {
+  // If you render account elsewhere, remove this block.
+  // Otherwise you can render a simple account page here.
+  next();
 });
 
 module.exports = router;
