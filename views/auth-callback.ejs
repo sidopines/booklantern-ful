@@ -16,10 +16,12 @@
 </head>
 <body>
   <%- include('./partials/navbar') %>
+
   <main class="container" style="max-width:720px; margin:28px auto; padding:0 16px;">
     <h1>Almost there…</h1>
     <p class="ink-2" id="state">Verifying session…</p>
 
+    <!-- Password reset form (shown only for recovery with a valid session) -->
     <form id="pwForm" class="card" style="padding:16px; display:none;">
       <div class="stack" style="--gap:10px;">
         <input class="input" type="password" id="newpw" placeholder="New password (min 6 chars)" required minlength="6" autocomplete="new-password">
@@ -32,69 +34,71 @@
       <a href="/login">Back to login</a>
     </p>
   </main>
+
   <%- include('./partials/footer') %>
 
   <script>
   (async function () {
-    // Expect a global Supabase client created in head partial:
-    //   window.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { detectSessionInUrl: true })
+    // Expect a global Supabase client initialized in the HEAD partial with:
+    // createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { detectSessionInUrl: true })
     const sb = window.supabaseClient;
+
     const state = document.getElementById('state');
-    const form = document.getElementById('pwForm');
-    const msg  = document.getElementById('msg');
-    const back = document.getElementById('backLinks');
+    const form  = document.getElementById('pwForm');
+    const msg   = document.getElementById('msg');
+    const back  = document.getElementById('backLinks');
 
     function qs() { return new URLSearchParams(location.search); }
     function hs() { return new URLSearchParams((location.hash || '').replace(/^#/, '')); }
+
     const q = qs();
     const h = hs();
 
     const type = String(q.get('type') || h.get('type') || '').toLowerCase();
     const err  = q.get('error_description') || h.get('error_description');
 
-    // If Supabase returned an error message in the URL, show it.
+    // If Supabase provided an error in the URL, show it.
     if (err) {
       state.textContent = decodeURIComponent(err);
       back.style.display = 'block';
-      // keep the URL clean
       try { history.replaceState({}, document.title, location.pathname); } catch (_) {}
       return;
     }
 
-    // 1) If the hash has tokens (recovery/magiclink flows), set the session explicitly.
+    // If this is an OAuth PKCE callback (?code=...), exchange it.
+    const code = q.get('code');
+    if (code) {
+      try {
+        await sb.auth.exchangeCodeForSession(window.location.href);
+        history.replaceState({}, document.title, location.pathname);
+      } catch (e) {
+        console.warn('exchangeCodeForSession failed:', e);
+      }
+    }
+
+    // If access_token + refresh_token are in the hash (recovery/magic links), set the session.
     const access_token  = h.get('access_token');
     const refresh_token = h.get('refresh_token');
     if (access_token && refresh_token) {
       try {
         await sb.auth.setSession({ access_token, refresh_token });
-        // Clean sensitive tokens from the URL
         history.replaceState({}, document.title, location.pathname + location.search);
       } catch (e) {
         console.warn('setSession failed:', e);
       }
     }
 
-    // 2) If this is an OAuth PKCE callback (?code=), exchange it.
-    const code = q.get('code');
-    if (code) {
-      try {
-        await sb.auth.exchangeCodeForSession(window.location.href);
-        history.replaceState({}, document.title, location.pathname); // clean URL
-      } catch (e) {
-        console.warn('exchangeCodeForSession failed:', e);
-      }
-    }
-
-    // 3) Now see if we have a session.
+    // Do we have a session now?
     let { data: { session } } = await sb.auth.getSession();
 
-    // Handle password recovery
+    // Password recovery: show the password form if session is valid.
     if (type === 'recovery') {
       if (!session) {
         state.textContent = 'Your reset link is invalid or expired. Please request a new one.';
         back.style.display = 'block';
         return;
       }
+
       state.textContent = 'Enter a new password:';
       form.style.display = 'block';
 
@@ -102,20 +106,22 @@
         e.preventDefault();
         const pw = String(document.getElementById('newpw').value || '').trim();
         if (pw.length < 6) { msg.textContent = 'Password must be at least 6 characters.'; return; }
+
         msg.textContent = 'Updating…';
         const { error } = await sb.auth.updateUser({ password: pw });
         if (error) { msg.textContent = error.message; return; }
+
         state.textContent = 'Password updated. Redirecting to login…';
         form.style.display = 'none';
-        setTimeout(() => { location.href = '/login?reset=done'; }, 700);
+        setTimeout(() => { location.href = '/login?reset=done'; }, 600);
       });
+
       return;
     }
 
     // Email confirmations / magic links
     if (['signup','magiclink','email_change','invitation','verified'].includes(type)) {
       if (!session) {
-        // Even if the session isn't present, show a friendly message then send to login
         state.textContent = '✅ Your email has been verified. You can log in now.';
         setTimeout(() => { location.href = '/login?confirmed=1'; }, 700);
         return;
@@ -125,7 +131,7 @@
       return;
     }
 
-    // Fallbacks:
+    // Fallbacks
     if (session) {
       state.textContent = 'Signed in. Redirecting…';
       setTimeout(() => { location.href = '/account'; }, 500);
