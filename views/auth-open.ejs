@@ -2,58 +2,75 @@
 <html lang="en">
 <head>
   <%- include('./partials/head', {
-    pageTitle: 'Continue securely • BookLantern',
-    pageDescription: 'Please confirm to continue resetting your password.',
-    canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
+    pageTitle,
+    pageDescription,
+    canonicalUrl
   }) %>
   <style>
-    .card { border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.06); padding:16px; }
-    .btn  { padding: 10px 14px; border-radius: 8px; border: 0; cursor: pointer; }
-    .btn-primary { background:#6366f1; color:#fff; }
-    .ink-2 { color:#6b7280; }
+    .card { border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.06); padding: 14px; max-width: 540px; }
+    .btn  { padding: 10px 14px; border-radius: 8px; border: 0; cursor: pointer; background:#6366f1; color:#fff; }
+    .ink-2 { color: #6b7280; }
   </style>
 </head>
 <body>
   <%- include('./partials/navbar') %>
-  <main class="container" style="max-width:720px; margin:28px auto; padding:0 16px;">
-    <h1>Almost there…</h1>
-    <p class="ink-2">Click the button below to continue resetting your password.</p>
 
-    <div class="card">
-      <button id="go" class="btn btn-primary">Continue</button>
-      <div id="msg" class="ink-2" style="margin-top:8px;"></div>
+  <main class="container" style="max-width:760px; margin:28px auto; padding:0 16px;">
+    <h1>Almost there…</h1>
+    <p id="state" class="ink-2">Click the button below to continue resetting your password.</p>
+
+    <div class="card" style="margin-top:10px;">
+      <button id="go" class="btn" type="button">Continue</button>
     </div>
 
-    <p class="ink-2" style="margin-top:14px;"><a href="/login">Back to login</a></p>
+    <p style="margin-top:12px;"><a href="/login">Back to login</a></p>
   </main>
+
   <%- include('./partials/footer') %>
 
   <script>
-    (function(){
-      const msg = document.getElementById('msg');
-      function getBase(){ return (location.origin || '<%= process.env.SITE_URL || "" %>'); }
-      function qs(){ return new URLSearchParams(location.search); }
-      const q = qs();
-      const type = (q.get('type') || '').toLowerCase();
-      const th   = q.get('th'); // token hash carried from email
+  (function(){
+    const sb = window.supabaseClient;
+    const state = document.getElementById('state');
+    const btn   = document.getElementById('go');
 
-      // Your Supabase project URL (auth domain). If you already expose it in head partial, use that.
-      const SUPABASE_URL = '<%= process.env.SUPABASE_URL || "" %>';
-      if (!SUPABASE_URL) {
-        msg.textContent = 'Missing SUPABASE_URL server env.';
+    const params = new URLSearchParams(location.search);
+    const type = (params.get('type') || '').toLowerCase();
+    const th   = params.get('th') || '';
+
+    function showErr(msg){
+      state.textContent = msg || 'Your reset link is invalid or expired. Please request a new one.';
+      btn.style.display = 'none';
+    }
+
+    if (!sb) { showErr('Auth not available. Try reloading, or request a new link.'); return; }
+    if (!type || !th) { showErr(); return; }
+
+    async function proceed(){
+      btn.disabled = true;
+      btn.textContent = 'Continuing…';
+      try {
+        // Verify the token_hash and create a session
+        const { data, error } = await sb.auth.verifyOtp({
+          type: type,              // 'recovery'
+          token_hash: th
+        });
+        if (error) {
+          showErr(error.message || 'Could not verify link.');
+          return;
+        }
+        // On success, head to the password form page
+        location.href = '/auth/callback?type=' + encodeURIComponent(type);
+      } catch (e) {
+        showErr('Something went wrong. Please request a new link.');
       }
+    }
 
-      document.getElementById('go').addEventListener('click', function(){
-        if (!th || !type) { msg.textContent = 'This link is invalid or expired. Please request a new one.'; return; }
-        const redirectTo = encodeURIComponent(getBase() + '/auth/callback?type=' + type);
-        const url = SUPABASE_URL.replace(/\/$/, '') +
-          '/auth/v1/verify?token_hash=' + encodeURIComponent(th) +
-          '&type=' + encodeURIComponent(type) +
-          '&redirect_to=' + redirectTo;
-        // Navigate only on real user click:
-        window.location.assign(url);
-      });
-    })();
+    // Click handler + auto-run (helps with email clients that don’t auto-run JS)
+    btn.addEventListener('click', proceed);
+    // Auto-continue after a short delay
+    setTimeout(() => { if (!btn.disabled) proceed(); }, 300);
+  })();
   </script>
 </body>
 </html>
