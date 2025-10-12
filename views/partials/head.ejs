@@ -5,6 +5,8 @@
 <title><%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern' %></title>
 <meta name="description" content="<%= (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Millions of free books from globally trusted libraries. One clean reader.' %>">
 
+<link rel="canonical" href="<%= (typeof canonicalUrl !== 'undefined' && canonicalUrl) ? canonicalUrl : '' %>">
+
 <meta property="og:title" content="<%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern' %>">
 <meta property="og:description" content="<%= (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Millions of free books from globally trusted libraries. One clean reader.' %>">
 <meta property="og:type" content="website">
@@ -46,13 +48,37 @@
 <!-- Supabase client (browser) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-  window.__SB_URL = "<%= process.env.SUPABASE_URL || '' %>";
+  // Expose env to the client
+  window.__SB_URL  = "<%= process.env.SUPABASE_URL || '' %>";
   window.__SB_ANON = "<%= process.env.SUPABASE_ANON_KEY || '' %>";
-  window.supabaseClient = (window.__SB_URL && window.__SB_ANON)
-    ? window.supabase && window.supabase.createClient
-      ? window.supabase.createClient(window.__SB_URL, window.__SB_ANON)
-      : supabase.createClient(window.__SB_URL, window.__SB_ANON)
-    : null;
+
+  // Create a single shared client with correct auth options.
+  (function () {
+    if (!window.__SB_URL || !window.__SB_ANON) {
+      console.warn('[supabase] Missing SUPABASE_URL or SUPABASE_ANON_KEY in env.');
+      window.supabaseClient = null;
+      return;
+    }
+
+    var create = (window.supabase && window.supabase.createClient)
+      ? window.supabase.createClient
+      : (typeof supabase !== 'undefined' && supabase.createClient ? supabase.createClient : null);
+
+    if (!create) {
+      console.error('[supabase] createClient not found on window. Check CDN script loading.');
+      window.supabaseClient = null;
+      return;
+    }
+
+    window.supabaseClient = create(window.__SB_URL, window.__SB_ANON, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,   // <-- REQUIRED for password recovery + magic links
+        flowType: 'pkce'            // good default for OAuth
+      }
+    });
+  })();
 </script>
 
 <!-- Theme toggle behavior -->
