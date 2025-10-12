@@ -2,36 +2,35 @@
 const express = require('express');
 const router = express.Router();
 
-// helper for canonical url
-function canonical(req) {
-  const base = `${req.protocol}://${req.get('host')}`;
-  const qs   = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
-  return `${base}${req.path}${qs}`;
-}
-
 /**
- * Render-only routes for all auth flows.
- * Never redirect away from these paths so the hash tokens can be read.
+ * This router owns the exact auth endpoints so nothing else intercepts them.
+ * It only renders views and does NOT redirect away from /auth/callback.
  */
 
-// Interstitial that requires a real user click before calling Supabase verify
-router.get('/auth/open', (req, res) => {
-  // accepts ?type=recovery&th=<tokenHash>
-  res.render('auth-open', { canonicalUrl: canonical(req) });
+// Login page
+router.get('/login', (req, res) => {
+  const canonicalUrl = `${req.protocol}://${req.get('host')}/login`;
+  res.render('login', { canonicalUrl });
 });
 
-// Supabase callback: receives tokens in hash or ?code after verify
-router.get(['/auth/callback', '/auth/callback/'], (req, res) => {
-  res.render('auth-callback', { canonicalUrl: canonical(req) });
+// Register page (if you keep it)
+router.get('/register', (req, res) => {
+  const canonicalUrl = `${req.protocol}://${req.get('host')}/register`;
+  res.render('register', { canonicalUrl, csrfToken: '' });
 });
 
-// Safety net
-router.get('/auth/*', (req, res) => {
-  res.render('auth-callback', { canonicalUrl: canonical(req) });
+// Supabase returns here for all link-based auth: recovery, email confirm, magic link, PKCE
+router.get('/auth/callback', (req, res) => {
+  const canonicalUrl = `${req.protocol}://${req.get('host')}/auth/callback`;
+  // DO NOT redirect here. We must render so the client JS can read tokens from the hash
+  // (e.g., #access_token=...&refresh_token=...) and call supabase.auth.setSession.
+  res.render('auth-callback', { canonicalUrl });
 });
 
-// Convenience renders
-router.get('/login', (req, res) => res.render('login', { canonicalUrl: canonical(req) }));
-router.get('/register', (req, res) => res.render('register', { canonicalUrl: canonical(req) }));
+// Optional: account page shell (if you want)
+router.get('/account', (req, res) => {
+  const canonicalUrl = `${req.protocol}://${req.get('host')}/account`;
+  res.render('account', { canonicalUrl });
+});
 
 module.exports = router;
