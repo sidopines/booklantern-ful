@@ -51,7 +51,7 @@
     const msgEl = document.getElementById('msg');
     const loginBtn = document.getElementById('loginBtn');
 
-    function setBanner(text, kind){
+    function setBanner(text, tone){
       if (!text) {
         banner.style.display='none';
         banner.textContent='';
@@ -59,32 +59,29 @@
       }
       banner.style.display='block';
       banner.textContent = text;
-      // simple coloring by kind
-      if (kind === 'ok') {
-        banner.style.background = '#e6f7ed';
-        banner.style.border = '1px solid #b7ebc6';
-      } else if (kind === 'warn') {
-        banner.style.background = '#fff7e6';
-        banner.style.border = '1px solid #ffe7ba';
-      } else {
-        banner.style.background = '#f5f5f5';
-        banner.style.border = '1px solid rgba(0,0,0,.08)';
-      }
+      const bg = tone === 'ok'   ? '#e6f7ed'
+               : tone === 'warn' ? '#fff6e5'
+               : tone === 'error'? '#ffecec'
+               : '#f5f5f5';
+      banner.style.background = bg;
+      banner.style.border = '1px solid rgba(0,0,0,.08)';
     }
-
     function setMsg(t){ msgEl.textContent = t || ''; }
     function getBase(){ return (location.origin || '<%= process.env.SITE_URL || "" %>'); }
 
-    // --- Show banners from query params ---
+    // --- Banners from query/fragment ---
     (function(){
       try {
         const qp = new URLSearchParams(location.search);
+        const hash = new URLSearchParams((location.hash || '').replace(/^#/, ''));
         if (qp.has('confirmed')) setBanner('✅ Your email has been verified. You can log in now.', 'ok');
-        else if (qp.get('reset') === '1') setBanner('📬 Check your inbox for a password reset link.', 'info');
-        else if (qp.get('reset') === 'done') setBanner('✅ Your password has been updated. Please log in.', 'ok');
-        // Optional: show error passed back by providers
-        const err = qp.get('error_description') || qp.get('error');
-        if (err) setBanner(err, 'warn');
+        else if (qp.has('reset')) {
+          const val = qp.get('reset');
+          if (val === '1')   setBanner('📬 Check your inbox for a password reset link.', 'info');
+          if (val === 'done')setBanner('✅ Your password has been updated. Please log in.', 'ok');
+        }
+        const err = hash.get('error_description') || hash.get('error') || qp.get('error_description') || qp.get('error');
+        if (err) setBanner('⚠️ ' + decodeURIComponent(err).replace(/\+/g, ' '), 'error');
       } catch(e) {}
     })();
 
@@ -108,21 +105,20 @@
       location.href = '/account';
     });
 
-    // --- Reset link (DASHBOARD-ONLY FLOW) ---
+    // --- Send reset email (redirects to our password form) ---
     document.getElementById('reset').addEventListener('click', async ()=>{
       setMsg('');
       const email = document.getElementById('email').value.trim();
       if (!email) return setMsg('Enter your email first.');
-
-      // IMPORTANT CHANGE:
-      // Send users to a simple "done" page on your site after they finish on Supabase’s password UI.
-      const redirectTo = getBase() + '/login?reset=done';
-
+      const redirectTo = getBase() + '/auth/callback?type=recovery';
       const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
       if (error) return setMsg(error.message);
-
-      // Show "check your inbox" banner
-      location.href = '/login?reset=1';
+      // Show "check inbox" banner immediately
+      const url = new URL(location.href);
+      url.searchParams.set('reset','1');
+      url.hash = '';
+      history.replaceState(null, '', url.toString());
+      setBanner('📬 Check your inbox for a password reset link.', 'info');
     });
 
     // --- OAuth ---
