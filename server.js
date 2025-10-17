@@ -36,6 +36,11 @@ app.get('/sw.js', (req, res) => {
   });
 });
 
+// Minimal robots.txt to avoid 404 noise
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain').send('User-agent: *\nAllow: /\n');
+});
+
 // ---------- Safe locals for EJS (theme/footer rely on buildId) ----------
 const BUILD_ID = Date.now().toString();
 app.use((req, res, next) => {
@@ -64,6 +69,114 @@ app.get(/^\/auth\/callback(?:\/.*)?$/, (req, res) => {
     console.error('[auth-callback] render failed:', e);
     return res.status(500).send('Auth callback error');
   }
+});
+
+/* ============================================================
+   Minimal Account page (works with passwordless sign-in).
+   Uses supabase-js in the browser to read the current session.
+   ============================================================ */
+app.get('/account', (_req, res) => {
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Account • BookLantern</title>
+  <link rel="stylesheet" href="/public/css/site.css?v=${BUILD_ID}">
+  <link rel="stylesheet" href="/public/css/nav.css?v=${BUILD_ID}">
+  <link rel="stylesheet" href="/public/css/footer.css?v=${BUILD_ID}">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // Same env injection style as your head.ejs
+    window.__SB_URL = "${process.env.SUPABASE_URL || ''}";
+    window.__SB_ANON = "${process.env.SUPABASE_ANON_KEY || ''}";
+    window.supabaseClient = (window.__SB_URL && window.__SB_ANON)
+      ? supabase.createClient(window.__SB_URL, window.__SB_ANON)
+      : null;
+  </script>
+  <style>
+    .container{max-width:720px;margin:28px auto;padding:0 16px}
+    .card{background:var(--surface,#fff);border:1px solid rgba(0,0,0,.06);border-radius:12px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.06)}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .btn{padding:10px 14px;border-radius:8px;border:0;cursor:pointer;background:#f3f4f6}
+    .btn-primary{background:#6366f1;color:#fff}
+    .ink-2{color:#6b7280}
+    header .nav{display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:12px 16px}
+    header .brand{margin-right:auto;text-decoration:none;font-weight:700}
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="nav">
+      <a class="brand" href="/">BookLantern</a>
+      <a class="btn" href="/">Home</a>
+      <button id="signOutTop" class="btn">Sign out</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Account</h1>
+    <p id="state" class="ink-2">Checking your session…</p>
+
+    <section id="card" class="card" style="display:none">
+      <div class="row">
+        <span class="ink-2">Signed in as</span>
+        <strong id="email"></strong>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="signOut" class="btn">Sign out</button>
+        <a class="btn" href="/">Go to homepage</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">BookLantern © 2025</div>
+  </footer>
+
+  <script>
+    (async function(){
+      const sb = window.supabaseClient;
+      const state = document.getElementById('state');
+      const card  = document.getElementById('card');
+      const emailEl = document.getElementById('email');
+      const soTop = document.getElementById('signOutTop');
+      const so = document.getElementById('signOut');
+
+      async function boot(){
+        try{
+          if(!sb || !sb.auth || !sb.auth.getUser){
+            state.textContent = 'Auth not available. Please refresh.';
+            return;
+          }
+          const { data: { user } } = await sb.auth.getUser();
+          if(!user){
+            // Not signed in -> return to login
+            location.href = '/login';
+            return;
+          }
+          emailEl.textContent = user.email || '(unknown)';
+          state.textContent = 'You are signed in.';
+          card.style.display = 'block';
+        }catch(e){
+          state.textContent = 'Could not read session. Please try again.';
+        }
+      }
+
+      async function signOut(){
+        try { await (sb && sb.auth && sb.auth.signOut ? sb.auth.signOut() : Promise.resolve()); } catch {}
+        location.href = '/';
+      }
+
+      soTop.addEventListener('click', signOut);
+      so.addEventListener('click', signOut);
+
+      boot();
+    })();
+  </script>
+</body>
+</html>`;
+  res.status(200).send(html);
 });
 
 // ---------- Mount routes explicitly ----------
