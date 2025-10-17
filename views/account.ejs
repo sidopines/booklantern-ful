@@ -17,7 +17,8 @@
     .input{padding:10px 12px;border:1px solid var(--ink-3,#d1d5db);border-radius:8px;background:var(--surface,#fff)}
     .label{font-size:14px;font-weight:600}
     .help{font-size:12px;color:#6b7280}
-    .btn{padding:10px 14px;border-radius:8px;border:1px solid rgba(0,0,0,.1);cursor:pointer;background:#f3f4f6}
+    .btn{padding:10px 14px;border-radius:8px;border:1px solid rgba(0,0,0,.1);cursor:pointer;background:#f3f4f6;transition:opacity .15s ease}
+    .btn[disabled]{opacity:.6;cursor:not-allowed}
     .btn-primary{background:#6366f1;color:#fff;border:0}
     .btn-ghost{background:transparent}
     .badge{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:12px}
@@ -25,18 +26,51 @@
     .right{display:flex;justify-content:flex-end;gap:8px}
     .hr{height:1px;background:rgba(0,0,0,.06);margin:8px 0}
     .danger{color:#b91c1c}
-    .success{color:#065f46}
-    .status{padding:10px 12px;border:1px solid rgba(0,0,0,.08);border-radius:8px}
-    .visually-hidden{position:absolute!important;height:1px;width:1px;overflow:hidden;clip:rect(1px,1px,1px,1px);white-space:nowrap}
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      transform: translateX(-50%) translateY(16px);
+      background: #16a34a;
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 10px;
+      box-shadow: 0 12px 32px rgba(22,163,74,.35);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 50;
+    }
+    .toast.show {
+      animation: toast-in .18s ease-out forwards, toast-out .35s ease-in 2.2s forwards;
+    }
+    @keyframes toast-in {
+      from {opacity:0; transform: translateX(-50%) translateY(16px) scale(.98)}
+      to   {opacity:1; transform: translateX(-50%) translateY(0) scale(1)}
+    }
+    @keyframes toast-out {
+      to {opacity:0; transform: translateX(-50%) translateY(12px)}
+    }
+
+    /* Small spinner for the button */
+    .spin {
+      width:14px;height:14px;border-radius:50%;
+      border:2px solid rgba(255,255,255,.4);
+      border-top-color:#fff;
+      display:inline-block;vertical-align:middle;
+      animation: rot .7s linear infinite;
+      margin-right:8px;
+    }
+    @keyframes rot {to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
   <%- include('./partials/navbar') %>
 
   <main class="container">
-    <h1 style="margin:4px 0 16px;">Account</h1>
-
-    <div id="status" class="status" role="status" aria-live="polite" style="display:none;"></div>
+    <h1 style="margin:4px 0 6px;">Account</h1>
+    <p id="updatedStamp" class="muted" style="margin:0 0 16px;display:none;"></p>
 
     <div class="grid">
       <!-- Left: Profile form -->
@@ -72,7 +106,9 @@
           </div>
 
           <div class="right">
-            <button id="saveBtn" class="btn btn-primary" type="submit">Save changes</button>
+            <button id="saveBtn" class="btn btn-primary" type="submit">
+              <span id="saveText">Save changes</span>
+            </button>
             <button id="resetBtn" class="btn btn-ghost" type="button">Reset</button>
           </div>
         </form>
@@ -114,30 +150,43 @@
 
   <%- include('./partials/footer') %>
 
+  <!-- Toast -->
+  <div id="toast" class="toast" role="status" aria-live="polite">Saved!</div>
+
   <script>
   (async function(){
     const sb = window.supabaseClient;
-    const statusBox = document.getElementById('status');
-    const sessionBadge = document.getElementById('sessionBadge');
 
+    // form elements
     const emailEl = document.getElementById('email');
     const dnEl = document.getElementById('display_name');
     const nlEl = document.getElementById('newsletter');
     const puEl = document.getElementById('product_updates');
-
     const saveBtn = document.getElementById('saveBtn');
+    const saveText = document.getElementById('saveText');
     const resetBtn = document.getElementById('resetBtn');
     const signOutBtn = document.getElementById('signOut');
     const deleteBtn = document.getElementById('deleteProfile');
+    const sessionBadge = document.getElementById('sessionBadge');
+    const updatedStamp = document.getElementById('updatedStamp');
+    const toast = document.getElementById('toast');
 
-    function showStatus(text, kind){ // kind: 'ok' | 'err' | 'info'
-      if (!text) { statusBox.style.display='none'; statusBox.textContent=''; return; }
-      statusBox.style.display='block';
-      statusBox.textContent = text;
-      statusBox.style.background = kind === 'ok' ? 'var(--green-1, #e7f8ef)' :
-                                   kind === 'err' ? 'var(--red-1, #fdecec)' :
-                                                    'var(--ink-1, #f5f5f5)';
-      statusBox.style.border = '1px solid rgba(0,0,0,.08)';
+    function showToast(text){
+      toast.textContent = text || 'Saved!';
+      toast.classList.remove('show'); // restart animation if needed
+      // force reflow
+      void toast.offsetWidth;
+      toast.classList.add('show');
+    }
+
+    function setSaving(isSaving){
+      if (isSaving){
+        saveBtn.disabled = true;
+        saveText.innerHTML = '<span class="spin"></span>Saving…';
+      } else {
+        saveBtn.disabled = false;
+        saveText.textContent = 'Save changes';
+      }
     }
 
     function fillForm(u, p){
@@ -145,50 +194,49 @@
       dnEl.value = (p && p.display_name) || (u && (u.user_metadata?.full_name || '')) || '';
       nlEl.checked = Boolean(p && p.newsletter);
       puEl.checked = (p && typeof p.product_updates === 'boolean') ? p.product_updates : true;
+
+      if (p && p.updated_at){
+        const d = new Date(p.updated_at);
+        updatedStamp.textContent = 'Profile updated on ' + d.toLocaleString();
+        updatedStamp.style.display = 'block';
+      } else {
+        updatedStamp.style.display = 'none';
+      }
     }
 
     async function fetchProfile(uid){
-      const { data, error, status } = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
+      const { data, error, status } = await sb
+        .from('profiles')
+        .select('id, display_name, newsletter, product_updates, updated_at')
+        .eq('id', uid)
+        .maybeSingle();
       if (error && status !== 406) throw error;
-      if (!data) return null;
-      return data;
+      return data || null;
     }
 
     async function ensureProfile(uid){
-      // create if absent (id only), respects RLS via with check (auth.uid() = id)
       const { error } = await sb.from('profiles').insert({ id: uid }).select().single();
       if (error && !String(error.message || '').includes('duplicate key')) throw error;
     }
 
     async function load(){
-      if (!sb || !sb.auth || !sb.from) { showStatus('Auth not available. Please refresh.', 'err'); return; }
-
       sessionBadge.textContent = 'Checking…';
       const { data: { user }, error } = await sb.auth.getUser();
-      if (error) { showStatus(error.message, 'err'); return; }
-      if (!user) { window.location.href = '/login'; return; }
-
+      if (error){ sessionBadge.textContent = 'Error'; return; }
+      if (!user){ window.location.href = '/login'; return; }
       sessionBadge.textContent = 'Signed in';
-      try {
-        let profile = await fetchProfile(user.id);
-        if (!profile) {
-          await ensureProfile(user.id);
-          profile = await fetchProfile(user.id);
-        }
-        fillForm(user, profile);
-        showStatus('Profile loaded.', 'ok');
-      } catch (e) {
-        showStatus(e.message || 'Failed to load profile.', 'err');
-      }
+
+      let profile = await fetchProfile(user.id);
+      if (!profile){ await ensureProfile(user.id); profile = await fetchProfile(user.id); }
+      fillForm(user, profile);
     }
 
-    // Save profile
+    // Save
     document.getElementById('profileForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
-      showStatus('');
-      saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+      setSaving(true);
       const { data: { user } } = await sb.auth.getUser();
-      if (!user) { window.location.href = '/login'; return; }
+      if (!user){ window.location.href = '/login'; return; }
 
       const payload = {
         id: user.id,
@@ -197,18 +245,29 @@
         product_updates: !!puEl.checked
       };
 
-      const { error } = await sb.from('profiles').upsert(payload, { onConflict: 'id' });
-      if (error) {
-        showStatus(error.message, 'err');
-      } else {
-        showStatus('Saved!', 'ok');
+      const { data, error } = await sb
+        .from('profiles')
+        .upsert(payload, { onConflict: 'id' })
+        .select('updated_at')
+        .single();
+
+      setSaving(false);
+
+      if (error){
+        showToast(error.message || 'Could not save');
+        return;
       }
-      saveBtn.disabled = false; saveBtn.textContent = 'Save changes';
+
+      if (data && data.updated_at){
+        const d = new Date(data.updated_at);
+        updatedStamp.textContent = 'Profile updated on ' + d.toLocaleString();
+        updatedStamp.style.display = 'block';
+      }
+      showToast('Saved!');
     });
 
-    // Reset form
+    // Reset
     resetBtn.addEventListener('click', async ()=>{
-      showStatus('');
       const { data: { user } } = await sb.auth.getUser();
       if (!user) return;
       const p = await fetchProfile(user.id);
@@ -221,18 +280,20 @@
       window.location.href = '/';
     });
 
-    // Delete profile row (not the auth user)
+    // Delete profile row
     deleteBtn.addEventListener('click', async ()=>{
       if (!confirm('Delete your profile record? (This will not delete your login.)')) return;
       const { data: { user } } = await sb.auth.getUser();
       if (!user) return;
       const { error } = await sb.from('profiles').delete().eq('id', user.id);
-      if (error) { showStatus(error.message, 'err'); return; }
-      fillForm(user, null);
-      showStatus('Profile deleted. A blank record will be recreated when needed.', 'ok');
+      if (!error){
+        fillForm(user, null);
+        showToast('Profile deleted');
+      } else {
+        showToast(error.message || 'Delete failed');
+      }
     });
 
-    // Boot
     load();
   })();
   </script>
