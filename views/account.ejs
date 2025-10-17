@@ -1,45 +1,72 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <%- include('./partials/head', { pageTitle: 'Your Account • BookLantern' }) %>
+  <%- include('./partials/head', {
+    pageTitle: 'Account • BookLantern',
+    pageDescription: 'Manage your profile and preferences.',
+    canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
+  }) %>
+  <style>
+    .card { border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.06); }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .stack { display:flex; flex-direction:column; gap:10px; }
+    .input { width:100%; padding:10px 12px; border:1px solid var(--ink-3,#d1d5db); border-radius:8px; }
+    .checkbox { transform: translateY(1px); }
+    .btn { padding:10px 14px; border-radius:8px; border:0; cursor:pointer; }
+    .btn-primary { background:#6366f1; color:#fff; }
+    .btn-ghost { background:#f3f4f6; }
+    .muted { color:#6b7280; }
+    .ok    { color:#0a7b37; }
+    .err   { color:#b91c1c; }
+  </style>
 </head>
 <body>
   <%- include('./partials/navbar') %>
 
-  <main class="stack" style="--gap:20px; max-width:880px; margin:40px auto; padding:0 16px;">
-    <h1>Your Account</h1>
+  <main class="container" style="max-width:820px; margin:28px auto; padding:0 16px;">
+    <h1>Account</h1>
+    <p class="muted">You are signed in.</p>
 
-    <!-- If you later add server sessions, this block will render; otherwise client takes over -->
-    <% if (user) { %>
-      <div class="card stack" style="--gap:12px; padding:16px;">
-        <div><strong>Name:</strong> <%= user.name || user.user_metadata?.name || '' %></div>
-        <div><strong>Email:</strong> <%= user.email %></div>
-        <div><strong>Role:</strong> <%= user.role || user.app_metadata?.role || 'reader' %></div>
+    <!-- Status -->
+    <div id="status" class="muted" style="margin:8px 0 16px;"></div>
+
+    <!-- Identity card -->
+    <section class="card" style="padding:16px; margin-bottom:16px;">
+      <div class="stack">
+        <div><strong>Email:</strong> <span id="email">…</span></div>
+        <div class="row">
+          <button id="magicLink" class="btn btn-ghost" type="button">Send magic login link</button>
+          <button id="signOut" class="btn" type="button">Sign out</button>
+          <a class="btn" href="/">Home</a>
+        </div>
       </div>
-    <% } %>
+    </section>
 
-    <!-- Client-side via Supabase -->
-    <div id="accountClient" class="card stack" style="--gap:12px; padding:16px; display:none;">
-      <div><strong>Name:</strong> <span id="acc-name">—</span></div>
-      <div><strong>Email:</strong> <span id="acc-email">—</span></div>
-      <div><strong>Role:</strong> <span id="acc-role">reader</span></div>
+    <!-- Profile form -->
+    <section class="card" style="padding:16px;">
+      <h2 style="margin:0 0 8px;">Profile</h2>
+      <form id="profileForm" class="stack" novalidate>
+        <label>
+          <div class="muted" style="margin-bottom:4px;">Display name</div>
+          <input id="display_name" class="input" type="text" placeholder="Your name">
+        </label>
 
-      <p id="acc-note" class="ink-2" style="margin:4px 0 0 0; display:none;">
-        You signed in with a provider. If you want, you can also set a password:
-      </p>
+        <label class="row" style="gap:8px;">
+          <input id="newsletter" class="checkbox" type="checkbox">
+          <span>Send me the occasional newsletter</span>
+        </label>
 
-      <div class="row" style="gap:8px; flex-wrap:wrap; margin-top:8px;">
-        <a class="btn" href="/read">Go to Library</a>
-        <button id="acc-reset" class="btn" type="button">Create or Reset Password</button>
-        <button id="acc-signout" class="btn" type="button">Sign out</button>
-      </div>
+        <label class="row" style="gap:8px;">
+          <input id="product_updates" class="checkbox" type="checkbox">
+          <span>Send product updates</span>
+        </label>
 
-      <div id="acc-msg" class="ink-2" style="margin-top:6px;"></div>
-    </div>
-
-    <div id="accountEmpty" class="card" style="padding:16px; display:none;">
-      You’re not signed in. <a href="/login">Log in</a> to view your account.
-    </div>
+        <div class="row">
+          <button class="btn btn-primary" type="submit" id="saveBtn">Save changes</button>
+          <span id="formMsg" class="muted"></span>
+        </div>
+      </form>
+    </section>
   </main>
 
   <%- include('./partials/footer') %>
@@ -47,56 +74,85 @@
   <script>
   (async function () {
     const sb = window.supabaseClient;
-    const base = location.origin || '<%= process.env.SITE_URL || "" %>';
-    const msg = document.getElementById('acc-msg');
+    const status = document.getElementById('status');
+    const formMsg = document.getElementById('formMsg');
 
-    try {
-      const { data, error } = await sb.auth.getUser();
-      if (error) throw error;
-
-      const user = data && data.user;
-      if (user) {
-        const card = document.getElementById('accountClient');
-        card.style.display = 'block';
-
-        const name =
-          (user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name)) || '';
-        document.getElementById('acc-name').textContent = name || '—';
-        document.getElementById('acc-email').textContent = user.email || '—';
-        document.getElementById('acc-role').textContent =
-          (user.app_metadata && user.app_metadata.role) || 'reader';
-
-        // Show a small note if this session came from OAuth (no password yet)
-        const hasPassword = !!user.password_updated_at; // present for email/pass accounts after first set
-        if (!hasPassword) {
-          document.getElementById('acc-note').style.display = 'block';
-        }
-
-        // Always allow the user to (create or) reset a password
-        document.getElementById('acc-reset').addEventListener('click', async () => {
-          msg.textContent = '';
-          try {
-            const { error } = await sb.auth.resetPasswordForEmail(user.email, {
-              redirectTo: base + '/auth/callback?type=recovery',
-            });
-            if (error) throw error;
-            msg.textContent = '📬 Check your inbox for a password reset link.';
-          } catch (e) {
-            msg.textContent = e.message || 'Could not send reset email.';
-          }
-        });
-
-        document.getElementById('acc-signout').addEventListener('click', async () => {
-          try { await sb.auth.signOut(); } catch (e) {}
-          location.href = '/';
-        });
-      } else {
-        document.getElementById('accountEmpty').style.display = 'block';
-      }
-    } catch (e) {
-      console.warn('Account load failed:', e);
-      document.getElementById('accountEmpty').style.display = 'block';
+    function setStatus(msg, cls) {
+      status.textContent = msg || '';
+      status.className = cls || 'muted';
     }
+    function setFormMsg(msg, cls) {
+      formMsg.textContent = msg || '';
+      formMsg.className = cls || 'muted';
+    }
+    function baseUrl() {
+      return (location.origin || '<%= process.env.SITE_URL || "" %>');
+    }
+
+    // Require session
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session || !session.user) {
+      setStatus('Redirecting to login…', 'muted');
+      location.replace('/login');
+      return;
+    }
+
+    const user = session.user;
+    document.getElementById('email').textContent = user.email || '';
+
+    // Load profile (protected by RLS, returns only this user's row)
+    async function loadProfile() {
+      setStatus('Loading profile…', 'muted');
+      // Ensure row exists (trigger already inserts on sign-up; this is a safe fallback)
+      await sb.from('profiles').upsert({ id: user.id }, { onConflict: 'id' });
+
+      const { data, error } = await sb
+        .from('profiles')
+        .select('display_name, newsletter, product_updates')
+        .eq('id', user.id)
+        .single();
+
+      if (error) { setStatus(error.message, 'err'); return; }
+
+      document.getElementById('display_name').value = data?.display_name || '';
+      document.getElementById('newsletter').checked = !!data?.newsletter;
+      document.getElementById('product_updates').checked = !!data?.product_updates;
+      setStatus('Signed in as ' + (user.email || 'user') + '.', 'muted');
+    }
+
+    await loadProfile();
+
+    // Save profile
+    document.getElementById('profileForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      setFormMsg('Saving…', 'muted');
+      const payload = {
+        id: user.id,
+        display_name: document.getElementById('display_name').value.trim() || null,
+        newsletter: document.getElementById('newsletter').checked,
+        product_updates: document.getElementById('product_updates').checked
+      };
+      const { error } = await sb.from('profiles').upsert(payload, { onConflict: 'id' });
+      if (error) { setFormMsg(error.message, 'err'); return; }
+      setFormMsg('Saved.', 'ok');
+    });
+
+    // Magic login link
+    document.getElementById('magicLink').addEventListener('click', async () => {
+      setStatus('Sending magic link…', 'muted');
+      const { error } = await sb.auth.signInWithOtp({
+        email: user.email,
+        options: { emailRedirectTo: baseUrl() + '/auth/callback?type=magiclink' }
+      });
+      if (error) { setStatus(error.message, 'err'); return; }
+      setStatus('Magic link sent to ' + user.email + '.', 'ok');
+    });
+
+    // Sign out
+    document.getElementById('signOut').addEventListener('click', async () => {
+      try { await sb.auth.signOut(); } catch (_) {}
+      location.href = '/';
+    });
   })();
   </script>
 </body>
