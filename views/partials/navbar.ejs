@@ -1,7 +1,12 @@
 <!-- views/partials/navbar.ejs -->
+<%
+// Prefer SSR truthiness to prevent flicker; client JS will re-check with Supabase.
+const SSR_AUTH = (typeof isAuthenticated !== 'undefined' && isAuthenticated);
+%>
+
 <header class="topbar" role="navigation" aria-label="Primary">
   <!-- Left: brand -->
-  <a class="brand row" href="/">
+  <a class="brand row" href="/" aria-label="BookLantern Home">
     <img src="/public/img/brand.svg" alt="" width="22" height="22"
          onerror="this.onerror=null;this.src='/public/favicon.svg';" />
     <span class="brand-name">BookLantern</span>
@@ -17,23 +22,29 @@
 
   <!-- Right: search + toggle + auth -->
   <div class="actions row">
-    <form class="nav-search row" action="/search" method="get" role="search">
+    <form class="nav-search row" action="/search" method="get" role="search" aria-label="Search">
       <input class="input" type="text" name="q" placeholder="Search free books…" aria-label="Search free books">
       <button class="btn" type="submit">Search</button>
     </form>
 
-    <!-- Theme toggle (works with /public/js/theme.js; also has a tiny fallback below) -->
+    <!-- Theme toggle (paired with /public/js/theme.js) -->
     <button id="themeToggle" class="btn icon-btn" type="button" aria-label="Toggle theme" aria-pressed="false" title="Toggle theme">
       <span aria-hidden="true">•</span>
     </button>
 
-    <!-- Auth (guest vs user). Default to guest to avoid logged-in info flicker. -->
-    <div id="auth-guest" class="row" style="gap:8px;">
+    <!-- Auth (SSR default; JS will reconcile with Supabase) -->
+    <div id="auth-guest"
+         class="row"
+         style="gap:8px;<%= SSR_AUTH ? 'display:none;' : 'display:flex;' %>"
+         aria-hidden="<%= SSR_AUTH ? 'true' : 'false' %>">
       <a class="btn" href="/login">Login</a>
       <a class="btn btn-primary equal" href="/register">Create account</a>
     </div>
 
-    <div id="auth-user" class="row" style="gap:8px; display:none;" aria-hidden="true">
+    <div id="auth-user"
+         class="row"
+         style="gap:8px;<%= SSR_AUTH ? 'display:flex;' : 'display:none;' %>"
+         aria-hidden="<%= SSR_AUTH ? 'false' : 'true' %>">
       <a class="btn" href="/account">Account</a>
       <button id="navSignOut" class="btn" type="button">Sign out</button>
     </div>
@@ -44,15 +55,15 @@
 /* ---------- Auth state swap (Supabase) ---------- */
 (function () {
   var guest = document.getElementById('auth-guest');
-  var user = document.getElementById('auth-user');
-  var sb = window.supabaseClient;
+  var user  = document.getElementById('auth-user');
+  var sb    = window.supabaseClient;
 
   function showGuest(){
     if (guest){ guest.style.display = 'flex'; guest.setAttribute('aria-hidden', 'false'); }
-    if (user){ user.style.display = 'none'; user.setAttribute('aria-hidden', 'true'); }
+    if (user){  user.style.display  = 'none'; user.setAttribute('aria-hidden', 'true'); }
   }
   function showUser(){
-    if (user){ user.style.display = 'flex'; user.setAttribute('aria-hidden', 'false'); }
+    if (user){  user.style.display  = 'flex'; user.setAttribute('aria-hidden', 'false'); }
     if (guest){ guest.style.display = 'none'; guest.setAttribute('aria-hidden', 'true'); }
   }
 
@@ -60,21 +71,14 @@
     try {
       if (!sb || !sb.auth || !sb.auth.getUser) { showGuest(); return; }
       var res = await sb.auth.getUser();
-      if (res && res.data && res.data.user) {
-        showUser();
-      } else {
-        showGuest();
-      }
-    } catch (e) {
-      // On any error, prefer the safer guest state.
-      showGuest();
-    }
+      if (res && res.data && res.data.user) showUser(); else showGuest();
+    } catch (e) { showGuest(); }
   }
 
-  // Initial check
+  // Initial reconcile after SSR
   refreshAuthUI();
 
-  // Keep it in sync if auth changes (e.g., another tab logs in/out)
+  // Keep it in sync
   try {
     sb && sb.auth && sb.auth.onAuthStateChange && sb.auth.onAuthStateChange(function(){ refreshAuthUI(); });
   } catch (e) {}
@@ -84,14 +88,12 @@
   if (signOutBtn) {
     signOutBtn.addEventListener('click', async function(){
       try { await (sb && sb.auth && sb.auth.signOut ? sb.auth.signOut() : Promise.resolve()); } catch (e) {}
-      // After sign out, send them home.
       location.href = '/';
     });
   }
 })();
 
-/* ---------- Theme toggle fallback ----------
-   If your /public/js/theme.js is present (as linked in head.ejs), both are safe (idempotent). */
+/* ---------- Theme toggle fallback (idempotent with /public/js/theme.js) ---------- */
 (function () {
   var btn = document.getElementById('themeToggle');
   if (!btn) return;
