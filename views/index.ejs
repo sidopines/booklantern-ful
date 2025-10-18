@@ -49,61 +49,39 @@
     </div>
   </header>
 
-  <!-- SHELVES -->
+  <!-- DYNAMIC SHELVES -->
   <main class="container shelves">
-    <% const S = (locals && shelves) ? shelves : {}; %>
+    <% const SHELVES = (typeof shelves !== 'undefined' && Array.isArray(shelves)) ? shelves : []; %>
 
-    <!-- Trending -->
-    <section class="shelf">
-      <div class="shelf__head">
-        <h2>Trending now</h2>
-        <a class="shelf__more" href="/search?q=popular">Browse all</a>
-      </div>
-      <div class="carousel" role="list">
-        <% (Array.isArray(S.trending) ? S.trending : []).forEach(function(b){ %>
-          <%- include('./partials/bookCard', { b }) %>
-        <% }) %>
-      </div>
-    </section>
+    <% if (!SHELVES.length) { %>
+      <section class="shelf">
+        <div class="shelf__head">
+          <h2>Featured</h2>
+        </div>
+        <div class="card" style="padding:16px;">No shelves yet. Add items in Admin → Books.</div>
+      </section>
+    <% } %>
 
-    <!-- Philosophy -->
-    <section class="shelf">
-      <div class="shelf__head">
-        <h2>Philosophy Picks</h2>
-        <a class="shelf__more" href="/search?q=subject:Philosophy">See more</a>
-      </div>
-      <div class="carousel" role="list">
-        <% (Array.isArray(S.philosophy) ? S.philosophy : []).forEach(function(b){ %>
-          <%- include('./partials/bookCard', { b }) %>
-        <% }) %>
-      </div>
-    </section>
-
-    <!-- History -->
-    <section class="shelf">
-      <div class="shelf__head">
-        <h2>History Picks</h2>
-        <a class="shelf__more" href="/search?q=subject:History">See more</a>
-      </div>
-      <div class="carousel" role="list">
-        <% (Array.isArray(S.history) ? S.history : []).forEach(function(b){ %>
-          <%- include('./partials/bookCard', { b }) %>
-        <% }) %>
-      </div>
-    </section>
-
-    <!-- Science -->
-    <section class="shelf">
-      <div class="shelf__head">
-        <h2>Science Picks</h2>
-        <a class="shelf__more" href="/search?q=subject:Science">See more</a>
-      </div>
-      <div class="carousel" role="list">
-        <% (Array.isArray(S.science) ? S.science : []).forEach(function(b){ %>
-          <%- include('./partials/bookCard', { b }) %>
-        <% }) %>
-      </div>
-    </section>
+    <% SHELVES.forEach(function(shelf){ %>
+      <% const items = Array.isArray(shelf.items) ? shelf.items : []; %>
+      <section class="shelf">
+        <div class="shelf__head">
+          <h2><%= shelf.title || 'Shelf' %></h2>
+          <% if (shelf.key) { %>
+            <a class="shelf__more" href="/search?q=<%= encodeURIComponent(shelf.key) %>">See more</a>
+          <% } %>
+        </div>
+        <% if (!items.length) { %>
+          <div class="card" style="padding:16px;">Nothing here yet.</div>
+        <% } else { %>
+          <div class="carousel" role="list">
+            <% items.forEach(function(b){ %>
+              <%- include('./partials/bookCard', { b }) %>
+            <% }) %>
+          </div>
+        <% } %>
+      </section>
+    <% }); %>
   </main>
 
   <%- include('./partials/footer') %>
