@@ -6,6 +6,18 @@
     pageDescription: 'Curated literary videos and author talks.',
     canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
   }) %>
+  <style>
+    .filters { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 16px; }
+    .chip {
+      display:inline-flex; align-items:center; padding:6px 10px; border:1px solid var(--ink-3,#d1d5db);
+      border-radius:999px; background:#fff; color:var(--ink,#111); text-decoration:none; font-weight:600; font-size:.92rem;
+    }
+    .chip.active { background:#111; color:#fff; border-color:#111; }
+    .grid { --cols:4; display:grid; grid-template-columns: repeat(var(--cols), minmax(0,1fr)); gap:12px; }
+    @media (max-width: 1100px){ .grid{ --cols:3; } }
+    @media (max-width: 760px){ .grid{ --cols:2; } }
+    @media (max-width: 520px){ .grid{ --cols:1; } }
+  </style>
 </head>
 <body>
   <%- include('./partials/navbar') %>
@@ -15,41 +27,39 @@
   <%- include('./partials/backLink', { referrer: __safeRef }) %>
 
   <main class="stack" style="--gap:16px; max-width:1100px; margin:30px auto; padding:0 16px;">
-    <div class="row" style="align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:12px;">
-      <h1 style="margin:0;">Watch</h1>
+    <h1>Watch</h1>
 
-      <% const G = (Array.isArray(genres) ? genres : []); %>
-      <% if (G.length) { %>
-        <form method="get" class="row" style="gap:8px;">
-          <label class="muted" for="genre">Filter:</label>
-          <select id="genre" name="genre" onchange="this.form.submit()" class="input" style="min-width:180px;">
-            <option value="">All genres</option>
-            <% G.forEach(function(g){ %>
-              <option value="<%= g %>" <%= (selectedGenre && selectedGenre === g.toLowerCase()) ? 'selected' : '' %>><%= g %></option>
-            <% }) %>
-          </select>
-          <% if (selectedGenre) { %>
-            <a class="btn" href="/watch">Reset</a>
-          <% } %>
-        </form>
-      <% } %>
-    </div>
+    <% const GENRES = (typeof genres !== 'undefined' && Array.isArray(genres)) ? genres : []; %>
+    <% const ACTIVE = (typeof activeGenreName === 'string' ? activeGenreName : ''); %>
+
+    <!-- Filters -->
+    <nav class="filters" aria-label="Filter videos by genre">
+      <a class="chip <%= ACTIVE ? '' : 'active' %>" href="/watch">All</a>
+      <% GENRES.forEach(function(g){ 
+           var nm = g && g.name ? g.name : '';
+           var href = '/watch?genre=' + encodeURIComponent(nm);
+           var isActive = ACTIVE && ACTIVE.toLowerCase() === nm.toLowerCase();
+      %>
+        <a class="chip <%= isActive ? 'active' : '' %>" href="<%= href %>"><%= nm %></a>
+      <% }) %>
+    </nav>
 
     <% const list = (typeof videos !== 'undefined' && Array.isArray(videos)) ? videos : []; %>
     <% if (!list.length) { %>
       <div class="card" style="padding:16px;">No videos yet. (Add them in Admin.)</div>
     <% } else { %>
-      <div class="grid" style="--cols:4; gap:12px;">
+      <div class="grid">
         <% list.forEach(v => {
              const href  = v && v.url   ? v.url   : '#';
              const title = v && v.title ? v.title : 'Untitled video';
              const thumb = v && v.thumb ? v.thumb : null;
+             const channel = v && v.channel ? v.channel : '';
         %>
           <article class="card" style="overflow:hidden;">
             <a href="<%= href %>" target="_blank" rel="noopener noreferrer" class="stack" style="--gap:8px;">
               <% if (thumb) { %>
                 <img src="<%= thumb %>" alt="<%= title %>" loading="lazy"
-                     style="width:100%; aspect-ratio:16/9; object-fit:cover;">
+                  style="width:100%; aspect-ratio:16/9; object-fit:cover;">
               <% } else { %>
                 <div style="width:100%; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; background:var(--surface-2); color:var(--ink-2);">
                   No thumbnail
@@ -57,6 +67,7 @@
               <% } %>
               <div class="meta" style="padding:8px;">
                 <h4 class="title" style="margin:0; font-size:1rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><%= title %></h4>
+                <% if (channel) { %><div class="muted" style="font-size:.9rem;"><%= channel %></div><% } %>
               </div>
             </a>
           </article>
@@ -66,6 +77,5 @@
   </main>
 
   <%- include('./partials/footer') %>
-  <script src="/public/js/ui.js?v=<%= typeof buildId !== 'undefined' ? buildId : '' %>"></script>
 </body>
 </html>
