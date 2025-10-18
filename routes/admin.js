@@ -1,226 +1,261 @@
-// routes/admin.js
-const express = require("express");
+// routes/admin.js — FINAL (Supabase + Admin UI pages + simple CRUD)
+const express = require('express');
 const router = express.Router();
 
-// --- Lazy-load Supabase client so the app still boots if lib isn't installed
-let createClient;
+// Reuse a tiny helper that returns a Supabase server client (service role)
+// Create this file if you don’t already have it; contents are below.
+let supabase;
 try {
-  ({ createClient } = require("@supabase/supabase-js"));
-} catch (e) {
-  console.warn("[admin] @supabase/supabase-js not installed yet.");
+  supabase = require('../supabaseAdmin'); // exports client or null
+} catch {
+  supabase = null;
 }
 
-let supabase = null;
-function getSupabase() {
-  if (supabase) return supabase;
-  if (!createClient) return null;
-
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY; // MUST be the *service role* key
-
-  const hasUrl = !!url;
-  const hasKey = !!key;
-  if (!hasUrl || !hasKey) {
-    console.warn("[admin] Supabase not configured; admin API limited.", { hasUrl, hasKey });
-    return null;
-  }
-  supabase = createClient(url, key);
-  return supabase;
+// ---------- Simple guard (owner-only UI) ----------
+// If ADMIN_UI_TOKEN is set, require it as a query (?key=...) for GET pages
+// and as a hidden field in POST forms. (Lightweight; you can harden later.)
+const REQ_KEY = (req) => (req.query.key || req.body.key || '').trim();
+function guard(req, res) {
+  const token = process.env.ADMIN_UI_TOKEN || '';
+  if (!token) return true; // no guard configured
+  if (REQ_KEY(req) && REQ_KEY(req) === token) return true;
+  res.status(403).send('Admin UI is locked. Add ?key=YOUR_TOKEN to the URL (and keep it in your bookmarks).');
+  return false;
 }
 
-// --- Admin token guard (for API endpoints; not used for the dashboard page)
-function requireAdminToken(req, res) {
-  const token = req.get("X-Admin-Token") || "";
-  const configured = process.env.ADMIN_API_TOKEN || "";
-  const ok = configured && token && token === configured;
-  if (!ok) {
-    return res.status(403).json({ ok: false, error: "Unauthorized" });
-  }
-  return true;
+// ---------- Helpers ----------
+function notConfigured(res) {
+  return res
+    .status(503)
+    .send('Supabase is not configured on the server (missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).');
 }
 
-/* ============================================================
-   ADMIN DASHBOARD PAGE
-   Renders views/admin/index.ejs.
-   - The page does its own client-side role check via supabase-js.
-   - We also provide non-sensitive stats (counts) server-side, so it feels alive.
-   ============================================================ */
-router.get("/", async (req, res) => {
-  try {
-    const sb = getSupabase();
-    const stats = { users: 0, books: 0, videos: 0, genres: 0 };
+async function countOf(table) {
+  if (!supabase) return 0;
+  const { count, error } = await supabase.from(table).select('*', { count: 'exact', head: true });
+  if (error) return 0;
+  return count || 0;
+}
 
-    if (sb) {
-      // Count via PostgREST heads (public tables only).
-      // "users": we use profiles count (trigger created rows on user sign-up).
-      const [{ count: cProfiles }, { count: cBooks }, { count: cVideos }] =
-        await Promise.all([
-          sb.from("profiles").select("*", { count: "exact", head: true }),
-          sb.from("featured_books").select("*", { count: "exact", head: true }),
-          sb.from("videos").select("*", { count: "exact", head: true }),
-        ]);
+async function getAllVideos() {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('videos')
+    .select(
+      `
+      id, title, url, channel, thumbnail, created_at,
+      video_genre_map ( video_genres ( id, name ) )
+      `
+    )
+    .order('created_at', { ascending: false });
+  if (error) return [];
+  // flatten genres
+  return (data || []).map((v) => ({
+    ...v,
+    genres: (v.video_genre_map || [])
+      .map((x) => x && x.video_genres && x.video_genres.name)
+      .filter(Boolean),
+  }));
+}
 
-      stats.users = typeof cProfiles === "number" ? cProfiles : 0;
-      stats.books = typeof cBooks === "number" ? cBooks : 0;
-      stats.videos = typeof cVideos === "number" ? cVideos : 0;
-      // We don't have a genres table yet; leave 0 for now.
-    }
+async function getAllGenres() {
+  if (!supabase) return [];
+  const { data, error } = await supabase.from('video_genres').select('id,name').order('name');
+  return error ? [] : data;
+}
 
-    return res.render("admin/index", {
-      pageTitle: "Admin • BookLantern",
-      stats,
-    });
-  } catch (e) {
-    console.error("[admin] render failed:", e);
-    return res.status(500).send("Admin render error");
+async function upsertGenresByNames(names = []) {
+  if (!supabase || !names.length) return [];
+  // ensure lowercase + trim + unique
+  const cleaned = [...new Set(names.map((n) => String(n || '').trim()).filter(Boolean))];
+  if (!cleaned.length) return [];
+
+  // Upsert (unique by name); fetch ids
+  const { data: inserted, error } = await supabase
+    .from('video_genres')
+    .upsert(cleaned.map((name) => ({ name })), { onConflict: 'name' })
+    .select();
+  if (error) throw error;
+  return inserted || [];
+}
+
+async function setVideoGenres(videoId, genreIds = []) {
+  if (!supabase) return;
+  // clear existing
+  await supabase.from('video_genre_map').delete().eq('video_id', videoId);
+  // add new
+  if (genreIds.length) {
+    await supabase
+      .from('video_genre_map')
+      .insert(genreIds.map((gid) => ({ video_id: videoId, genre_id: gid })));
   }
-});
+}
 
-/**
- * Health: check token comparison (for troubleshooting)
- * GET /admin/debug-auth
- */
-router.get("/debug-auth", (req, res) => {
-  const presented = req.get("X-Admin-Token") || "";
-  const configured = process.env.ADMIN_API_TOKEN || "";
-  res.json({
-    ok: !!configured,
-    auth: {
-      hasConfiguredToken: !!configured,
-      configuredTokenLength: configured.length,
-      presentedTokenLength: presented.length,
-      presentedPreview: presented ? presented.slice(0, 4) + "…" + presented.slice(-3) : "",
-      match: configured && presented && configured === presented,
-    },
+// -------------------------------------------------
+// Admin Home (Stats + launcher)
+// GET /admin
+// -------------------------------------------------
+router.get('/', async (req, res) => {
+  if (!guard(req, res)) return;
+  if (!supabase) return notConfigured(res);
+
+  const [users, books, videos, genres] = await Promise.all([
+    countOf('auth.users').catch(() => 0), // won’t work via PostgREST; fallback to 0
+    countOf('curated_books'),
+    countOf('videos'),
+    countOf('video_genres'),
+  ]);
+
+  res.render('admin/index', {
+    stats: { users, books, videos, genres },
+    ok: false,
+    err: '',
   });
 });
 
-/**
- * NEW: quick env check (no secrets leaked)
- * GET /admin/env-check
- */
-router.get("/env-check", (req, res) => {
-  if (requireAdminToken(req, res) !== true) return;
-  res.json({
-    ok: true,
-    env: {
-      has_SUPABASE_URL: !!process.env.SUPABASE_URL,
-      has_SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    },
+// -------------------------------------------------
+// Videos UI
+// GET  /admin/videos
+// POST /admin/videos       (create)
+// POST /admin/videos/delete (delete by id)
+// -------------------------------------------------
+router.get('/videos', async (req, res) => {
+  if (!guard(req, res)) return;
+  if (!supabase) return notConfigured(res);
+
+  const [videos, genres] = await Promise.all([getAllVideos(), getAllGenres()]);
+  res.render('admin/videos', {
+    videos,
+    genres,
+    messages: {},
+    csrfToken: '', // if you add CSRF later
   });
 });
 
-/**
- * TEMP (POST): try inserting a debug row into public.contact_messages and
- * return verbose Supabase error if it fails.
- * POST /admin/debug-contact-insert
- */
-router.post("/debug-contact-insert", async (req, res) => {
-  if (requireAdminToken(req, res) !== true) return;
-
-  const sb = getSupabase();
-  if (!sb) {
-    return res
-      .status(503)
-      .json({ ok: false, error: "Admin API disabled (missing Supabase config)" });
-  }
+router.post('/videos', async (req, res) => {
+  if (!guard(req, res)) return;
+  if (!supabase) return notConfigured(res);
 
   try {
-    const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || null;
-    const ua = req.get("user-agent") || null;
+    const title = String(req.body.title || '').trim();
+    const url = String(req.body.url || '').trim();
+    const channel = String(req.body.channel || '').trim() || null;
+    const thumbnail = String(req.body.thumbnail || '').trim() || null;
 
-    const { error } = await sb.from("contact_messages").insert({
-      name: "Debug User",
-      email: "debug@booklantern.org",
-      message: "Debug insert from /admin/debug-contact-insert",
-      ip,
-      user_agent: ua,
-    });
-
-    if (error) {
-      return res.status(500).json({
-        ok: false,
-        error: error.message || String(error),
-        details: error.details || null,
-        hint: error.hint || null,
-        code: error.code || null,
-      });
+    // Genres can arrive as multi-select (array) or comma string
+    let genresIn = req.body.genres || req.body.genre_names || [];
+    if (typeof genresIn === 'string') {
+      genresIn = genresIn.split(',').map((s) => s.trim());
     }
+    const genres = Array.isArray(genresIn) ? genresIn.filter(Boolean) : [];
 
-    return res.json({ ok: true });
-  } catch (e) {
-    console.error("[admin] debug-contact-insert unexpected error:", e);
-    return res.status(500).json({ ok: false, error: String((e && e.message) || e) });
-  }
-});
+    if (!title || !url) throw new Error('Title and URL are required.');
 
-/**
- * NEW (GET variant): same insert as above but via GET (no body/HTTP2 quirks)
- * GET /admin/debug-contact-insert-get
- */
-router.get("/debug-contact-insert-get", async (req, res) => {
-  if (requireAdminToken(req, res) !== true) return;
-
-  const sb = getSupabase();
-  if (!sb) {
-    return res
-      .status(503)
-      .json({ ok: false, error: "Admin API disabled (missing Supabase config)" });
-  }
-
-  try {
-    const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || null;
-    const ua = req.get("user-agent") || null;
-
-    const { error } = await sb.from("contact_messages").insert({
-      name: "Debug GET",
-      email: "debug-get@booklantern.org",
-      message: "Debug insert from /admin/debug-contact-insert-get",
-      ip,
-      user_agent: ua,
-    });
-
-    if (error) {
-      return res.status(500).json({
-        ok: false,
-        error: error.message || String(error),
-        details: error.details || null,
-        hint: error.hint || null,
-        code: error.code || null,
-      });
-    }
-
-    return res.json({ ok: true });
-  } catch (e) {
-    console.error("[admin] debug-contact-insert-get unexpected error:", e);
-    return res.status(500).json({ ok: false, error: String((e && e.message) || e) });
-  }
-});
-
-/**
- * Delete a Supabase Auth user by UUID
- * POST /admin/delete-user
- * Headers: X-Admin-Token: <ADMIN_API_TOKEN>
- * Body: { "user_id": "<uuid>" }
- */
-router.post("/delete-user", async (req, res) => {
-  if (requireAdminToken(req, res) !== true) return;
-
-  const { user_id } = req.body || {};
-  if (!user_id) return res.status(400).json({ error: "user_id required" });
-
-  const sb = getSupabase();
-  if (!sb) {
-    return res.status(503).json({ error: "Admin API disabled (missing Supabase config)" });
-  }
-
-  try {
-    const { error } = await sb.auth.admin.deleteUser(user_id);
+    const { data: inserted, error } = await supabase
+      .from('videos')
+      .insert({ title, url, channel, thumbnail })
+      .select()
+      .single();
     if (error) throw error;
-    return res.json({ success: true });
-  } catch (err) {
-    console.error("[admin] Delete user failed:", err?.message || err);
-    return res.status(500).json({ error: "Delete failed" });
+
+    // attach genres
+    if (genres.length) {
+      const upserted = await upsertGenresByNames(genres);
+      const ids = (upserted || []).map((g) => g.id);
+      await setVideoGenres(inserted.id, ids);
+    }
+
+    // redirect back with success
+    const key = REQ_KEY(req) ? `?key=${encodeURIComponent(REQ_KEY(req))}` : '';
+    return res.redirect(`/admin/videos${key}&ok=1`);
+  } catch (e) {
+    console.error('[admin] add video failed:', e);
+    const key = REQ_KEY(req) ? `?key=${encodeURIComponent(REQ_KEY(req))}` : '';
+    return res.redirect(`/admin/videos${key}&err=1`);
+  }
+});
+
+router.post('/videos/delete', async (req, res) => {
+  if (!guard(req, res)) return;
+  if (!supabase) return notConfigured(res);
+
+  const id = String(req.body.id || '').trim();
+  if (!id) {
+    const key = REQ_KEY(req) ? `?key=${encodeURIComponent(REQ_KEY(req))}` : '';
+    return res.redirect(`/admin/videos${key}&err=1`);
+  }
+  try {
+    await supabase.from('video_genre_map').delete().eq('video_id', id);
+    await supabase.from('videos').delete().eq('id', id);
+    const key = REQ_KEY(req) ? `?key=${encodeURIComponent(REQ_KEY(req))}` : '';
+    return res.redirect(`/admin/videos${key}&ok=1`);
+  } catch (e) {
+    const key = REQ_KEY(req) ? `?key=${encodeURIComponent(REQ_KEY(req))}` : '';
+    return res.redirect(`/admin/videos${key}&err=1`);
+  }
+});
+
+// -------------------------------------------------
+// Books UI (curated)
+// GET  /admin/books
+// POST /admin/books                (create)
+// POST /admin/books/:id/delete     (delete)
+// -------------------------------------------------
+router.get('/books', async (req, res) => {
+  if (!guard(req, res)) return;
+  if (!supabase) return notConfigured(res);
+
+  const { data: books, error } = await supabase
+    .from('curated_books')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  res.render('admin/books', {
+    ok: !error && req.query.ok,
+    err: error ? error.message : req.query.err || '',
+    books: books || [],
+  });
+});
+
+router.post('/books', async (req, res) => {
+  if (!guard(req, res)) return;
+  if (!supabase) return notConfigured(res);
+
+  try {
+    const title = String(req.body.title || '').trim();
+    const author = String(req.body.author || '').trim() || null;
+    const coverImage = String(req.body.coverImage || '').trim() || null;
+    const sourceUrl = String(req.body.sourceUrl || '').trim();
+    const description = String(req.body.description || '').trim() || null;
+
+    if (!title || !sourceUrl) throw new Error('Title and Source URL are required.');
+    const { error } = await supabase
+      .from('curated_books')
+      .insert({ title, author, cover_image: coverImage, source_url: sourceUrl, description });
+    if (error) throw error;
+
+    const key = REQ_KEY(req) ? `?key=${encodeURIComponent(REQ_KEY(req))}` : '';
+    return res.redirect(`/admin/books${key}&ok=1`);
+  } catch (e) {
+    console.error('[admin] add book failed:', e);
+    const key = REQ_KEY(req) ? `?key=${encodeURIComponent(REQ_KEY(req))}` : '';
+    return res.redirect(`/admin/books${key}&err=${encodeURIComponent(e.message)}`);
+  }
+});
+
+router.post('/books/:id/delete', async (req, res) => {
+  if (!guard(req, res)) return;
+  if (!supabase) return notConfigured(res);
+
+  const id = String(req.params.id || '').trim();
+  try {
+    const { error } = await supabase.from('curated_books').delete().eq('id', id);
+    if (error) throw error;
+    const key = REQ_KEY(req) ? `?key=${encodeURIComponent(REQ_KEY(req))}` : '';
+    return res.redirect(`/admin/books${key}&ok=1`);
+  } catch (e) {
+    const key = REQ_KEY(req) ? `?key=${encodeURIComponent(REQ_KEY(req))}` : '';
+    return res.redirect(`/admin/books${key}&err=${encodeURIComponent(e.message)}`);
   }
 });
 
