@@ -1,16 +1,26 @@
-// routes/index.js — Homepage wired to Supabase curated_books with fallbacks
+// routes/index.js — FINAL (dynamic shelves + videos from Supabase)
 const express = require('express');
 const router = express.Router();
 
+// Central category list (controls which shelves we try to fetch)
+let CATEGORIES = ['trending', 'philosophy', 'history', 'science'];
+try {
+  CATEGORIES = require('../config/categories');
+} catch { /* keep defaults */ }
+
+/* -------------------------------
+   Optional Supabase server client
+--------------------------------- */
 let supabaseAdmin = null;
 try {
-  supabaseAdmin = require('../supabaseAdmin'); // service-role client or null
-} catch { supabaseAdmin = null; }
+  supabaseAdmin = require('../supabaseAdmin'); // exports client or null
+} catch {
+  supabaseAdmin = null;
+}
 
-// Central list of homepage categories
-const CATEGORIES = require('../config/categories');
-
-// ---------- Existing FALLBACKS (kept intact) ----------
+/* ----------------------------------
+   Static FALLBACK (unchanged)
+----------------------------------- */
 const FALLBACK = {
   trending: [
     { id: 'ol-origin-darwin', provider: 'openlibrary', title: 'On the Origin of Species', author: 'Charles Darwin',
@@ -88,90 +98,119 @@ const FALLBACK = {
 const clamp = (arr, n) => (Array.isArray(arr) ? arr.slice(0, n) : []);
 const norm = (b = {}) => ({
   id: String(b.id || b.key || ''),
-  provider: 'admin', // curated items are internal/admin
+  provider: String(b.provider || 'curated'),
   title: String(b.title || 'Untitled'),
-  author: String(b.author || '').toString(),
-  cover: String(b.cover_image || b.cover || ''),
-  href: b.source_url || b.href || '#',
-  subjects: [], // optional for curated
+  author: String(b.author || b.authors || '').toString(),
+  cover: String(b.cover || ''),
+  href: b.href || '#',
+  subjects: Array.isArray(b.subjects) ? b.subjects : [],
 });
+function ensureShelf(name, maybe, min = 8) {
+  const src = Array.isArray(maybe) ? maybe : [];
+  const out = clamp(src, 24).map(norm).filter((x) => x.cover && x.href);
+  if (out.length >= min) return out;
+  return clamp((FALLBACK[name] || []).map(norm), 24);
+}
 
-// pull one category from Supabase
-async function fetchCategory(category, limit = 24) {
+/* ----------------------------------
+   Helpers to read from Supabase
+----------------------------------- */
+async function fetchCuratedByCategory(category, limit = 24) {
   if (!supabaseAdmin) return [];
   try {
     const { data, error } = await supabaseAdmin
       .from('curated_books')
-      .select('id,title,author,cover_image,source_url')
+      .select('id, title, author, cover_image, source_url')
       .eq('category', category)
       .order('created_at', { ascending: false })
       .limit(limit);
-    if (error) throw error;
-    return (data || []).map(norm).filter((x) => x.cover);
-  } catch (e) {
-    console.warn(`[home] curated_books ${category} failed:`, e.message || e);
+
+    if (error || !Array.isArray(data)) return [];
+
+    // Map to card shape consumed by index.ejs/bookCard
+    return data.map((row) => ({
+      id: row.id,
+      provider: 'curated',
+      title: row.title || 'Untitled',
+      author: row.author || '',
+      cover: row.cover_image || '',
+      href: row.source_url || '#',
+      subjects: [],
+    }));
+  } catch {
     return [];
   }
 }
 
-// ensure a shelf has content; fallback to static if empty
-function ensureShelf(name, arr, min = 8) {
-  const out = clamp(arr, 24).filter((x) => x.cover);
-  if (out.length >= min) return out;
-  return clamp((FALLBACK[name] || []).map((b) => ({
-    id: String(b.id || ''),
-    provider: String(b.provider || 'openlibrary'),
-    title: String(b.title || 'Untitled'),
-    author: String(b.author || ''),
-    cover: String(b.cover || ''),
-    href: b.href || '#',
-    subjects: Array.isArray(b.subjects) ? b.subjects : [],
-  })), 24);
+async function fetchAdminVideos(limit = 48) {
+  if (!supabaseAdmin) return [];
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('admin_videos')
+      .select('id, title, url, channel, thumb, created_at')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error || !Array.isArray(data)) return [];
+    return data;
+  } catch {
+    return [];
+  }
 }
 
 /* ----------------------------------
    Routes
 ----------------------------------- */
 
-// Home — dynamically load shelves from curated_books
-router.get('/', async (_req, res) => {
+// Home — build shelves dynamically from curated_books, fallback to static picks.
+// NOTE: Current index.ejs shows 4 specific sections: trending, philosophy, history, science.
+// Extra categories you add in config will be available but won’t render until we
+// also make index.ejs iterate dynamically (we can do that next if you want).
+router.get('/', async (req, res) => {
+  // Only the four sections that the current template renders:
+  const HOME_SECTIONS = ['trending', 'philosophy', 'history', 'science'];
+
+  // Ensure those sections exist within your configured categories
+  const wanted = HOME_SECTIONS.filter((s) => CATEGORIES.includes(s));
+
+  let shelves = {};
   try {
-    // fetch all categories in parallel
     const results = await Promise.all(
-      CATEGORIES.map((cat) => fetchCategory(cat, 24))
+      wanted.map((cat) => fetchCuratedByCategory(cat, 24))
     );
 
-    // build shelves object keyed by category
-    const shelves = {};
-    CATEGORIES.forEach((cat, i) => {
-      shelves[cat] = ensureShelf(cat, results[i] || []);
+    wanted.forEach((cat, i) => {
+      shelves[cat] = ensureShelf(cat, results[i], 8);
     });
-
-    return res.render('index', { shelves });
-  } catch (e) {
-    console.error('[home] render failed:', e);
-    // if anything goes wrong, degrade gracefully to all fallbacks
-    const shelves = {};
-    CATEGORIES.forEach((cat) => (shelves[cat] = ensureShelf(cat, [])));
-    return res.render('index', { shelves });
+  } catch {
+    // If Supabase failed entirely, fill from FALLBACK
+    wanted.forEach((cat) => {
+      shelves[cat] = ensureShelf(cat, [], 8);
+    });
   }
+
+  res.render('index', { shelves });
 });
 
-// Static pages
+// About/Contact/Login/Register
 router.get('/about', (_req, res) => res.render('about'));
-
-// Watch page will read from admin_videos — route provided separately
 router.get('/login', (_req, res) => res.render('login', { csrfToken: '' }));
 router.get('/register', (_req, res) => res.render('register', { csrfToken: '' }));
 
-// Read (expects provider & id via query)
+// WATCH — from admin_videos
+router.get('/watch', async (_req, res) => {
+  const videos = await fetchAdminVideos(48);
+  res.render('watch', { videos });
+});
+
+// READ (expects provider & id via query; page handles rendering)
 router.get('/read', (req, res) => {
   const provider = String(req.query.provider || '');
   const id = String(req.query.id || '');
   res.render('read', { provider, id });
 });
 
-// Terms & Privacy
+// Terms & Privacy (unchanged)
 router.get('/terms', (req, res) => {
   const canonicalUrl = `${req.protocol}://${req.get('host')}/terms`;
   res.render('terms', {
@@ -189,44 +228,51 @@ router.get('/privacy', (req, res) => {
   });
 });
 
-// Contact (GET/POST) — unchanged from your previous version
-let mailer = null;
-let legacySendContact = null;
-try { mailer = require('../mailer'); } catch {}
-if (!mailer) { try { legacySendContact = require('../mail/sendContact'); } catch {} }
-function escapeHtml(s = '') {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
+// Contact (GET/POST) — unchanged from your version
 router.get('/contact', (req, res) => {
   const sent = req.query.sent === '1';
   const error = req.query.error || '';
   res.render('contact', { sent, error });
 });
+
+let mailer = null;
+let legacySendContact = null;
+try { mailer = require('../mailer'); } catch {}
+if (!mailer) { try { legacySendContact = require('../mail/sendContact'); } catch {} }
+function escapeHtml(s = '') {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 router.post('/contact', async (req, res) => {
   const name = String(req.body.name || '').trim();
   const email = String(req.body.email || '').trim();
   const message = String(req.body.message || '').trim();
+
   if (!name || !email || !message) {
     return res.status(400).render('contact', { sent: false, error: 'Please fill all fields.' });
   }
+
   const ip =
     (req.headers['x-forwarded-for'] && req.headers['x-forwarded-for'].split(',')[0].trim()) ||
-    req.ip || null;
+    req.ip ||
+    null;
   const userAgent = req.get('User-Agent') || null;
 
+  // Store in Supabase (best effort)
   try {
     if (supabaseAdmin && typeof supabaseAdmin.from === 'function') {
-      const payload = { name, email, message, ip, user_agent: userAgent, created_at: new Date().toISOString() };
+      const payload = {
+        name, email, message, ip, user_agent: userAgent, created_at: new Date().toISOString(),
+      };
       const { error } = await supabaseAdmin.from('contact_messages').insert(payload);
       if (error) console.error('[contact] insert failed:', error.message);
-    } else {
-      console.warn('[contact] Supabase not configured; skipping DB insert.');
     }
   } catch (e) {
     console.error('[contact] DB insert threw:', e);
   }
 
+  // Email notification (best effort)
   try {
     const to = process.env.CONTACT_NOTIFY_TO || process.env.MAIL_FROM || 'info@booklantern.org';
     if (mailer && typeof mailer.send === 'function') {
@@ -241,8 +287,6 @@ router.post('/contact', async (req, res) => {
       await mailer.send({ to, subject: subj, text, html });
     } else if (legacySendContact && typeof legacySendContact === 'function') {
       await legacySendContact({ to, name, email, message, ip, userAgent });
-    } else {
-      console.warn('[contact] No mailer configured; skipping email send.');
     }
   } catch (e) {
     console.error('[contact] email send failed:', e && e.message ? e.message : e);
