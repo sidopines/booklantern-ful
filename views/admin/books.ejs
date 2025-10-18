@@ -10,17 +10,23 @@
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
     main { max-width: 1000px; margin: 2rem auto 3rem; padding: 0 1rem; }
+
     .crumbs { display:flex; align-items:center; gap:.5rem; margin-bottom: 1rem; }
     .crumbs a { color: var(--link); text-decoration: none; font-size: .95rem; }
     .crumbs a:hover { text-decoration: underline; }
+
     h1 { margin: 0 0 1rem 0; font-size: clamp(1.6rem, 2.5vw, 2rem); }
+
     .notice { margin: 10px 0; padding: 10px 12px; border-radius: 10px; font-size: .95rem; }
     .notice.ok  { background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; }
     .notice.err { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
+
     .grid { display:grid; grid-template-columns: 1fr; gap: 1rem; }
     @media (min-width: 960px){ .grid { grid-template-columns: 1fr 1fr; } }
+
     .card { background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow:0 8px 28px rgba(0,0,0,.06); padding: 1rem; }
     .card h2 { margin: 0 0 .75rem 0; font-size: 1.1rem; }
+
     form.flex { display:grid; grid-template-columns: 1fr; gap:.6rem; }
     @media (min-width: 740px){
       form.flex { grid-template-columns: 1fr 1fr; }
@@ -30,20 +36,28 @@
       padding: .6rem .7rem; border:1px solid var(--border); border-radius:10px; background:#fff;
     }
     form.flex textarea { height: 4.5rem; }
+
     .btn { padding:.65rem 1rem; border:1px solid var(--border); border-radius:10px; background:var(--brand); color:#fff; font-weight:600; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px;}
     .btn:hover{ background: var(--brandHover); }
     .btn.outline{ background:#fff; color:var(--text); }
     .btn.danger{ background:var(--danger); border-color:#fca5a5; }
     .btn.small{ padding:.45rem .7rem; border-radius:8px; font-size:.9rem; }
+
     .hint { color: var(--muted); font-size:.92rem; margin:.4rem 0 0; }
+
     .list { display:flex; flex-direction:column; gap:.6rem; margin:.25rem 0 0 0; padding:0; list-style:none; }
-    .row { display:grid; grid-template-columns: 70px 1fr auto; gap:.75rem; padding:.6rem; border:1px solid var(--border); border-radius:12px; align-items:center; background:#fff; }
+    .row {
+      display:grid; grid-template-columns: 70px 1fr auto; gap:.75rem;
+      padding:.6rem; border:1px solid var(--border); border-radius:12px; align-items:center;
+      background:#fff;
+    }
     .thumb { width: 70px; height: 94px; border-radius: 8px; overflow:hidden; background:#f2f4f8; display:flex; align-items:center; justify-content:center; font-size:.8rem; color:#94a3b8; }
     .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
     .row h3 { margin: 0 0 4px 0; font-size: 1rem; }
     .meta { color:#667085; font-size:.9rem; display:flex; gap:.5rem; flex-wrap:wrap; }
     .meta a { color: var(--link); text-decoration:none; }
     .meta a:hover{ text-decoration:underline; }
+    .badge { display:inline-block; padding:2px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; font-size:12px; }
     .actions { display:flex; gap:.4rem; }
     .actions form { display:inline; }
   </style>
@@ -71,11 +85,18 @@
           <input class="full" type="text" name="title" placeholder="Book title" required />
           <input type="text" name="author" placeholder="Author (optional)" />
           <input type="url" name="coverImage" placeholder="Cover image URL (optional)" />
+          <select name="category" required>
+            <option value="" disabled selected>Choose shelf category…</option>
+            <option value="trending">Trending</option>
+            <option value="philosophy">Philosophy</option>
+            <option value="history">History</option>
+            <option value="science">Science</option>
+          </select>
           <input class="full" type="url" name="sourceUrl" placeholder="Source URL (Archive.org item, Gutenberg page, etc.)" required />
           <textarea class="full" name="description" placeholder="Short description (optional)"></textarea>
           <button class="btn full" type="submit">Add Book</button>
         </form>
-        <p class="hint">Tip: If the source is an Internet Archive identifier, our reader can open it internally.</p>
+        <p class="hint">Pick a <strong>category</strong> to control which homepage shelf it appears on.</p>
       </section>
 
       <!-- Existing books -->
@@ -88,8 +109,8 @@
             <% books.forEach(function(b){ %>
               <li class="row">
                 <div class="thumb">
-                  <% if (b.cover_image) { %>
-                    <img src="<%= b.cover_image %>" alt="Cover">
+                  <% if (b.coverImage) { %>
+                    <img src="<%= b.coverImage %>" alt="Cover">
                   <% } else { %>
                     No cover
                   <% } %>
@@ -98,8 +119,9 @@
                   <h3><%= b.title %></h3>
                   <div class="meta">
                     <% if (b.author) { %><span>By <%= b.author %></span>·<% } %>
-                    <a href="<%= b.source_url %>" target="_blank" rel="noopener">Source</a>
-                    <span>Added <%= new Date(b.created_at).toLocaleDateString() %></span>
+                    <span class="badge"><%= b.category || '—' %></span>
+                    <% if (b.sourceUrl) { %>· <a href="<%= b.sourceUrl %>" target="_blank" rel="noopener">Source</a><% } %>
+                    <% if (b.createdAt) { %>· <span>Added <%= new Date(b.createdAt).toLocaleDateString() %></span><% } %>
                   </div>
                 </div>
                 <div class="actions">
