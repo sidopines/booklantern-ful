@@ -2,11 +2,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('../partials/head.ejs', {
+  <%- include('../partials/head', {
     pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : 'Admin • Dashboard',
     pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Admin overview and shortcuts'
   }) %>
-  <link rel="stylesheet" href="/css/site.css">
+  <!-- Fixed: serve through /public like the rest of the site -->
+  <link rel="stylesheet" href="/public/css/site.css?v=<%= typeof buildId !== 'undefined' ? buildId : '' %>">
   <style>
     :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --link:#1256b3; --brand:#111; --brandHover:#333; --danger:#b42318; --ok:#067647; }
     *{ box-sizing:border-box; }
@@ -21,12 +22,10 @@
     .crumbs a{ color:var(--muted); text-decoration:none; font-size:14px; }
     .crumbs a:hover{ text-decoration:underline; }
 
-    /* flash */
     .flash{ border:1px solid var(--border); background:#fff; border-radius:12px; padding:10px 12px; margin:12px 0; font-size:14px; }
     .flash.ok{ border-color:#bbf7d0; background:#f0fdf4; color:var(--ok); }
     .flash.err{ border-color:#fecaca; background:#fff1f2; color:#9f1239; }
 
-    /* stat cards */
     .stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin:18px 0 24px; }
     @media (max-width: 900px){ .stats{ grid-template-columns:repeat(2,1fr); } }
     @media (max-width: 520px){ .stats{ grid-template-columns:1fr; } }
@@ -37,7 +36,6 @@
     .stat .k{ font-size:28px; font-weight:800; letter-spacing:-.02em; }
     .stat .l{ color:var(--muted); font-size:13px; margin-top:4px; }
 
-    /* quick actions */
     .sections{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
     @media (max-width: 900px){ .sections{ grid-template-columns:1fr; } }
     section.card{
@@ -56,15 +54,12 @@
     .btn.light{ background:#fff; color:var(--text); border-color:var(--border); }
     .btn.link{ background:#fff; color:var(--link); border-color:var(--border); }
 
-    /* search users */
     .bar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .bar input[type="text"]{
-      flex:1 1 260px; min-width:220px; padding:.6rem .7rem; border:1px solid var(--border); border-radius:10px; background:#fff;
-    }
+    .bar input[type="text"]{ flex:1 1 260px; min-width:220px; padding:.6rem .7rem; border:1px solid var(--border); border-radius:10px; background:#fff; }
   </style>
 </head>
 <body>
-  <%- include('../partials/navbar.ejs') %>
+  <%- include('../partials/navbar') %>
 
   <main>
     <div class="page-head">
