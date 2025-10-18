@@ -45,6 +45,7 @@ const SSR_AUTH = (typeof isAuthenticated !== 'undefined' && isAuthenticated);
          class="row"
          style="gap:8px;<%= SSR_AUTH ? 'display:flex;' : 'display:none;' %>"
          aria-hidden="<%= SSR_AUTH ? 'false' : 'true' %>">
+      <!-- Admin link will be injected here (left-most) if role=admin -->
       <a class="btn" href="/account">Account</a>
       <button id="navSignOut" class="btn" type="button">Sign out</button>
     </div>
@@ -52,7 +53,7 @@ const SSR_AUTH = (typeof isAuthenticated !== 'undefined' && isAuthenticated);
 </header>
 
 <script>
-/* ---------- Auth state swap (Supabase) ---------- */
+/* ---------- Auth state swap + Admin button (Supabase) ---------- */
 (function () {
   var guest = document.getElementById('auth-guest');
   var user  = document.getElementById('auth-user');
@@ -67,11 +68,30 @@ const SSR_AUTH = (typeof isAuthenticated !== 'undefined' && isAuthenticated);
     if (guest){ guest.style.display = 'none'; guest.setAttribute('aria-hidden', 'true'); }
   }
 
+  function ensureAdminLink(){
+    // Creates an Admin link (once) at the start of the auth-user actions
+    if (!user) return;
+    if (document.getElementById('navAdmin')) return;
+    var adminLink = document.createElement('a');
+    adminLink.id = 'navAdmin';
+    adminLink.className = 'btn';
+    adminLink.href = '/admin';
+    adminLink.textContent = 'Admin';
+    user.insertBefore(adminLink, user.firstChild);
+  }
+
   async function refreshAuthUI() {
     try {
       if (!sb || !sb.auth || !sb.auth.getUser) { showGuest(); return; }
       var res = await sb.auth.getUser();
-      if (res && res.data && res.data.user) showUser(); else showGuest();
+      var u   = res && res.data && res.data.user;
+      if (u) {
+        showUser();
+        var role = (u.app_metadata && u.app_metadata.role) || '';
+        if (role === 'admin') ensureAdminLink();
+      } else {
+        showGuest();
+      }
     } catch (e) { showGuest(); }
   }
 
