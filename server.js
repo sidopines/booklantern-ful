@@ -7,16 +7,6 @@ const morgan = require('morgan');
 
 const app = express();
 
-/* --------------------------
-   Optional Supabase admin
---------------------------- */
-let supabaseAdmin = null;
-try {
-  supabaseAdmin = require('./supabaseAdmin'); // service role client (may be null if not configured)
-} catch {
-  supabaseAdmin = null;
-}
-
 // ---------- Express core ----------
 app.set('trust proxy', true);
 app.set('view engine', 'ejs');
@@ -100,82 +90,6 @@ app.get('/account', (_req, res) => {
   }
 });
 
-/* ============================================================
-   Admin-only gate middleware
-   - Allows if X-Admin-Token matches ADMIN_API_TOKEN
-   - Or if Authorization: Bearer <supabase_jwt> belongs to user with app_metadata.role === "admin"
-   - Also checks cookies for sb-access-token as a convenience
-   ============================================================ */
-function parseCookies(cookieHeader = '') {
-  const out = {};
-  cookieHeader.split(';').forEach((p) => {
-    const idx = p.indexOf('=');
-    if (idx > -1) {
-      const k = p.slice(0, idx).trim();
-      const v = decodeURIComponent(p.slice(idx + 1).trim());
-      out[k] = v;
-    }
-  });
-  return out;
-}
-
-async function isAdminFromSupabaseToken(token) {
-  if (!token || !supabaseAdmin || !supabaseAdmin.auth || !supabaseAdmin.auth.getUser) {
-    return false;
-  }
-  try {
-    const { data, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !data || !data.user) return false;
-    const role = data.user.app_metadata && data.user.app_metadata.role;
-    return role === 'admin';
-  } catch {
-    return false;
-  }
-}
-
-async function adminGate(req, res, next) {
-  try {
-    // 1) Fast path: header token for admin API
-    const presented = req.get('X-Admin-Token') || '';
-    const configured = process.env.ADMIN_API_TOKEN || '';
-    if (configured && presented && presented === configured) {
-      return next();
-    }
-
-    // 2) Try Supabase JWT (Authorization: Bearer <token>)
-    let bearer = '';
-    const authz = req.headers.authorization || '';
-    if (authz.toLowerCase().startsWith('bearer ')) {
-      bearer = authz.slice(7).trim();
-    }
-
-    // 3) Try cookies for sb-access-token or access_token
-    if (!bearer && req.headers.cookie) {
-      const cookies = parseCookies(req.headers.cookie);
-      bearer = cookies['sb-access-token'] || cookies['access_token'] || '';
-    }
-
-    if (await isAdminFromSupabaseToken(bearer)) {
-      return next();
-    }
-
-    // 4) Otherwise block
-    res.status(403).send(
-      '<!doctype html><meta charset="utf-8"><title>Forbidden</title>' +
-      '<style>body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;margin:3rem;color:#111}' +
-      '.card{max-width:640px;border:1px solid #e5e7eb;border-radius:12px;padding:16px;background:#fff;box-shadow:0 8px 28px rgba(0,0,0,.06)}</style>' +
-      '<main class="card"><h1>Forbidden</h1><p>You need admin access to view this page.</p>' +
-      '<p><a href="/login">Sign in</a> with an admin account, or contact the site owner.</p></main>'
-    );
-  } catch (e) {
-    console.error('[adminGate] error:', e);
-    res.status(403).send('Forbidden');
-  }
-}
-
-// Mount the admin gate for ALL /admin/* routes (must be before routers)
-app.use('/admin', adminGate);
-
 // ---------- Mount routes explicitly ----------
 // Mount the auth shim FIRST so its exact paths (/auth/callback, /login, /register, /account) win.
 try {
@@ -202,7 +116,7 @@ try {
   console.error('[routes] failed to mount ./routes/admin:', e);
 }
 
-// NEW: dedicated admin content routers (books, videos, genres)
+// NEW: dedicated admin content routers (books & videos)
 try {
   const adminBooks = require('./routes/admin-books');
   app.use('/admin/books', adminBooks);
@@ -219,12 +133,13 @@ try {
   console.error('[routes] failed to mount admin-videos:', e);
 }
 
+// NEW: Watch page router (Supabase-powered)
 try {
-  const adminVideoGenres = require('./routes/admin-video-genres');
-  app.use('/admin/genres', adminVideoGenres);
-  console.log('[routes] mounted admin-video-genres router');
+  const watchRoutes = require('./routes/watch');
+  app.use('/watch', watchRoutes);
+  console.log('[routes] mounted watch router at /watch');
 } catch (e) {
-  console.error('[routes] failed to mount admin-video-genres:', e);
+  console.error('[routes] failed to mount ./routes/watch:', e);
 }
 
 // ---------- Health check ----------
