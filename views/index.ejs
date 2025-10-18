@@ -6,6 +6,23 @@
     pageDescription: 'Millions of free books from globally trusted libraries. One search, one clean reader.',
     canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
   }) %>
+  <style>
+    .shelves { display:flex; flex-direction:column; gap:24px; }
+    .shelf { display:flex; flex-direction:column; gap:12px; }
+    .shelf__head{ display:flex; align-items:baseline; justify-content:space-between; }
+    .shelf__head h2{ margin:0; }
+    .carousel{ display:grid; grid-template-columns:repeat(6, minmax(140px,1fr)); gap:12px; }
+    @media (max-width: 1100px){ .carousel{ grid-template-columns:repeat(5, minmax(140px,1fr)); } }
+    @media (max-width: 900px){ .carousel{ grid-template-columns:repeat(4, minmax(140px,1fr)); } }
+    @media (max-width: 700px){ .carousel{ grid-template-columns:repeat(3, minmax(120px,1fr)); } }
+    @media (max-width: 520px){ .carousel{ grid-template-columns:repeat(2, minmax(120px,1fr)); } }
+    .book-card{ display:block; text-decoration:none; color:inherit; }
+    .book-card .thumb{ width:100%; aspect-ratio:2/3; border-radius:10px; overflow:hidden; background:var(--surface-2); display:flex; align-items:center; justify-content:center; }
+    .book-card .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .book-card .meta{ margin-top:6px; }
+    .book-card .title{ margin:0; font-size:.95rem; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .book-card .author{ margin:2px 0 0; font-size:.85rem; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  </style>
 </head>
 <body>
   <%- include('./partials/navbar') %>
@@ -49,39 +66,49 @@
     </div>
   </header>
 
-  <!-- DYNAMIC SHELVES -->
+  <!-- SHELVES (dynamic) -->
   <main class="container shelves">
-    <% const SHELVES = (typeof shelves !== 'undefined' && Array.isArray(shelves)) ? shelves : []; %>
+    <% const LIST = Array.isArray(shelvesList) ? shelvesList : []; %>
 
-    <% if (!SHELVES.length) { %>
+    <% if (!LIST.length) { %>
       <section class="shelf">
-        <div class="shelf__head">
-          <h2>Featured</h2>
-        </div>
-        <div class="card" style="padding:16px;">No shelves yet. Add items in Admin → Books.</div>
+        <div class="shelf__head"><h2>Featured</h2></div>
+        <div class="card" style="padding:16px;">No curated books yet. Add some in Admin → Books.</div>
       </section>
     <% } %>
 
-    <% SHELVES.forEach(function(shelf){ %>
-      <% const items = Array.isArray(shelf.items) ? shelf.items : []; %>
+    <% LIST.forEach(function(shelf){ %>
       <section class="shelf">
         <div class="shelf__head">
-          <h2><%= shelf.title || 'Shelf' %></h2>
-          <% if (shelf.key) { %>
-            <a class="shelf__more" href="/search?q=<%= encodeURIComponent(shelf.key) %>">See more</a>
+          <h2><%= shelf.title %></h2>
+          <% if (shelf.key === 'trending') { %>
+            <a class="shelf__more" href="/search?q=popular">Browse all</a>
           <% } %>
         </div>
-        <% if (!items.length) { %>
+
+        <% if (!shelf.items || !shelf.items.length) { %>
           <div class="card" style="padding:16px;">Nothing here yet.</div>
         <% } else { %>
           <div class="carousel" role="list">
-            <% items.forEach(function(b){ %>
-              <%- include('./partials/bookCard', { b }) %>
+            <% shelf.items.forEach(function(b){ %>
+              <a class="book-card" href="<%= b.href || '#' %>" role="listitem" target="_blank" rel="noopener">
+                <div class="thumb">
+                  <% if (b.cover) { %>
+                    <img src="<%= b.cover %>" alt="<%= b.title %>">
+                  <% } else { %>
+                    <span style="opacity:.7;">No cover</span>
+                  <% } %>
+                </div>
+                <div class="meta">
+                  <h4 class="title"><%= b.title %></h4>
+                  <% if (b.author) { %><div class="author"><%= b.author %></div><% } %>
+                </div>
+              </a>
             <% }) %>
           </div>
         <% } %>
       </section>
-    <% }); %>
+    <% }) %>
   </main>
 
   <%- include('./partials/footer') %>
