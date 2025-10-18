@@ -54,8 +54,9 @@ app.use((req, res, next) => {
   res.locals.pageDescription =
     'Millions of free books from globally trusted libraries. One clean reader.';
 
-  // Expose categories to all views (used by admin books UI, etc.)
+  // Expose categories to all views (used by admin books UI, homepage shelves, etc.)
   try {
+    // Safe require so the app still boots if the file is missing during early setup
     res.locals.categories = require('./config/categories');
   } catch {
     res.locals.categories = ['trending', 'philosophy', 'history', 'science'];
@@ -116,7 +117,7 @@ try {
   console.error('[routes] failed to mount ./routes/admin:', e);
 }
 
-// NEW: dedicated admin content routers (books & videos)
+// NEW: dedicated admin content routers (books, videos, genres)
 try {
   const adminBooks = require('./routes/admin-books');
   app.use('/admin/books', adminBooks);
@@ -133,13 +134,12 @@ try {
   console.error('[routes] failed to mount admin-videos:', e);
 }
 
-// NEW: Watch page router (Supabase-powered)
 try {
-  const watchRoutes = require('./routes/watch');
-  app.use('/watch', watchRoutes);
-  console.log('[routes] mounted watch router at /watch');
+  const adminVideoGenres = require('./routes/admin-video-genres');
+  app.use('/admin/genres', adminVideoGenres);
+  console.log('[routes] mounted admin-video-genres router');
 } catch (e) {
-  console.error('[routes] failed to mount ./routes/watch:', e);
+  console.error('[routes] failed to mount admin-video-genres:', e);
 }
 
 // ---------- Health check ----------
