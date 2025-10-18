@@ -1,8 +1,15 @@
-<%- include('./partials/head', { pageTitle: (video ? video.title : 'Watch') + ' - BookLantern' }) %>
+<!doctype html>
+<html lang="en">
+<head>
+  <%- include('./partials/head', {
+    pageTitle: (video && video.title ? video.title : 'Watch') + ' • BookLantern',
+    pageDescription: (video && video.title ? video.title + ' — BookLantern video' : 'Video on BookLantern')
+  }) %>
+</head>
 <body>
   <%- include('./partials/navbar') %>
 
-  <main class="stack" style="--gap:16px; max-width:1000px; margin:30px auto;">
+  <main class="stack" style="--gap:16px; max-width:1000px; margin:30px auto; padding:0 16px;">
     <% if (!video) { %>
       <div class="card" style="padding:16px;">Video not found.</div>
     <% } else { %>
