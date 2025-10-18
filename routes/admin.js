@@ -28,7 +28,7 @@ function getSupabase() {
   return supabase;
 }
 
-// --- Admin token guard (single place)
+// --- Admin token guard (for API endpoints; not used for the dashboard page)
 function requireAdminToken(req, res) {
   const token = req.get("X-Admin-Token") || "";
   const configured = process.env.ADMIN_API_TOKEN || "";
@@ -38,6 +38,43 @@ function requireAdminToken(req, res) {
   }
   return true;
 }
+
+/* ============================================================
+   ADMIN DASHBOARD PAGE
+   Renders views/admin/index.ejs.
+   - The page does its own client-side role check via supabase-js.
+   - We also provide non-sensitive stats (counts) server-side, so it feels alive.
+   ============================================================ */
+router.get("/", async (req, res) => {
+  try {
+    const sb = getSupabase();
+    const stats = { users: 0, books: 0, videos: 0, genres: 0 };
+
+    if (sb) {
+      // Count via PostgREST heads (public tables only).
+      // "users": we use profiles count (trigger created rows on user sign-up).
+      const [{ count: cProfiles }, { count: cBooks }, { count: cVideos }] =
+        await Promise.all([
+          sb.from("profiles").select("*", { count: "exact", head: true }),
+          sb.from("featured_books").select("*", { count: "exact", head: true }),
+          sb.from("videos").select("*", { count: "exact", head: true }),
+        ]);
+
+      stats.users = typeof cProfiles === "number" ? cProfiles : 0;
+      stats.books = typeof cBooks === "number" ? cBooks : 0;
+      stats.videos = typeof cVideos === "number" ? cVideos : 0;
+      // We don't have a genres table yet; leave 0 for now.
+    }
+
+    return res.render("admin/index", {
+      pageTitle: "Admin • BookLantern",
+      stats,
+    });
+  } catch (e) {
+    console.error("[admin] render failed:", e);
+    return res.status(500).send("Admin render error");
+  }
+});
 
 /**
  * Health: check token comparison (for troubleshooting)
@@ -53,8 +90,8 @@ router.get("/debug-auth", (req, res) => {
       configuredTokenLength: configured.length,
       presentedTokenLength: presented.length,
       presentedPreview: presented ? presented.slice(0, 4) + "…" + presented.slice(-3) : "",
-      match: configured && presented && configured === presented
-    }
+      match: configured && presented && configured === presented,
+    },
   });
 });
 
@@ -68,8 +105,8 @@ router.get("/env-check", (req, res) => {
     ok: true,
     env: {
       has_SUPABASE_URL: !!process.env.SUPABASE_URL,
-      has_SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY
-    }
+      has_SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    },
   });
 });
 
@@ -83,22 +120,22 @@ router.post("/debug-contact-insert", async (req, res) => {
 
   const sb = getSupabase();
   if (!sb) {
-    return res.status(503).json({ ok: false, error: "Admin API disabled (missing Supabase config)" });
+    return res
+      .status(503)
+      .json({ ok: false, error: "Admin API disabled (missing Supabase config)" });
   }
 
   try {
     const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || null;
     const ua = req.get("user-agent") || null;
 
-    const { error } = await sb
-      .from("contact_messages")
-      .insert({
-        name: "Debug User",
-        email: "debug@booklantern.org",
-        message: "Debug insert from /admin/debug-contact-insert",
-        ip,
-        user_agent: ua
-      });
+    const { error } = await sb.from("contact_messages").insert({
+      name: "Debug User",
+      email: "debug@booklantern.org",
+      message: "Debug insert from /admin/debug-contact-insert",
+      ip,
+      user_agent: ua,
+    });
 
     if (error) {
       return res.status(500).json({
@@ -106,14 +143,14 @@ router.post("/debug-contact-insert", async (req, res) => {
         error: error.message || String(error),
         details: error.details || null,
         hint: error.hint || null,
-        code: error.code || null
+        code: error.code || null,
       });
     }
 
     return res.json({ ok: true });
   } catch (e) {
     console.error("[admin] debug-contact-insert unexpected error:", e);
-    return res.status(500).json({ ok: false, error: String(e && e.message || e) });
+    return res.status(500).json({ ok: false, error: String((e && e.message) || e) });
   }
 });
 
@@ -126,22 +163,22 @@ router.get("/debug-contact-insert-get", async (req, res) => {
 
   const sb = getSupabase();
   if (!sb) {
-    return res.status(503).json({ ok: false, error: "Admin API disabled (missing Supabase config)" });
+    return res
+      .status(503)
+      .json({ ok: false, error: "Admin API disabled (missing Supabase config)" });
   }
 
   try {
     const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || null;
     const ua = req.get("user-agent") || null;
 
-    const { error } = await sb
-      .from("contact_messages")
-      .insert({
-        name: "Debug GET",
-        email: "debug-get@booklantern.org",
-        message: "Debug insert from /admin/debug-contact-insert-get",
-        ip,
-        user_agent: ua
-      });
+    const { error } = await sb.from("contact_messages").insert({
+      name: "Debug GET",
+      email: "debug-get@booklantern.org",
+      message: "Debug insert from /admin/debug-contact-insert-get",
+      ip,
+      user_agent: ua,
+    });
 
     if (error) {
       return res.status(500).json({
@@ -149,14 +186,14 @@ router.get("/debug-contact-insert-get", async (req, res) => {
         error: error.message || String(error),
         details: error.details || null,
         hint: error.hint || null,
-        code: error.code || null
+        code: error.code || null,
       });
     }
 
     return res.json({ ok: true });
   } catch (e) {
     console.error("[admin] debug-contact-insert-get unexpected error:", e);
-    return res.status(500).json({ ok: false, error: String(e && e.message || e) });
+    return res.status(500).json({ ok: false, error: String((e && e.message) || e) });
   }
 });
 
