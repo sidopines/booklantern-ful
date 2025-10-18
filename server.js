@@ -41,7 +41,7 @@ app.get('/robots.txt', (_req, res) => {
   res.type('text/plain').send('User-agent: *\nAllow: /\n');
 });
 
-// ---------- Safe locals for EJS (theme/footer rely on buildId) ----------
+// ---------- Safe locals for EJS ----------
 const BUILD_ID = Date.now().toString();
 app.use((req, res, next) => {
   res.locals.isAuthenticated = Boolean(
@@ -53,6 +53,14 @@ app.use((req, res, next) => {
   res.locals.buildId = BUILD_ID;
   res.locals.pageDescription =
     'Millions of free books from globally trusted libraries. One clean reader.';
+
+  // Expose categories to all views (used by admin books UI, etc.)
+  try {
+    // Safe require so the app still boots if the file is missing during early setup
+    res.locals.categories = require('./config/categories');
+  } catch {
+    res.locals.categories = ['trending', 'philosophy', 'history', 'science'];
+  }
 
   next();
 });
@@ -101,11 +109,17 @@ try {
   console.error('[routes] failed to mount ./routes/index:', e);
 }
 
-/* =====================
-   Admin routers
-   ===================== */
 try {
-  const adminBooks = require('./routes/admin-books'); // NEW
+  const adminRoutes = require('./routes/admin'); // exports an express.Router()
+  app.use('/admin', adminRoutes);
+  console.log('[routes] mounted admin router at /admin');
+} catch (e) {
+  console.error('[routes] failed to mount ./routes/admin:', e);
+}
+
+// NEW: dedicated admin content routers (books & videos)
+try {
+  const adminBooks = require('./routes/admin-books');
   app.use('/admin/books', adminBooks);
   console.log('[routes] mounted admin-books router');
 } catch (e) {
@@ -113,19 +127,11 @@ try {
 }
 
 try {
-  const adminVideos = require('./routes/admin-videos'); // NEW
+  const adminVideos = require('./routes/admin-videos');
   app.use('/admin/videos', adminVideos);
   console.log('[routes] mounted admin-videos router');
 } catch (e) {
   console.error('[routes] failed to mount admin-videos:', e);
-}
-
-try {
-  const adminRoutes = require('./routes/admin'); // Existing admin dashboard (/admin)
-  app.use('/admin', adminRoutes);
-  console.log('[routes] mounted admin router at /admin');
-} catch (e) {
-  console.error('[routes] failed to mount ./routes/admin:', e);
 }
 
 // ---------- Health check ----------
