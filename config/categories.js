@@ -5,5 +5,8 @@ module.exports = [
   'philosophy',
   'history',
   'science',
-  // Add new ones later, e.g. 'classics', 'fiction', 'biographies'
+  'biographies',
+  'religion',
+  'classics',
+  // Add new ones later, e.g. 'children', 'economy', 'languages'
 ];
