@@ -1,20 +1,16 @@
-// routes/index.js — FINAL (Supabase-powered shelves + videos with fallbacks & cache)
+// routes/index.js — Homepage wired to Supabase curated_books with fallbacks
 const express = require('express');
 const router = express.Router();
 
-/* -------------------------------
-   Optional Supabase server client
---------------------------------- */
 let supabaseAdmin = null;
 try {
-  supabaseAdmin = require('../supabaseAdmin'); // exports client or null
-} catch {
-  supabaseAdmin = null;
-}
+  supabaseAdmin = require('../supabaseAdmin'); // service-role client or null
+} catch { supabaseAdmin = null; }
 
-/* ----------------------------------
-   Fallback shelves (existing content)
------------------------------------ */
+// Central list of homepage categories
+const CATEGORIES = require('../config/categories');
+
+// ---------- Existing FALLBACKS (kept intact) ----------
 const FALLBACK = {
   trending: [
     { id: 'ol-origin-darwin', provider: 'openlibrary', title: 'On the Origin of Species', author: 'Charles Darwin',
@@ -92,21 +88,16 @@ const FALLBACK = {
 const clamp = (arr, n) => (Array.isArray(arr) ? arr.slice(0, n) : []);
 const norm = (b = {}) => ({
   id: String(b.id || b.key || ''),
-  provider: String(b.provider || 'curated'),
+  provider: 'admin', // curated items are internal/admin
   title: String(b.title || 'Untitled'),
   author: String(b.author || '').toString(),
-  cover: String(b.cover || ''),
-  href: b.href || '#',
-  subjects: Array.isArray(b.subjects) ? b.subjects : [],
+  cover: String(b.cover_image || b.cover || ''),
+  href: b.source_url || b.href || '#',
+  subjects: [], // optional for curated
 });
 
-/* ----------------------------------
-   Supabase-backed shelves + cache
------------------------------------ */
-const TTL_MS = 10 * 60 * 1000; // 10 minutes
-const cache = { shelves: { data: null, ts: 0 }, videos: { data: null, ts: 0 } };
-
-async function readCurated(category, limit = 24) {
+// pull one category from Supabase
+async function fetchCategory(category, limit = 24) {
   if (!supabaseAdmin) return [];
   try {
     const { data, error } = await supabaseAdmin
@@ -115,61 +106,61 @@ async function readCurated(category, limit = 24) {
       .eq('category', category)
       .order('created_at', { ascending: false })
       .limit(limit);
-    if (error || !Array.isArray(data)) return [];
-    // Map to homepage card shape
-    return data.map((r) => ({
-      id: r.id,
-      provider: 'curated',
-      title: r.title,
-      author: r.author || '',
-      cover: r.cover_image || '',
-      href: r.source_url || '#',
-      subjects: [],
-    })).filter((x) => x.cover);
-  } catch {
+    if (error) throw error;
+    return (data || []).map(norm).filter((x) => x.cover);
+  } catch (e) {
+    console.warn(`[home] curated_books ${category} failed:`, e.message || e);
     return [];
   }
 }
 
-function ensureShelf(name, curated, min = 8) {
-  const out = clamp(curated, 24).map(norm).filter((x) => x.cover);
+// ensure a shelf has content; fallback to static if empty
+function ensureShelf(name, arr, min = 8) {
+  const out = clamp(arr, 24).filter((x) => x.cover);
   if (out.length >= min) return out;
-  return clamp((FALLBACK[name] || []).map(norm), 24);
+  return clamp((FALLBACK[name] || []).map((b) => ({
+    id: String(b.id || ''),
+    provider: String(b.provider || 'openlibrary'),
+    title: String(b.title || 'Untitled'),
+    author: String(b.author || ''),
+    cover: String(b.cover || ''),
+    href: b.href || '#',
+    subjects: Array.isArray(b.subjects) ? b.subjects : [],
+  })), 24);
 }
 
 /* ----------------------------------
    Routes
 ----------------------------------- */
 
-// Home
-router.get('/', async (req, res) => {
-  const now = Date.now();
-  let shelvesData = null;
+// Home — dynamically load shelves from curated_books
+router.get('/', async (_req, res) => {
+  try {
+    // fetch all categories in parallel
+    const results = await Promise.all(
+      CATEGORIES.map((cat) => fetchCategory(cat, 24))
+    );
 
-  if (cache.shelves.data && now - cache.shelves.ts < TTL_MS) {
-    shelvesData = cache.shelves.data;
-  } else {
-    // Try Supabase; always provide a fallback shelf
-    const [tr, ph, hi, sc] = await Promise.all([
-      readCurated('trending', 24),
-      readCurated('philosophy', 24),
-      readCurated('history', 24),
-      readCurated('science', 24),
-    ]);
-    shelvesData = {
-      trending: ensureShelf('trending', tr),
-      philosophy: ensureShelf('philosophy', ph),
-      history: ensureShelf('history', hi),
-      science: ensureShelf('science', sc),
-    };
-    cache.shelves = { data: shelvesData, ts: now };
+    // build shelves object keyed by category
+    const shelves = {};
+    CATEGORIES.forEach((cat, i) => {
+      shelves[cat] = ensureShelf(cat, results[i] || []);
+    });
+
+    return res.render('index', { shelves });
+  } catch (e) {
+    console.error('[home] render failed:', e);
+    // if anything goes wrong, degrade gracefully to all fallbacks
+    const shelves = {};
+    CATEGORIES.forEach((cat) => (shelves[cat] = ensureShelf(cat, [])));
+    return res.render('index', { shelves });
   }
-
-  res.render('index', { shelves: shelvesData });
 });
 
-// About / Auth
+// Static pages
 router.get('/about', (_req, res) => res.render('about'));
+
+// Watch page will read from admin_videos — route provided separately
 router.get('/login', (_req, res) => res.render('login', { csrfToken: '' }));
 router.get('/register', (_req, res) => res.render('register', { csrfToken: '' }));
 
@@ -198,14 +189,7 @@ router.get('/privacy', (req, res) => {
   });
 });
 
-// Contact (GET)
-router.get('/contact', (req, res) => {
-  const sent = req.query.sent === '1';
-  const error = req.query.error || '';
-  res.render('contact', { sent, error });
-});
-
-// Contact (POST) — save + email notify
+// Contact (GET/POST) — unchanged from your previous version
 let mailer = null;
 let legacySendContact = null;
 try { mailer = require('../mailer'); } catch {}
@@ -214,20 +198,23 @@ function escapeHtml(s = '') {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-
+router.get('/contact', (req, res) => {
+  const sent = req.query.sent === '1';
+  const error = req.query.error || '';
+  res.render('contact', { sent, error });
+});
 router.post('/contact', async (req, res) => {
   const name = String(req.body.name || '').trim();
   const email = String(req.body.email || '').trim();
   const message = String(req.body.message || '').trim();
-
   if (!name || !email || !message) {
     return res.status(400).render('contact', { sent: false, error: 'Please fill all fields.' });
   }
-
-  const ip = (req.headers['x-forwarded-for'] && req.headers['x-forwarded-for'].split(',')[0].trim()) || req.ip || null;
+  const ip =
+    (req.headers['x-forwarded-for'] && req.headers['x-forwarded-for'].split(',')[0].trim()) ||
+    req.ip || null;
   const userAgent = req.get('User-Agent') || null;
 
-  // 1) Store in Supabase (best effort)
   try {
     if (supabaseAdmin && typeof supabaseAdmin.from === 'function') {
       const payload = { name, email, message, ip, user_agent: userAgent, created_at: new Date().toISOString() };
@@ -240,24 +227,13 @@ router.post('/contact', async (req, res) => {
     console.error('[contact] DB insert threw:', e);
   }
 
-  // 2) Email notification (best effort)
   try {
     const to = process.env.CONTACT_NOTIFY_TO || process.env.MAIL_FROM || 'info@booklantern.org';
     if (mailer && typeof mailer.send === 'function') {
       const subj = `📮 Contact form: ${name || 'Someone'} (${email || 'no email'})`;
-      const text =
-`New contact message:
-
-Name: ${name}
-Email: ${email}
-IP: ${ip}
-
-Message:
-${message}
-`;
+      const text = `New contact message:\n\nName: ${name}\nEmail: ${email}\nIP: ${ip}\n\nMessage:\n${message}\n`;
       const esc = mailer.escapeHtml || escapeHtml;
-      const html =
-`<h2>New contact message</h2>
+      const html = `<h2>New contact message</h2>
 <p><strong>Name:</strong> ${esc(name)}<br>
 <strong>Email:</strong> ${esc(email)}<br>
 <strong>IP:</strong> ${esc(ip || '')}</p>
@@ -273,39 +249,6 @@ ${message}
   }
 
   return res.redirect(303, '/contact?sent=1');
-});
-
-/* -----------------------------
-   WATCH page from Supabase
------------------------------- */
-router.get('/watch', async (_req, res) => {
-  const now = Date.now();
-  let videos = [];
-  try {
-    if (cache.videos.data && now - cache.videos.ts < TTL_MS) {
-      videos = cache.videos.data;
-    } else if (supabaseAdmin) {
-      const { data, error } = await supabaseAdmin
-        .from('admin_videos')
-        .select('id,title,url,channel,thumb,created_at')
-        .order('created_at', { ascending: false })
-        .limit(60);
-      if (!error && Array.isArray(data)) {
-        videos = data.map(v => ({
-          id: v.id,
-          title: v.title,
-          url: v.url,
-          channel: v.channel || '',
-          thumb: v.thumb || null,
-          created_at: v.created_at
-        }));
-        cache.videos = { data: videos, ts: now };
-      }
-    }
-  } catch (e) {
-    console.warn('[watch] supabase read failed', e && e.message ? e.message : e);
-  }
-  res.render('watch', { videos });
 });
 
 module.exports = router;
