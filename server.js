@@ -101,8 +101,27 @@ try {
   console.error('[routes] failed to mount ./routes/index:', e);
 }
 
+/* =====================
+   Admin routers
+   ===================== */
 try {
-  const adminRoutes = require('./routes/admin'); // exports an express.Router()
+  const adminBooks = require('./routes/admin-books'); // NEW
+  app.use('/admin/books', adminBooks);
+  console.log('[routes] mounted admin-books router');
+} catch (e) {
+  console.error('[routes] failed to mount admin-books:', e);
+}
+
+try {
+  const adminVideos = require('./routes/admin-videos'); // NEW
+  app.use('/admin/videos', adminVideos);
+  console.log('[routes] mounted admin-videos router');
+} catch (e) {
+  console.error('[routes] failed to mount admin-videos:', e);
+}
+
+try {
+  const adminRoutes = require('./routes/admin'); // Existing admin dashboard (/admin)
   app.use('/admin', adminRoutes);
   console.log('[routes] mounted admin router at /admin');
 } catch (e) {
