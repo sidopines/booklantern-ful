@@ -10,12 +10,30 @@
 <body>
   <%- include('./partials/navbar') %>
 
-  <!-- Safe back link: avoid "referrer is not defined" -->
+  <!-- Safe back link -->
   <% var __safeRef = (typeof referrer !== 'undefined' ? referrer : null); %>
   <%- include('./partials/backLink', { referrer: __safeRef }) %>
 
   <main class="stack" style="--gap:16px; max-width:1100px; margin:30px auto; padding:0 16px;">
-    <h1>Watch</h1>
+    <div class="row" style="align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+      <h1 style="margin:0;">Watch</h1>
+
+      <% const G = (Array.isArray(genres) ? genres : []); %>
+      <% if (G.length) { %>
+        <form method="get" class="row" style="gap:8px;">
+          <label class="muted" for="genre">Filter:</label>
+          <select id="genre" name="genre" onchange="this.form.submit()" class="input" style="min-width:180px;">
+            <option value="">All genres</option>
+            <% G.forEach(function(g){ %>
+              <option value="<%= g %>" <%= (selectedGenre && selectedGenre === g.toLowerCase()) ? 'selected' : '' %>><%= g %></option>
+            <% }) %>
+          </select>
+          <% if (selectedGenre) { %>
+            <a class="btn" href="/watch">Reset</a>
+          <% } %>
+        </form>
+      <% } %>
+    </div>
 
     <% const list = (typeof videos !== 'undefined' && Array.isArray(videos)) ? videos : []; %>
     <% if (!list.length) { %>
@@ -48,8 +66,6 @@
   </main>
 
   <%- include('./partials/footer') %>
-
-  <!-- (No extra theme.js here; it already loads from head.ejs) -->
   <script src="/public/js/ui.js?v=<%= typeof buildId !== 'undefined' ? buildId : '' %>"></script>
 </body>
 </html>
