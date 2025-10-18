@@ -1,4 +1,4 @@
-// routes/index.js — FINAL
+// routes/index.js — FINAL (Supabase-powered homepage + watch)
 const express = require('express');
 const router = express.Router();
 
@@ -14,21 +14,12 @@ try {
 
 /* -------------------------------
    Optional mailer helpers
-   Priority:
-   1) ../mailer (exports: send({to,subject,text,html}), escapeHtml)
-   2) ../mail/sendContact (exports: async function(payload))
 --------------------------------- */
 let mailer = null;
 let legacySendContact = null;
-try {
-  // Preferred generic mailer
-  mailer = require('../mailer');
-} catch {}
+try { mailer = require('../mailer'); } catch {}
 if (!mailer) {
-  try {
-    // Legacy helper that takes a single object
-    legacySendContact = require('../mail/sendContact');
-  } catch {}
+  try { legacySendContact = require('../mail/sendContact'); } catch {}
 }
 
 // Minimal escape if mailer doesn’t supply it
@@ -135,15 +126,56 @@ function ensureShelf(name, maybe, min = 8) {
   return clamp((FALLBACK[name] || []).map(norm), 24);
 }
 
+/* ---------- Admin-curated: featured_books -> trending shelf ---------- */
+async function fetchFeaturedBooks() {
+  if (!supabaseAdmin) return [];
+  try {
+    // expected table columns (tolerant): title, author, cover_url, href OR provider+book_id
+    const { data, error } = await supabaseAdmin
+      .from('featured_books')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .limit(24);
+
+    if (error || !Array.isArray(data)) return [];
+    return data.map((row) => {
+      const provider = row.provider || row.src_provider || 'openlibrary';
+      const bookId   = row.book_id || row.src_id || row.id || '';
+      const href     =
+        row.href ||
+        (bookId ? `/read?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(bookId)}` : '#');
+
+      return {
+        id: String(bookId || row.slug || row.id || ''),
+        provider,
+        title: row.title || 'Untitled',
+        author: row.author || '',
+        cover: row.cover || row.cover_url || '',
+        href,
+        subjects: Array.isArray(row.subjects) ? row.subjects : [],
+      };
+    }).filter((x) => x.cover);
+  } catch (e) {
+    console.warn('[home] featured_books fetch failed:', e.message || e);
+    return [];
+  }
+}
+
 /* ----------------------------------
    Routes
 ----------------------------------- */
 
 // Home
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
+  // 1) try admin-curated "featured_books" into trending
+  let curated = [];
+  try { curated = await fetchFeaturedBooks(); } catch {}
+
+  // 2) also allow programmatic shelves from app.locals.shelves
   const provided = (req.app && req.app.locals && req.app.locals.shelves) || {};
+
   const shelves = {
-    trending: ensureShelf('trending', provided.trending),
+    trending: ensureShelf('trending', curated.length ? curated : provided.trending),
     philosophy: ensureShelf('philosophy', provided.philosophy),
     history: ensureShelf('history', provided.history),
     science: ensureShelf('science', provided.science),
@@ -153,7 +185,70 @@ router.get('/', (req, res) => {
 
 // Static pages
 router.get('/about', (_req, res) => res.render('about'));
-router.get('/watch', (_req, res) => res.render('watch', { videos: [] }));
+
+// WATCH: pull from Supabase "videos"
+router.get('/watch', async (_req, res) => {
+  let videos = [];
+  if (supabaseAdmin) {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('videos')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(48);
+      if (!error && Array.isArray(data)) {
+        videos = data.map(v => ({
+          title: v.title || 'Untitled video',
+          url: v.url || '#',
+          thumb: v.thumb || v.thumbnail || null,
+          slug: v.slug || null,
+          video_id: v.video_id || null,
+          description: v.description || null,
+        }));
+      }
+    } catch (e) {
+      console.warn('[watch] videos fetch failed:', e.message || e);
+    }
+  }
+  res.render('watch', { videos });
+});
+
+// Optional detail page if you keep watch-show.ejs
+router.get('/watch/:slug', async (req, res) => {
+  const slug = String(req.params.slug || '');
+  let video = null;
+  if (supabaseAdmin && slug) {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('videos')
+        .select('*')
+        .eq('slug', slug)
+        .maybeSingle();
+      if (!error && data) {
+        // derive videoId for YouTube if not explicitly stored
+        const vid = data.video_id || extractYouTubeId(data.url || '') || '';
+        video = {
+          title: data.title || 'Video',
+          videoId: vid,
+          description: data.description || '',
+        };
+      }
+    } catch (e) {}
+  }
+  res.render('watch-show', { video });
+});
+
+function extractYouTubeId(u) {
+  try {
+    const url = new URL(u);
+    if (url.hostname.includes('youtu.be')) return url.pathname.slice(1);
+    if (url.searchParams.get('v')) return url.searchParams.get('v');
+    if (url.pathname.startsWith('/embed/')) return url.pathname.split('/embed/')[1];
+  } catch {}
+  return '';
+}
+
+// Login/Register
 router.get('/login', (_req, res) => res.render('login', { csrfToken: '' }));
 router.get('/register', (_req, res) => res.render('register', { csrfToken: '' }));
 
@@ -251,7 +346,6 @@ ${message}
 
       await mailer.send({ to, subject: subj, text, html });
     } else if (legacySendContact && typeof legacySendContact === 'function') {
-      // Back-compat single-call helper
       await legacySendContact({ to, name, email, message, ip, userAgent });
     } else {
       console.warn('[contact] No mailer configured; skipping email send.');
@@ -260,7 +354,7 @@ ${message}
     console.error('[contact] email send failed:', e && e.message ? e.message : e);
   }
 
-  // 3) Clean redirect (prevents duplicate submissions on refresh)
+  // 3) Clean redirect
   return res.redirect(303, '/contact?sent=1');
 });
 
