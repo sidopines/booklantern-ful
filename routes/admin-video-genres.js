@@ -1,67 +1,137 @@
 // routes/admin-video-genres.js
+// Admin CRUD for video genres (uses service-role Supabase)
+// Writes: video_genres; Reads: video_genres, video_genres_map (for usage counts)
+
 const express = require('express');
 const router = express.Router();
 
-let supabase = null;
+let sb = null;
 try {
-  supabase = require('../supabaseAdmin'); // service-role client
+  sb = require('../supabaseAdmin'); // exports service-role client or null
 } catch {
-  supabase = null;
+  sb = null;
 }
 
-function mustHaveSupabase(res) {
-  if (!supabase) {
-    res.status(503).send('Admin disabled: Supabase not configured.');
-    return false;
-  }
-  return true;
+// Optional header-based guard (useful if admin gate not wired yet).
+// If ADMIN_API_TOKEN is set, require it via X-Admin-Token; else, allow (assume upstream gate).
+function requireAdminHeader(req, res) {
+  const configured = process.env.ADMIN_API_TOKEN || '';
+  if (!configured) return true; // no token configured => skip guard
+  const presented = req.get('X-Admin-Token') || '';
+  if (presented && presented === configured) return true;
+  res.status(403).send('Forbidden');
+  return false;
 }
 
-// List all genres + counts
+function esc(s = '') {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// GET /admin/genres  — list all genres + usage counts
 router.get('/', async (req, res) => {
-  if (!mustHaveSupabase(res)) return;
+  try {
+    if (!sb) {
+      return res.status(503).render('admin/video-genres', {
+        ok: false,
+        err: 'Supabase is not configured.',
+        genres: [],
+      });
+    }
 
-  const { data: genres, error: gErr } = await supabase
-    .from('video_genres')
-    .select('id,name')
-    .order('name', { ascending: true });
-  if (gErr)
-    return res.status(500).render('admin/video-genres', {
-      err: gErr.message,
-      genres: [],
-      counts: {},
+    // genres
+    const { data: genres, error: gErr } = await sb
+      .from('video_genres')
+      .select('id,name')
+      .order('name', { ascending: true });
+
+    if (gErr) throw gErr;
+
+    // usage counts from map
+    const { data: maps, error: mErr } = await sb
+      .from('video_genres_map')
+      .select('genre_id');
+    if (mErr) throw mErr;
+
+    const counts = {};
+    (Array.isArray(maps) ? maps : []).forEach((r) => {
+      counts[r.genre_id] = (counts[r.genre_id] || 0) + 1;
     });
 
-  const { data: maps } = await supabase
-    .from('video_genres_map')
-    .select('genre_id');
-  const counts = {};
-  (maps || []).forEach((m) => {
-    counts[m.genre_id] = (counts[m.genre_id] || 0) + 1;
-  });
+    const list = (Array.isArray(genres) ? genres : []).map((g) => ({
+      id: g.id,
+      name: g.name,
+      usage: counts[g.id] || 0,
+    }));
 
-  res.render('admin/video-genres', { err: '', genres, counts });
+    return res.render('admin/video-genres', {
+      ok: true,
+      err: '',
+      genres: list,
+    });
+  } catch (e) {
+    console.error('[admin-video-genres] list failed:', e?.message || e);
+    return res.render('admin/video-genres', {
+      ok: false,
+      err: 'Failed to load genres.',
+      genres: [],
+    });
+  }
 });
 
-// Create new
+// POST /admin/genres  — create new genre
 router.post('/', async (req, res) => {
-  if (!mustHaveSupabase(res)) return;
-  const name = String(req.body.name || '').trim();
-  if (!name) return res.redirect('/admin/genres');
+  if (!requireAdminHeader(req, res)) return;
+  try {
+    if (!sb) return res.status(503).send('Supabase not configured');
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).send('Name required');
 
-  await supabase.from('video_genres').insert({ name });
-  res.redirect('/admin/genres');
+    const { error } = await sb.from('video_genres').insert({ name });
+    if (error) throw error;
+    return res.redirect('/admin/genres');
+  } catch (e) {
+    console.error('[admin-video-genres] create failed:', e?.message || e);
+    return res.status(500).send('Create failed');
+  }
 });
 
-// Delete
-router.post('/:id/delete', async (req, res) => {
-  if (!mustHaveSupabase(res)) return;
-  const id = String(req.params.id || '');
-  if (!id) return res.redirect('/admin/genres');
+// POST /admin/genres/:id/rename  — rename genre
+router.post('/:id/rename', async (req, res) => {
+  if (!requireAdminHeader(req, res)) return;
+  try {
+    if (!sb) return res.status(503).send('Supabase not configured');
+    const id = String(req.params.id || '').trim();
+    const name = String(req.body.name || '').trim();
+    if (!id || !name) return res.status(400).send('Invalid input');
 
-  await supabase.from('video_genres_map').delete().eq('genre_id', id);
-  await supabase.from('video_genres').delete().eq('id', id);
-  res.redirect('/admin/genres');
+    const { error } = await sb.from('video_genres').update({ name }).eq('id', id);
+    if (error) throw error;
+    return res.redirect('/admin/genres');
+  } catch (e) {
+    console.error('[admin-video-genres] rename failed:', e?.message || e);
+    return res.status(500).send('Rename failed');
+  }
+});
+
+// POST /admin/genres/:id/delete  — delete genre (maps cascade)
+router.post('/:id/delete', async (req, res) => {
+  if (!requireAdminHeader(req, res)) return;
+  try {
+    if (!sb) return res.status(503).send('Supabase not configured');
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).send('Invalid id');
+
+    // Deleting the genre will cascade to video_genres_map (schema has ON DELETE CASCADE)
+    const { error } = await sb.from('video_genres').delete().eq('id', id);
+    if (error) throw error;
+    return res.redirect('/admin/genres');
+  } catch (e) {
+    console.error('[admin-video-genres] delete failed:', e?.message || e);
+    return res.status(500).send('Delete failed');
+  }
 });
 
 module.exports = router;
