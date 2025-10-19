@@ -1,10 +1,10 @@
-// routes/index.js — public site routes with safe view params & 404-free basics
+// routes/index.js — public routes with safe params + basic pages + /api/book
 const express = require('express');
 const router = express.Router();
 
-const supabase = require('../supabaseAdmin'); // service-role client (can be null)
+const supabase = require('../supabaseAdmin'); // can be null
 
-// ---- helpers ---------------------------------------------------------------
+// ---------------- helpers ----------------
 
 const DEFAULT_SHELVES = [
   'trending',
@@ -16,25 +16,17 @@ const DEFAULT_SHELVES = [
   'classics',
 ];
 
-/**
- * Render a view, but if the EJS file is missing, send a minimal HTML fallback
- * so the route never 404s during deployment.
- */
 function safeRender(res, view, params, fallbackHtml) {
   try {
     return res.render(view, params);
-  } catch (e) {
-    // If the template is missing, send fallback HTML instead of 404
+  } catch (_e) {
     const html =
       fallbackHtml ||
-      `<h1>${params?.pageTitle || 'Page'}</h1><p>Template <code>${view}</code> not found. This is a fallback.</p>`;
+      `<h1>${params?.pageTitle || 'Page'}</h1><p>Template <code>${view}</code> not found (fallback).</p>`;
     return res.status(200).send(html);
   }
 }
 
-/**
- * Group an array of rows by "category" into an object { category: [rows...] }
- */
 function groupByCategory(rows) {
   const out = {};
   (rows || []).forEach((r) => {
@@ -45,15 +37,14 @@ function groupByCategory(rows) {
   return out;
 }
 
-// ---- homepage --------------------------------------------------------------
+// ---------------- Homepage ----------------
 
 router.get('/', async (req, res) => {
-  const shelvesList = DEFAULT_SHELVES.slice(); // ensure defined
-  let shelvesData = {}; // ensure defined
+  const shelvesList = DEFAULT_SHELVES.slice();
+  let shelvesData = Object.fromEntries(shelvesList.map((c) => [c, []]));
 
   if (supabase) {
     try {
-      // Pull all rows for our shelves in one query, newest first
       const { data, error } = await supabase
         .from('curated_books')
         .select('*')
@@ -62,39 +53,22 @@ router.get('/', async (req, res) => {
 
       if (!error && Array.isArray(data)) {
         const grouped = groupByCategory(data);
-        // Trim to 10 per shelf for the homepage
         shelvesData = Object.fromEntries(
           shelvesList.map((c) => [c, (grouped[c] || []).slice(0, 10)])
         );
-      } else {
-        shelvesData = Object.fromEntries(shelvesList.map((c) => [c, []]));
       }
     } catch (e) {
       console.warn('[home] curated_books fetch failed:', e.message || e);
-      shelvesData = Object.fromEntries(shelvesList.map((c) => [c, []]));
     }
-  } else {
-    // No DB client — keep everything defined to avoid template errors
-    shelvesData = Object.fromEntries(shelvesList.map((c) => [c, []]));
   }
 
-  return safeRender(
-    res,
-    'index',
-    {
-      pageTitle: 'BookLantern',
-      shelvesList,
-      shelvesData,
-    },
-    `<h1>BookLantern</h1><p>Homepage fallback (template missing). Shelves are defined.</p>`
-  );
+  return safeRender(res, 'index', { pageTitle: 'BookLantern', shelvesList, shelvesData });
 });
 
-// ---- watch (videos page) ---------------------------------------------------
+// ---------------- Watch -------------------
 
 router.get('/watch', async (req, res) => {
   const selectedGenre = String(req.query.genre || '');
-
   let genres = [];
   let videos = [];
 
@@ -104,95 +78,71 @@ router.get('/watch', async (req, res) => {
         .from('video_genres')
         .select('*')
         .order('name', { ascending: true });
-
       if (!gErr && Array.isArray(g)) genres = g;
 
-      // Basic feed of latest videos. (We can add genre filtering/JOIN later.)
-      const vQuery = supabase
+      const { data: v, error: vErr } = await supabase
         .from('admin_videos')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(24);
-
-      const { data: v, error: vErr } = await vQuery;
       if (!vErr && Array.isArray(v)) videos = v;
     } catch (e) {
       console.warn('[watch] fetch failed:', e.message || e);
     }
   }
 
-  return safeRender(
-    res,
-    'watch',
-    {
-      pageTitle: 'Watch',
-      genres,
-      videos,
-      selectedGenre, // IMPORTANT: template expects this
-    },
-    `<h1>Watch</h1><p>Fallback page. Genres loaded: ${genres.length}. Videos: ${videos.length}.</p>`
-  );
+  return safeRender(res, 'watch', {
+    pageTitle: 'Watch',
+    genres,
+    videos,
+    selectedGenre,
+  });
 });
 
-// ---- read (book reader) ----------------------------------------------------
-// The template references `provider` and `id` for localStorage keys, so we
-// ALWAYS pass them (empty strings if missing) to prevent crashes.
-router.get('/read', async (req, res) => {
+// ---------------- Read --------------------
+
+router.get('/read', (req, res) => {
   const provider = String(req.query.provider || '');
   const id = String(req.query.id || '');
 
-  // If you later want to prefetch metadata, you can do it here.
-  // For now we just make sure the template never crashes.
-  return safeRender(
-    res,
-    'read',
-    {
-      pageTitle: 'Read',
-      provider,
-      id,
-    },
-    `<h1>Read</h1><p>Fallback page. provider="<code>${provider}</code>", id="<code>${id}</code>".</p>`
-  );
+  return safeRender(res, 'read', { pageTitle: 'Read', provider, id });
 });
 
-// ---- basic content pages (non-404 stubs if views are missing) --------------
+// ----------- Basic content pages ----------
 
-router.get('/about', (req, res) =>
-  safeRender(res, 'about', { pageTitle: 'About' }, '<h1>About</h1>')
-);
+router.get('/about', (req, res) => safeRender(res, 'about', { pageTitle: 'About' }));
+router.get('/contact', (req, res) => safeRender(res, 'contact', { pageTitle: 'Contact' }));
+router.get('/login', (req, res) => safeRender(res, 'login', { pageTitle: 'Login' }));
+router.get('/register', (req, res) => safeRender(res, 'register', { pageTitle: 'Create account' }));
+router.get('/privacy', (req, res) => safeRender(res, 'privacy', { pageTitle: 'Privacy' }));
+router.get('/terms', (req, res) => safeRender(res, 'terms', { pageTitle: 'Terms' }));
 
-router.get('/contact', (req, res) =>
-  safeRender(res, 'contact', { pageTitle: 'Contact' }, '<h1>Contact</h1>')
-);
+// ---------------- Search ------------------
 
-router.get('/login', (req, res) =>
-  safeRender(res, 'login', { pageTitle: 'Login' }, '<h1>Login</h1>')
-);
-
-router.get('/register', (req, res) =>
-  safeRender(res, 'register', { pageTitle: 'Create account' }, '<h1>Create account</h1>')
-);
-
-router.get('/privacy', (req, res) =>
-  safeRender(res, 'privacy', { pageTitle: 'Privacy' }, '<h1>Privacy</h1>')
-);
-
-router.get('/terms', (req, res) =>
-  safeRender(res, 'terms', { pageTitle: 'Terms' }, '<h1>Terms</h1>')
-);
-
-// ---- search placeholder so /search never 404s ------------------------------
-
-router.get('/search', async (req, res) => {
+router.get('/search', (req, res) => {
   const q = String(req.query.q || '').trim();
+  return safeRender(res, 'search', { pageTitle: 'Search', q, results: [] });
+});
 
-  // Minimal placeholder that renders successfully even without a view.
-  return safeRender(
-    res,
-    'search',
-    { pageTitle: 'Search', q, results: [] },
-    `<h1>Search</h1><p>Query: <em>${q || '(empty)'}</em>. Template fallback.</p>`
-  );
+// ---------------- API: book ---------------
+// Avoids the 404 spam when /read loads without provider/id.
+// Returns 404 with a clear JSON error if params are missing.
+router.get('/api/book', (req, res) => {
+  const provider = String(req.query.provider || '').trim();
+  const id = String(req.query.id || '').trim();
+  if (!provider || !id) {
+    return res.status(404).json({ error: 'missing_provider_or_id' });
+  }
+
+  // If you later want to actually fetch a book, do it here.
+  // For now we just return a placeholder payload so the client code won’t crash.
+  return res.json({
+    provider,
+    id,
+    title: null,
+    content: null,
+    ok: true,
+  });
 });
 
 module.exports = router;
