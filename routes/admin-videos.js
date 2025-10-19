@@ -1,186 +1,115 @@
-// routes/admin-videos.js
+// routes/admin-videos.js — service-role writes, proper redirects, genre mapping
 const express = require('express');
 const router = express.Router();
 
-let supabase = null;
-try {
-  supabase = require('../supabaseAdmin'); // service-role client
-} catch {
-  supabase = null;
-}
+const supabase = require('../supabaseAdmin'); // service-role client (or null)
+const ensureAdmin = require('../utils/adminGate'); // JWT/X-Admin-Token gate
 
-function mustHaveSupabase(res) {
-  if (!supabase) {
-    res.status(503).send('Admin disabled: Supabase not configured.');
-    return false;
-  }
-  return true;
-}
+// Only admins beyond this point
+router.use(ensureAdmin);
 
-// Helpers
-async function listVideos() {
-  const { data, error } = await supabase
-    .from('admin_videos')
-    .select('id,title,url,channel,thumb,created_at')
-    .order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
-  return data || [];
-}
-async function listGenres() {
-  const { data, error } = await supabase
-    .from('video_genres')
-    .select('id,name')
-    .order('name', { ascending: true });
-  if (error) throw new Error(error.message);
-  return data || [];
-}
-async function tagsForVideos(videoIds) {
-  if (!videoIds.length) return {};
-  const { data, error } = await supabase
-    .from('video_genres_map')
-    .select('video_id, genre_id');
-  if (error) throw new Error(error.message);
-  const byVid = {};
-  (data || []).forEach((row) => {
-    if (!byVid[row.video_id]) byVid[row.video_id] = new Set();
-    byVid[row.video_id].add(row.genre_id);
-  });
-  return byVid;
-}
-
-// List
+// GET /admin/videos  — form + list
 router.get('/', async (req, res) => {
-  if (!mustHaveSupabase(res)) return;
+  if (!supabase) {
+    return res.status(503).render('admin/videos', {
+      csrfToken: '',
+      messages: { error: 'Supabase is not configured.' },
+      videos: [],
+      genres: []
+    });
+  }
 
   try {
-    const [videos, genres] = await Promise.all([listVideos(), listGenres()]);
-    const tags = await tagsForVideos(videos.map((v) => v.id));
+    const [{ data: videos = [], error: vErr }, { data: genres = [], error: gErr }] = await Promise.all([
+      supabase.from('admin_videos').select('*').order('created_at', { ascending: false }),
+      supabase.from('video_genres').select('*').order('name', { ascending: true })
+    ]);
+
+    if (vErr) throw vErr;
+    if (gErr) throw gErr;
+
     res.render('admin/videos', {
       csrfToken: '',
-      messages: {},
+      messages: {
+        success: req.query.ok ? 'Saved.' : '',
+        error: req.query.err ? 'Operation failed.' : ''
+      },
       videos,
-      genres,
-      tags,
+      genres
     });
   } catch (e) {
-    console.error('[admin-videos] GET failed:', e.message);
-    res.status(500).render('admin/videos', {
+    console.error('[admin] load videos failed:', e);
+    res.render('admin/videos', {
       csrfToken: '',
-      messages: { error: e.message },
+      messages: { error: 'Failed to load videos.' },
       videos: [],
-      genres: [],
-      tags: {},
+      genres: []
     });
   }
 });
 
-// Create
+// POST /admin/videos — create video and map genres
 router.post('/', async (req, res) => {
-  if (!mustHaveSupabase(res)) return;
+  if (!supabase) return res.redirect(303, '/admin/videos?err=1');
 
-  const title = String(req.body.title || '').trim();
-  const url = String(req.body.url || '').trim();
-  const channel = String(req.body.channel || '').trim() || null;
-  const thumbnail = String(req.body.thumbnail || '').trim() || null;
-  const genres = []
-    .concat(req.body.genres || [])
-    .map((g) => String(g).trim())
-    .filter(Boolean);
+  const title    = String(req.body.title || '').trim();
+  const url      = String(req.body.url || '').trim();
+  const channel  = String(req.body.channel || '').trim();
+  const thumb    = String(req.body.thumbnail || '').trim();
+  const selected = Array.isArray(req.body.genres) ? req.body.genres : [];
+  const newCSV   = String(req.body.newGenres || '').trim();
 
-  if (!title || !url) {
-    const [videos, allGenres] = await Promise.all([listVideos(), listGenres()]);
-    const tags = await tagsForVideos(videos.map((v) => v.id));
-    return res.status(400).render('admin/videos', {
-      csrfToken: '',
-      messages: { error: 'Title and URL are required.' },
-      videos,
-      genres: allGenres,
-      tags,
-    });
-  }
+  if (!title || !url) return res.redirect(303, '/admin/videos?err=1');
 
   try {
-    const { data, error } = await supabase
+    // 1) Upsert any new genre names (comma-separated input)
+    const newNames = newCSV ? newCSV.split(',').map(s => s.trim()).filter(Boolean) : [];
+    let newIds = [];
+    if (newNames.length) {
+      const { data: upserted, error: gErr } = await supabase
+        .from('video_genres')
+        .upsert(newNames.map(n => ({ name: n })), { onConflict: 'name' })
+        .select();
+      if (gErr) throw gErr;
+      newIds = (upserted || []).map(g => g.id);
+    }
+
+    // 2) Insert the video into admin_videos
+    const { data: created, error: vErr } = await supabase
       .from('admin_videos')
-      .insert({ title, url, channel, thumb: thumbnail })
-      .select('id')
+      .insert([{ title, url, channel: channel || null, thumb: thumb || null }])
+      .select()
       .single();
-    if (error) throw new Error(error.message);
+    if (vErr) throw vErr;
 
-    if (data && data.id && genres.length) {
-      const rows = genres.map((gid) => ({ video_id: data.id, genre_id: gid }));
-      const { error: mapErr } = await supabase.from('video_genres_map').insert(rows);
-      if (mapErr) throw new Error(mapErr.message);
+    // 3) Map all genres (existing selections + newly created)
+    const allGenreIds = [...selected.filter(Boolean), ...newIds];
+    if (created && created.id && allGenreIds.length) {
+      const rows = allGenreIds.map(genre_id => ({ video_id: created.id, genre_id }));
+      const { error: mErr } = await supabase.from('video_genres_map').insert(rows);
+      if (mErr) console.warn('[admin] map genres warning:', mErr.message || mErr);
     }
 
-    res.redirect('/admin/videos');
+    return res.redirect(303, '/admin/videos?ok=1');
   } catch (e) {
-    console.error('[admin-videos] create failed:', e.message);
-    const [videos, allGenres] = await Promise.all([listVideos(), listGenres()]);
-    const tags = await tagsForVideos(videos.map((v) => v.id));
-    res.status(500).render('admin/videos', {
-      csrfToken: '',
-      messages: { error: e.message },
-      videos,
-      genres: allGenres,
-      tags,
-    });
+    console.error('[admin] add video failed:', e);
+    return res.redirect(303, '/admin/videos?err=1');
   }
 });
 
-// Delete
+// POST /admin/videos/delete — delete by id
 router.post('/delete', async (req, res) => {
-  if (!mustHaveSupabase(res)) return;
+  if (!supabase) return res.redirect(303, '/admin/videos?err=1');
   const id = String(req.body.id || '').trim();
-  if (!id) return res.redirect('/admin/videos');
+  if (!id) return res.redirect(303, '/admin/videos?err=1');
 
   try {
-    await supabase.from('video_genres_map').delete().eq('video_id', id);
-    await supabase.from('admin_videos').delete().eq('id', id);
-    res.redirect('/admin/videos');
+    const { error } = await supabase.from('admin_videos').delete().eq('id', id);
+    if (error) throw error;
+    return res.redirect(303, '/admin/videos?ok=1');
   } catch (e) {
-    console.error('[admin-videos] delete failed:', e.message);
-    const [videos, allGenres] = await Promise.all([listVideos(), listGenres()]);
-    const tags = await tagsForVideos(videos.map((v) => v.id));
-    res.status(500).render('admin/videos', {
-      csrfToken: '',
-      messages: { error: e.message },
-      videos,
-      genres: allGenres,
-      tags,
-    });
-  }
-});
-
-// Update tags
-router.post('/:id/tags', async (req, res) => {
-  if (!mustHaveSupabase(res)) return;
-  const id = String(req.params.id || '').trim();
-  if (!id) return res.redirect('/admin/videos');
-
-  const selected = []
-    .concat(req.body.genres || [])
-    .map((g) => String(g).trim())
-    .filter(Boolean);
-
-  try {
-    await supabase.from('video_genres_map').delete().eq('video_id', id);
-    if (selected.length) {
-      const rows = selected.map((gid) => ({ video_id: id, genre_id: gid }));
-      await supabase.from('video_genres_map').insert(rows);
-    }
-    res.redirect('/admin/videos');
-  } catch (e) {
-    console.error('[admin-videos] tag update failed:', e.message);
-    const [videos, allGenres] = await Promise.all([listVideos(), listGenres()]);
-    const tags = await tagsForVideos(videos.map((v) => v.id));
-    res.status(500).render('admin/videos', {
-      csrfToken: '',
-      messages: { error: e.message },
-      videos,
-      genres: allGenres,
-      tags,
-    });
+    console.error('[admin] delete video failed:', e);
+    return res.redirect(303, '/admin/videos?err=1');
   }
 });
 
