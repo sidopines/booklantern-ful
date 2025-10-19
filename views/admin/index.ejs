@@ -1,138 +1,52 @@
-<!-- views/admin/index.ejs -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('../partials/head', {
-    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : 'Admin • Dashboard',
-    pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Admin overview and shortcuts'
-  }) %>
-  <!-- Fixed: serve through /public like the rest of the site -->
-  <link rel="stylesheet" href="/public/css/site.css?v=<%= typeof buildId !== 'undefined' ? buildId : '' %>">
+  <%- include('../partials/head'); %>
+  <title>Admin • Dashboard</title>
   <style>
-    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --link:#1256b3; --brand:#111; --brandHover:#333; --danger:#b42318; --ok:#067647; }
-    *{ box-sizing:border-box; }
-    body{
-      margin:0; background:var(--bg); color:var(--text);
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    .wrap{max-width:1080px;margin:24px auto 64px;padding:0 16px;}
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+      gap:16px;
     }
-    main{ max-width:1100px; margin:2rem auto 3rem; padding:0 1rem; }
-
-    .page-head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:16px; }
-    .page-head h1{ margin:0; font-size: clamp(1.6rem, 2.5vw, 2rem); }
-    .crumbs a{ color:var(--muted); text-decoration:none; font-size:14px; }
-    .crumbs a:hover{ text-decoration:underline; }
-
-    .flash{ border:1px solid var(--border); background:#fff; border-radius:12px; padding:10px 12px; margin:12px 0; font-size:14px; }
-    .flash.ok{ border-color:#bbf7d0; background:#f0fdf4; color:var(--ok); }
-    .flash.err{ border-color:#fecaca; background:#fff1f2; color:#9f1239; }
-
-    .stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin:18px 0 24px; }
-    @media (max-width: 900px){ .stats{ grid-template-columns:repeat(2,1fr); } }
-    @media (max-width: 520px){ .stats{ grid-template-columns:1fr; } }
-    .stat{
-      background:var(--card); border:1px solid var(--border); border-radius:14px;
-      padding:16px; box-shadow:0 8px 28px rgba(0,0,0,.05);
-    }
-    .stat .k{ font-size:28px; font-weight:800; letter-spacing:-.02em; }
-    .stat .l{ color:var(--muted); font-size:13px; margin-top:4px; }
-
-    .sections{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-    @media (max-width: 900px){ .sections{ grid-template-columns:1fr; } }
-    section.card{
-      background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px;
-      box-shadow:0 8px 28px rgba(0,0,0,.06);
-    }
-    section.card h2{ margin:0 0 6px 0; font-size:18px; }
-    section.card p{ margin:0 0 12px 0; color:var(--muted); font-size:14px; }
-    .row{ display:flex; gap:10px; flex-wrap:wrap; }
-    .btn{
-      padding:.65rem 1rem; border:1px solid var(--border); border-radius:10px;
-      background:#111; color:#fff; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
-    }
-    .btn:hover{ filter:brightness(.95); }
-    .btn.alt{ background:#fff; color:var(--text); }
-    .btn.light{ background:#fff; color:var(--text); border-color:var(--border); }
-    .btn.link{ background:#fff; color:var(--link); border-color:var(--border); }
-
-    .bar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .bar input[type="text"]{ flex:1 1 260px; min-width:220px; padding:.6rem .7rem; border:1px solid var(--border); border-radius:10px; background:#fff; }
+    .card{background:#fff;border:1px solid #eee;border-radius:14px;padding:16px}
+    .num{font-size:28px;font-weight:700;margin:8px 0}
+    .links a{margin-right:12px}
   </style>
 </head>
 <body>
-  <%- include('../partials/navbar') %>
+  <%- include('../partials/header'); %>
 
-  <main>
-    <div class="page-head">
-      <h1>Admin Dashboard</h1>
-      <div class="crumbs">
-        <a href="/">← Back to site</a>
+  <main class="wrap">
+    <h1>Admin • Dashboard</h1>
+
+    <section class="grid" style="margin:16px 0 24px;">
+      <div class="card">
+        <div>Users</div>
+        <div class="num"><%= (counts && counts.usersCount)  || 0 %></div>
+        <div class="links"><a href="/admin/users">Open</a></div>
       </div>
-    </div>
-
-    <% if (typeof ok !== 'undefined' && ok) { %>
-      <div class="flash ok">✅ Saved successfully.</div>
-    <% } %>
-    <% if (typeof err !== 'undefined' && err) { %>
-      <div class="flash err">⚠️ <%= err %></div>
-    <% } %>
-
-    <!-- Stats -->
-    <div class="stats">
-      <div class="stat">
-        <div class="k"><%= stats && stats.users != null ? stats.users : 0 %></div>
-        <div class="l">Users</div>
+      <div class="card">
+        <div>Books</div>
+        <div class="num"><%= (counts && counts.booksCount)  || 0 %></div>
+        <div class="links"><a href="/admin/books">Manage</a></div>
       </div>
-      <div class="stat">
-        <div class="k"><%= stats && stats.books != null ? stats.books : 0 %></div>
-        <div class="l">Books</div>
+      <div class="card">
+        <div>Videos</div>
+        <div class="num"><%= (counts && counts.videosCount) || 0 %></div>
+        <div class="links"><a href="/admin/videos">Manage</a></div>
       </div>
-      <div class="stat">
-        <div class="k"><%= stats && stats.videos != null ? stats.videos : 0 %></div>
-        <div class="l">Videos</div>
+      <div class="card">
+        <div>Video Genres</div>
+        <div class="num"><%= (counts && counts.genresCount) || 0 %></div>
+        <div class="links"><a href="/admin/video-genres">Manage</a></div>
       </div>
-      <div class="stat">
-        <div class="k"><%= stats && stats.genres != null ? stats.genres : 0 %></div>
-        <div class="l">Genres</div>
-      </div>
-    </div>
+    </section>
 
-    <!-- Sections -->
-    <div class="sections">
-      <section class="card">
-        <h2>Users</h2>
-        <p>Search, toggle admin, or remove users. Your account is protected from self-delete.</p>
-        <form class="bar" method="GET" action="/admin/users">
-          <input type="text" name="q" placeholder="Search by name or email" value="<%= typeof q !== 'undefined' ? q : '' %>">
-          <button class="btn" type="submit">Find Users</button>
-          <a class="btn alt" href="/admin/users">Open Users</a>
-        </form>
-      </section>
-
-      <section class="card">
-        <h2>Videos</h2>
-        <p>Add new educational videos, organize by genre, or remove outdated ones.</p>
-        <div class="row">
-          <a class="btn" href="/admin/videos">Manage Videos</a>
-          <a class="btn light" href="/admin/genres">Manage Genres</a>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Books</h2>
-        <p>Add admin-curated books (with cover & source URL) that you want featured.</p>
-        <div class="row">
-          <a class="btn" href="/admin/books">Manage Books</a>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Site Settings</h2>
-        <p>Update homepage headline and subhead copy to tune your marketing message.</p>
-        <div class="row">
-          <a class="btn link" href="/admin/settings">Edit Settings</a>
-        </div>
-      </section>
-    </div>
+    <p><a href="/admin/books">Books</a> • <a href="/admin/videos">Videos</a> • <a href="/admin/video-genres">Video genres</a> • <a href="/admin/users">Users</a></p>
   </main>
+
+  <%- include('../partials/footer'); %>
 </body>
 </html>
