@@ -1,137 +1,119 @@
-// routes/admin-video-genres.js
-// Admin CRUD for video genres (uses service-role Supabase)
-// Writes: video_genres; Reads: video_genres, video_genres_map (for usage counts)
-
+// routes/admin-video-genres.js — simple CRUD for video_genres
 const express = require('express');
 const router = express.Router();
 
-let sb = null;
-try {
-  sb = require('../supabaseAdmin'); // exports service-role client or null
-} catch {
-  sb = null;
-}
+const supabase = require('../supabaseAdmin');
+const ensureAdmin = require('../utils/adminGate');
 
-// Optional header-based guard (useful if admin gate not wired yet).
-// If ADMIN_API_TOKEN is set, require it via X-Admin-Token; else, allow (assume upstream gate).
-function requireAdminHeader(req, res) {
-  const configured = process.env.ADMIN_API_TOKEN || '';
-  if (!configured) return true; // no token configured => skip guard
-  const presented = req.get('X-Admin-Token') || '';
-  if (presented && presented === configured) return true;
-  res.status(403).send('Forbidden');
-  return false;
-}
+// admins only
+router.use(ensureAdmin);
 
-function esc(s = '') {
-  return String(s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-// GET /admin/genres  — list all genres + usage counts
+// GET /admin/genres — list + form
 router.get('/', async (req, res) => {
+  if (!supabase) {
+    return res.status(503).render('admin/genres', {
+      messages: { error: 'Supabase is not configured.' },
+      genres: []
+    });
+  }
   try {
-    if (!sb) {
-      return res.status(503).render('admin/video-genres', {
-        ok: false,
-        err: 'Supabase is not configured.',
-        genres: [],
-      });
-    }
-
-    // genres
-    const { data: genres, error: gErr } = await sb
+    const { data: genres = [], error } = await supabase
       .from('video_genres')
-      .select('id,name')
+      .select('*')
       .order('name', { ascending: true });
+    if (error) throw error;
 
-    if (gErr) throw gErr;
-
-    // usage counts from map
-    const { data: maps, error: mErr } = await sb
-      .from('video_genres_map')
-      .select('genre_id');
-    if (mErr) throw mErr;
-
-    const counts = {};
-    (Array.isArray(maps) ? maps : []).forEach((r) => {
-      counts[r.genre_id] = (counts[r.genre_id] || 0) + 1;
-    });
-
-    const list = (Array.isArray(genres) ? genres : []).map((g) => ({
-      id: g.id,
-      name: g.name,
-      usage: counts[g.id] || 0,
-    }));
-
-    return res.render('admin/video-genres', {
-      ok: true,
-      err: '',
-      genres: list,
-    });
+    // Render a minimal fallback page if you don't have views/admin/genres.ejs.
+    // To keep “full and final”, we render a tiny HTML here to avoid 404.
+    res.send(`<!DOCTYPE html><html><head>
+      <meta charset="utf-8"><title>Admin • Genres</title>
+      <style>
+        body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem}
+        table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #e5e7eb}
+        .row{display:flex;gap:.5rem;align-items:center}
+        input,button{padding:.5rem .6rem}
+        .muted{color:#667085}
+      </style>
+    </head><body>
+      <h1>Manage Genres</h1>
+      <form class="row" method="POST" action="/admin/genres">
+        <input type="text" name="name" placeholder="New genre name" required/>
+        <button type="submit">Add</button>
+      </form>
+      <p class="muted">Tip: After adding, use Admin → Videos to tag videos with these.</p>
+      <h2>Current Genres</h2>
+      <table><thead><tr><th style="text-align:left">Name</th><th>Actions</th></tr></thead><tbody>
+      ${genres.map(g => `
+        <tr>
+          <td>${g.name}</td>
+          <td style="text-align:center">
+            <form class="row" method="POST" action="/admin/genres/rename" style="display:inline">
+              <input type="hidden" name="id" value="${g.id}">
+              <input type="text" name="name" value="${g.name}" required>
+              <button type="submit">Rename</button>
+            </form>
+            <form method="POST" action="/admin/genres/delete" style="display:inline;margin-left:6px" onsubmit="return confirm('Delete “${g.name}”?')">
+              <input type="hidden" name="id" value="${g.id}">
+              <button type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>`).join('')}
+      </tbody></table>
+      <p><a href="/admin">← Back to Admin</a></p>
+    </body></html>`);
   } catch (e) {
-    console.error('[admin-video-genres] list failed:', e?.message || e);
-    return res.render('admin/video-genres', {
-      ok: false,
-      err: 'Failed to load genres.',
-      genres: [],
-    });
+    console.error('[admin] load genres failed:', e);
+    res.status(500).send('Failed to load genres.');
   }
 });
 
-// POST /admin/genres  — create new genre
+// POST /admin/genres — create
 router.post('/', async (req, res) => {
-  if (!requireAdminHeader(req, res)) return;
+  if (!supabase) return res.redirect(303, '/admin/genres');
+  const name = String(req.body.name || '').trim();
+  if (!name) return res.redirect(303, '/admin/genres');
   try {
-    if (!sb) return res.status(503).send('Supabase not configured');
-    const name = String(req.body.name || '').trim();
-    if (!name) return res.status(400).send('Name required');
-
-    const { error } = await sb.from('video_genres').insert({ name });
+    const { error } = await supabase
+      .from('video_genres')
+      .upsert([{ name }], { onConflict: 'name' });
     if (error) throw error;
-    return res.redirect('/admin/genres');
   } catch (e) {
-    console.error('[admin-video-genres] create failed:', e?.message || e);
-    return res.status(500).send('Create failed');
+    console.error('[admin] add genre failed:', e);
   }
+  return res.redirect(303, '/admin/genres');
 });
 
-// POST /admin/genres/:id/rename  — rename genre
-router.post('/:id/rename', async (req, res) => {
-  if (!requireAdminHeader(req, res)) return;
+// POST /admin/genres/rename
+router.post('/rename', async (req, res) => {
+  if (!supabase) return res.redirect(303, '/admin/genres');
+  const id = String(req.body.id || '').trim();
+  const name = String(req.body.name || '').trim();
+  if (!id || !name) return res.redirect(303, '/admin/genres');
   try {
-    if (!sb) return res.status(503).send('Supabase not configured');
-    const id = String(req.params.id || '').trim();
-    const name = String(req.body.name || '').trim();
-    if (!id || !name) return res.status(400).send('Invalid input');
-
-    const { error } = await sb.from('video_genres').update({ name }).eq('id', id);
+    const { error } = await supabase
+      .from('video_genres')
+      .update({ name })
+      .eq('id', id);
     if (error) throw error;
-    return res.redirect('/admin/genres');
   } catch (e) {
-    console.error('[admin-video-genres] rename failed:', e?.message || e);
-    return res.status(500).send('Rename failed');
+    console.error('[admin] rename genre failed:', e);
   }
+  return res.redirect(303, '/admin/genres');
 });
 
-// POST /admin/genres/:id/delete  — delete genre (maps cascade)
-router.post('/:id/delete', async (req, res) => {
-  if (!requireAdminHeader(req, res)) return;
+// POST /admin/genres/delete
+router.post('/delete', async (req, res) => {
+  if (!supabase) return res.redirect(303, '/admin/genres');
+  const id = String(req.body.id || '').trim();
+  if (!id) return res.redirect(303, '/admin/genres');
   try {
-    if (!sb) return res.status(503).send('Supabase not configured');
-    const id = String(req.params.id || '').trim();
-    if (!id) return res.status(400).send('Invalid id');
-
-    // Deleting the genre will cascade to video_genres_map (schema has ON DELETE CASCADE)
-    const { error } = await sb.from('video_genres').delete().eq('id', id);
+    // will cascade remove mappings because video_genres_map has FK on delete cascade
+    const { error } = await supabase.from('video_genres').delete().eq('id', id);
     if (error) throw error;
-    return res.redirect('/admin/genres');
   } catch (e) {
-    console.error('[admin-video-genres] delete failed:', e?.message || e);
-    return res.status(500).send('Delete failed');
+    console.error('[admin] delete genre failed:', e);
   }
+  return res.redirect(303, '/admin/genres');
 });
 
 module.exports = router;
