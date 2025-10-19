@@ -1,48 +1,15 @@
-// routes/index.js — FINAL (updated /watch integration)
+// routes/index.js — pulls homepage shelves & Watch page content from Supabase (with safe fallbacks)
 const express = require('express');
 const router = express.Router();
 
-/* -------------------------------
-   Optional Supabase server client
---------------------------------- */
-let supabaseAdmin = null;
+const supabaseAdmin = require('../supabaseAdmin'); // service-role or null
+let CATEGORIES = ['trending', 'philosophy', 'history', 'science'];
 try {
-  supabaseAdmin = require('../supabaseAdmin'); // exports client or null
-} catch {
-  supabaseAdmin = null;
-}
-
-/* -------------------------------
-   Optional mailer helpers
-   Priority:
-   1) ../mailer (exports: send({to,subject,text,html}), escapeHtml)
-   2) ../mail/sendContact (exports: async function(payload))
---------------------------------- */
-let mailer = null;
-let legacySendContact = null;
-try {
-  // Preferred generic mailer
-  mailer = require('../mailer');
-} catch {}
-if (!mailer) {
-  try {
-    // Legacy helper that takes a single object
-    legacySendContact = require('../mail/sendContact');
-  } catch {}
-}
-
-// Minimal escape if mailer doesn’t supply it
-function escapeHtml(s = '') {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+  CATEGORIES = require('../config/categories'); // central list
+} catch { /* default stays */ }
 
 /* ----------------------------------
-   Homepage shelves (safe fallbacks)
+   Legacy FALLBACK content for shelves
 ----------------------------------- */
 const FALLBACK = {
   trending: [
@@ -118,61 +85,131 @@ const FALLBACK = {
   ],
 };
 
-const clamp = (arr, n) => (Array.isArray(arr) ? arr.slice(0, n) : []);
-const norm = (b = {}) => ({
-  id: String(b.id || b.key || ''),
-  provider: String(b.provider || 'openlibrary'),
-  title: String(b.title || 'Untitled'),
-  author: String(b.author || b.authors || '').toString(),
-  cover: String(b.cover || ''),
-  href: b.href || `/read?provider=${encodeURIComponent(b.provider || 'openlibrary')}&id=${encodeURIComponent(b.id || '')}`,
-  subjects: Array.isArray(b.subjects) ? b.subjects : [],
-});
-function ensureShelf(name, maybe, min = 8) {
-  const src = Array.isArray(maybe) ? maybe : [];
-  const out = clamp(src, 24).map(norm).filter((x) => x.cover);
-  if (out.length >= min) return out;
-  return clamp((FALLBACK[name] || []).map(norm), 24);
+/* ----------------------------------
+   Helpers
+----------------------------------- */
+const titleMap = (key) => {
+  const map = {
+    trending: 'Trending now',
+    philosophy: 'Philosophy Picks',
+    history: 'History Picks',
+    science: 'Science Picks',
+    biographies: 'Biographies',
+    religion: 'Religion',
+    classics: 'Classics',
+  };
+  return map[key] || (key.charAt(0).toUpperCase() + key.slice(1));
+};
+
+function normCard(b = {}) {
+  return {
+    title: String(b.title || 'Untitled'),
+    creator: String(b.author || ''),
+    cover: String(b.cover_image || b.cover || ''),
+    href: b.source_url || '#',
+    source: 'curated',
+  };
 }
 
 /* ----------------------------------
-   Routes
+   Home
 ----------------------------------- */
+router.get('/', async (req, res) => {
+  // default fallback shelvesList from constants (never undefined)
+  let shelvesList = CATEGORIES.map((key) => ({
+    key,
+    title: titleMap(key),
+    items: (FALLBACK[key] || []).map((x) => ({
+      title: x.title,
+      creator: x.author || '',
+      cover: x.cover || '',
+      href: x.href || '#',
+      source: x.provider || 'fallback',
+    })),
+  }));
 
-// Home
-router.get('/', (req, res) => {
-  const provided = (req.app && req.app.locals && req.app.locals.shelves) || {};
-  const shelves = {
-    trending: ensureShelf('trending', provided.trending),
-    philosophy: ensureShelf('philosophy', provided.philosophy),
-    history: ensureShelf('history', provided.history),
-    science: ensureShelf('science', provided.science),
-  };
-  res.render('index', { shelves });
+  // Replace with Supabase content if configured
+  if (supabaseAdmin) {
+    try {
+      const { data: rows, error } = await supabaseAdmin
+        .from('curated_books')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(rows)) {
+        const grouped = {};
+        for (const r of rows) {
+          const cat = (r.category || '').toLowerCase();
+          if (!cat) continue;
+          if (!grouped[cat]) grouped[cat] = [];
+          grouped[cat].push(r);
+        }
+        shelvesList = CATEGORIES.map((key) => ({
+          key,
+          title: titleMap(key),
+          items: (grouped[key] || []).slice(0, 18).map(normCard),
+        }));
+      }
+    } catch (e) {
+      console.warn('[home] supabase shelves failed, showing fallback:', e && e.message ? e.message : e);
+    }
+  }
+
+  res.render('index', { shelvesList });
 });
 
-// Static pages
-router.get('/about', (_req, res) => res.render('about'));
-
-// WATCH — UPDATED: load from Supabase and pass genres + query
+/* ----------------------------------
+   Watch page (videos + optional genre filter)
+----------------------------------- */
 router.get('/watch', async (req, res) => {
-  if (!supabaseAdmin) return res.render('watch', { videos: [], genres: [], query: req.query });
+  const filterGenre = String(req.query.g || '').trim(); // uuid or ''
+
+  if (!supabaseAdmin) {
+    // no supabase -> render empty lists safely
+    return res.render('watch', { videos: [], genres: [], referrer: req.get('Referrer') || null });
+  }
 
   try {
-    const [{ data: videos = [], error: vErr }, { data: genres = [], error: gErr }] = await Promise.all([
+    const [{ data: genres = [] }, { data: videos = [] }, { data: map = [] }] = await Promise.all([
+      supabaseAdmin.from('video_genres').select('*').order('name', { ascending: true }),
       supabaseAdmin.from('admin_videos').select('*').order('created_at', { ascending: false }),
-      supabaseAdmin.from('video_genres').select('*').order('name', { ascending: true })
+      supabaseAdmin.from('video_genres_map').select('*'),
     ]);
-    if (vErr) throw vErr;
-    if (gErr) throw gErr;
 
-    res.render('watch', { videos, genres, query: req.query });
+    // Build a map: videoId -> Set(genreId)
+    const gmap = new Map();
+    for (const row of map || []) {
+      const vid = row.video_id;
+      const gid = row.genre_id;
+      if (!gmap.has(vid)) gmap.set(vid, new Set());
+      gmap.get(vid).add(gid);
+    }
+
+    // Attach genres to each video + apply filter if any
+    const decorated = (videos || []).map((v) => {
+      const set = gmap.get(v.id) || new Set();
+      return { ...v, genre_ids: Array.from(set) };
+    });
+
+    const filtered = filterGenre
+      ? decorated.filter((v) => v.genre_ids && v.genre_ids.includes(filterGenre))
+      : decorated;
+
+    return res.render('watch', {
+      videos: filtered,
+      genres, // used by the filter dropdown in the view
+      referrer: req.get('Referrer') || null,
+    });
   } catch (e) {
     console.error('[watch] load failed:', e);
-    res.render('watch', { videos: [], genres: [], query: req.query });
+    return res.render('watch', { videos: [], genres: [], referrer: req.get('Referrer') || null });
   }
 });
 
+/* ----------------------------------
+   Static pages / existing routes
+----------------------------------- */
+router.get('/about', (_req, res) => res.render('about'));
 router.get('/login', (_req, res) => res.render('login', { csrfToken: '' }));
 router.get('/register', (_req, res) => res.render('register', { csrfToken: '' }));
 
@@ -208,7 +245,14 @@ router.get('/contact', (req, res) => {
   res.render('contact', { sent, error });
 });
 
-// Contact (POST) — save + email notify
+// Contact (POST) — best-effort save + email (unchanged)
+let mailer = null;
+let legacySendContact = null;
+try { mailer = require('../mailer'); } catch {}
+if (!mailer) { try { legacySendContact = require('../mail/sendContact'); } catch {} }
+function escapeHtml(s = '') {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 router.post('/contact', async (req, res) => {
   const name = String(req.body.name || '').trim();
   const email = String(req.body.email || '').trim();
@@ -218,68 +262,36 @@ router.post('/contact', async (req, res) => {
     return res.status(400).render('contact', { sent: false, error: 'Please fill all fields.' });
   }
 
-  const ip =
-    (req.headers['x-forwarded-for'] && req.headers['x-forwarded-for'].split(',')[0].trim()) ||
-    req.ip ||
-    null;
+  const ip = (req.headers['x-forwarded-for'] && req.headers['x-forwarded-for'].split(',')[0].trim()) || req.ip || null;
   const userAgent = req.get('User-Agent') || null;
 
-  // 1) Store in Supabase (best effort)
   try {
     if (supabaseAdmin && typeof supabaseAdmin.from === 'function') {
-      const payload = {
-        name,
-        email,
-        message,
-        ip,
-        user_agent: userAgent,
-        created_at: new Date().toISOString(),
-      };
+      const payload = { name, email, message, ip, user_agent: userAgent, created_at: new Date().toISOString() };
       const { error } = await supabaseAdmin.from('contact_messages').insert(payload);
       if (error) console.error('[contact] insert failed:', error.message);
-    } else {
-      console.warn('[contact] Supabase not configured; skipping DB insert.');
     }
   } catch (e) {
     console.error('[contact] DB insert threw:', e);
   }
 
-  // 2) Email notification (best effort)
   try {
     const to = process.env.CONTACT_NOTIFY_TO || process.env.MAIL_FROM || 'info@booklantern.org';
-
     if (mailer && typeof mailer.send === 'function') {
       const subj = `📮 Contact form: ${name || 'Someone'} (${email || 'no email'})`;
-      const text =
-`New contact message:
-
-Name: ${name}
-Email: ${email}
-IP: ${ip}
-
-Message:
-${message}
-`;
+      const text = `New contact message:\n\nName: ${name}\nEmail: ${email}\nIP: ${ip}\n\nMessage:\n${message}\n`;
       const esc = mailer.escapeHtml || escapeHtml;
-      const html =
-`<h2>New contact message</h2>
-<p><strong>Name:</strong> ${esc(name)}<br>
-<strong>Email:</strong> ${esc(email)}<br>
-<strong>IP:</strong> ${esc(ip || '')}</p>
+      const html = `<h2>New contact message</h2>
+<p><strong>Name:</strong> ${esc(name)}<br><strong>Email:</strong> ${esc(email)}<br><strong>IP:</strong> ${esc(ip || '')}</p>
 <pre style="white-space:pre-wrap;font:inherit">${esc(message)}</pre>`;
-
       await mailer.send({ to, subject: subj, text, html });
     } else if (legacySendContact && typeof legacySendContact === 'function') {
-      // Back-compat single-call helper
       await legacySendContact({ to, name, email, message, ip, userAgent });
-    } else {
-      console.warn('[contact] No mailer configured; skipping email send.');
     }
   } catch (e) {
     console.error('[contact] email send failed:', e && e.message ? e.message : e);
   }
 
-  // 3) Clean redirect (prevents duplicate submissions on refresh)
   return res.redirect(303, '/contact?sent=1');
 });
 
