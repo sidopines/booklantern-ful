@@ -41,7 +41,7 @@ app.get('/robots.txt', (_req, res) => {
   res.type('text/plain').send('User-agent: *\nAllow: /\n');
 });
 
-// ---------- Safe locals for EJS ----------
+// ---------- Safe locals for EJS (theme/footer rely on buildId) ----------
 const BUILD_ID = Date.now().toString();
 app.use((req, res, next) => {
   res.locals.isAuthenticated = Boolean(
@@ -54,9 +54,8 @@ app.use((req, res, next) => {
   res.locals.pageDescription =
     'Millions of free books from globally trusted libraries. One clean reader.';
 
-  // Expose categories to all views (used by admin books UI, homepage shelves, etc.)
+  // Expose categories to all views (used by admin books UI, etc.)
   try {
-    // Safe require so the app still boots if the file is missing during early setup
     res.locals.categories = require('./config/categories');
   } catch {
     res.locals.categories = ['trending', 'philosophy', 'history', 'science'];
