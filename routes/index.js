@@ -1,122 +1,201 @@
-// routes/index.js — public pages; reads from Supabase with service role if available
+// routes/index.js — public site routes (homepage + watch + simple statics)
 const express = require('express');
 const router = express.Router();
 
-const supabase = require('../supabaseAdmin'); // may be null
-const categoriesCfg = (() => {
-  try { return require('../config/categories'); } catch { return ['trending','philosophy','history','science']; }
-})();
+const supabase = require('../supabaseAdmin'); // service-role read is fine for public pages
+let CATEGORIES;
+try {
+  CATEGORIES = require('../config/categories'); // ['trending','philosophy',...]
+  if (!Array.isArray(CATEGORIES)) CATEGORIES = [];
+} catch {
+  CATEGORIES = ['trending', 'philosophy', 'history', 'science'];
+}
 
-// Helper: title-case category key
-function titleize(key) {
-  return String(key || '').replace(/(^|[_-])([a-z])/g, (_, p1, p2) => (p1 ? ' ' : '') + p2.toUpperCase());
+/**
+ * Helper: fetch curated books grouped by category.
+ * Always returns an array of { key, label, items } so the view never breaks.
+ */
+async function loadShelves(limitPerShelf = 12) {
+  // Default “empty shelves” shape
+  const base = CATEGORIES.map((key) => ({
+    key,
+    label: key.charAt(0).toUpperCase() + key.slice(1),
+    items: [],
+  }));
+
+  if (!supabase) return base;
+
+  try {
+    // Grab everything we need in one query then bucket in memory
+    const { data, error } = await supabase
+      .from('curated_books')
+      .select('*')
+      .in('category', CATEGORIES)
+      .order('created_at', { ascending: false });
+
+    if (error || !Array.isArray(data)) return base;
+
+    const buckets = Object.fromEntries(
+      CATEGORIES.map((k) => [k, []])
+    );
+
+    for (const row of data) {
+      const k = row.category;
+      if (buckets[k] && buckets[k].length < limitPerShelf) {
+        buckets[k].push({
+          id: row.id,
+          title: row.title,
+          author: row.author || '',
+          cover_image: row.cover_image || '',
+          source_url: row.source_url || '',
+          created_at: row.created_at,
+        });
+      }
+    }
+
+    return CATEGORIES.map((key) => ({
+      key,
+      label: key.charAt(0).toUpperCase() + key.slice(1),
+      items: buckets[key] || [],
+    }));
+  } catch {
+    return base;
+  }
 }
 
 /* ============================================================
-   HOME — shelves (curated_books by category)
+   Homepage
    ============================================================ */
 router.get('/', async (req, res) => {
-  // If no Supabase, render page without shelves (still loads gracefully)
-  if (!supabase) {
-    return res.render('index', { shelvesList: [], hasSupabase: false });
-  }
-
-  const cats = Array.isArray(categoriesCfg) && categoriesCfg.length
-    ? categoriesCfg
-    : ['trending','philosophy','history','science'];
-
   try {
-    // Fetch per-category shelves in parallel (limit to 12 each)
-    const queries = cats.map(c =>
-      supabase
-        .from('curated_books')
-        .select('*')
-        .eq('category', c)
-        .order('created_at', { ascending: false })
-        .limit(12)
-    );
-
-    const results = await Promise.all(queries);
-    const shelvesList = results.map((r, i) => ({
-      key: cats[i],
-      title: titleize(cats[i]),
-      items: r.data || []
-    }));
-
-    return res.render('index', { shelvesList, hasSupabase: true });
+    const shelvesList = await loadShelves(12);
+    res.render('index', {
+      canonicalUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+      shelvesList,
+    });
   } catch (e) {
-    console.error('[home] shelves load failed:', e);
-    return res.render('index', { shelvesList: [], hasSupabase: true });
+    console.error('[index] render failed:', e);
+    // Extremely defensive fallback so the site never 500s
+    res.render('index', {
+      canonicalUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+      shelvesList: CATEGORIES.map((key) => ({
+        key,
+        label: key.charAt(0).toUpperCase() + key.slice(1),
+        items: [],
+      })),
+    });
   }
 });
 
 /* ============================================================
-   WATCH — videos (optional genre filter)
+   Watch page (videos + optional genre filter)
    ============================================================ */
 router.get('/watch', async (req, res) => {
-  const genreId = String(req.query.g || '').trim();
+  const selectedGenre = (req.query.genre || '').trim(); // id or empty string
+
+  // Defaults so the template can always render
+  let genres = [];
+  let videos = [];
 
   if (!supabase) {
     return res.render('watch', {
-      videos: [],
-      genres: [],
-      activeGenre: '',
-      hasSupabase: false
+      genres,
+      videos,
+      selectedGenre,
     });
   }
 
   try {
-    // Always load genres for the filter UI
-    const [{ data: genres = [] }] = await Promise.all([
-      supabase.from('video_genres').select('*').order('name', { ascending: true })
-    ]);
+    // Load genres (for filter dropdown)
+    const { data: gData, error: gErr } = await supabase
+      .from('video_genres')
+      .select('*')
+      .order('name', { ascending: true });
+    if (!gErr && Array.isArray(gData)) genres = gData;
 
-    let videos = [];
-
-    if (genreId) {
-      // Filter by genre: get video ids from mapping then fetch videos
-      const { data: mapRows = [], error: mErr } = await supabase
+    if (selectedGenre) {
+      // Filtered by genre id: join mapping -> videos
+      const { data: mData, error: mErr } = await supabase
         .from('video_genres_map')
         .select('video_id')
-        .eq('genre_id', genreId);
-      if (mErr) throw mErr;
-
-      const ids = mapRows.map(r => r.video_id);
-      if (ids.length) {
-        const { data: vids = [], error: vErr } = await supabase
+        .eq('genre_id', selectedGenre);
+      if (mErr || !Array.isArray(mData) || !mData.length) {
+        videos = [];
+      } else {
+        const ids = mData.map((m) => m.video_id);
+        const { data: vData, error: vErr } = await supabase
           .from('admin_videos')
           .select('*')
           .in('id', ids)
           .order('created_at', { ascending: false });
-        if (vErr) throw vErr;
-        videos = vids;
-      } else {
-        videos = [];
+        if (!vErr && Array.isArray(vData)) videos = vData;
       }
     } else {
-      // No filter: show all
-      const { data: vids = [], error: vErr } = await supabase
+      // Unfiltered: latest videos
+      const { data: vData, error: vErr } = await supabase
         .from('admin_videos')
         .select('*')
-        .order('created_at', { ascending: false });
-      if (vErr) throw vErr;
-      videos = vids;
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (!vErr && Array.isArray(vData)) videos = vData;
     }
 
     return res.render('watch', {
-      videos,
       genres,
-      activeGenre: genreId,
-      hasSupabase: true
+      videos,
+      selectedGenre, // << ensures template never throws
     });
   } catch (e) {
-    console.error('[watch] load failed:', e);
+    console.error('[watch] render failed:', e);
     return res.render('watch', {
-      videos: [],
-      genres: [],
-      activeGenre: '',
-      hasSupabase: true
+      genres,
+      videos,
+      selectedGenre,
     });
+  }
+});
+
+/* ============================================================
+   Simple statics / fallbacks (prevent 404s)
+   If you already render these elsewhere, these will just work.
+   ============================================================ */
+router.get('/about', (req, res) => {
+  try {
+    res.render('about');
+  } catch {
+    res.status(200).send('<h1>About</h1><p>Coming soon.</p>');
+  }
+});
+
+router.get('/contact', (req, res) => {
+  try {
+    res.render('contact');
+  } catch {
+    res.status(200).send('<h1>Contact</h1><p>Coming soon.</p>');
+  }
+});
+
+router.get('/read', (req, res) => {
+  try {
+    res.render('read');
+  } catch {
+    res.status(200).send('<h1>Read</h1><p>Coming soon.</p>');
+  }
+});
+
+// Gentle fallbacks so /login and /register never 404, even if loginShim isn’t mounted.
+router.get('/login', (req, res) => {
+  try {
+    res.render('login');
+  } catch {
+    res.status(200).send('<h1>Login</h1><p>Use magic link from the homepage Account button.</p>');
+  }
+});
+router.get('/register', (req, res) => {
+  try {
+    res.render('register');
+  } catch {
+    res.status(200).send('<h1>Create account</h1><p>Use the Account button to get a magic link.</p>');
   }
 });
 
