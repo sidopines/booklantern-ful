@@ -1,18 +1,39 @@
-<!-- views/partials/header.ejs -->
+<!-- views/partials/header.ejs (FULL FILE, null-safe + CSP preserved) -->
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-<title><%= pageTitle || 'BookLantern' %></title>
-<meta name="description" content="<%= pageDescription || 'Free books & educational videos.' %>" />
+<%
+  // Null-safe locals so pages don't crash if they don't pass these
+  const _title = (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern';
+  const _desc  = (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Free books & educational videos.';
+  const _img   = (typeof pageImage !== 'undefined' && pageImage) ? pageImage : '/public/img/brand.svg';
 
-<!-- Basic SEO/Open Graph -->
-<meta property="og:title" content="<%= pageTitle || 'BookLantern' %>" />
-<meta property="og:description" content="<%= pageDescription || 'Free books & educational videos.' %>" />
+  // Best-effort absolute URL (optional)
+  let _url = '';
+  try {
+    if (typeof req !== 'undefined' && req) {
+      _url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+    }
+  } catch (e) { _url = ''; }
+%>
+
+<title><%= _title %></title>
+<meta name="description" content="<%= _desc %>" />
+
+<!-- Open Graph -->
+<meta property="og:title" content="<%= _title %>" />
+<meta property="og:description" content="<%= _desc %>" />
 <meta property="og:type" content="website" />
-<link rel="icon" href="/favicon.ico" />
+<% if (_url) { %><meta property="og:url" content="<%= _url %>" /><% } %>
+<meta property="og:image" content="<%= _img %>" />
 
-<!-- Allow embedding Archive.org / Gutenberg (client-side CSP).
-     If your server sends a stricter CSP header, that takes precedence. -->
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="<%= _title %>" />
+<meta name="twitter:description" content="<%= _desc %>" />
+<meta name="twitter:image" content="<%= _img %>" />
+
+<!-- CSP (preserved from your original) -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self' https: data: blob:;
   img-src 'self' https: data: blob:;
@@ -22,5 +43,19 @@
   connect-src 'self' https:;
 " />
 
-<!-- Global styles -->
-<link rel="stylesheet" href="/css/app.css" />
+<!-- Icons / Manifest (works with your generated /public assets) -->
+<link rel="manifest" href="/public/site.webmanifest" />
+<link rel="icon" type="image/png" sizes="32x32" href="/public/favicon-32x32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/public/favicon-16x16.png" />
+<link rel="apple-touch-icon" href="/public/apple-touch-icon.png" />
+<link rel="icon" href="/favicon.ico" />
+
+<!-- CSS -->
+<link rel="stylesheet" href="/public/css/nav.css?v=<%= Date.now() %>" />
+<link rel="stylesheet" href="/public/css/site.css?v=<%= Date.now() %>" />
+<link rel="stylesheet" href="/public/css/hero.css?v=<%= Date.now() %>" />
+<link rel="stylesheet" href="/public/css/carousel.css?v=<%= Date.now() %>" />
+<link rel="stylesheet" href="/public/css/footer.css?v=<%= Date.now() %>" />
+
+<!-- JS -->
+<script defer src="/public/js/theme.js?v=<%= Date.now() %>"></script>
