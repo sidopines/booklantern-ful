@@ -1,139 +1,131 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <%- include('../partials/head.ejs', {
-    pageTitle: 'Admin • Books',
-    pageDescription: 'Manage local/admin-curated books'
+  <%- include('../partials/head', {
+    pageTitle: 'Admin — Books',
+    pageDescription: 'Curate homepage shelves from Supabase.',
+    canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
   }) %>
-  <style>
-    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --link:#1256b3; --brand:#111; --brandHover:#333; --danger:#b42318; }
-    * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-    main { max-width: 1000px; margin: 2rem auto 3rem; padding: 0 1rem; }
-
-    .crumbs { display:flex; align-items:center; gap:.5rem; margin-bottom: 1rem; }
-    .crumbs a { color: var(--link); text-decoration: none; font-size: .95rem; }
-    .crumbs a:hover { text-decoration: underline; }
-
-    h1 { margin: 0 0 1rem 0; font-size: clamp(1.6rem, 2.5vw, 2rem); }
-
-    .notice { margin: 10px 0; padding: 10px 12px; border-radius: 10px; font-size: .95rem; }
-    .notice.ok  { background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; }
-    .notice.err { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
-
-    .grid { display:grid; grid-template-columns: 1fr; gap: 1rem; }
-    @media (min-width: 960px){ .grid { grid-template-columns: 1fr 1fr; } }
-
-    .card { background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow:0 8px 28px rgba(0,0,0,.06); padding: 1rem; }
-    .card h2 { margin: 0 0 .75rem 0; font-size: 1.1rem; }
-
-    form.flex { display:grid; grid-template-columns: 1fr; gap:.6rem; }
-    @media (min-width: 740px){
-      form.flex { grid-template-columns: 1fr 1fr; }
-      .full { grid-column: 1 / -1; }
-    }
-    form.flex input, form.flex textarea, form.flex select {
-      padding: .6rem .7rem; border:1px solid var(--border); border-radius:10px; background:#fff;
-    }
-
-    .btn { padding:.65rem 1rem; border:1px solid var(--border); border-radius:10px; background:var(--brand); color:#fff; font-weight:600; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px;}
-    .btn:hover{ background: var(--brandHover); }
-    .btn.outline{ background:#fff; color:var(--text); }
-    .btn.danger{ background:var(--danger); border-color:#fca5a5; }
-    .btn.small{ padding:.45rem .7rem; border-radius:8px; font-size:.9rem; }
-
-    .hint { color: var(--muted); font-size:.92rem; margin:.4rem 0 0; }
-
-    /* list */
-    .list { display:flex; flex-direction:column; gap:.6rem; margin:.25rem 0 0 0; padding:0; list-style:none; }
-    .row { display:grid; grid-template-columns: 70px 1fr auto; gap:.75rem; padding:.6rem; border:1px solid var(--border); border-radius:12px; align-items:center; background:#fff; }
-    .thumb { width: 70px; height: 94px; border-radius: 8px; overflow:hidden; background:#f2f4f8; display:flex; align-items:center; justify-content:center; font-size:.8rem; color:#94a3b8; }
-    .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
-    .row h3 { margin: 0 0 4px 0; font-size: 1rem; }
-    .meta { color:#667085; font-size:.9rem; display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
-    .pill { background:#eef2ff; color:#3730a3; padding:2px 8px; border-radius:999px; font-size:.8rem; font-weight:600; }
-    .meta a { color: var(--link); text-decoration:none; }
-    .meta a:hover{ text-decoration:underline; }
-    .actions { display:flex; gap:.4rem; }
-    .actions form { display:inline; }
-  </style>
 </head>
 <body>
-  <%- include('../partials/navbar.ejs') %>
+  <%- include('../partials/navbar') %>
 
-  <main>
-    <div class="crumbs">
-      <a href="/admin">← Admin</a>
-      <span style="color:#94a3b8">/</span>
-      <span>Books</span>
-    </div>
-
+  <main class="container" style="padding:24px 0;">
+    <a href="/admin" class="btn btn-ghost" style="margin-bottom:16px;">← Back to Admin</a>
     <h1>Books</h1>
 
-    <% if (ok) { %><div class="notice ok">✅ Saved.</div><% } %>
-    <% if (err) { %><div class="notice err">⚠️ <%= err %></div><% } %>
+    <% if (messages && messages.success) { %>
+      <div class="alert success"><%= messages.success %></div>
+    <% } %>
+    <% if (messages && messages.error) { %>
+      <div class="alert danger"><%= messages.error %></div>
+    <% } %>
 
-    <div class="grid">
-      <!-- Add book -->
-      <section class="card">
-        <h2>Add New Book</h2>
-        <form class="flex" method="POST" action="/admin/books">
-          <input class="full" type="text" name="title" placeholder="Book title" required />
-          <select class="full" name="category" required>
-            <% const CATS = Array.isArray(categories) && categories.length ? categories : ['trending','philosophy','history','science']; %>
-            <% CATS.forEach(function(c){ %>
+    <div class="grid-2">
+      <!-- Add new -->
+      <section class="card" style="padding:16px;">
+        <h2 style="margin-top:0;">Add New Book</h2>
+        <form action="/admin/books" method="post" autocomplete="off">
+          <input type="hidden" name="_csrf" value="<%= csrfToken || '' %>" />
+
+          <label>Title</label>
+          <input name="title" type="text" required placeholder="Book title" />
+
+          <label>Category</label>
+          <select name="category" required>
+            <% (Array.isArray(categories) ? categories : ['trending','philosophy','history','science']).forEach(function(c){ %>
               <option value="<%= c %>"><%= c.charAt(0).toUpperCase() + c.slice(1) %></option>
             <% }) %>
           </select>
-          <input type="text" name="author" placeholder="Author (optional)" />
-          <input type="url" name="coverImage" placeholder="Cover image URL (optional)" />
-          <input class="full" type="url" name="sourceUrl" placeholder="Source URL (Archive.org item, Gutenberg page, etc.)" required />
-          <button class="btn full" type="submit">Add Book</button>
+
+          <div class="grid-2">
+            <div>
+              <label>Author (optional)</label>
+              <input name="author" type="text" placeholder="Author" />
+            </div>
+            <div>
+              <label>Cover URL (optional)</label>
+              <input name="cover_image" type="url" placeholder="https://…" />
+            </div>
+          </div>
+
+          <label>Source URL</label>
+          <input name="source_url" type="url" placeholder="https://archive.org/details/…" />
+
+          <label>Short description (optional)</label>
+          <textarea name="description" rows="4" placeholder="Short note you want to show with the card (optional)"></textarea>
+
+          <button class="btn" type="submit" style="margin-top:12px;">Add Book</button>
+          <p class="muted" style="margin-top:12px;">
+            Tip: If the source is an Internet Archive identifier (e.g., <code>https://archive.org/details/…</code>),
+            our reader can open it internally.
+          </p>
         </form>
-        <p class="hint">Tip: If the source is an Internet Archive identifier (e.g., <code>https://archive.org/details/…</code>), our reader will open it internally.</p>
       </section>
 
-      <!-- Existing books -->
-      <section class="card">
-        <h2>Existing Books</h2>
-        <% if (!books || books.length === 0) { %>
-          <p class="hint">No books yet. Add your first one using the form.</p>
+      <!-- Existing -->
+      <section class="card" style="padding:16px;">
+        <h2 style="margin-top:0;">Existing Books</h2>
+        <% const LIST = Array.isArray(books) ? books : []; %>
+        <% if (!LIST.length) { %>
+          <div class="muted">No curated books yet.</div>
         <% } else { %>
           <ul class="list">
-            <% books.forEach(function(b){ %>
-              <li class="row">
-                <div class="thumb">
-                  <% if (b.cover_image) { %>
-                    <img src="<%= b.cover_image %>" alt="Cover">
-                  <% } else { %>
-                    No cover
-                  <% } %>
-                </div>
-                <div>
-                  <h3><%= b.title %></h3>
-                  <div class="meta">
-                    <% if (b.category) { %><span class="pill"><%= b.category %></span><% } %>
-                    <% if (b.author) { %><span>By <%= b.author %></span><% } %>
-                    <% if (b.source_url) { %><span>·</span><a href="<%= b.source_url %>" target="_blank" rel="noopener">Source</a><% } %>
-                    <% if (b.created_at) { %><span>· Added <%= new Date(b.created_at).toLocaleDateString() %></span><% } %>
+            <% LIST.forEach(function(b){ %>
+              <li class="list-row">
+                <div class="row-main">
+                  <div class="thumb" style="width:52px;height:72px;background:#eef1f5;display:flex;align-items:center;justify-content:center;border-radius:8px;overflow:hidden;margin-right:12px;">
+                    <% if (b.cover_image) { %>
+                      <img src="<%= b.cover_image %>" alt="" style="width:100%;height:100%;object-fit:cover;" />
+                    <% } else { %>
+                      <span class="muted">No cover</span>
+                    <% } %>
+                  </div>
+                  <div>
+                    <strong><%= b.title %></strong>
+                    <% if (b.category) { %>
+                      <span class="badge"><%= b.category.charAt(0).toUpperCase() + b.category.slice(1) %></span>
+                    <% } %>
+                    <% if (b.source_url) { %>
+                      <a href="<%= b.source_url %>" target="_blank" rel="noopener" class="muted" style="margin-left:6px;">Source</a>
+                    <% } %>
+                    <div class="muted">
+                      Added <%= (b.created_at ? new Date(b.created_at).toLocaleDateString() : '—') %>
+                      <% if (b.author) { %> · <em><%= b.author %></em> <% } %>
+                    </div>
                   </div>
                 </div>
-                <div class="actions">
-                  <form method="POST" action="/admin/books/delete" onsubmit="return confirm('Delete “<%= b.title %>”?')">
-                    <input type="hidden" name="id" value="<%= b.id %>" />
-                    <button class="btn small danger" type="submit">Delete</button>
-                  </form>
-                </div>
+                <form action="/admin/books/delete" method="post" class="row-actions">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken || '' %>" />
+                  <input type="hidden" name="id" value="<%= b.id %>" />
+                  <button class="btn btn-danger" type="submit">Delete</button>
+                </form>
               </li>
             <% }) %>
           </ul>
         <% } %>
       </section>
     </div>
-
-    <div style="margin-top: 16px;">
-      <a href="/admin" class="btn outline">← Back to Admin</a>
-    </div>
   </main>
+
+  <style>
+    .grid-2 { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+    @media (max-width: 900px){ .grid-2 { grid-template-columns: 1fr; } }
+
+    .list { list-style:none; padding:0; margin:0; }
+    .list-row {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px; border:1px solid #eee; border-radius:12px; margin-bottom:10px; background:#fff;
+    }
+    .row-main { display:flex; align-items:center; }
+    .row-actions { margin-left:12px; }
+    .badge { background:#eef1f5; color:#334; padding:2px 8px; border-radius:999px; font-size:12px; margin-left:6px; }
+    .muted { color:#667; }
+    .alert { padding:10px 12px; border-radius:10px; margin-bottom:12px; }
+    .alert.success { background:#e8f7ef; color:#265f3a; }
+    .alert.danger { background:#fdeaea; color:#7a2020; }
+  </style>
+
+  <%- include('../partials/footer') %>
 </body>
 </html>
