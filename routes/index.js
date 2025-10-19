@@ -1,298 +1,167 @@
-// routes/index.js — pulls homepage shelves & Watch page content from Supabase (with safe fallbacks)
+// routes/index.js — public site routes (homepage shelves + watch)
+// Uses the service-role client for simplicity (read-only to public tables via RLS “select” policies)
+
 const express = require('express');
 const router = express.Router();
 
-const supabaseAdmin = require('../supabaseAdmin'); // service-role or null
-let CATEGORIES = ['trending', 'philosophy', 'history', 'science'];
-try {
-  CATEGORIES = require('../config/categories'); // central list
-} catch { /* default stays */ }
+const supabase = require('../supabaseAdmin'); // service-role client or null
+const CATEGORIES = (() => {
+  try { return require('../config/categories'); } catch { return ['trending','philosophy','history','science']; }
+})();
 
-/* ----------------------------------
-   Legacy FALLBACK content for shelves
------------------------------------ */
-const FALLBACK = {
-  trending: [
-    { id: 'ol-origin-darwin', provider: 'openlibrary', title: 'On the Origin of Species', author: 'Charles Darwin',
-      cover: 'https://covers.openlibrary.org/b/olid/OL25442902M-L.jpg',
-      href: '/read?provider=openlibrary&id=OL25442902M', subjects: ['Science','Biology'] },
-    { id: 'pg-relativity', provider: 'gutenberg', title: 'Relativity: The Special and General Theory', author: 'Albert Einstein',
-      cover: 'https://www.gutenberg.org/cache/epub/30155/pg30155.cover.medium.jpg',
-      href: '/read?provider=gutenberg&id=30155', subjects: ['Science','Physics'] },
-    { id: 'ol-benfranklin-autobio', provider: 'openlibrary', title: 'The Autobiography of Benjamin Franklin', author: 'Benjamin Franklin',
-      cover: 'https://covers.openlibrary.org/b/olid/OL24374150M-L.jpg',
-      href: '/read?provider=openlibrary&id=OL24374150M', subjects: ['Biography','History'] },
-    { id: 'pg-plato-republic', provider: 'gutenberg', title: 'The Republic', author: 'Plato',
-      cover: 'https://www.gutenberg.org/cache/epub/1497/pg1497.cover.medium.jpg',
-      href: '/read?provider=gutenberg&id=1497', subjects: ['Philosophy'] },
-    { id: 'ol-opticks-newton', provider: 'openlibrary', title: 'Opticks', author: 'Isaac Newton',
-      cover: 'https://covers.openlibrary.org/b/olid/OL24263840M-L.jpg',
-      href: '/read?provider=openlibrary&id=OL24263840M', subjects: ['Science','Physics'] },
-    { id: 'pg-gulliver', provider: 'gutenberg', title: 'Gulliver’s Travels', author: 'Jonathan Swift',
-      cover: 'https://www.gutenberg.org/cache/epub/829/pg829.cover.medium.jpg',
-      href: '/read?provider=gutenberg&id=829', subjects: ['Fiction','Satire'] },
-    { id: 'ol-prince-machiavelli', provider: 'openlibrary', title: 'The Prince', author: 'Niccolò Machiavelli',
-      cover: 'https://covers.openlibrary.org/b/olid/OL27665455M-L.jpg',
-      href: '/read?provider=openlibrary&id=OL27665455M', subjects: ['Politics','History'] },
-    { id: 'pg-art-of-war', provider: 'gutenberg', title: 'The Art of War', author: 'Sun Tzu',
-      cover: 'https://www.gutenberg.org/cache/epub/132/pg132.cover.medium.jpg',
-      href: '/read?provider=gutenberg&id=132', subjects: ['Strategy','History'] },
-  ],
-  philosophy: [
-    { id: 'pg-ethics', provider: 'gutenberg', title: 'Ethics', author: 'Benedict de Spinoza',
-      cover: 'https://www.gutenberg.org/cache/epub/3800/pg3800.cover.medium.jpg',
-      href: '/read?provider=gutenberg&id=3800', subjects: ['Philosophy'] },
-    { id: 'pg-zarathustra', provider: 'gutenberg', title: 'Thus Spoke Zarathustra', author: 'Friedrich Nietzsche',
-      cover: 'https://www.gutenberg.org/cache/epub/1998/pg1998.cover.medium.jpg',
-      href: '/read?provider=gutenberg&id=1998', subjects: ['Philosophy'] },
-    { id: 'pg-utilitarianism', provider: 'gutenberg', title: 'Utilitarianism', author: 'John Stuart Mill',
-      cover: 'https://www.gutenberg.org/cache/epub/11224/pg11224.cover.medium.jpg',
-      href: '/read?provider=gutenberg&id=11224', subjects: ['Philosophy'] },
-    { id: 'pg-meditations', provider: 'gutenberg', title: 'Meditations', author: 'Marcus Aurelius',
-      cover: 'https://www.gutenberg.org/cache/epub/2680/pg2680.cover.medium.jpg',
-      href: '/read?provider=gutenberg&id=2680', subjects: ['Philosophy','Stoicism'] },
-    { id: 'pg-republic', provider: 'gutenberg', title: 'The Republic', author: 'Plato',
-      cover: 'https://www.gutenberg.org/cache/epub/1497/pg1497.cover.medium.jpg',
-      href: '/read?provider=gutenberg&id=1497', subjects: ['Philosophy'] },
-  ],
-  history: [
-    { id: 'pg-history-herodotus', provider: 'gutenberg', title: 'The Histories', author: 'Herodotus',
-      cover: 'https://www.gutenberg.org/cache/epub/2707/pg2707.cover.medium.jpg',
-      href: '/read?provider=gutenberg&id=2707', subjects: ['History'] },
-    { id: 'ol-souls-black-folk', provider: 'openlibrary', title: 'The Souls of Black Folk', author: 'W. E. B. Du Bois',
-      cover: 'https://covers.openlibrary.org/b/olid/OL24378309M-L.jpg',
-      href: '/read?provider=openlibrary&id=OL24378309M', subjects: ['History','Sociology'] },
-    { id: 'pg-decline-fall', provider: 'gutenberg', title: 'The History of the Decline and Fall of the Roman Empire (Vol. 1)', author: 'Edward Gibbon',
-      cover: 'https://www.gutenberg.org/cache/epub/731/pg731.cover.medium.jpg',
-      href: '/read?provider=gutenberg&id=731', subjects: ['History'] },
-    { id: 'ol-pride-prejudice', provider: 'openlibrary', title: 'Pride and Prejudice', author: 'Jane Austen',
-      cover: 'https://covers.openlibrary.org/b/olid/OL25428444M-L.jpg',
-      href: '/read?provider=openlibrary&id=OL25428444M', subjects: ['Fiction','History'] },
-  ],
-  science: [
-    { id: 'pg-relativity', provider: 'gutenberg', title: 'Relativity: The Special and General Theory', author: 'Albert Einstein',
-      cover: 'https://www.gutenberg.org/cache/epub/30155/pg30155.cover.medium.jpg',
-      href: '/read?provider=gutenberg&id=30155', subjects: ['Science','Physics'] },
-    { id: 'ol-origin-darwin', provider: 'openlibrary', title: 'On the Origin of Species', author: 'Charles Darwin',
-      cover: 'https://covers.openlibrary.org/b/olid/OL25442902M-L.jpg',
-      href: '/read?provider=openlibrary&id=OL25442902M', subjects: ['Science','Biology'] },
-    { id: 'ol-opticks-newton', provider: 'openlibrary', title: 'Opticks', author: 'Isaac Newton',
-      cover: 'https://covers.openlibrary.org/b/olid/OL24263840M-L.jpg',
-      href: '/read?provider=openlibrary&id=OL24263840M', subjects: ['Science','Physics'] },
-    { id: 'pg-micrographia', provider: 'gutenberg', title: 'Micrographia', author: 'Robert Hooke',
-      cover: 'https://www.gutenberg.org/cache/epub/15491/pg15491.cover.medium.jpg',
-      href: '/read?provider=gutenberg&id=15491', subjects: ['Science'] },
-  ],
-};
+// Util: safe array
+const arr = (x) => (Array.isArray(x) ? x : []);
 
-/* ----------------------------------
-   Helpers
------------------------------------ */
-const titleMap = (key) => {
-  const map = {
-    trending: 'Trending now',
-    philosophy: 'Philosophy Picks',
-    history: 'History Picks',
-    science: 'Science Picks',
-    biographies: 'Biographies',
-    religion: 'Religion',
-    classics: 'Classics',
-  };
-  return map[key] || (key.charAt(0).toUpperCase() + key.slice(1));
-};
-
-function normCard(b = {}) {
-  return {
-    title: String(b.title || 'Untitled'),
-    creator: String(b.author || ''),
-    cover: String(b.cover_image || b.cover || ''),
-    href: b.source_url || '#',
-    source: 'curated',
-  };
-}
-
-/* ----------------------------------
-   Home
------------------------------------ */
+/* ============================================================
+   Homepage — dynamic shelves from curated_books
+   ============================================================ */
 router.get('/', async (req, res) => {
-  // default fallback shelvesList from constants (never undefined)
-  let shelvesList = CATEGORIES.map((key) => ({
-    key,
-    title: titleMap(key),
-    items: (FALLBACK[key] || []).map((x) => ({
-      title: x.title,
-      creator: x.author || '',
-      cover: x.cover || '',
-      href: x.href || '#',
-      source: x.provider || 'fallback',
-    })),
-  }));
+  // If Supabase isn’t configured, render with empty shelves (site still loads)
+  if (!supabase) {
+    return res.render('index', {
+      shelvesList: CATEGORIES,
+      shelvesData: {},
+      pageTitle: 'BookLantern — Read freely',
+    });
+  }
 
-  // Replace with Supabase content if configured
-  if (supabaseAdmin) {
-    try {
-      const { data: rows, error } = await supabaseAdmin
+  try {
+    // Fetch up to N items per shelf (tweak as you like)
+    const LIMIT_PER_SHELF = 12;
+
+    const queries = CATEGORIES.map((cat) =>
+      supabase
         .from('curated_books')
         .select('*')
-        .order('created_at', { ascending: false });
+        .eq('category', cat)
+        .order('created_at', { ascending: false })
+        .limit(LIMIT_PER_SHELF)
+    );
 
-      if (!error && Array.isArray(rows)) {
-        const grouped = {};
-        for (const r of rows) {
-          const cat = (r.category || '').toLowerCase();
-          if (!cat) continue;
-          if (!grouped[cat]) grouped[cat] = [];
-          grouped[cat].push(r);
-        }
-        shelvesList = CATEGORIES.map((key) => ({
-          key,
-          title: titleMap(key),
-          items: (grouped[key] || []).slice(0, 18).map(normCard),
-        }));
+    const results = await Promise.all(queries);
+
+    const shelvesData = {};
+    results.forEach((r, i) => {
+      const cat = CATEGORIES[i];
+      if (r.error) {
+        console.warn(`[home] shelf "${cat}" load error:`, r.error.message || r.error);
+        shelvesData[cat] = [];
+      } else {
+        shelvesData[cat] = arr(r.data);
       }
-    } catch (e) {
-      console.warn('[home] supabase shelves failed, showing fallback:', e && e.message ? e.message : e);
-    }
-  }
+    });
 
-  res.render('index', { shelvesList });
+    res.render('index', {
+      shelvesList: CATEGORIES,
+      shelvesData,
+      pageTitle: 'BookLantern — Read freely',
+    });
+  } catch (e) {
+    console.error('[home] shelves failed:', e);
+    res.render('index', {
+      shelvesList: CATEGORIES,
+      shelvesData: {},
+      pageTitle: 'BookLantern — Read freely',
+    });
+  }
 });
 
-/* ----------------------------------
-   Watch page (videos + optional genre filter)
------------------------------------ */
+/* ============================================================
+   Watch — videos + genres (optional ?genre=<uuid> filter)
+   ============================================================ */
 router.get('/watch', async (req, res) => {
-  const filterGenre = String(req.query.g || '').trim(); // uuid or ''
-
-  if (!supabaseAdmin) {
-    // no supabase -> render empty lists safely
-    return res.render('watch', { videos: [], genres: [], referrer: req.get('Referrer') || null });
-  }
-
-  try {
-    const [{ data: genres = [] }, { data: videos = [] }, { data: map = [] }] = await Promise.all([
-      supabaseAdmin.from('video_genres').select('*').order('name', { ascending: true }),
-      supabaseAdmin.from('admin_videos').select('*').order('created_at', { ascending: false }),
-      supabaseAdmin.from('video_genres_map').select('*'),
-    ]);
-
-    // Build a map: videoId -> Set(genreId)
-    const gmap = new Map();
-    for (const row of map || []) {
-      const vid = row.video_id;
-      const gid = row.genre_id;
-      if (!gmap.has(vid)) gmap.set(vid, new Set());
-      gmap.get(vid).add(gid);
-    }
-
-    // Attach genres to each video + apply filter if any
-    const decorated = (videos || []).map((v) => {
-      const set = gmap.get(v.id) || new Set();
-      return { ...v, genre_ids: Array.from(set) };
-    });
-
-    const filtered = filterGenre
-      ? decorated.filter((v) => v.genre_ids && v.genre_ids.includes(filterGenre))
-      : decorated;
-
+  if (!supabase) {
+    // Render with empty lists but no crash
     return res.render('watch', {
-      videos: filtered,
-      genres, // used by the filter dropdown in the view
-      referrer: req.get('Referrer') || null,
+      pageTitle: 'Watch — BookLantern',
+      videos: [],
+      genres: [],
+      selectedGenre: '',
+      // map of videoId -> [{id,name}]
+      videoGenres: {},
+    });
+  }
+
+  try {
+    const selectedGenre = String(req.query.genre || '').trim();
+
+    // Always load genres for the filter UI
+    const { data: genres = [], error: gErr } = await supabase
+      .from('video_genres')
+      .select('*')
+      .order('name', { ascending: true });
+
+    if (gErr) throw gErr;
+
+    let videos = [];
+    if (selectedGenre) {
+      // 1) find video_ids that have this genre
+      const { data: mapRows = [], error: mErr } = await supabase
+        .from('video_genres_map')
+        .select('video_id')
+        .eq('genre_id', selectedGenre);
+
+      if (mErr) throw mErr;
+
+      const ids = [...new Set(mapRows.map(r => r.video_id))];
+      if (ids.length === 0) {
+        videos = [];
+      } else {
+        const { data: vids = [], error: vErr } = await supabase
+          .from('admin_videos')
+          .select('*')
+          .in('id', ids)
+          .order('created_at', { ascending: false });
+        if (vErr) throw vErr;
+        videos = arr(vids);
+      }
+    } else {
+      // No filter: load latest
+      const { data: vids = [], error: vErr } = await supabase
+        .from('admin_videos')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (vErr) throw vErr;
+      videos = arr(vids);
+    }
+
+    // Build a map: videoId -> [{id,name}]
+    let videoGenres = {};
+    if (videos.length) {
+      const ids = videos.map(v => v.id);
+      const { data: vgm = [], error: jErr } = await supabase
+        .from('video_genres_map')
+        .select('video_id, genre_id')
+        .in('video_id', ids);
+      if (jErr) throw jErr;
+
+      // Build lookup for genre_id -> name
+      const byId = new Map(genres.map(g => [g.id, g.name]));
+      const map = {};
+      vgm.forEach(({ video_id, genre_id }) => {
+        if (!map[video_id]) map[video_id] = [];
+        map[video_id].push({ id: genre_id, name: byId.get(genre_id) || 'Unknown' });
+      });
+      videoGenres = map;
+    }
+
+    res.render('watch', {
+      pageTitle: 'Watch — BookLantern',
+      videos,
+      genres,
+      selectedGenre,
+      videoGenres,
     });
   } catch (e) {
-    console.error('[watch] load failed:', e);
-    return res.render('watch', { videos: [], genres: [], referrer: req.get('Referrer') || null });
+    console.error('[watch] render failed:', e);
+    res.render('watch', {
+      pageTitle: 'Watch — BookLantern',
+      videos: [],
+      genres: [],
+      selectedGenre: '',
+      videoGenres: {},
+    });
   }
-});
-
-/* ----------------------------------
-   Static pages / existing routes
------------------------------------ */
-router.get('/about', (_req, res) => res.render('about'));
-router.get('/login', (_req, res) => res.render('login', { csrfToken: '' }));
-router.get('/register', (_req, res) => res.render('register', { csrfToken: '' }));
-
-// Read (expects provider & id via query)
-router.get('/read', (req, res) => {
-  const provider = String(req.query.provider || '');
-  const id = String(req.query.id || '');
-  res.render('read', { provider, id });
-});
-
-// Terms & Privacy
-router.get('/terms', (req, res) => {
-  const canonicalUrl = `${req.protocol}://${req.get('host')}/terms`;
-  res.render('terms', {
-    canonicalUrl,
-    buildId: res.locals.buildId || Date.now(),
-    referrer: req.get('Referrer') || null,
-  });
-});
-router.get('/privacy', (req, res) => {
-  const canonicalUrl = `${req.protocol}://${req.get('host')}/privacy`;
-  res.render('privacy', {
-    canonicalUrl,
-    buildId: res.locals.buildId || Date.now(),
-    referrer: req.get('Referrer') || null,
-  });
-});
-
-// Contact (GET)
-router.get('/contact', (req, res) => {
-  const sent = req.query.sent === '1';
-  const error = req.query.error || '';
-  res.render('contact', { sent, error });
-});
-
-// Contact (POST) — best-effort save + email (unchanged)
-let mailer = null;
-let legacySendContact = null;
-try { mailer = require('../mailer'); } catch {}
-if (!mailer) { try { legacySendContact = require('../mail/sendContact'); } catch {} }
-function escapeHtml(s = '') {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-router.post('/contact', async (req, res) => {
-  const name = String(req.body.name || '').trim();
-  const email = String(req.body.email || '').trim();
-  const message = String(req.body.message || '').trim();
-
-  if (!name || !email || !message) {
-    return res.status(400).render('contact', { sent: false, error: 'Please fill all fields.' });
-  }
-
-  const ip = (req.headers['x-forwarded-for'] && req.headers['x-forwarded-for'].split(',')[0].trim()) || req.ip || null;
-  const userAgent = req.get('User-Agent') || null;
-
-  try {
-    if (supabaseAdmin && typeof supabaseAdmin.from === 'function') {
-      const payload = { name, email, message, ip, user_agent: userAgent, created_at: new Date().toISOString() };
-      const { error } = await supabaseAdmin.from('contact_messages').insert(payload);
-      if (error) console.error('[contact] insert failed:', error.message);
-    }
-  } catch (e) {
-    console.error('[contact] DB insert threw:', e);
-  }
-
-  try {
-    const to = process.env.CONTACT_NOTIFY_TO || process.env.MAIL_FROM || 'info@booklantern.org';
-    if (mailer && typeof mailer.send === 'function') {
-      const subj = `📮 Contact form: ${name || 'Someone'} (${email || 'no email'})`;
-      const text = `New contact message:\n\nName: ${name}\nEmail: ${email}\nIP: ${ip}\n\nMessage:\n${message}\n`;
-      const esc = mailer.escapeHtml || escapeHtml;
-      const html = `<h2>New contact message</h2>
-<p><strong>Name:</strong> ${esc(name)}<br><strong>Email:</strong> ${esc(email)}<br><strong>IP:</strong> ${esc(ip || '')}</p>
-<pre style="white-space:pre-wrap;font:inherit">${esc(message)}</pre>`;
-      await mailer.send({ to, subject: subj, text, html });
-    } else if (legacySendContact && typeof legacySendContact === 'function') {
-      await legacySendContact({ to, name, email, message, ip, userAgent });
-    }
-  } catch (e) {
-    console.error('[contact] email send failed:', e && e.message ? e.message : e);
-  }
-
-  return res.redirect(303, '/contact?sent=1');
 });
 
 module.exports = router;
