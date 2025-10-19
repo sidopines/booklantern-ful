@@ -1,148 +1,109 @@
-// routes/index.js — public routes with safe params + basic pages + /api/book
+// routes/index.js — public site pages; always pass safe locals to views
 const express = require('express');
 const router = express.Router();
 
-const supabase = require('../supabaseAdmin'); // can be null
+const supabase = require('../supabaseAdmin'); // service-role, may be null
 
-// ---------------- helpers ----------------
+// Util: safe array
+const arr = (v) => (Array.isArray(v) ? v : []);
 
-const DEFAULT_SHELVES = [
-  'trending',
-  'philosophy',
-  'history',
-  'science',
-  'biographies',
-  'religion',
-  'classics',
-];
+// -----------------------------
+// Homepage
+// -----------------------------
+router.get('/', async (_req, res) => {
+  // Shelves the homepage expects (you can change names later)
+  const shelvesList = [
+    'trending',
+    'philosophy',
+    'history',
+    'science',
+    'biographies',
+    'religion',
+    'classics'
+  ];
 
-function safeRender(res, view, params, fallbackHtml) {
-  try {
-    return res.render(view, params);
-  } catch (_e) {
-    const html =
-      fallbackHtml ||
-      `<h1>${params?.pageTitle || 'Page'}</h1><p>Template <code>${view}</code> not found (fallback).</p>`;
-    return res.status(200).send(html);
-  }
-}
-
-function groupByCategory(rows) {
-  const out = {};
-  (rows || []).forEach((r) => {
-    const c = (r.category || '').toLowerCase();
-    if (!out[c]) out[c] = [];
-    out[c].push(r);
-  });
-  return out;
-}
-
-// ---------------- Homepage ----------------
-
-router.get('/', async (req, res) => {
-  const shelvesList = DEFAULT_SHELVES.slice();
-  let shelvesData = Object.fromEntries(shelvesList.map((c) => [c, []]));
-
+  // Try to fetch minimal “trending” item so the page doesn’t look empty.
+  // If Supabase isn’t configured or query fails, we just render with empty data.
+  let shelvesData = {};
   if (supabase) {
     try {
-      const { data, error } = await supabase
-        .from('curated_books')
+      // Example: pull 1 featured book if you have such a table; otherwise leave empty.
+      const { data: featured } = await supabase
+        .from('featured_books')
         .select('*')
-        .in('category', shelvesList)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      if (!error && Array.isArray(data)) {
-        const grouped = groupByCategory(data);
-        shelvesData = Object.fromEntries(
-          shelvesList.map((c) => [c, (grouped[c] || []).slice(0, 10)])
-        );
-      }
-    } catch (e) {
-      console.warn('[home] curated_books fetch failed:', e.message || e);
+      shelvesData.trending = featured || [];
+    } catch (_e) {
+      shelvesData = {};
     }
   }
 
-  return safeRender(res, 'index', { pageTitle: 'BookLantern', shelvesList, shelvesData });
+  return res.render('index', {
+    shelvesList,
+    shelvesData
+  });
 });
 
-// ---------------- Watch -------------------
-
+// -----------------------------
+// Watch (videos catalogue page)
+// -----------------------------
 router.get('/watch', async (req, res) => {
-  const selectedGenre = String(req.query.genre || '');
+  const selectedGenre = typeof req.query.genre === 'string' ? req.query.genre : '';
+
   let genres = [];
   let videos = [];
 
   if (supabase) {
     try {
-      const { data: g, error: gErr } = await supabase
-        .from('video_genres')
-        .select('*')
-        .order('name', { ascending: true });
-      if (!gErr && Array.isArray(g)) genres = g;
+      const gq = supabase.from('video_genres').select('*').order('name', { ascending: true });
+      const vq = supabase.from('admin_videos').select('*').order('created_at', { ascending: false });
 
-      const { data: v, error: vErr } = await supabase
-        .from('admin_videos')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(24);
-      if (!vErr && Array.isArray(v)) videos = v;
-    } catch (e) {
-      console.warn('[watch] fetch failed:', e.message || e);
+      const [g, v] = await Promise.all([gq, vq]);
+      genres = g.data || [];
+      videos = v.data || [];
+    } catch (_e) {
+      genres = [];
+      videos = [];
     }
   }
 
-  return safeRender(res, 'watch', {
-    pageTitle: 'Watch',
+  return res.render('watch', {
     genres,
-    videos,
     selectedGenre,
+    videos
   });
 });
 
-// ---------------- Read --------------------
-
+// -----------------------------
+// Read (reader shell)
+// Requires ?provider=...&id=...
+// -----------------------------
 router.get('/read', (req, res) => {
-  const provider = String(req.query.provider || '');
-  const id = String(req.query.id || '');
+  const provider = typeof req.query.provider === 'string' ? req.query.provider : '';
+  const id = typeof req.query.id === 'string' ? req.query.id : '';
 
-  return safeRender(res, 'read', { pageTitle: 'Read', provider, id });
-});
-
-// ----------- Basic content pages ----------
-
-router.get('/about', (req, res) => safeRender(res, 'about', { pageTitle: 'About' }));
-router.get('/contact', (req, res) => safeRender(res, 'contact', { pageTitle: 'Contact' }));
-router.get('/login', (req, res) => safeRender(res, 'login', { pageTitle: 'Login' }));
-router.get('/register', (req, res) => safeRender(res, 'register', { pageTitle: 'Create account' }));
-router.get('/privacy', (req, res) => safeRender(res, 'privacy', { pageTitle: 'Privacy' }));
-router.get('/terms', (req, res) => safeRender(res, 'terms', { pageTitle: 'Terms' }));
-
-// ---------------- Search ------------------
-
-router.get('/search', (req, res) => {
-  const q = String(req.query.q || '').trim();
-  return safeRender(res, 'search', { pageTitle: 'Search', q, results: [] });
-});
-
-// ---------------- API: book ---------------
-// Avoids the 404 spam when /read loads without provider/id.
-// Returns 404 with a clear JSON error if params are missing.
-router.get('/api/book', (req, res) => {
-  const provider = String(req.query.provider || '').trim();
-  const id = String(req.query.id || '').trim();
-  if (!provider || !id) {
-    return res.status(404).json({ error: 'missing_provider_or_id' });
-  }
-
-  // If you later want to actually fetch a book, do it here.
-  // For now we just return a placeholder payload so the client code won’t crash.
-  return res.json({
+  // DO NOT error if missing; template will gracefully show instructions.
+  return res.render('read', {
     provider,
-    id,
-    title: null,
-    content: null,
-    ok: true,
+    id
   });
+});
+
+// -----------------------------
+// Static pages
+// -----------------------------
+router.get('/about', (_req, res) => res.render('about', {}));
+router.get('/contact', (_req, res) => res.render('contact', {}));
+router.get('/privacy', (_req, res) => res.render('privacy', {}));
+router.get('/terms', (_req, res) => res.render('terms', {}));
+
+// -----------------------------
+// Minimal search stub (avoid 404 while you wire actual search)
+// -----------------------------
+router.get('/search', (_req, res) => {
+  return res.render('search', { query: '', results: [] });
 });
 
 module.exports = router;
