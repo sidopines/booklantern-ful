@@ -1,131 +1,127 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('../partials/head', {
-    pageTitle: 'Admin — Books',
-    pageDescription: 'Curate homepage shelves from Supabase.',
-    canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
-  }) %>
+  <%- include('../partials/head'); %>
+  <title>Admin • Books</title>
+  <style>
+    .admin-wrap{max-width:980px;margin:24px auto 64px;}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .card{border:1px solid #eee;border-radius:12px;padding:16px;background:#fff}
+    .muted{color:#666;font-size:14px}
+    .tbl{width:100%;border-collapse:collapse;margin-top:12px}
+    .tbl th,.tbl td{border-bottom:1px solid #eee;padding:8px 6px;text-align:left}
+    .row{display:flex;gap:8px;align-items:center}
+    .row .grow{flex:1}
+    .input, textarea{width:100%}
+    .btn{display:inline-block;border:1px solid #ddd;border-radius:8px;padding:8px 12px;background:#fafafa}
+    .btn.danger{border-color:#f3d2d2;background:#fff3f3;color:#a00}
+    .select, .input{border:1px solid #ddd;border-radius:8px;padding:8px 10px}
+    .note{background:#fff9e6;border:1px solid #ffe7a3;padding:8px 10px;border-radius:8px}
+  </style>
 </head>
 <body>
-  <%- include('../partials/navbar') %>
+  <%- include('../partials/header'); %>
 
-  <main class="container" style="padding:24px 0;">
-    <a href="/admin" class="btn btn-ghost" style="margin-bottom:16px;">← Back to Admin</a>
-    <h1>Books</h1>
+  <main class="admin-wrap">
+    <h1>Admin • Books</h1>
 
-    <% if (messages && messages.success) { %>
-      <div class="alert success"><%= messages.success %></div>
-    <% } %>
-    <% if (messages && messages.error) { %>
-      <div class="alert danger"><%= messages.error %></div>
+    <% if (messages && (messages.error || messages.success || messages.info)) { %>
+      <p class="note">
+        <%= messages.error || messages.success || messages.info %>
+      </p>
     <% } %>
 
-    <div class="grid-2">
-      <!-- Add new -->
-      <section class="card" style="padding:16px;">
-        <h2 style="margin-top:0;">Add New Book</h2>
-        <form action="/admin/books" method="post" autocomplete="off">
-          <input type="hidden" name="_csrf" value="<%= csrfToken || '' %>" />
-
-          <label>Title</label>
-          <input name="title" type="text" required placeholder="Book title" />
-
-          <label>Category</label>
-          <select name="category" required>
-            <% (Array.isArray(categories) ? categories : ['trending','philosophy','history','science']).forEach(function(c){ %>
-              <option value="<%= c %>"><%= c.charAt(0).toUpperCase() + c.slice(1) %></option>
-            <% }) %>
-          </select>
-
-          <div class="grid-2">
-            <div>
-              <label>Author (optional)</label>
-              <input name="author" type="text" placeholder="Author" />
-            </div>
-            <div>
-              <label>Cover URL (optional)</label>
-              <input name="cover_image" type="url" placeholder="https://…" />
-            </div>
+    <div class="grid">
+      <!-- Create / Edit -->
+      <section class="card">
+        <h2 style="margin-top:0;">Add a book</h2>
+        <form method="POST" action="/admin/books" enctype="application/x-www-form-urlencoded">
+          <div class="row">
+            <label class="grow">Title
+              <input class="input" type="text" name="title" required>
+            </label>
           </div>
 
-          <label>Source URL</label>
-          <input name="source_url" type="url" placeholder="https://archive.org/details/…" />
+          <div class="row">
+            <label class="grow">Author
+              <input class="input" type="text" name="author">
+            </label>
+          </div>
 
-          <label>Short description (optional)</label>
-          <textarea name="description" rows="4" placeholder="Short note you want to show with the card (optional)"></textarea>
+          <div class="row">
+            <label class="grow">Provider (e.g. gutenberg)
+              <input class="input" type="text" name="provider" placeholder="gutenberg">
+            </label>
+            <label class="grow">Provider ID
+              <input class="input" type="text" name="provider_id" placeholder="1342">
+            </label>
+          </div>
 
-          <button class="btn" type="submit" style="margin-top:12px;">Add Book</button>
-          <p class="muted" style="margin-top:12px;">
-            Tip: If the source is an Internet Archive identifier (e.g., <code>https://archive.org/details/…</code>),
-            our reader can open it internally.
-          </p>
+          <div class="row">
+            <label class="grow">Cover URL
+              <input class="input" type="url" name="cover">
+            </label>
+          </div>
+
+          <div class="row">
+            <label class="grow">Description
+              <textarea name="description" rows="3"></textarea>
+            </label>
+          </div>
+
+          <div class="row">
+            <button class="btn" type="submit">Save</button>
+          </div>
         </form>
       </section>
 
-      <!-- Existing -->
-      <section class="card" style="padding:16px;">
-        <h2 style="margin-top:0;">Existing Books</h2>
-        <% const LIST = Array.isArray(books) ? books : []; %>
-        <% if (!LIST.length) { %>
-          <div class="muted">No curated books yet.</div>
-        <% } else { %>
-          <ul class="list">
-            <% LIST.forEach(function(b){ %>
-              <li class="list-row">
-                <div class="row-main">
-                  <div class="thumb" style="width:52px;height:72px;background:#eef1f5;display:flex;align-items:center;justify-content:center;border-radius:8px;overflow:hidden;margin-right:12px;">
-                    <% if (b.cover_image) { %>
-                      <img src="<%= b.cover_image %>" alt="" style="width:100%;height:100%;object-fit:cover;" />
-                    <% } else { %>
-                      <span class="muted">No cover</span>
-                    <% } %>
-                  </div>
-                  <div>
-                    <strong><%= b.title %></strong>
-                    <% if (b.category) { %>
-                      <span class="badge"><%= b.category.charAt(0).toUpperCase() + b.category.slice(1) %></span>
-                    <% } %>
-                    <% if (b.source_url) { %>
-                      <a href="<%= b.source_url %>" target="_blank" rel="noopener" class="muted" style="margin-left:6px;">Source</a>
-                    <% } %>
-                    <div class="muted">
-                      Added <%= (b.created_at ? new Date(b.created_at).toLocaleDateString() : '—') %>
-                      <% if (b.author) { %> · <em><%= b.author %></em> <% } %>
-                    </div>
-                  </div>
-                </div>
-                <form action="/admin/books/delete" method="post" class="row-actions">
-                  <input type="hidden" name="_csrf" value="<%= csrfToken || '' %>" />
-                  <input type="hidden" name="id" value="<%= b.id %>" />
-                  <button class="btn btn-danger" type="submit">Delete</button>
-                </form>
-              </li>
-            <% }) %>
-          </ul>
-        <% } %>
-      </section>
+      <!-- Help -->
+      <aside class="card">
+        <h2 style="margin-top:0;">How this works</h2>
+        <p class="muted">
+          This page pairs with <code>routes/admin-books.js</code>. It posts to
+          <code>POST /admin/books</code> and shows a list below from
+          <code>GET /admin/books</code>.
+        </p>
+      </aside>
     </div>
+
+    <section class="card" style="margin-top:16px;">
+      <h2 style="margin-top:0;">Books</h2>
+      <%
+        const LIST = Array.isArray(books) ? books : [];
+        if (!LIST.length) { %>
+        <p class="muted">No books yet.</p>
+      <% } else { %>
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Author</th>
+              <th>Provider</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+          <% LIST.forEach(function(b){ %>
+            <tr>
+              <td><%= b.title %></td>
+              <td><%= b.author || '' %></td>
+              <td><%= (b.provider || '') + (b.provider_id ? ' #' + b.provider_id : '') %></td>
+              <td>
+                <form method="POST" action="/admin/books/delete" style="display:inline;">
+                  <input type="hidden" name="id" value="<%= b.id %>">
+                  <button class="btn danger" type="submit" onclick="return confirm('Delete this book?')">Delete</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+    </section>
   </main>
 
-  <style>
-    .grid-2 { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
-    @media (max-width: 900px){ .grid-2 { grid-template-columns: 1fr; } }
-
-    .list { list-style:none; padding:0; margin:0; }
-    .list-row {
-      display:flex; align-items:center; justify-content:space-between;
-      padding:12px; border:1px solid #eee; border-radius:12px; margin-bottom:10px; background:#fff;
-    }
-    .row-main { display:flex; align-items:center; }
-    .row-actions { margin-left:12px; }
-    .badge { background:#eef1f5; color:#334; padding:2px 8px; border-radius:999px; font-size:12px; margin-left:6px; }
-    .muted { color:#667; }
-    .alert { padding:10px 12px; border-radius:10px; margin-bottom:12px; }
-    .alert.success { background:#e8f7ef; color:#265f3a; }
-    .alert.danger { background:#fdeaea; color:#7a2020; }
-  </style>
-
-  <%- include('../partials/footer') %>
+  <%- include('../partials/footer'); %>
 </body>
 </html>
