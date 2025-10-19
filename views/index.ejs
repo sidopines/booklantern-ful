@@ -1,97 +1,67 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-<head>
-  <%- include('./partials/head', {
-    pageTitle: 'Largest Online Hub of Free Books',
-    pageDescription: 'Millions of free books from globally trusted libraries. One search, one clean reader.',
-    canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
-  }) %>
-</head>
-<body>
-  <%- include('./partials/navbar') %>
+  <head>
+    <%- include('partials/head', {
+      pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : 'BookLantern — Read freely'
+    }) %>
+    <link rel="stylesheet" href="/public/css/hero.css?v=<%= buildId %>">
+  </head>
+  <body>
+    <%- include('partials/navbar') %>
 
-  <!-- HERO -->
-  <header class="bl-hero">
-    <div class="bl-hero__inner container">
-      <div class="bl-hero__copy">
-        <p class="eyebrow">BOOKLANTERN</p>
-        <h1 class="bl-hero__title">
-          The best <span class="hl">books</span><br>
-          are the ones that <span class="hl">inspire</span>
-        </h1>
-
-        <form class="bl-hero__search" action="/search" method="get" role="search">
-          <input type="text" name="q" placeholder="Search books, authors…" aria-label="Search books">
-          <button class="btn" type="submit">Search</button>
-        </form>
-
-        <ul class="bl-hero__points">
-          <li>No ads</li>
-          <li>Distraction-free</li>
-          <li>Peaceful reading experience</li>
-        </ul>
+    <!-- HERO -->
+    <header class="hero">
+      <div class="container">
+        <h1>Millions of free books. One clean reader.</h1>
+        <p class="muted">From globally trusted libraries like the Internet Archive, Open Library, HathiTrust, and more.</p>
       </div>
+    </header>
 
-      <!-- Kindle-style device (click ➜ register) -->
-      <a class="bl-device" href="/register" aria-label="Create account">
-        <div class="bl-device__frame">
-          <div class="bl-device__screen">
-            <div class="bl-device__paper">
-              <p class="bl-device__text">
-                We are on a mission to connect readers world over with the largest collection
-                of books. <strong>Find yours now!</strong>
-              </p>
-            </div>
-            <span class="bl-device__pen" aria-hidden="true"></span>
-          </div>
-        </div>
-      </a>
-    </div>
-  </header>
+    <!-- SHELVES (dynamic) -->
+    <main class="container shelves">
+      <% const LIST = Array.isArray(shelvesList) ? shelvesList : []; %>
 
-  <!-- SHELVES (dynamic) -->
-  <main class="container shelves">
-    <% const LIST = Array.isArray(shelvesList) ? shelvesList : []; %>
-
-    <% if (!LIST.length) { %>
-      <section class="shelf">
-        <div class="shelf__head">
+      <% if (!LIST.length) { %>
+        <section class="shelf">
           <h2>Featured</h2>
-          <a class="shelf__more" href="/search?q=popular">Browse all</a>
-        </div>
-        <div class="carousel" role="list">
-          <div class="card" style="padding:16px;">No books yet.</div>
-        </div>
-      </section>
-    <% } %>
+          <p class="muted">No shelves configured yet.</p>
+        </section>
+      <% } %>
 
-    <% LIST.forEach(function(shelf){ const items = Array.isArray(shelf.items) ? shelf.items : []; %>
-      <section class="shelf">
-        <div class="shelf__head">
-          <h2><%= shelf.title %></h2>
-          <a class="shelf__more" href="/search?q=<%= encodeURIComponent(shelf.key) %>">See more</a>
-        </div>
-        <div class="carousel" role="list">
-          <% items.forEach(function(b){ %>
-            <article class="book-card card" role="listitem">
-              <a href="<%= b.href || '#' %>" class="book-card__link">
-                <% if (b.cover) { %>
-                  <img src="<%= b.cover %>" alt="<%= b.title %>" loading="lazy" class="book-card__cover">
-                <% } else { %>
-                  <div class="book-card__cover book-card__cover--empty">No cover</div>
-                <% } %>
-                <div class="book-card__meta">
-                  <h3 class="book-card__title"><%= b.title %></h3>
-                  <% if (b.creator) { %><p class="book-card__author"><%= b.creator %></p><% } %>
-                </div>
-              </a>
-            </article>
-          <% }) %>
-        </div>
-      </section>
-    <% }) %>
-  </main>
+      <% LIST.forEach(function(cat){ 
+           const items = (shelvesData && shelvesData[cat]) ? shelvesData[cat] : [];
+           const nice = cat.charAt(0).toUpperCase() + cat.slice(1);
+      %>
+        <section class="shelf">
+          <div class="shelf-head">
+            <h2><%= nice %></h2>
+          </div>
 
-  <%- include('./partials/footer') %>
-</body>
+          <% if (!items.length) { %>
+            <div class="empty muted">No books yet.</div>
+          <% } else { %>
+            <div class="grid grid-5">
+              <% items.forEach(function(b){ %>
+                <a class="card book" href="<%= b.source_url %>" target="_blank" rel="noopener">
+                  <div class="thumb">
+                    <% if (b.cover_image) { %>
+                      <img src="<%= b.cover_image %>" alt="<%= b.title %> cover">
+                    <% } else { %>
+                      <span class="muted">No cover</span>
+                    <% } %>
+                  </div>
+                  <div class="meta">
+                    <h3><%= b.title %></h3>
+                    <% if (b.author) { %><div class="author"><%= b.author %></div><% } %>
+                  </div>
+                </a>
+              <% }) %>
+            </div>
+          <% } %>
+        </section>
+      <% }) %>
+    </main>
+
+    <%- include('partials/footer') %>
+  </body>
 </html>
