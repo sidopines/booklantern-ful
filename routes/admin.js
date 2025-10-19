@@ -1,46 +1,72 @@
-// routes/admin.js — dashboard + users stub
+// routes/admin.js — Admin dashboard + users stub (to avoid 404)
 const express = require('express');
 const router = express.Router();
 
-const supabase = require('../supabaseAdmin');
-const ensureAdmin = require('../utils/adminGate');
+const supabase = require('../supabaseAdmin');       // service-role client (or null)
+const ensureAdmin = require('../utils/adminGate');  // JWT / X-Admin-Token gate
 
-// gate everything under /admin
+// Gate all admin routes
 router.use(ensureAdmin);
 
 // Admin dashboard
 router.get('/', async (req, res) => {
-  // Best-effort counts; if Supabase missing, show zeros
-  let counts = { users: 0, books: 0, videos: 0, genres: 0 };
+  // Defaults so view renders even if Supabase is not configured
+  let usersCount = 0, booksCount = 0, videosCount = 0, genresCount = 0;
 
-  try {
-    if (supabase) {
-      const [{ count: books }, { count: videos }, { count: genres }] = await Promise.all([
-        supabase.from('curated_books').select('*', { count: 'exact', head: true }),
-        supabase.from('admin_videos').select('*', { count: 'exact', head: true }),
-        supabase.from('video_genres').select('*', { count: 'exact', head: true })
+  if (supabase) {
+    try {
+      const [u, b, v, g] = await Promise.all([
+        supabase.from('profiles').select('id', { count: 'exact', head: true }),
+        supabase.from('curated_books').select('id', { count: 'exact', head: true }),
+        supabase.from('admin_videos').select('id', { count: 'exact', head: true }),
+        supabase.from('video_genres').select('id', { count: 'exact', head: true }),
       ]);
-      counts.books = books || 0;
-      counts.videos = videos || 0;
-      counts.genres = genres || 0;
-      // Users count is non-trivial via PostgREST; leave 0 or wire Auth Admin if desired
+      usersCount  = u.count ?? 0;
+      booksCount  = b.count ?? 0;
+      videosCount = v.count ?? 0;
+      genresCount = g.count ?? 0;
+    } catch (e) {
+      console.warn('[admin] dashboard counts failed:', e.message || e);
     }
-  } catch (e) {
-    console.warn('[admin] count fetch warning:', e.message || e);
   }
 
-  res.render('admin/index', { counts });
+  try {
+    res.render('admin/index', {
+      counts: { usersCount, booksCount, videosCount, genresCount }
+    });
+  } catch (e) {
+    console.error('[admin] render index failed:', e);
+    // Minimal fallback if your admin/index.ejs is missing
+    res.status(200).send(
+      `<h1>Admin</h1>
+       <ul>
+         <li>Users: ${usersCount}</li>
+         <li>Books: ${booksCount}</li>
+         <li>Videos: ${videosCount}</li>
+         <li>Genres: ${genresCount}</li>
+       </ul>
+       <p><a href="/admin/books">Manage Books</a> · <a href="/admin/videos">Manage Videos</a> · <a href="/admin/genres">Manage Genres</a> · <a href="/admin/users">Open Users</a></p>`
+    );
+  }
 });
 
-// Minimal /admin/users to avoid 404 for now
-router.get('/users', (_req, res) => {
-  res.status(200).send(`
-    <main style="max-width:800px;margin:40px auto;font-family:system-ui;line-height:1.5">
-      <h1>Users</h1>
-      <p>This page is coming soon. For now, manage users in Supabase Auth.</p>
-      <p><a href="/admin">← Back to Admin</a></p>
-    </main>
-  `);
+// --- Users stub to avoid 404s from the dashboard button ---
+router.get('/users', async (req, res) => {
+  // Optional: let you search by email/name later. For now, it’s a simple placeholder.
+  try {
+    // If you DO have a users view, this will render it.
+    return res.render('admin/users', { query: (req.query.q || '').trim() });
+  } catch {
+    // Safe fallback HTML if the view doesn't exist yet.
+    return res
+      .status(200)
+      .send(
+        `<h1>Users</h1>
+         <p>This is a placeholder so the button doesn’t 404.</p>
+         <p>We can wire full search/toggle-admin here later.</p>
+         <p><a href="/admin">← Back to Admin</a></p>`
+      );
+  }
 });
 
 module.exports = router;
