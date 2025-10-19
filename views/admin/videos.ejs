@@ -1,108 +1,118 @@
-<%- include('../partials/head', { pageTitle: 'Manage Videos - BookLantern' }) %>
-<body>
-  <%- include('../partials/navbar') %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('../partials/head.ejs', {
+    pageTitle: 'Admin • Videos',
+    pageDescription: 'Manage educational videos and genres'
+  }) %>
+  <style>
+    :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --link:#1256b3; --brand:#111; --brandHover:#333; --danger:#b42318; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    main { max-width: 1000px; margin: 2rem auto 3rem; padding: 0 1rem; }
+    h1 { margin: 0 0 1rem 0; font-size: clamp(1.6rem, 2.5vw, 2rem); }
 
-  <main class="container page-pad">
-    <h1 style="font-weight:800;margin-bottom:16px">Manage Videos</h1>
-    <p class="muted" style="margin-bottom:16px;">Add or remove items for the Watch page.</p>
+    .notice { margin: 10px 0; padding: 10px 12px; border-radius: 10px; font-size: .95rem; }
+    .notice.ok  { background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; }
+    .notice.err { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
+
+    .grid { display:grid; grid-template-columns: 1fr; gap: 1rem; }
+    @media (min-width: 960px){ .grid { grid-template-columns: 1fr 1fr; } }
+
+    .card { background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow:0 8px 28px rgba(0,0,0,.06); padding: 1rem; }
+    .card h2 { margin: 0 0 .75rem 0; font-size: 1.1rem; }
+
+    form.flex { display:grid; grid-template-columns: 1fr 1fr; gap:.6rem; }
+    .full { grid-column: 1 / -1; }
+    form.flex input, form.flex textarea, form.flex select {
+      padding: .6rem .7rem; border:1px solid var(--border); border-radius:10px; background:#fff;
+    }
+    select[multiple] { min-height: 8rem; }
+
+    .btn { padding:.65rem 1rem; border:1px solid var(--border); border-radius:10px; background:var(--brand); color:#fff; font-weight:600; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px;}
+    .btn:hover{ background: var(--brandHover); }
+    .btn.outline{ background:#fff; color:var(--text); }
+    .btn.danger{ background:var(--danger); border-color:#fca5a5; }
+    .btn.small{ padding:.45rem .7rem; border-radius:8px; font-size:.9rem; }
+
+    table { width:100%; border-collapse: collapse; }
+    th, td { padding:8px; border-bottom:1px solid var(--border); }
+    .hint { color: var(--muted); font-size:.92rem; margin:.4rem 0 0; }
+  </style>
+</head>
+<body>
+  <%- include('../partials/navbar.ejs') %>
+
+  <main>
+    <h1>Manage Videos</h1>
+    <p class="hint">Add or remove items for the Watch page. Use the multi-select to tag genres. To create new genres, use the “Add new genres” field below (comma-separated).</p>
 
     <% if (messages && messages.success) { %>
-      <div class="alert success"><%= messages.success %></div>
+      <div class="notice ok">✅ <%= messages.success %></div>
     <% } %>
     <% if (messages && messages.error) { %>
-      <div class="alert error"><%= messages.error %></div>
+      <div class="notice err">⚠️ <%= messages.error %></div>
     <% } %>
 
-    <form class="card" action="/admin/videos" method="post" style="padding:16px;margin-bottom:24px;">
-      <!-- If you set ADMIN_UI_TOKEN, keep it sticky in the URL and post body -->
-      <% if (typeof query !== 'undefined' && query.key) { %>
-        <input type="hidden" name="key" value="<%= query.key %>">
-      <% } %>
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <section class="card">
+      <h2>Add Video</h2>
+      <form class="flex" action="/admin/videos" method="post">
+        <input class="full" type="text" name="title" placeholder="Great talk on books" required>
 
-      <div class="row" style="gap:16px;">
-        <div class="field" style="flex:1">
-          <label>Title</label>
-          <input name="title" type="text" placeholder="Great talk on books" required>
-        </div>
-        <div class="field" style="flex:1">
-          <label>URL (YouTube/Vimeo)</label>
-          <input name="url" type="url" placeholder="https://www.youtube.com/watch?v=..." required>
-        </div>
-      </div>
+        <input type="url" name="url" placeholder="https://www.youtube.com/watch?v=..." required>
+        <input type="text" name="channel" placeholder="Channel/Source (optional)">
 
-      <div class="row" style="gap:16px;margin-top:12px;">
-        <div class="field" style="flex:1">
-          <label>Channel/Source (optional)</label>
-          <input name="channel" type="text" placeholder="TEDx / Library of Congress">
-        </div>
-        <div class="field" style="flex:1">
-          <label>Thumbnail URL (optional)</label>
-          <input name="thumbnail" type="url" placeholder="https://i.ytimg.com/vi/ID/hqdefault.jpg">
-        </div>
-      </div>
-
-      <div class="row" style="gap:16px;margin-top:12px;">
-        <div class="field" style="flex:1">
-          <label>Genres (multi-select)</label>
-          <select name="genres" multiple size="4" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;">
-            <% (Array.isArray(genres)?genres:[]).forEach(g => { %>
-              <option value="<%= g.name %>"><%= g.name %></option>
+        <input type="url" name="thumbnail" placeholder="Thumbnail URL (optional)">
+        <div>
+          <label style="display:block;margin-bottom:6px;">Genres (multi-select)</label>
+          <select name="genres" multiple size="6" style="width:100%;">
+            <% (genres || []).forEach(function(g){ %>
+              <option value="<%= g.id %>"><%= g.name %></option>
             <% }) %>
           </select>
-          <div class="muted" style="font-size:12px;margin-top:6px;">Hold Cmd/Ctrl to select multiple. You can also add new names below.</div>
+          <p class="hint">Hold Cmd/Ctrl to select multiple. You <em>cannot type</em> into the box; use the field on the right to add new genre names.</p>
         </div>
-        <div class="field" style="flex:1">
-          <label>Add new genres (comma-separated)</label>
-          <input name="genre_names" type="text" placeholder="interviews, author talks, literature">
+
+        <div class="full">
+          <label style="display:block;margin-bottom:6px;">Add new genres (comma-separated)</label>
+          <input type="text" name="newGenres" placeholder="History, Peace">
         </div>
-      </div>
 
-      <button class="btn primary" type="submit" style="margin-top:12px;">Add Video</button>
-    </form>
+        <button class="btn full" type="submit">Add Video</button>
+      </form>
+    </section>
 
-    <h2 style="font-weight:700;margin-bottom:12px;">Current Videos</h2>
-    <% if (videos && videos.length) { %>
-      <table class="card" style="width:100%;border-collapse:collapse;">
-        <thead>
-          <tr>
-            <th style="text-align:left;padding:8px;">Title</th>
-            <th style="text-align:left;padding:8px;">URL</th>
-            <th style="text-align:left;padding:8px;">Genres</th>
-            <th style="text-align:center;padding:8px;">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% videos.forEach((v) => { %>
-            <tr>
-              <td style="padding:8px;"><%= v.title %></td>
-              <td style="padding:8px;"><a href="<%= v.url %>" target="_blank" rel="noopener"><%= v.url %></a></td>
-              <td style="padding:8px;">
-                <% if (v.genres && v.genres.length) { %>
-                  <%= v.genres.join(', ') %>
-                <% } else { %>
-                  <span class="muted">—</span>
-                <% } %>
-              </td>
-              <td style="padding:8px;text-align:center;">
-                <form action="/admin/videos/delete" method="post" style="display:inline;">
-                  <% if (typeof query !== 'undefined' && query.key) { %>
-                    <input type="hidden" name="key" value="<%= query.key %>">
-                  <% } %>
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                  <input type="hidden" name="id" value="<%= v.id %>">
-                  <button class="btn" type="submit" onclick="return confirm('Delete this video?')">Delete</button>
-                </form>
-              </td>
-            </tr>
-          <% }) %>
-        </tbody>
-      </table>
-    <% } else { %>
-      <div class="card">No videos yet.</div>
-    <% } %>
+    <section class="card" style="margin-top:1rem;">
+      <h2>Current Videos</h2>
+      <% if (!videos || !videos.length) { %>
+        <p class="hint">No videos yet.</p>
+      <% } else { %>
+        <table>
+          <thead>
+            <tr><th style="text-align:left;">Title</th><th style="text-align:left;">URL</th><th style="text-align:left;">Channel</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            <% videos.forEach(function(v){ %>
+              <tr>
+                <td><%= v.title %></td>
+                <td><a href="<%= v.url %>" target="_blank" rel="noopener"><%= v.url %></a></td>
+                <td><%= v.channel || '' %></td>
+                <td style="text-align:center;">
+                  <form action="/admin/videos/delete" method="post" onsubmit="return confirm('Delete “<%= v.title %>”?')">
+                    <input type="hidden" name="id" value="<%= v.id %>">
+                    <button class="btn small danger" type="submit">Delete</button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+    </section>
+
+    <div style="margin-top: 16px;">
+      <a href="/admin" class="btn outline">← Back to Admin</a>
+    </div>
   </main>
-
-  <%- include('../partials/footer') %>
 </body>
 </html>
