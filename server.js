@@ -54,7 +54,6 @@ app.use((req, res, next) => {
   res.locals.pageDescription =
     'Millions of free books from globally trusted libraries. One clean reader.';
 
-  // Expose categories to all views (used by admin books UI, etc.)
   try {
     res.locals.categories = require('./config/categories');
   } catch {
@@ -64,14 +63,18 @@ app.use((req, res, next) => {
   next();
 });
 
+// Small helper for meta locals (null-safe)
+function meta(req, title, desc = 'Free books & educational videos.') {
+  return { pageTitle: title, pageDescription: desc, req };
+}
+
 /* ============================================================
-   Direct Supabase callback route before other routers.
-   Handles magic link / recovery / email confirm flows.
+   Auth callback FIRST (magic link / recovery / email confirm)
    ============================================================ */
 app.get(/^\/auth\/callback(?:\/.*)?$/, (req, res) => {
   try {
     const canonicalUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-    return res.render('auth-callback', { canonicalUrl });
+    return res.render('auth-callback', { canonicalUrl, ...meta(req, 'Almost there…') });
   } catch (e) {
     console.error('[auth-callback] render failed:', e);
     return res.status(500).send('Auth callback error');
@@ -79,19 +82,20 @@ app.get(/^\/auth\/callback(?:\/.*)?$/, (req, res) => {
 });
 
 /* ============================================================
-   Account page (passwordless-friendly) — uses views/account.ejs
+   Hard-stop pages so they NEVER 404: /login, /register, /account
+   (These live at top level in addition to the router, by design.)
    ============================================================ */
+app.get('/login', (req, res) => res.status(200).render('login', meta(req, 'Login • BookLantern')));
+app.get('/register', (req, res) => res.status(200).render('register', meta(req, 'Create account • BookLantern')));
 app.get('/account', (_req, res) => {
-  try {
-    return res.render('account');
-  } catch (e) {
+  try { return res.render('account'); }
+  catch (e) {
     console.error('[account] render failed:', e);
     return res.status(500).send('Account render error');
   }
 });
 
 // ---------- Mount routes explicitly ----------
-// Mount the auth shim FIRST so its exact paths (/auth/callback, /login, /register, /account) win.
 try {
   const loginShim = require('./routes/loginShim');
   app.use('/', loginShim);
@@ -101,7 +105,7 @@ try {
 }
 
 try {
-  const indexRoutes = require('./routes/index'); // exports an express.Router()
+  const indexRoutes = require('./routes/index');
   app.use('/', indexRoutes);
   console.log('[routes] mounted index router at /');
 } catch (e) {
@@ -109,14 +113,13 @@ try {
 }
 
 try {
-  const adminRoutes = require('./routes/admin'); // exports an express.Router()
+  const adminRoutes = require('./routes/admin');
   app.use('/admin', adminRoutes);
   console.log('[routes] mounted admin router at /admin');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/admin:', e);
 }
 
-// NEW: dedicated admin content routers (books, videos, genres)
 try {
   const adminBooks = require('./routes/admin-books');
   app.use('/admin/books', adminBooks);
@@ -146,21 +149,15 @@ app.get('/healthz', (_req, res) => res.status(200).send('OK'));
 
 // ---------- 404 ----------
 app.use((req, res) => {
-  try {
-    res.status(404).render('404');
-  } catch {
-    res.status(404).send('Not Found');
-  }
+  try { res.status(404).render('404'); }
+  catch { res.status(404).send('Not Found'); }
 });
 
 // ---------- 500 ----------
 app.use((err, req, res, _next) => {
   console.error('🔥 Unhandled error:', err);
-  try {
-    res.status(500).render('error', { error: err });
-  } catch {
-    res.status(500).send('Internal Server Error');
-  }
+  try { res.status(500).render('error', { error: err }); }
+  catch { res.status(500).send('Internal Server Error'); }
 });
 
 // ---------- Start ----------
