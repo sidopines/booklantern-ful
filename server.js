@@ -4,6 +4,7 @@ const path = require('path');
 const express = require('express');
 const compression = require('compression');
 const morgan = require('morgan');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(compression());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use(cookieParser()); // <-- needed so adminGate can read req.cookies
 
 // ---------- Static assets ----------
 app.use(
