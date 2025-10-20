@@ -1,24 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('partials/head'); %>
+  <%- include('partials/header'); %>
   <title>Watch • BookLantern</title>
 </head>
 <body>
-  <%- include('partials/header'); %>
+  <%- include('partials/nav'); %>
 
   <main class="container" style="padding:24px 0 64px;">
     <h1 class="page-title">Watch</h1>
 
-    <!-- Filters -->
     <form method="GET" action="/watch" class="filters" style="display:flex;align-items:center;margin:12px 0 24px;">
       <label for="genre" style="margin-right:8px;">Genre</label>
       <select id="genre" name="genre" class="input">
         <option value="">All</option>
-        <% 
+        <%
           const GENRES = Array.isArray(genres) ? genres : [];
           const sel = typeof selectedGenre === 'string' ? selectedGenre : '';
-          GENRES.forEach(function(g){ 
+          GENRES.forEach(function(g){
         %>
           <option value="<%= g.id %>" <%= sel === g.id ? 'selected' : '' %>><%= g.name %></option>
         <% }) %>
@@ -26,16 +25,15 @@
       <button class="btn" type="submit" style="margin-left:8px;">Apply</button>
     </form>
 
-    <!-- Videos list (very simple grid) -->
     <section class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;">
       <%
         const VIDS = Array.isArray(videos) ? videos : [];
-        if (!VIDS.length) { 
+        if (!VIDS.length) {
       %>
         <div class="empty">No videos yet.</div>
-      <% } else { 
+      <% } else {
            VIDS.forEach(function(v){ %>
-        <article class="card" style="border:1px solid #eee;border-radius:12px;padding:12px;">
+        <article class="card" style="border:1px solid #eee;border-radius:12px;padding:12px;background:#fff;">
           <div class="thumb" style="height:126px;background:#fafafa;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
             <% if (v.thumb) { %>
               <img src="<%= v.thumb %>" alt="" style="max-width:100%;max-height:100%;">
