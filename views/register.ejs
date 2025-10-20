@@ -9,13 +9,16 @@
   <main class="page-wrap" style="max-width:900px;margin:32px auto 72px;">
     <h1 class="page-title">Create account</h1>
 
+    <!-- lightweight flash area -->
+    <div id="flash" aria-live="polite" style="margin:12px 0;"></div>
+
     <section class="card" style="border:1px solid #eee;border-radius:12px;padding:16px;background:#fff;">
       <p>We’ll email you a one-time link to finish creating your account.</p>
 
       <form id="register-form" class="login-form" onsubmit="return false;" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <input id="reg-email" type="email" placeholder="you@example.com" required
                style="flex:1;min-width:260px;padding:10px;border:1px solid #ddd;border-radius:8px;">
-        <button id="sendRegLink" class="btn">Send sign-up link</button>
+        <button id="sendRegLink" class="btn" type="button">Send sign-up link</button>
         <a class="btn btn-ghost" href="/login">Already have an account? Log in</a>
       </form>
 
@@ -30,13 +33,52 @@
 
   <script>
     (function () {
-      const btn = document.getElementById('sendRegLink');
+      var btn   = document.getElementById('sendRegLink');
+      var input = document.getElementById('reg-email');
+      var flash = document.getElementById('flash');
+      var sb    = window.supabaseClient;
+
+      function showFlash(msg, tone) {
+        if (!flash) return;
+        var bg = tone === 'error' ? '#fde8e8' : '#e8f7e8';
+        var bd = tone === 'error' ? '#f5c2c2' : '#bfe6bf';
+        flash.innerHTML =
+          '<div role="status" style="padding:10px;border:1px solid '+bd+';background:'+bg+';border-radius:8px;">'
+          + msg + '</div>';
+      }
+
       if (!btn) return;
-      btn.addEventListener('click', async () => {
-        const email = (document.getElementById('reg-email').value || '').trim();
-        if (!email) return alert('Enter your email first.');
-        // Wire your Supabase client call here if desired.
-        alert('If sign-up magic link is wired on the client, it will send now.');
+
+      btn.addEventListener('click', async function () {
+        var email = (input && input.value || '').trim();
+        if (!email) {
+          input && input.focus();
+          return showFlash('Enter your email first.', 'error');
+        }
+
+        if (!sb || !sb.auth || !sb.auth.signInWithOtp) {
+          return showFlash('Auth is not configured on the client. Please try again later.', 'error');
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        try {
+          // Using signInWithOtp works for new users as well (magic-link sign-up)
+          var redirect = location.origin + '/auth/callback';
+          var { error } = await sb.auth.signInWithOtp({
+            email: email,
+            options: { emailRedirectTo: redirect }
+          });
+          if (error) throw error;
+
+          showFlash('✅ Check your inbox—your sign-up link has been sent.', 'ok');
+          input && (input.value = '');
+        } catch (e) {
+          showFlash('Could not send the sign-up link. ' + (e && e.message ? e.message : 'Please try again.'), 'error');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Send sign-up link';
+        }
       });
     })();
   </script>
