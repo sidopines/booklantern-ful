@@ -5,10 +5,10 @@
   <title>Read • BookLantern</title>
   <style>
     .reader-shell { max-width: 980px; margin: 24px auto 64px; }
-    .pane { border:1px solid #eee; border-radius:12px; padding:12px; min-height: 420px; background:#fff; }
-    .muted { color:#666; font-size: 14px; }
-    .row { display:flex; gap:16px; }
-    .row > * { flex:1; }
+    .reader-pane { border:1px solid #eee; border-radius:12px; padding:12px; min-height: 420px; background:#fff; }
+    .reader-muted { color:#666; font-size: 14px; }
+    .reader-row { display:flex; gap:16px; }
+    .reader-row > * { flex:1; }
   </style>
 </head>
 <body>
@@ -23,15 +23,15 @@
     %>
 
     <% if (!providerSafe || !idSafe) { %>
-      <p class="muted">
+      <p class="reader-muted">
         Open a book from the homepage or pass parameters like:
         <code>/read?provider=gutenberg&id=1342</code>.
       </p>
-      <div class="pane"></div>
+      <div class="reader-pane"></div>
     <% } else { %>
-      <div class="row">
-        <section class="pane" id="reader"></section>
-        <aside class="pane" id="notes"></aside>
+      <div class="reader-row">
+        <section class="reader-pane" id="reader"></section>
+        <aside class="reader-pane" id="notes"></aside>
       </div>
     <% } %>
   </main>
