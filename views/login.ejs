@@ -9,10 +9,9 @@
   <main class="page-wrap" style="max-width:900px;margin:32px auto 72px;">
     <h1 class="page-title">Login</h1>
 
-    <!-- lightweight flash area -->
-    <div id="flash" aria-live="polite" style="margin:12px 0;"></div>
-
     <section class="card" style="border:1px solid #eee;border-radius:12px;padding:16px;background:#fff;">
+      <div id="msg" style="display:none;margin:0 0 12px;padding:10px;border-radius:8px;"></div>
+
       <p>Use a one-time link we email to you, or continue with Google / Apple.</p>
 
       <form id="magic-form" class="login-form" onsubmit="return false;" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -35,52 +34,53 @@
 
   <%- include('partials/footer'); %>
 
+  <!-- Supabase CDN + init from meta tags -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     (function () {
-      var btn   = document.getElementById('sendLink');
-      var input = document.getElementById('email');
-      var flash = document.getElementById('flash');
-      var sb    = window.supabaseClient; // expected to be initialized globally
+      var url  = (window.__BL_SB && __BL_SB.url)  || '';
+      var anon = (window.__BL_SB && __BL_SB.anon) || '';
 
-      function showFlash(msg, tone) {
-        if (!flash) return;
-        var bg = tone === 'error' ? '#fde8e8' : '#e8f7e8';
-        var bd = tone === 'error' ? '#f5c2c2' : '#bfe6bf';
-        flash.innerHTML =
-          '<div role="status" style="padding:10px;border:1px solid '+bd+';background:'+bg+';border-radius:8px;">'
-          + msg + '</div>';
+      if (url && anon && window.supabase && !window.supabaseClient) {
+        try {
+          window.supabaseClient = window.supabase.createClient(url, anon, {
+            auth: { persistSession: true, autoRefreshToken: true }
+          });
+        } catch (e) {}
       }
 
+      var sb  = window.supabaseClient;
+      var msg = document.getElementById('msg');
+
+      function show(type, text){
+        if (!msg) return;
+        msg.style.display = 'block';
+        msg.textContent   = text;
+        msg.style.background = type === 'ok' ? '#e8f7e8' : '#ffecec';
+        msg.style.border     = type === 'ok' ? '1px solid #b7e2b7' : '1px solid #ffcdcd';
+        msg.style.color      = '#222';
+      }
+
+      var btn = document.getElementById('sendLink');
       if (!btn) return;
 
-      btn.addEventListener('click', async function () {
-        var email = (input && input.value || '').trim();
-        if (!email) {
-          input && input.focus();
-          return showFlash('Enter your email first.', 'error');
-        }
+      btn.addEventListener('click', async function(){
+        var email = (document.getElementById('email').value || '').trim();
+        if (!email) { show('err','Enter your email first.'); return; }
+        if (!window.supabaseClient) { show('err','Auth is not configured on the client. Please try again later.'); return; }
 
-        if (!sb || !sb.auth || !sb.auth.signInWithOtp) {
-          return showFlash('Auth is not configured on the client. Please try again later.', 'error');
-        }
-
-        btn.disabled = true;
-        btn.textContent = 'Sending…';
         try {
-          var redirect = location.origin + '/auth/callback';
-          var { error } = await sb.auth.signInWithOtp({
+          var res = await window.supabaseClient.auth.signInWithOtp({
             email: email,
-            options: { emailRedirectTo: redirect }
+            options: {
+              emailRedirectTo: window.location.origin + '/auth/callback',
+              shouldCreateUser: true
+            }
           });
-          if (error) throw error;
-
-          showFlash('✅ Check your inbox—your sign-in link has been sent.', 'ok');
-          input && (input.value = '');
+          if (res && res.error) throw res.error;
+          show('ok','✅ The sign-in link has been emailed to you. Please check your inbox.');
         } catch (e) {
-          showFlash('Could not send the magic link. ' + (e && e.message ? e.message : 'Please try again.'), 'error');
-        } finally {
-          btn.disabled = false;
-          btn.textContent = 'Send sign-in link';
+          show('err', e && e.message ? e.message : 'Could not send link.');
         }
       });
     })();
