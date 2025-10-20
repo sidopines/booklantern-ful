@@ -1,23 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('partials/head'); %>
+  <%- include('partials/header'); %>
   <title>Read • BookLantern</title>
   <style>
     .reader-shell { max-width: 980px; margin: 24px auto 64px; }
-    .pane { border:1px solid #eee; border-radius:12px; padding:12px; min-height: 420px; }
+    .pane { border:1px solid #eee; border-radius:12px; padding:12px; min-height: 420px; background:#fff; }
     .muted { color:#666; font-size: 14px; }
     .row { display:flex; gap:16px; }
     .row > * { flex:1; }
   </style>
 </head>
 <body>
-  <%- include('partials/header'); %>
+  <%- include('partials/nav'); %>
 
   <main class="reader-shell">
     <h1 class="page-title">Read</h1>
 
-    <% 
+    <%
       const providerSafe = typeof provider === 'string' ? provider : '';
       const idSafe = typeof id === 'string' ? id : '';
     %>
@@ -42,13 +42,11 @@
   (async function () {
     const provider = "<%= providerSafe || '' %>";
     const id = "<%= idSafe || '' %>";
-
     if (!provider || !id) return;
 
     const KEY_POS   = `bl:pos:${provider}:${id}`;
     const KEY_NOTES = `bl:notes:${provider}:${id}`;
 
-    // Example: your existing client-side loading (kept minimal here)
     try {
       const res = await fetch(`/api/book?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(id)}`);
       if (!res.ok) throw new Error('Book not found');
