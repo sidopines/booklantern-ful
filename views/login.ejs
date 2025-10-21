@@ -49,6 +49,26 @@
         msg.style.color      = '#222';
       }
 
+      // --- NEW: If we already have a session (e.g., magic link dropped us on /login with hash), go to /account.
+      (async function autoRedirectIfSignedIn(){
+        try {
+          if (!sb) return;
+          var res = await sb.auth.getSession();
+          if (res && res.data && res.data.session) {
+            // Clean the URL (remove ?confirmed=1/#tokens) before leaving
+            try { history.replaceState({}, document.title, location.pathname); } catch (_) {}
+            location.href = '/account';
+          } else {
+            // If Supabase left an error in the URL, surface it
+            var hash = (location.hash || '').replace(/^#/, '');
+            var q = new URLSearchParams(hash);
+            var err = q.get('error_description');
+            if (err) show('err', decodeURIComponent(err));
+          }
+        } catch (e) { /* ignore */ }
+      })();
+      // --- /NEW
+
       if (!btn) return;
 
       btn.addEventListener('click', async function(){
