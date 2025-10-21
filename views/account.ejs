@@ -26,42 +26,11 @@
     .right{display:flex;justify-content:flex-end;gap:8px}
     .hr{height:1px;background:rgba(0,0,0,.06);margin:8px 0}
     .danger{color:#b91c1c}
-
-    /* Toast */
-    .toast {
-      position: fixed;
-      left: 50%;
-      bottom: 22px;
-      transform: translateX(-50%) translateY(16px);
-      background: #16a34a;
-      color: #fff;
-      padding: 10px 14px;
-      border-radius: 10px;
-      box-shadow: 0 12px 32px rgba(22,163,74,.35);
-      opacity: 0;
-      pointer-events: none;
-      z-index: 50;
-    }
-    .toast.show {
-      animation: toast-in .18s ease-out forwards, toast-out .35s ease-in 2.2s forwards;
-    }
-    @keyframes toast-in {
-      from {opacity:0; transform: translateX(-50%) translateY(16px) scale(.98)}
-      to   {opacity:1; transform: translateX(-50%) translateY(0) scale(1)}
-    }
-    @keyframes toast-out {
-      to {opacity:0; transform: translateX(-50%) translateY(12px)}
-    }
-
-    /* Small spinner for the button */
-    .spin {
-      width:14px;height:14px;border-radius:50%;
-      border:2px solid rgba(255,255,255,.4);
-      border-top-color:#fff;
-      display:inline-block;vertical-align:middle;
-      animation: rot .7s linear infinite;
-      margin-right:8px;
-    }
+    .toast {position: fixed;left: 50%;bottom: 22px;transform: translateX(-50%) translateY(16px);background: #16a34a;color: #fff;padding: 10px 14px;border-radius: 10px;box-shadow: 0 12px 32px rgba(22,163,74,.35);opacity: 0;pointer-events: none;z-index: 50;}
+    .toast.show {animation: toast-in .18s ease-out forwards, toast-out .35s ease-in 2.2s forwards;}
+    @keyframes toast-in {from {opacity:0; transform: translateX(-50%) translateY(16px) scale(.98)} to {opacity:1; transform: translateX(-50%) translateY(0) scale(1)}}
+    @keyframes toast-out {to {opacity:0; transform: translateX(-50%) translateY(12px)}}
+    .spin {width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;display:inline-block;vertical-align:middle;animation: rot .7s linear infinite;margin-right:8px;}
     @keyframes rot {to{transform:rotate(360deg)}}
   </style>
 </head>
@@ -79,20 +48,17 @@
         <p class="muted" style="margin:0 0 14px;">Update your public profile and email preferences.</p>
 
         <form id="profileForm" class="stack" novalidate>
-          <!-- Email (read-only) -->
           <div class="stack">
             <label class="label" for="email">Email</label>
             <input id="email" class="input" type="email" autocomplete="email" readonly>
             <div class="help">Email is managed by your sign-in method.</div>
           </div>
 
-          <!-- Display name -->
           <div class="stack">
             <label class="label" for="display_name">Display name</label>
             <input id="display_name" class="input" type="text" placeholder="Your name as others see it">
           </div>
 
-          <!-- Preferences -->
           <div class="stack">
             <span class="label">Email preferences</span>
             <label class="row checkbox-line" style="justify-content:flex-start;">
@@ -138,7 +104,6 @@
           </div>
         </section>
 
-        <!-- Danger zone (optional) -->
         <section class="card">
           <h3 style="margin:0 0 10px;">Danger zone</h3>
           <p class="muted" style="margin:0 0 10px;">Delete your profile record (keeps your auth user).</p>
@@ -150,14 +115,13 @@
 
   <%- include('./partials/footer') %>
 
-  <!-- Toast -->
   <div id="toast" class="toast" role="status" aria-live="polite">Saved!</div>
 
   <script>
   (async function(){
     const sb = window.supabaseClient;
+    if (!sb) { window.location.href = '/login'; return; }
 
-    // form elements
     const emailEl = document.getElementById('email');
     const dnEl = document.getElementById('display_name');
     const nlEl = document.getElementById('newsletter');
@@ -173,28 +137,17 @@
 
     function showToast(text){
       toast.textContent = text || 'Saved!';
-      toast.classList.remove('show'); // restart animation if needed
-      // force reflow
-      void toast.offsetWidth;
-      toast.classList.add('show');
+      toast.classList.remove('show'); void toast.offsetWidth; toast.classList.add('show');
     }
-
     function setSaving(isSaving){
-      if (isSaving){
-        saveBtn.disabled = true;
-        saveText.innerHTML = '<span class="spin"></span>Saving…';
-      } else {
-        saveBtn.disabled = false;
-        saveText.textContent = 'Save changes';
-      }
+      if (isSaving){ saveBtn.disabled = true; saveText.innerHTML = '<span class="spin"></span>Saving…'; }
+      else { saveBtn.disabled = false; saveText.textContent = 'Save changes'; }
     }
-
     function fillForm(u, p){
       emailEl.value = (u && u.email) || '';
       dnEl.value = (p && p.display_name) || (u && (u.user_metadata?.full_name || '')) || '';
       nlEl.checked = Boolean(p && p.newsletter);
       puEl.checked = (p && typeof p.product_updates === 'boolean') ? p.product_updates : true;
-
       if (p && p.updated_at){
         const d = new Date(p.updated_at);
         updatedStamp.textContent = 'Profile updated on ' + d.toLocaleString();
@@ -203,7 +156,6 @@
         updatedStamp.style.display = 'none';
       }
     }
-
     async function fetchProfile(uid){
       const { data, error, status } = await sb
         .from('profiles')
@@ -213,51 +165,38 @@
       if (error && status !== 406) throw error;
       return data || null;
     }
-
     async function ensureProfile(uid){
       const { error } = await sb.from('profiles').insert({ id: uid }).select().single();
       if (error && !String(error.message || '').includes('duplicate key')) throw error;
     }
-
     async function load(){
       sessionBadge.textContent = 'Checking…';
       const { data: { user }, error } = await sb.auth.getUser();
       if (error){ sessionBadge.textContent = 'Error'; return; }
       if (!user){ window.location.href = '/login'; return; }
       sessionBadge.textContent = 'Signed in';
-
       let profile = await fetchProfile(user.id);
       if (!profile){ await ensureProfile(user.id); profile = await fetchProfile(user.id); }
       fillForm(user, profile);
     }
-
-    // Save
     document.getElementById('profileForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
       setSaving(true);
       const { data: { user } } = await sb.auth.getUser();
       if (!user){ window.location.href = '/login'; return; }
-
       const payload = {
         id: user.id,
         display_name: String(dnEl.value || '').trim(),
         newsletter: !!nlEl.checked,
         product_updates: !!puEl.checked
       };
-
       const { data, error } = await sb
         .from('profiles')
         .upsert(payload, { onConflict: 'id' })
         .select('updated_at')
         .single();
-
       setSaving(false);
-
-      if (error){
-        showToast(error.message || 'Could not save');
-        return;
-      }
-
+      if (error){ showToast(error.message || 'Could not save'); return; }
       if (data && data.updated_at){
         const d = new Date(data.updated_at);
         updatedStamp.textContent = 'Profile updated on ' + d.toLocaleString();
@@ -265,35 +204,24 @@
       }
       showToast('Saved!');
     });
-
-    // Reset
     resetBtn.addEventListener('click', async ()=>{
       const { data: { user } } = await sb.auth.getUser();
       if (!user) return;
       const p = await fetchProfile(user.id);
       fillForm(user, p);
     });
-
-    // Sign out
     signOutBtn.addEventListener('click', async ()=>{
       try { await sb.auth.signOut(); } catch {}
       window.location.href = '/';
     });
-
-    // Delete profile row
     deleteBtn.addEventListener('click', async ()=>{
       if (!confirm('Delete your profile record? (This will not delete your login.)')) return;
       const { data: { user } } = await sb.auth.getUser();
       if (!user) return;
       const { error } = await sb.from('profiles').delete().eq('id', user.id);
-      if (!error){
-        fillForm(user, null);
-        showToast('Profile deleted');
-      } else {
-        showToast(error.message || 'Delete failed');
-      }
+      if (!error){ fillForm(user, null); showToast('Profile deleted'); }
+      else { showToast(error.message || 'Delete failed'); }
     });
-
     load();
   })();
   </script>
