@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('partials/header'); %>
+  <%- include('partials/head'); %>
 </head>
 <body>
   <%- include('partials/navbar'); %>
@@ -34,23 +34,11 @@
 
   <%- include('partials/footer'); %>
 
-  <!-- Supabase CDN + init from meta tags -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     (function () {
-      var url  = (window.__BL_SB && __BL_SB.url)  || '';
-      var anon = (window.__BL_SB && __BL_SB.anon) || '';
-
-      if (url && anon && window.supabase && !window.supabaseClient) {
-        try {
-          window.supabaseClient = window.supabase.createClient(url, anon, {
-            auth: { persistSession: true, autoRefreshToken: true }
-          });
-        } catch (e) {}
-      }
-
       var sb  = window.supabaseClient;
       var msg = document.getElementById('msg');
+      var btn = document.getElementById('sendLink');
 
       function show(type, text){
         if (!msg) return;
@@ -61,7 +49,6 @@
         msg.style.color      = '#222';
       }
 
-      var btn = document.getElementById('sendLink');
       if (!btn) return;
 
       btn.addEventListener('click', async function(){
@@ -69,8 +56,11 @@
         if (!email) { show('err','Enter your email first.'); return; }
         if (!window.supabaseClient) { show('err','Auth is not configured on the client. Please try again later.'); return; }
 
+        btn.disabled = true;
+        var prior = btn.textContent;
+        btn.textContent = 'Sending…';
         try {
-          var res = await window.supabaseClient.auth.signInWithOtp({
+          var res = await sb.auth.signInWithOtp({
             email: email,
             options: {
               emailRedirectTo: window.location.origin + '/auth/callback',
@@ -81,6 +71,9 @@
           show('ok','✅ The sign-in link has been emailed to you. Please check your inbox.');
         } catch (e) {
           show('err', e && e.message ? e.message : 'Could not send link.');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = prior;
         }
       });
     })();
