@@ -1,4 +1,4 @@
-<!-- views/partials/header.ejs (FULL FILE, null-safe + CSP preserved) -->
+<!-- views/partials/header.ejs (FINAL FIXED FULL FILE) -->
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -6,7 +6,6 @@
   const _title = (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern';
   const _desc  = (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Free books & educational videos.';
   const _img   = (typeof pageImage !== 'undefined' && pageImage) ? pageImage : '/public/img/brand.svg';
-
   let _url = '';
   try { if (typeof req !== 'undefined' && req) { _url = `${req.protocol}://${req.get('host')}${req.originalUrl}`; } } catch (e) {}
 %>
@@ -14,22 +13,20 @@
 <title><%= _title %></title>
 <meta name="description" content="<%= _desc %>" />
 
-<!-- Open Graph -->
+<!-- Open Graph / Twitter -->
 <meta property="og:title" content="<%= _title %>" />
 <meta property="og:description" content="<%= _desc %>" />
 <meta property="og:type" content="website" />
 <% if (_url) { %><meta property="og:url" content="<%= _url %>" /><% } %>
 <meta property="og:image" content="<%= _img %>" />
-
-<!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="<%= _title %>" />
 <meta name="twitter:description" content="<%= _desc %>" />
 <meta name="twitter:image" content="<%= _img %>" />
 
-<!-- Expose Supabase config to the browser via meta tags -->
+<!-- Supabase env -->
 <meta name="bl-sb-url" content="<%= process.env.SUPABASE_URL || '' %>" />
-<meta name="bl-sb-anon" content="<%= (process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLIC_ANON_KEY || '') %>" />
+<meta name="bl-sb-anon" content="<%= process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLIC_ANON_KEY || '' %>" />
 
 <!-- CSP -->
 <meta http-equiv="Content-Security-Policy" content="
@@ -37,11 +34,11 @@
   img-src 'self' https: data: blob:;
   script-src 'self' 'unsafe-inline' https:;
   style-src 'self' 'unsafe-inline' https:;
-  frame-src 'self' https://archive.org https://www.gutenberg.org https://gutenberg.org https://openlibrary.org https://*.openlibrary.org https://*.internetarchive.org https://iiif.archive.org;
+  frame-src 'self' https://archive.org https://www.gutenberg.org https://openlibrary.org https://*.openlibrary.org https://*.internetarchive.org https://iiif.archive.org;
   connect-src 'self' https:;
 " />
 
-<!-- Icons / Manifest -->
+<!-- Icons -->
 <link rel="manifest" href="/public/site.webmanifest" />
 <link rel="icon" type="image/png" sizes="32x32" href="/public/favicon-32x32.png" />
 <link rel="icon" type="image/png" sizes="16x16" href="/public/favicon-16x16.png" />
@@ -58,12 +55,31 @@
 <!-- JS -->
 <script defer src="/public/js/theme.js?v=<%= Date.now() %>"></script>
 
-<!-- Lightweight helper: read meta tags anywhere -->
+<!-- Initialize Supabase client globally -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   (function () {
-    if (window.__BL_SB) return;
-    var url  = (document.querySelector('meta[name="bl-sb-url"]')  || {}).content || '';
-    var anon = (document.querySelector('meta[name="bl-sb-anon"]') || {}).content || '';
-    window.__BL_SB = { url: url, anon: anon };
+    try {
+      var url  = (document.querySelector('meta[name="bl-sb-url"]')  || {}).content || '';
+      var anon = (document.querySelector('meta[name="bl-sb-anon"]') || {}).content || '';
+      if (!url || !anon) {
+        console.warn('[supabase] Missing env vars');
+        window.supabaseClient = null;
+        return;
+      }
+      if (window.supabase && !window.supabaseClient) {
+        window.supabaseClient = window.supabase.createClient(url, anon, {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            flowType: 'pkce'
+          }
+        });
+      }
+    } catch (e) {
+      console.error('[supabase] init failed', e);
+      window.supabaseClient = null;
+    }
   })();
 </script>
