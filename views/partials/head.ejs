@@ -1,24 +1,33 @@
-<!-- views/partials/head.ejs -->
+<!-- views/partials/head.ejs (fixed: robust Supabase init + sane fallbacks) -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title><%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern' %></title>
 <meta name="description" content="<%= (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Millions of free books from globally trusted libraries. One clean reader.' %>">
 
-<link rel="canonical" href="<%= (typeof canonicalUrl !== 'undefined' && canonicalUrl) ? canonicalUrl : '' %>">
+<%
+// Try to compute a canonical URL from req when available
+let _canonical = '';
+try { if (typeof canonicalUrl !== 'undefined' && canonicalUrl) _canonical = canonicalUrl; } catch (e) {}
+try {
+  if (!_canonical && typeof req !== 'undefined' && req) {
+    _canonical = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+  }
+} catch (e) {}
+%>
+<link rel="canonical" href="<%= _canonical %>">
 
 <meta property="og:title" content="<%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'BookLantern' %>">
 <meta property="og:description" content="<%= (typeof pageDescription !== 'undefined' && pageDescription) ? pageDescription : 'Millions of free books from globally trusted libraries. One clean reader.' %>">
 <meta property="og:type" content="website">
-<meta property="og:url" content="<%= (typeof canonicalUrl !== 'undefined' && canonicalUrl) ? canonicalUrl : '' %>">
-<meta property="og:image" content="/public/apple-touch-icon.png">
+<meta property="og:url" content="<%= _canonical %>">
+<meta property="og:image" content="/apple-touch-icon.png">
 
 <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="/public/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/public/favicon-16x16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/public/apple-touch-icon.png">
 <link rel="manifest" href="/public/site.webmanifest">
-<link rel="shortcut icon" href="/public/favicon.ico">
 
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -46,17 +55,33 @@
   })();
 </script>
 
+<!-- If another partial injected meta[name="bl-sb-*"], capture them for fallback -->
+<script>
+  (function () {
+    if (window.__BL_SB) return;
+    var url  = (document.querySelector('meta[name="bl-sb-url"]')  || {}).content || '';
+    var anon = (document.querySelector('meta[name="bl-sb-anon"]') || {}).content || '';
+    window.__BL_SB = { url: url, anon: anon };
+  })();
+</script>
+
 <!-- Supabase client (browser) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-  // Expose env to the client
-  window.__SB_URL  = "<%= process.env.SUPABASE_URL || '' %>";
-  window.__SB_ANON = "<%= process.env.SUPABASE_ANON_KEY || '' %>";
-
-  // Create a single shared client with correct auth options.
+  // Prefer explicit env; fall back to PUBLIC key if ANON not set; finally fall back to meta.
   (function () {
-    if (!window.__SB_URL || !window.__SB_ANON) {
-      console.warn('[supabase] Missing SUPABASE_URL or SUPABASE_ANON_KEY in env.');
+    var ENV_URL  = "<%= process.env.SUPABASE_URL || '' %>";
+    var ENV_ANON = "<%= process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLIC_ANON_KEY || '' %>";
+
+    // Final fallbacks from meta tags if envs are empty
+    var META_URL  = (window.__BL_SB && window.__BL_SB.url)  || '';
+    var META_ANON = (window.__BL_SB && window.__BL_SB.anon) || '';
+
+    var SB_URL  = ENV_URL  || META_URL  || '';
+    var SB_ANON = ENV_ANON || META_ANON || '';
+
+    if (!SB_URL || !SB_ANON) {
+      console.warn('[supabase] Missing URL or ANON key (env/meta). Client will be null.');
       window.supabaseClient = null;
       return;
     }
@@ -71,12 +96,13 @@
       return;
     }
 
-    window.supabaseClient = create(window.__SB_URL, window.__SB_ANON, {
+    // Create a single shared client with the correct auth options.
+    window.supabaseClient = create(SB_URL, SB_ANON, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true,   // REQUIRED for password recovery + magic links
-        flowType: 'pkce'            // good default for OAuth
+        detectSessionInUrl: true, // REQUIRED for magic links + recovery
+        flowType: 'pkce'
       }
     });
   })();
