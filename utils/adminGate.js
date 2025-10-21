@@ -1,37 +1,35 @@
-// utils/adminGate.js — simple gate with NO external packages
-const ADMIN_SECRET = (process.env.ADMIN_SECRET || "").trim();
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
-  .split(",")
-  .map(s => s.trim().toLowerCase())
-  .filter(Boolean);
+// utils/adminGate.js — lightweight admin gate that works with client auth
+const cookieName = 'bl_admin';
 
-/**
- * allow if:
- *  1) request sends the correct X-Admin-Token / ?admin_secret matching ADMIN_SECRET
- *  2) user email (from req.user / res.locals / header / cookie) is in ADMIN_EMAILS
- * otherwise -> redirect to /login
- */
 module.exports = function ensureAdmin(req, res, next) {
-  try {
-    // option 1: shared secret header or query (useful for local testing or CI jobs)
-    const hdrToken =
-      req.get("x-admin-token") ||
-      req.get("x-admin-secret") ||
-      req.query.admin_secret;
-    if (ADMIN_SECRET && hdrToken && hdrToken === ADMIN_SECRET) return next();
+  const secret = process.env.BL_ADMIN_SECRET || '';        // e.g. a long random string
+  const allowEmails = String(process.env.BL_ADMIN_EMAILS || '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
 
-    // option 2: allowed email
-    const email =
-      (req.user && req.user.email) ||
-      (res.locals && res.locals.user && res.locals.user.email) ||
-      req.get("x-user-email") ||
-      (req.cookies ? req.cookies["bl-user-email"] : null);
+  // If you already have the admin cookie, you're in.
+  if (req.cookies && req.cookies[cookieName] === 'ok') return next();
 
-    if (email && ADMIN_EMAILS.includes(String(email).toLowerCase())) {
-      return next();
-    }
-  } catch (e) {
-    console.error("[adminGate] error:", e);
+  // One-time unlock: /admin?admin_key=SECRET  or header: x-admin-key: SECRET
+  const key = String(req.query.admin_key || req.get('x-admin-key') || '');
+  if (secret && key && key === secret) {
+    res.cookie(cookieName, 'ok', {
+      httpOnly: true,
+      sameSite: 'Lax',
+      secure: true,
+      maxAge: 7 * 24 * 3600 * 1000, // 7 days
+    });
+    // Clean the admin_key from the URL
+    const clean = req.originalUrl.replace(/([?&])admin_key=[^&]+(&|$)/, '$1').replace(/[?&]$/, '');
+    return res.redirect(clean || '/admin');
   }
-  return res.redirect(302, "/login");
+
+  // Optional: allow if a trusted proxy/app forwards the user email
+  const fwdEmail = String(req.get('x-user-email') || '').toLowerCase();
+  if (allowEmails.length && fwdEmail && allowEmails.includes(fwdEmail)) return next();
+
+  // Not authorized → send to login (or JSON 403 for API callers)
+  if (req.accepts(['html', 'json']) === 'json') return res.status(403).json({ error: 'forbidden' });
+  return res.redirect('/login');
 };
