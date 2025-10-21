@@ -39,8 +39,7 @@
 
   <script>
   (async function () {
-    // Expect a global Supabase client initialized in the HEAD partial with:
-    // createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { detectSessionInUrl: true })
+    // Requires window.supabaseClient created in ./partials/head
     const sb = window.supabaseClient;
 
     const state = document.getElementById('state');
@@ -50,6 +49,12 @@
 
     function qs() { return new URLSearchParams(location.search); }
     function hs() { return new URLSearchParams((location.hash || '').replace(/^#/, '')); }
+    function urlClean() {
+      try { history.replaceState({}, document.title, location.pathname); } catch (_) {}
+    }
+    function urlCleanKeepQuery() {
+      try { history.replaceState({}, document.title, location.pathname + location.search); } catch (_) {}
+    }
 
     const q = qs();
     const h = hs();
@@ -61,31 +66,49 @@
     if (err) {
       state.textContent = decodeURIComponent(err);
       back.style.display = 'block';
-      try { history.replaceState({}, document.title, location.pathname); } catch (_) {}
+      urlClean();
       return;
     }
 
-    // If this is an OAuth PKCE callback (?code=...), exchange it.
+    // ---- 1) OAuth PKCE (?code=...) ----
     const code = q.get('code');
     if (code) {
       try {
         await sb.auth.exchangeCodeForSession(window.location.href);
-        history.replaceState({}, document.title, location.pathname);
       } catch (e) {
         console.warn('exchangeCodeForSession failed:', e);
+      } finally {
+        urlClean(); // remove code from URL
       }
     }
 
-    // If access_token + refresh_token are in the hash (recovery/magic links), set the session.
+    // ---- 2) Legacy magic link (tokens in #hash) ----
     const access_token  = h.get('access_token');
     const refresh_token = h.get('refresh_token');
     if (access_token && refresh_token) {
       try {
         await sb.auth.setSession({ access_token, refresh_token });
-        history.replaceState({}, document.title, location.pathname + location.search);
       } catch (e) {
         console.warn('setSession failed:', e);
+      } finally {
+        urlCleanKeepQuery(); // keep ?type if present; drop hash
       }
+    }
+
+    // ---- 3) New verifyOtp flow (?type=magiclink|signup|email_change|… & token_hash=… & email=…) ----
+    const token_hash = q.get('token_hash');
+    const email = q.get('email') || q.get('user_email') || '';
+    if (token_hash && type) {
+      try {
+        await sb.auth.verifyOtp({ type, token_hash, email });
+      } catch (e) {
+        console.warn('verifyOtp failed:', e);
+        state.textContent = e && e.message ? e.message : 'Unable to verify your link. Please request a new one.';
+        back.style.display = 'block';
+        urlClean(); // remove query
+        return;
+      }
+      urlClean(); // verified — remove query params
     }
 
     // Do we have a session now?
@@ -122,19 +145,25 @@
     // Email confirmations / magic links
     if (['signup','magiclink','email_change','invitation','verified'].includes(type)) {
       if (!session) {
-        state.textContent = '✅ Your email has been verified. You can log in now.';
-        setTimeout(() => { location.href = '/login?confirmed=1'; }, 700);
+        state.textContent = 'We couldn’t complete sign-in from that link. Please request a new magic link.';
+        back.style.display = 'block';
         return;
       }
-      state.textContent = 'Signed in. Redirecting…';
-      setTimeout(() => { location.href = '/account'; }, 500);
-      return;
+      // fall through to redirect below
     }
 
-    // Fallbacks
+    // Final redirects
     if (session) {
-      state.textContent = 'Signed in. Redirecting…';
-      setTimeout(() => { location.href = '/account'; }, 500);
+      try {
+        const { data } = await sb.auth.getUser();
+        const user = data && data.user;
+        const role = (user && user.app_metadata && user.app_metadata.role) || '';
+        state.textContent = 'Signed in. Redirecting…';
+        setTimeout(() => { location.href = (role === 'admin') ? '/admin' : '/account'; }, 300);
+      } catch (_e) {
+        state.textContent = 'Signed in. Redirecting…';
+        setTimeout(() => { location.href = '/account'; }, 300);
+      }
     } else {
       state.textContent = 'Session not found. You can close this tab and try logging in again.';
       back.style.display = 'block';
