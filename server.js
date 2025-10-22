@@ -105,9 +105,41 @@ try {
   console.error('[routes] failed to mount ./routes/loginShim:', e);
 }
 
+/**
+ * Mount /watch (grid) and /player/:id (single player) explicitly.
+ * We mount these BEFORE index to prevent any overlap with legacy definitions.
+ */
+try {
+  const watchRoutes = require('./routes/watch');
+  app.use('/watch', watchRoutes);
+  console.log('[routes] mounted watch router at /watch');
+} catch (e) {
+  console.error('[routes] failed to mount ./routes/watch:', e);
+}
+
+try {
+  const playerRoutes = require('./routes/player');
+  app.use('/', playerRoutes); // exposes /player/:id
+  console.log('[routes] mounted player router at /');
+} catch (e) {
+  console.error('[routes] failed to mount ./routes/player:', e);
+}
+
+/**
+ * Legacy redirect: /video/:id → /player/:id
+ * This preserves any old links while ensuring we always hit the safe embed route.
+ */
+app.get('/video/:id', (req, res) => {
+  try {
+    return res.redirect(301, `/player/${encodeURIComponent(req.params.id)}`);
+  } catch {
+    return res.redirect(302, `/player/${req.params.id}`);
+  }
+});
+
 try {
   const indexRoutes = require('./routes/index');
-  app.use('/', indexRoutes); // includes /, /watch, /video/:id, static pages
+  app.use('/', indexRoutes); // homepage, static pages, other routes
   console.log('[routes] mounted index router at /');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/index:', e);
