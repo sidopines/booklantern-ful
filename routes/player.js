@@ -6,7 +6,6 @@ const express = require('express');
 const router = express.Router();
 
 // ---- Supabase client ----
-// If you already have a central client (e.g., in lib/supabase.js), replace this require with yours:
 const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -66,23 +65,37 @@ function toEmbedUrl(raw) {
   }
 }
 
+async function fetchVideoById(id) {
+  // Try admin_videos first (your Watch grid uses this)
+  let { data, error } = await supabase
+    .from('admin_videos')
+    .select('id,title,description,url,source_url,link,channel,created_at')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (!error && data) return { video: data };
+
+  // Fallback to videos for legacy rows
+  const { data: v2, error: e2 } = await supabase
+    .from('videos')
+    .select('id,title,description,url,source_url,link,created_at')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (!e2 && v2) return { video: v2 };
+
+  return { video: null, error: error || e2 || new Error('Not found') };
+}
+
 // GET /player/:id
 router.get('/player/:id', async (req, res) => {
   const { id } = req.params;
 
-  // Adjust table/columns to your schema. Assumes a "videos" table with:
-  // id (text/uuid), title (text), description (text), source_url (text), created_at, etc.
-  const { data: video, error } = await supabase
-    .from('videos')
-    .select('id,title,description,source_url,url,link,created_at')
-    .eq('id', id)
-    .single();
-
+  const { video, error } = await fetchVideoById(id);
   if (error || !video) {
-    console.error('[player.js] Video fetch error:', error || 'not found');
-    return res.status(404).render('errors/404', {
-      message: 'Video not found',
-    });
+    console.error('[player.js] Video fetch error:', error?.message || 'not found');
+    // Use your 404.ejs (top-level) for consistency with server.js
+    return res.status(404).render('404');
   }
 
   const rawUrl = video.source_url || video.url || video.link || null;
