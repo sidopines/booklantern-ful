@@ -55,10 +55,10 @@
         <option value="">All</option>
         <%
           const GENRES = Array.isArray(genres) ? genres : [];
-          const sel = typeof selectedGenre === 'string' ? selectedGenre : '';
+          const sel = typeof activeGenre === 'string' ? activeGenre : (activeGenre || '');
           GENRES.forEach(function(g){
         %>
-          <option value="<%= g.id %>" <%= sel === String(g.id) ? 'selected' : '' %>><%= g.name %></option>
+          <option value="<%= g.id %>" <%= String(sel) === String(g.id) ? 'selected' : '' %>><%= g.name %></option>
         <% }) %>
       </select>
       <button class="btn" type="submit">Apply</button>
@@ -72,7 +72,7 @@
         <div class="muted">No videos yet.</div>
       <% } else {
            VIDS.forEach(function(v){
-             const href = v.id ? `/video/${v.id}` : (v.url || '#');
+             const href = v.id ? `/player/${v.id}` : (v.url || '#');
       %>
         <article class="card" tabindex="-1" data-url="<%= v.url || '' %>">
           <div class="thumb">
@@ -91,10 +91,19 @@
             </div>
             <a class="thumbLink" href="<%= href %>" aria-label="Play <%= v.title %>"></a>
           </div>
+
           <h3 class="title"><a href="<%= href %>"><%= v.title %></a></h3>
-          <% if (v.channel) { %><div class="muted">by <%= v.channel %></div><% } else if (v.url) { %>
-            <div class="muted">by <%= (new URL(v.url)).hostname.replace('www.','') %></div>
+
+          <% 
+            let host = '';
+            try { if (v.url) { host = (new URL(v.url)).hostname.replace(/^www\./,''); } } catch(_e) { host = ''; }
+          %>
+          <% if (v.channel) { %>
+            <div class="muted">by <%= v.channel %></div>
+          <% } else if (host) { %>
+            <div class="muted">by <%= host %></div>
           <% } %>
+
           <a class="watchBtn" href="<%= href %>">Watch</a>
         </article>
       <% }) } %>
