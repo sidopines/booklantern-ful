@@ -65,26 +65,55 @@ function toEmbedUrl(raw) {
   }
 }
 
+// Fetch by ID, preferring admin_videos (your Watch grid source), then fallback to videos (legacy)
 async function fetchVideoById(id) {
-  // Try admin_videos first (your Watch grid uses this)
-  let { data, error } = await supabase
+  // 1) admin_videos — only select fields that exist there
+  let { data: av, error: avErr } = await supabase
     .from('admin_videos')
-    .select('id,title,description,url,source_url,link,channel,created_at')
+    .select('id,title,url,channel,thumb,created_at')
     .eq('id', id)
     .maybeSingle();
 
-  if (!error && data) return { video: data };
+  if (!avErr && av) {
+    // Normalize to a common shape the view expects
+    const normalized = {
+      id: av.id,
+      title: av.title || 'Untitled video',
+      description: null,          // admin_videos has no description column
+      url: av.url || null,
+      source_url: null,
+      link: null,
+      channel: av.channel || '',
+      thumb: av.thumb || null,
+      created_at: av.created_at || null,
+    };
+    return { video: normalized };
+  }
 
-  // Fallback to videos for legacy rows
-  const { data: v2, error: e2 } = await supabase
+  // 2) videos — legacy table (this one *may* have description/source_url)
+  const { data: v2, error: v2Err } = await supabase
     .from('videos')
     .select('id,title,description,url,source_url,link,created_at')
     .eq('id', id)
     .maybeSingle();
 
-  if (!e2 && v2) return { video: v2 };
+  if (!v2Err && v2) {
+    // Ensure missing fields exist to keep view logic simple
+    const normalized = {
+      id: v2.id,
+      title: v2.title || 'Untitled video',
+      description: v2.description || null,
+      url: v2.url || null,
+      source_url: v2.source_url || null,
+      link: v2.link || null,
+      channel: '',     // legacy didn’t expose channel
+      thumb: null,     // not stored here
+      created_at: v2.created_at || null,
+    };
+    return { video: normalized };
+  }
 
-  return { video: null, error: error || e2 || new Error('Not found') };
+  return { video: null, error: avErr || v2Err || new Error('Not found') };
 }
 
 // GET /player/:id
@@ -94,14 +123,12 @@ router.get('/player/:id', async (req, res) => {
   const { video, error } = await fetchVideoById(id);
   if (error || !video) {
     console.error('[player.js] Video fetch error:', error?.message || 'not found');
-    // Use your 404.ejs (top-level) for consistency with server.js
     return res.status(404).render('404');
   }
 
   const rawUrl = video.source_url || video.url || video.link || null;
   const embedUrl = toEmbedUrl(rawUrl);
 
-  // Pass through to view
   return res.render('player', {
     video,
     embedUrl,
