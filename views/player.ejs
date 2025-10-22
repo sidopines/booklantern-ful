@@ -9,9 +9,12 @@
     <% } %>
 
     <div class="video-player">
+      <% const raw = (typeof rawUrl !== 'undefined' ? rawUrl : (video.source_url || video.url || video.link)); %>
+
       <% if (embedUrl) { %>
         <div class="iframe-16x9">
           <iframe
+            id="bl-iframe"
             src="<%= embedUrl %>"
             title="<%= video.title %>"
             loading="lazy"
@@ -22,13 +25,26 @@
             width="100%" height="100%">
           </iframe>
         </div>
+
+        <!-- Fallback container (hidden initially) -->
+        <div id="bl-fallback" class="iframe-16x9 blocked" style="display:none">
+          <div class="blocked-msg">
+            <div class="mb-2">We can’t embed this source.</div>
+            <% if (raw) { %>
+              <a class="btn btn-primary" href="<%= raw %>" target="_blank" rel="noopener">
+                Open on source site
+              </a>
+            <% } else { %>
+              <div class="text-gray-500">No URL was provided for this video.</div>
+            <% } %>
+          </div>
+        </div>
       <% } else { %>
         <div class="iframe-16x9 blocked">
           <div class="blocked-msg">
             <div class="mb-2">We can’t embed this source.</div>
-            <% const rawUrl = (video.source_url || video.url || video.link); %>
-            <% if (rawUrl) { %>
-              <a class="btn btn-primary" href="<%= rawUrl %>" target="_blank" rel="noopener">
+            <% if (raw) { %>
+              <a class="btn btn-primary" href="<%= raw %>" target="_blank" rel="noopener">
                 Open on source site
               </a>
             <% } else { %>
@@ -48,7 +64,6 @@
 </main>
 
 <style>
-  /* Keep styles minimal and scoped so we don't disturb your global theme */
   .iframe-16x9 { position: relative; width: 100%; max-width: 1100px; margin: 0 auto; }
   .iframe-16x9::before { content: ""; display: block; padding-top: 56.25%; } /* 16:9 */
   .iframe-16x9 > iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: 16px; }
@@ -58,5 +73,29 @@
   .btn-primary { background: var(--accent, #111); color: #fff; }
   .container { max-width: 1100px; }
 </style>
+
+<script>
+  // If the iframe fails to load (X-Frame-Options / CSP / network),
+  // show the graceful fallback with "Open on source site".
+  (function () {
+    const iframe = document.getElementById('bl-iframe');
+    if (!iframe) return;
+
+    const showFallback = () => {
+      const fb = document.getElementById('bl-fallback');
+      if (!fb) return;
+      iframe.parentElement.style.display = 'none';
+      fb.style.display = 'block';
+    };
+
+    // Some browsers won't fire onerror for blocked iframes; add a timeout.
+    let loaded = false;
+    iframe.addEventListener('load', () => { loaded = true; }, { once: true });
+    iframe.addEventListener('error', showFallback, { once: true });
+
+    // If nothing has loaded after 4s, assume blocked and swap.
+    setTimeout(() => { if (!loaded) showFallback(); }, 4000);
+  })();
+</script>
 
 <%- include('partials/footer') %>
