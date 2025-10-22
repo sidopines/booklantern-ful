@@ -9,7 +9,7 @@ const ensureAdmin = require('../utils/adminGate');     // header/secret/email ga
 router.use(ensureAdmin);
 
 // Admin dashboard with counts (safe even if Supabase is null)
-router.get('/', async (req, res) => {
+router.get('/', async (_req, res) => {
   let usersCount = 0, booksCount = 0, videosCount = 0, genresCount = 0;
 
   if (supabase) {
@@ -30,13 +30,13 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    res.render('admin/index', {
+    return res.render('admin/index', {
       counts: { usersCount, booksCount, videosCount, genresCount }
     });
   } catch (e) {
     console.error('[admin] render index failed:', e);
     // Minimal fallback HTML if your admin/index.ejs is missing
-    res.status(200).send(
+    return res.status(200).send(
       `<h1>Admin</h1>
        <ul>
          <li>Users: ${usersCount}</li>
@@ -47,17 +47,17 @@ router.get('/', async (req, res) => {
        <p>
         <a href="/admin/books">Manage Books</a> ·
         <a href="/admin/videos">Manage Videos</a> ·
-        <a href="/admin/video-genres">Manage Video Genres</a> ·
+        <a href="/admin/genres">Manage Video Genres</a> ·
         <a href="/admin/users">Open Users</a>
        </p>`
     );
   }
 });
 
-// Sub-sections
-router.use('/books',        require('./admin-books'));
-router.use('/videos',       require('./admin-videos'));
-router.use('/video-genres', require('./admin-video-genres'));
-router.use('/users',        require('./admin-users'));
+// Sub-sections (paths normalized to match server.js mounts)
+router.use('/books',  require('./admin-books'));
+router.use('/videos', require('./admin-videos'));
+router.use('/genres', require('./admin-video-genres'));
+router.use('/users',  require('./admin-users'));
 
 module.exports = router;
