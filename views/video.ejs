@@ -2,37 +2,41 @@
 <html lang="en">
 <head>
   <%- include('partials/header'); %>
-  <title><%= video?.title ? video.title + ' • ' : '' %>Watch • BookLantern</title>
+  <title><%= video?.title ? (video.title + ' • BookLantern') : 'Video • BookLantern' %></title>
   <meta name="robots" content="index,follow">
+  <style>
+    .player { position: relative; width: 100%; max-width: 960px; margin: 0 auto; }
+    .player::before { content: ""; display: block; padding-top: 56.25%; } /* 16:9 */
+    .player iframe, .player .fallback {
+      position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: 12px;
+      background:#000;
+    }
+  </style>
 </head>
 <body>
   <%- include('partials/navbar'); %>
 
-  <main class="container" style="padding:24px 0 64px;max-width:960px;margin:auto;">
-    <a href="/watch" class="btn" style="margin-bottom:12px;">← Back to Watch</a>
+  <main class="container" style="padding:24px 0 64px;max-width:1100px;">
+    <p><a class="btn" href="/watch">← Back to Watch</a></p>
+    <h1 class="page-title"><%= video?.title || 'Video' %></h1>
+    <% if (video?.channel) { %>
+      <div class="muted" style="margin-bottom:12px;">by <%= video.channel %></div>
+    <% } %>
 
-    <h1 class="page-title"><%= video.title %></h1>
-    <% if (video.channel) { %><p class="muted" style="margin-top:-6px">by <%= video.channel %></p><% } %>
-
-    <div style="margin:16px 0;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:16/9;">
-      <% if (embedSrc) { %>
+    <div class="player" aria-label="Video player">
+      <% if (video?.embedUrl) { %>
         <iframe
-          src="<%= embedSrc %>"
-          title="Video player"
+          src="<%= video.embedUrl %>"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowfullscreen
-          style="border:0;width:100%;height:100%;display:block">
+          referrerpolicy="strict-origin-when-cross-origin">
         </iframe>
       <% } else { %>
-        <div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:#fff;">
-          <p>We can’t embed this provider. <a href="<%= video.url %>" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline">Open externally</a>.</p>
+        <div class="fallback" style="display:flex;align-items:center;justify-content:center;color:#fff;">
+          <p>Sorry, we can’t embed this link. <a href="<%= video?.url %>" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">Open on source site</a></p>
         </div>
       <% } %>
     </div>
-
-    <% if (video.url && !embedSrc) { %>
-      <p><a class="btn" href="<%= video.url %>" target="_blank" rel="noopener">Open video</a></p>
-    <% } %>
   </main>
 
   <%- include('partials/footer'); %>
