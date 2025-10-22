@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 
-// Optional Supabase server client (service role)
+// Supabase server client (service role preferred)
 let sb = null;
 try {
   sb = require('../supabaseAdmin'); // exports a client or null
@@ -15,12 +15,13 @@ function guessThumb(url) {
   try {
     const u = new URL(url);
     const host = u.hostname.replace(/^www\./, '');
-    // YouTube watch or share links
-    if (host === 'youtube.com' || host === 'youtu.be' || host === 'm.youtube.com') {
+    if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtu.be') {
       let id = '';
-      if (host === 'youtu.be') id = u.pathname.replace('/', '');
+      if (host === 'youtu.be') id = u.pathname.slice(1);
       else if (u.pathname.startsWith('/watch')) id = u.searchParams.get('v') || '';
       else if (u.pathname.startsWith('/embed/')) id = u.pathname.split('/').pop();
+      else if (u.pathname.startsWith('/shorts/')) id = u.pathname.split('/')[2] || '';
+      else if (u.pathname.startsWith('/live/')) id = u.pathname.split('/')[2] || '';
       if (id) return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
     }
   } catch {}
@@ -64,9 +65,7 @@ async function getVideos({ genreId } = {}) {
     .select('id,title,url,channel,thumb,created_at')
     .order('created_at', { ascending: false });
 
-  if (videoIds) {
-    query = query.in('id', videoIds);
-  }
+  if (videoIds) query = query.in('id', videoIds);
 
   const { data, error } = await query;
   if (error) {
@@ -97,15 +96,16 @@ router.get('/', async (req, res) => {
     const genres = await getGenres();
     const genre = String(req.query.genre || '').trim() || null;
 
-    // Verify filter exists
-    const activeGenre = genre && genres.find((g) => g.id === genre) ? genre : null;
+    // Verify filter exists (string-safe)
+    const activeGenre =
+      genre && genres.find((g) => String(g.id) === String(genre)) ? genre : null;
 
     const videos = await getVideos({ genreId: activeGenre });
 
     return res.render('watch', {
       videos,
-      genres,          // [{id, name}]
-      activeGenre,     // current selected genre id or null
+      genres,      // [{id, name}]
+      activeGenre, // current selected genre id or null
     });
   } catch (e) {
     console.error('[watch] render failed:', e);
