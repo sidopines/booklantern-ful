@@ -43,21 +43,6 @@ app.get('/robots.txt', (_req, res) => {
   res.type('text/plain').send('User-agent: *\nAllow: /\n');
 });
 
-// ---------- Minimal CSP to allow video iframes ----------
-// We ONLY set frame-src so we don’t interfere with your other resources.
-// If another layer already sets a CSP header, we leave it alone.
-app.use((req, res, next) => {
-  const existing = res.getHeader('Content-Security-Policy');
-  if (!existing) {
-    // Allow privacy-enhanced YouTube + regular YouTube + Vimeo players
-    res.setHeader(
-      'Content-Security-Policy',
-      "frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com; frame-ancestors 'self';"
-    );
-  }
-  next();
-});
-
 // ---------- Safe locals for EJS ----------
 const BUILD_ID = Date.now().toString();
 app.use((req, res, next) => {
@@ -122,19 +107,26 @@ try {
 
 try {
   const indexRoutes = require('./routes/index');
-  app.use('/', indexRoutes); // includes /, /watch, static pages (not /player)
+  app.use('/', indexRoutes); // static pages, home, read, etc.
   console.log('[routes] mounted index router at /');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/index:', e);
 }
 
 try {
-  // Ensure /player/:id is mounted
   const playerRoutes = require('./routes/player');
-  app.use('/', playerRoutes);
+  app.use('/', playerRoutes); // /player/:id
   console.log('[routes] mounted player router at /');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/player:', e);
+}
+
+try {
+  const watchRoutes = require('./routes/watch');
+  app.use('/watch', watchRoutes); // dedicated /watch router
+  console.log('[routes] mounted watch router at /watch');
+} catch (e) {
+  console.error('[routes] failed to mount ./routes/watch:', e);
 }
 
 try {
