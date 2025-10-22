@@ -119,7 +119,7 @@ try {
 
 try {
   const playerRoutes = require('./routes/player');
-  app.use('/', playerRoutes); // exposes /player/:id
+  app.use('/', playerRoutes);
   console.log('[routes] mounted player router at /');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/player:', e);
