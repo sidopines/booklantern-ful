@@ -9,12 +9,9 @@ const ensureAdmin = require('../utils/adminGate');
 router.use(ensureAdmin);
 
 // GET /admin/genres — list + form
-router.get('/', async (req, res) => {
+router.get('/', async (_req, res) => {
   if (!supabase) {
-    return res.status(503).render('admin/genres', {
-      messages: { error: 'Supabase is not configured.' },
-      genres: []
-    });
+    return res.status(503).send('<p>Supabase is not configured.</p>');
   }
   try {
     const { data: genres = [], error } = await supabase
@@ -23,24 +20,23 @@ router.get('/', async (req, res) => {
       .order('name', { ascending: true });
     if (error) throw error;
 
-    // Render a minimal fallback page if you don't have views/admin/genres.ejs.
-    // To keep “full and final”, we render a tiny HTML here to avoid 404.
     res.send(`<!DOCTYPE html><html><head>
-      <meta charset="utf-8"><title>Admin • Genres</title>
+      <meta charset="utf-8"><title>Manage Video Genres • Admin</title>
       <style>
-        body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem}
+        body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem}
         table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #e5e7eb}
         .row{display:flex;gap:.5rem;align-items:center}
         input,button{padding:.5rem .6rem}
         .muted{color:#667085}
+        a.btn,button{border:1px solid #0000001a;border-radius:8px;background:#f6f7f9;cursor:pointer}
       </style>
     </head><body>
-      <h1>Manage Genres</h1>
+      <h1>Manage Video Genres</h1>
       <form class="row" method="POST" action="/admin/genres">
         <input type="text" name="name" placeholder="New genre name" required/>
         <button type="submit">Add</button>
       </form>
-      <p class="muted">Tip: After adding, use Admin → Videos to tag videos with these.</p>
+      <p class="muted">After adding, use <a href="/admin/videos">Admin → Videos</a> to tag videos.</p>
       <h2>Current Genres</h2>
       <table><thead><tr><th style="text-align:left">Name</th><th>Actions</th></tr></thead><tbody>
       ${genres.map(g => `
@@ -59,7 +55,7 @@ router.get('/', async (req, res) => {
           </td>
         </tr>`).join('')}
       </tbody></table>
-      <p><a href="/admin">← Back to Admin</a></p>
+      <p><a class="btn" href="/admin">← Back to Admin</a></p>
     </body></html>`);
   } catch (e) {
     console.error('[admin] load genres failed:', e);
@@ -107,7 +103,6 @@ router.post('/delete', async (req, res) => {
   const id = String(req.body.id || '').trim();
   if (!id) return res.redirect(303, '/admin/genres');
   try {
-    // will cascade remove mappings because video_genres_map has FK on delete cascade
     const { error } = await supabase.from('video_genres').delete().eq('id', id);
     if (error) throw error;
   } catch (e) {
