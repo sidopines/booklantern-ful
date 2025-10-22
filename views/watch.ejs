@@ -8,36 +8,17 @@
     .filters{display:flex;align-items:center;gap:8px;margin:12px 0 20px}
     .filters .input, .filters select{padding:10px 12px;border:1px solid #d1d5db;border-radius:10px;font:inherit}
     .btn{padding:10px 14px;border-radius:10px;border:1px solid #e5e7eb;background:#111827;color:#fff;font-weight:600}
-    .grid{
-      display:grid;gap:18px;
-      grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
-    }
-    .card{
-      background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:12px;
-      transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
-    }
-    .card:focus-within, .card:hover{
-      transform:translateY(-2px);
-      border-color:#cbd5e1;
-      box-shadow:0 8px 24px rgba(0,0,0,.06);
-    }
-    .thumb{
-      position:relative;border-radius:10px;overflow:hidden;background:#0a0a0a;aspect-ratio:16/9;
-      display:flex;align-items:center;justify-content:center;
-    }
+    .grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:12px;transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease}
+    .card:focus-within, .card:hover{transform:translateY(-2px);border-color:#cbd5e1;box-shadow:0 8px 24px rgba(0,0,0,.06)}
+    .thumb{position:relative;border-radius:10px;overflow:hidden;background:#0a0a0a;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center}
     .thumb img{width:100%;height:100%;object-fit:cover;display:block}
-    .play{
-      position:absolute;inset:0;display:grid;place-items:center;
-      background:linear-gradient(transparent,rgba(0,0,0,.35));
-      opacity:0;transition:opacity .15s ease;
-    }
+    .play{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(transparent,rgba(0,0,0,.35));opacity:0;transition:opacity .15s ease}
     .card:hover .play, .card:focus-within .play{opacity:1}
     .play svg{width:54px;height:54px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35))}
     .title{margin:10px 0 6px;font-size:16px;line-height:1.25;font-weight:700}
     .muted{color:#6b7280;font-size:13px}
-    .watchBtn{
-      display:inline-block;margin-top:10px;padding:8px 12px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;font-weight:600
-    }
+    .watchBtn{display:inline-block;margin-top:10px;padding:8px 12px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;font-weight:600}
     .card a.thumbLink{position:absolute;inset:0;overflow:hidden;border-radius:10px}
     .visually-hidden{position:absolute!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;height:1px!important;width:1px!important;overflow:hidden!important;white-space:nowrap!important}
   </style>
@@ -54,13 +35,16 @@
       <select id="genre" name="genre" class="input">
         <option value="">All</option>
         <%
-          // Make the template SAFE even if the route doesn't send activeGenre.
-          const GENRES = Array.isArray(typeof genres !== 'undefined' ? genres : []) ? genres : [];
-          const _active = (typeof activeGenre !== 'undefined' && activeGenre) ? String(activeGenre) : '';
+          const GENRES = Array.isArray(locals.genres) ? locals.genres : [];
+          const sel =
+            typeof locals.activeGenre !== 'undefined'
+              ? String(locals.activeGenre || '')
+              : (typeof locals.selectedGenre !== 'undefined'
+                    ? String(locals.selectedGenre || '')
+                    : '');
           GENRES.forEach(function(g){
-            const gid = String(g.id);
         %>
-          <option value="<%= gid %>" <%= _active === gid ? 'selected' : '' %>><%= g.name %></option>
+          <option value="<%= g.id %>" <%= sel === String(g.id) ? 'selected' : '' %>><%= g.name %></option>
         <% }) %>
       </select>
       <button class="btn" type="submit">Apply</button>
@@ -68,27 +52,19 @@
 
     <section class="grid" id="watchGrid" aria-live="polite">
       <%
-        const VIDS = Array.isArray(typeof videos !== 'undefined' ? videos : []) ? videos : [];
+        const VIDS = Array.isArray(locals.videos) ? locals.videos : [];
         if (!VIDS.length) {
       %>
         <div class="muted">No videos yet.</div>
       <% } else {
            VIDS.forEach(function(v){
-             const id = v && v.id ? String(v.id) : '';
-             const href = id ? `/player/${id}` : (v && v.url ? v.url : '#');
-
-             // Safe host derivation for the "by ..." line
-             function hostOf(u){
-               try { return new URL(u).hostname.replace(/^www\./,''); } catch(_e){ return ''; }
-             }
-             const host = v && v.channel ? v.channel : (v && v.url ? hostOf(v.url) : '');
+             const href = v.id ? `/player/${v.id}` : (v.url || '#');
       %>
-        <article class="card" tabindex="-1" data-url="<%= v && v.url ? v.url : '' %>">
+        <article class="card" tabindex="-1" data-url="<%= v.url || '' %>">
           <div class="thumb">
-            <% if (v && v.thumb) { %>
+            <% if (v.thumb) { %>
               <img loading="lazy" alt="" src="<%= v.thumb %>">
             <% } else { %>
-              <!-- Will be auto-filled for YouTube below -->
               <img loading="lazy" alt="" data-autothumb style="opacity:.0">
               <img src="/public/img/cover-fallback.svg" alt="" style="position:absolute;inset:0;margin:auto;width:64px;height:64px;opacity:.45">
             <% } %>
@@ -98,10 +74,14 @@
                 <polygon points="26,20 48,32 26,44" fill="#111827"/>
               </svg>
             </div>
-            <a class="thumbLink" href="<%= href %>" aria-label="Play <%= v && v.title ? v.title : 'video' %>"></a>
+            <a class="thumbLink" href="<%= href %>" aria-label="Play <%= v.title %>"></a>
           </div>
-          <h3 class="title"><a href="<%= href %>"><%= v && v.title ? v.title : 'Untitled video' %></a></h3>
-          <% if (host) { %><div class="muted">by <%= host %></div><% } %>
+          <h3 class="title"><a href="<%= href %>"><%= v.title %></a></h3>
+          <% if (v.channel) { %>
+            <div class="muted">by <%= v.channel %></div>
+          <% } else if (v.url) { %>
+            <div class="muted">by <%= (new URL(v.url)).hostname.replace('www.','') %></div>
+          <% } %>
           <a class="watchBtn" href="<%= href %>">Watch</a>
         </article>
       <% }) } %>
