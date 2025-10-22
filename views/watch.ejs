@@ -3,15 +3,54 @@
 <head>
   <%- include('partials/header'); %>
   <title>Watch • BookLantern</title>
+  <style>
+    .wrap{max-width:1200px;margin:24px auto;padding:0 16px}
+    .filters{display:flex;align-items:center;gap:8px;margin:12px 0 20px}
+    .filters .input, .filters select{padding:10px 12px;border:1px solid #d1d5db;border-radius:10px;font:inherit}
+    .btn{padding:10px 14px;border-radius:10px;border:1px solid #e5e7eb;background:#111827;color:#fff;font-weight:600}
+    .grid{
+      display:grid;gap:18px;
+      grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+    }
+    .card{
+      background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:12px;
+      transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    }
+    .card:focus-within, .card:hover{
+      transform:translateY(-2px);
+      border-color:#cbd5e1;
+      box-shadow:0 8px 24px rgba(0,0,0,.06);
+    }
+    .thumb{
+      position:relative;border-radius:10px;overflow:hidden;background:#0a0a0a;aspect-ratio:16/9;
+      display:flex;align-items:center;justify-content:center;
+    }
+    .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+    .play{
+      position:absolute;inset:0;display:grid;place-items:center;
+      background:linear-gradient(transparent,rgba(0,0,0,.35));
+      opacity:0;transition:opacity .15s ease;
+    }
+    .card:hover .play, .card:focus-within .play{opacity:1}
+    .play svg{width:54px;height:54px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35))}
+    .title{margin:10px 0 6px;font-size:16px;line-height:1.25;font-weight:700}
+    .muted{color:#6b7280;font-size:13px}
+    .watchBtn{
+      display:inline-block;margin-top:10px;padding:8px 12px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;font-weight:600
+    }
+    .card a.thumbLink{position:absolute;inset:0;overflow:hidden;border-radius:10px}
+    .visually-hidden{position:absolute!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;height:1px!important;width:1px!important;overflow:hidden!important;white-space:nowrap!important}
+  </style>
 </head>
 <body>
   <%- include('partials/navbar'); %>
 
-  <main class="container" style="padding:24px 0 64px;">
+  <main class="wrap" style="padding-bottom:64px;">
     <h1 class="page-title">Watch</h1>
 
-    <form method="GET" action="/watch" class="filters" style="display:flex;align-items:center;margin:12px 0 24px;">
-      <label for="genre" style="margin-right:8px;">Genre</label>
+    <form method="GET" action="/watch" class="filters" role="search">
+      <label for="genre" class="visually-hidden">Genre</label>
+      <span class="muted">Genre</span>
       <select id="genre" name="genre" class="input">
         <option value="">All</option>
         <%
@@ -22,37 +61,73 @@
           <option value="<%= g.id %>" <%= sel === String(g.id) ? 'selected' : '' %>><%= g.name %></option>
         <% }) %>
       </select>
-      <button class="btn" type="submit" style="margin-left:8px;">Apply</button>
+      <button class="btn" type="submit">Apply</button>
     </form>
 
-    <section class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;">
+    <section class="grid" id="watchGrid" aria-live="polite">
       <%
         const VIDS = Array.isArray(videos) ? videos : [];
         if (!VIDS.length) {
       %>
-        <div class="empty">No videos yet.</div>
+        <div class="muted">No videos yet.</div>
       <% } else {
-           VIDS.forEach(function(v){ 
-             const thumb = v.thumb || v._derivedThumb;
+           VIDS.forEach(function(v){
+             const href = v.id ? `/video/${v.id}` : (v.url || '#');
       %>
-        <article class="card" style="border:1px solid #eee;border-radius:12px;padding:12px;background:#fff;">
-          <a href="/video/<%= v.id %>" style="text-decoration:none;color:inherit;">
-            <div class="thumb" style="height:126px;background:#fafafa;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-              <% if (thumb) { %>
-                <img src="<%= thumb %>" alt="" style="width:100%;height:100%;object-fit:cover;">
-              <% } else { %>
-                <img src="/public/img/cover-fallback.svg" alt="" style="width:64px;height:64px;opacity:.6;">
-              <% } %>
+        <article class="card" tabindex="-1" data-url="<%= v.url || '' %>">
+          <div class="thumb">
+            <% if (v.thumb) { %>
+              <img loading="lazy" alt="" src="<%= v.thumb %>">
+            <% } else { %>
+              <!-- Will be auto-filled for YouTube below -->
+              <img loading="lazy" alt="" data-autothumb style="opacity:.0">
+              <img src="/public/img/cover-fallback.svg" alt="" style="position:absolute;inset:0;margin:auto;width:64px;height:64px;opacity:.45">
+            <% } %>
+            <div class="play" aria-hidden="true">
+              <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="32" cy="32" r="30" fill="rgba(255,255,255,.92)"/>
+                <polygon points="26,20 48,32 26,44" fill="#111827"/>
+              </svg>
             </div>
-            <h3 style="margin:10px 0 6px;font-size:16px;"><%= v.title %></h3>
-            <% if (v.channel) { %><div class="muted">by <%= v.channel %></div><% } %>
-          </a>
-          <a href="/video/<%= v.id %>" class="btn" style="margin-top:10px;display:inline-block;">Watch</a>
+            <a class="thumbLink" href="<%= href %>" aria-label="Play <%= v.title %>"></a>
+          </div>
+          <h3 class="title"><a href="<%= href %>"><%= v.title %></a></h3>
+          <% if (v.channel) { %><div class="muted">by <%= v.channel %></div><% } else if (v.url) { %>
+            <div class="muted">by <%= (new URL(v.url)).hostname.replace('www.','') %></div>
+          <% } %>
+          <a class="watchBtn" href="<%= href %>">Watch</a>
         </article>
       <% }) } %>
     </section>
   </main>
 
   <%- include('partials/footer'); %>
+
+  <script>
+    // If a video has no explicit thumb but is a YouTube URL, show a derived thumbnail
+    (function autoThumb(){
+      const cards = document.querySelectorAll('[data-url]');
+      function ytId(u){
+        try{
+          const url = new URL(u);
+          if (url.hostname.includes('youtu.be')) return url.pathname.split('/')[1] || '';
+          if (url.pathname.startsWith('/shorts/')) return url.pathname.split('/')[2] || '';
+          if (url.searchParams.get('v')) return url.searchParams.get('v');
+          const m = url.pathname.match(/\/(embed|live)\/([^/?#]+)/);
+          return m ? m[2] : '';
+        }catch(_e){ return ''; }
+      }
+      cards.forEach(card => {
+        const u = card.getAttribute('data-url') || '';
+        const id = ytId(u);
+        if (!id) return;
+        const img = card.querySelector('img[data-autothumb]');
+        if (!img) return;
+        const src = `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+        img.addEventListener('load', () => { img.style.opacity = '1'; });
+        img.src = src;
+      });
+    })();
+  </script>
 </body>
 </html>
