@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/header'); %>
+  <title><%= video?.title ? video.title + ' • ' : '' %>Watch • BookLantern</title>
+  <meta name="robots" content="index,follow">
+</head>
+<body>
+  <%- include('partials/navbar'); %>
+
+  <main class="container" style="padding:24px 0 64px;max-width:960px;margin:auto;">
+    <a href="/watch" class="btn" style="margin-bottom:12px;">← Back to Watch</a>
+
+    <h1 class="page-title"><%= video.title %></h1>
+    <% if (video.channel) { %><p class="muted" style="margin-top:-6px">by <%= video.channel %></p><% } %>
+
+    <div style="margin:16px 0;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:16/9;">
+      <% if (embedSrc) { %>
+        <iframe
+          src="<%= embedSrc %>"
+          title="Video player"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen
+          style="border:0;width:100%;height:100%;display:block">
+        </iframe>
+      <% } else { %>
+        <div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:#fff;">
+          <p>We can’t embed this provider. <a href="<%= video.url %>" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline">Open externally</a>.</p>
+        </div>
+      <% } %>
+    </div>
+
+    <% if (video.url && !embedSrc) { %>
+      <p><a class="btn" href="<%= video.url %>" target="_blank" rel="noopener">Open video</a></p>
+    <% } %>
+  </main>
+
+  <%- include('partials/footer'); %>
+</body>
+</html>
