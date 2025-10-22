@@ -2,81 +2,115 @@
 <html lang="en">
 <head>
   <%- include('partials/header'); %>
-  <title><%= (video && video.title) ? video.title : 'Watch' %> • BookLantern</title>
+  <title><%= (locals.video?.title || locals.title || 'Video') %> • BookLantern</title>
   <style>
-    .wrap{max-width:980px;margin:24px auto;padding:0 16px}
-    .player{position:relative;width:100%;aspect-ratio:16/9;background:#0a0a0a;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb}
-    .player iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
-    .back{display:inline-block;margin-bottom:12px}
+    .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+    .back{display:inline-block;margin:4px 0 12px;padding:8px 12px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;font-weight:600}
+    .title{font-weight:800;font-size:32px;line-height:1.1;margin:6px 0 8px}
     .muted{color:#6b7280}
+    .player{position:relative;width:100%;aspect-ratio:16/9;background:#0a0a0a;border-radius:12px;overflow:hidden;margin:14px 0 8px}
+    .fallback{display:grid;place-items:center;inset:0;position:absolute;color:#6b7280}
+    iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+    .cta{margin-top:12px}
+    .cta a{display:inline-block;padding:8px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;font-weight:600}
   </style>
 </head>
 <body>
   <%- include('partials/navbar'); %>
-  <main class="wrap">
-    <a class="back btn" href="/watch">← Back to Watch</a>
+  <main class="wrap" style="padding-bottom:64px;">
+    <a class="back" href="/watch">← Back to Watch</a>
 
-    <h1 style="margin:0 0 6px"><%= (video && video.title) || 'Untitled video' %></h1>
-    <div class="muted">by <%= (video && video.channel) || (video && (new URL(video.url)).hostname) || 'Unknown' %></div>
+    <% 
+      const v = locals.video || locals.v || { 
+        title: locals.title, 
+        url: locals.url, 
+      };
+      const raw = String(v?.url || '').trim();
 
-    <section class="player">
-      <!-- We set data-url and compute the safe embed URL in JS. -->
-      <iframe id="player"
-              title="<%= (video && video.title) || 'Video' %>"
-              loading="lazy"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              referrerpolicy="strict-origin-when-cross-origin"
-              allowfullscreen
-              srcdoc="<style>body,html{margin:0;height:100%;display:grid;place-items:center;background:#0a0a0a;color:#9ca3af;font:14px/1.4 system-ui}</style><div>Loading player…</div>">
-      </iframe>
+      function ytId(u){
+        try{
+          const url = new URL(u);
+          if (url.hostname.includes('youtu.be')) return url.pathname.split('/')[1] || '';
+          if (url.pathname.startsWith('/shorts/')) return url.pathname.split('/')[2] || '';
+          const vq = url.searchParams.get('v'); if (vq) return vq;
+          const m = url.pathname.match(/\/(embed|live)\/([^/?#]+)/);
+          return m ? m[2] : '';
+        }catch(_e){ return ''; }
+      }
+
+      function vimeoId(u){
+        try{
+          const url = new URL(u);
+          if (!/vimeo\.com$|vimeo\.com$|player\.vimeo\.com$/.test(url.hostname)) return '';
+          const parts = url.pathname.split('/').filter(Boolean);
+          // /VIDEOID or /channels/.../VIDEOID etc.
+          const last = parts[parts.length - 1] || '';
+          return /^\d+$/.test(last) ? last : '';
+        }catch(_e){ return ''; }
+      }
+
+      function toEmbed(u){
+        const you = ytId(u);
+        if (you) {
+          const base = `https://www.youtube-nocookie.com/embed/${you}`;
+          // modest branding + disable related + origin for modern YT embedding
+          const params = new URLSearchParams({
+            rel: '0',
+            modestbranding: '1',
+            playsinline: '1',
+            ref: 'booklantern',
+            // origin is recommended; we’ll best-effort it
+            origin: `${(typeof req !== 'undefined' ? req.protocol+'://'+req.get('host') : '')}` || ''
+          });
+          return `${base}?${params.toString()}`;
+        }
+        const vim = vimeoId(u);
+        if (vim) {
+          return `https://player.vimeo.com/video/${vim}?byline=0&portrait=0&title=0`;
+        }
+        // Generic: if it already looks like an embeddable URL, allow it; else return empty
+        try {
+          const url = new URL(u);
+          if (/\/embed\//.test(url.pathname)) return url.toString();
+        } catch (_e){}
+        return '';
+      }
+
+      const embedUrl = toEmbed(raw);
+      const title = v?.title || 'Video';
+      const channel = v?.channel || (raw ? new URL(raw).hostname.replace(/^www\./,'') : '');
+    %>
+
+    <h1 class="title"><%= title %></h1>
+    <% if (channel) { %><div class="muted">by <%= channel %></div><% } %>
+
+    <section class="player" role="region" aria-label="Video player">
+      <% if (embedUrl) { %>
+        <iframe
+          src="<%= embedUrl %>"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen
+          referrerpolicy="strict-origin-when-cross-origin"
+          loading="eager">
+        </iframe>
+      <% } else { %>
+        <div class="fallback">
+          <div>
+            <p>Can’t embed this link safely.</p>
+            <% if (raw) { %>
+              <p class="cta"><a href="<%= raw %>" target="_blank" rel="noopener">Open on source site</a></p>
+            <% } %>
+          </div>
+        </div>
+      <% } %>
     </section>
 
-    <% if (video && video.url) { %>
-      <p class="muted" style="margin-top:10px">
-        Can’t play? <a href="<%= video.url %>" target="_blank" rel="noopener">Open source</a>.
-      </p>
+    <% if (raw && embedUrl) { %>
+      <div class="cta">
+        <a href="<%= raw %>" target="_blank" rel="noopener">Open on source site</a>
+      </div>
     <% } %>
   </main>
   <%- include('partials/footer'); %>
-
-  <script>
-    (function(){
-      const raw = <%- JSON.stringify((video && video.url) || '') %>;
-      const iframe = document.getElementById('player');
-
-      function pickProvider(u){
-        try{
-          const url = new URL(u);
-          const h = url.hostname.replace(/^www\./,'');
-          if (h.includes('youtube.com') || h.includes('youtu.be')) {
-            // Extract id from watch?v=, youtu.be/, /shorts/, /embed/, /live/
-            let id = url.searchParams.get('v') || '';
-            if (!id && url.hostname.includes('youtu.be')) id = url.pathname.split('/')[1] || '';
-            if (!id) {
-              const m = url.pathname.match(/\/(shorts|embed|live)\/([^/?#]+)/);
-              if (m) id = m[2];
-            }
-            if (!id) return null;
-            return { provider:'youtube', embed:`https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&iv_load_policy=3` };
-          }
-          if (h.includes('vimeo.com')) {
-            const m = url.pathname.match(/\/(\d+)/);
-            if (!m) return null;
-            return { provider:'vimeo', embed:`https://player.vimeo.com/video/${m[1]}` };
-          }
-          // Fallback: try to embed raw (may be blocked)
-          return { provider:'raw', embed: u };
-        }catch(_e){ return null; }
-      }
-
-      const spec = pickProvider(raw);
-      if (spec) {
-        iframe.removeAttribute('srcdoc');
-        iframe.src = spec.embed;
-      } else {
-        iframe.srcdoc = '<style>body,html{margin:0;height:100%;display:grid;place-items:center;background:#0a0a0a;color:#e11d48;font:14px/1.4 system-ui}</style><div>Unsupported video URL.</div>';
-      }
-    })();
-  </script>
 </body>
 </html>
