@@ -43,6 +43,21 @@ app.get('/robots.txt', (_req, res) => {
   res.type('text/plain').send('User-agent: *\nAllow: /\n');
 });
 
+// ---------- Minimal CSP to allow video iframes ----------
+// We ONLY set frame-src so we don’t interfere with your other resources.
+// If another layer already sets a CSP header, we leave it alone.
+app.use((req, res, next) => {
+  const existing = res.getHeader('Content-Security-Policy');
+  if (!existing) {
+    // Allow privacy-enhanced YouTube + regular YouTube + Vimeo players
+    res.setHeader(
+      'Content-Security-Policy',
+      "frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com; frame-ancestors 'self';"
+    );
+  }
+  next();
+});
+
 // ---------- Safe locals for EJS ----------
 const BUILD_ID = Date.now().toString();
 app.use((req, res, next) => {
@@ -105,44 +120,21 @@ try {
   console.error('[routes] failed to mount ./routes/loginShim:', e);
 }
 
-/**
- * Mount /watch (grid) and /player/:id (single player) explicitly.
- * We mount these BEFORE index to prevent any overlap with legacy definitions.
- */
 try {
-  const watchRoutes = require('./routes/watch');
-  app.use('/watch', watchRoutes);
-  console.log('[routes] mounted watch router at /watch');
+  const indexRoutes = require('./routes/index');
+  app.use('/', indexRoutes); // includes /, /watch, static pages (not /player)
+  console.log('[routes] mounted index router at /');
 } catch (e) {
-  console.error('[routes] failed to mount ./routes/watch:', e);
+  console.error('[routes] failed to mount ./routes/index:', e);
 }
 
 try {
+  // Ensure /player/:id is mounted
   const playerRoutes = require('./routes/player');
   app.use('/', playerRoutes);
   console.log('[routes] mounted player router at /');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/player:', e);
-}
-
-/**
- * Legacy redirect: /video/:id → /player/:id
- * This preserves any old links while ensuring we always hit the safe embed route.
- */
-app.get('/video/:id', (req, res) => {
-  try {
-    return res.redirect(301, `/player/${encodeURIComponent(req.params.id)}`);
-  } catch {
-    return res.redirect(302, `/player/${req.params.id}`);
-  }
-});
-
-try {
-  const indexRoutes = require('./routes/index');
-  app.use('/', indexRoutes); // homepage, static pages, other routes
-  console.log('[routes] mounted index router at /');
-} catch (e) {
-  console.error('[routes] failed to mount ./routes/index:', e);
 }
 
 try {
