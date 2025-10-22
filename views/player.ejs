@@ -1,52 +1,62 @@
-<%
-  // views/player.ejs
-  pageTitle = `${video.title} | Watch`;
-  pageDescription = video.description || `Watch "${video.title}" on BookLantern.`;
+<%- include('partials/head', { title: pageTitle || (video && video.title) || 'Video • BookLantern' }) %>
+<%- include('partials/header') %>
 
-  const m = (video.youtubeUrl || '').match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{11})/);
-  const ytId = m ? m[1] : null;
-%>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <%- include('./partials/head.ejs', { pageTitle, pageDescription }) %>
-  <style>
-    body{ font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:#0e0e0e; color:#fff; margin:0; }
-    .container{ max-width:1000px; margin:0 auto; padding:2rem; }
-    .back-link{ display:inline-block; margin-bottom:1.5rem; color:#00aced; font-size:.9rem; text-decoration:none; }
-    .back-link:hover{ text-decoration:underline; }
-    h1{ font-size:2rem; margin:0 0 .5rem; }
-    .meta{ color:#aaa; font-size:.9rem; margin-bottom:1.5rem; }
-    .video-wrap{ position:relative; width:100%; padding-top:56.25%; border-radius:8px; overflow:hidden; background:#000; }
-    .video-wrap iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; }
-    .msg{ background:#1b1b1b; border:1px solid #333; padding:1rem; border-radius:8px; }
-    .description{ font-size:1rem; line-height:1.6; white-space:pre-wrap; margin-top:1.5rem; color:#ddd; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <a href="javascript:history.back()" class="back-link">← Back to Watch</a>
-    <h1><%= video.title %></h1>
-    <div class="meta">
-      Genre: <%= (video.genre && video.genre.name) ? video.genre.name : 'Uncategorized' %>
-    </div>
-
-    <% if (ytId) { %>
-      <div class="video-wrap">
-        <iframe
-          src="https://www.youtube.com/embed/<%= ytId %>?rel=0"
-          title="<%= video.title %>"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowfullscreen></iframe>
-      </div>
-    <% } else { %>
-      <div class="msg">
-        <p>We couldn’t generate an embed from this URL.</p>
-        <p><a href="<%= video.youtubeUrl %>" target="_blank" rel="noopener" style="color:#9cd3ff">Open this video on YouTube ↗</a></p>
-      </div>
+<main class="container mx-auto px-4 py-8">
+  <section class="mb-8">
+    <h1 class="text-3xl font-semibold mb-3"><%= video.title %></h1>
+    <% if (video.description) { %>
+      <p class="text-base text-gray-600 mb-6"><%= video.description %></p>
     <% } %>
 
-    <div class="description"><%= video.description || '' %></div>
-  </div>
-</body>
-</html>
+    <div class="video-player">
+      <% if (embedUrl) { %>
+        <div class="iframe-16x9">
+          <iframe
+            src="<%= embedUrl %>"
+            title="<%= video.title %>"
+            loading="lazy"
+            referrerpolicy="strict-origin-when-cross-origin"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen
+            frameborder="0"
+            width="100%" height="100%">
+          </iframe>
+        </div>
+      <% } else { %>
+        <div class="iframe-16x9 blocked">
+          <div class="blocked-msg">
+            <div class="mb-2">We can’t embed this source.</div>
+            <% const rawUrl = (video.source_url || video.url || video.link); %>
+            <% if (rawUrl) { %>
+              <a class="btn btn-primary" href="<%= rawUrl %>" target="_blank" rel="noopener">
+                Open on source site
+              </a>
+            <% } else { %>
+              <div class="text-gray-500">No URL was provided for this video.</div>
+            <% } %>
+          </div>
+        </div>
+      <% } %>
+    </div>
+  </section>
+
+  <section class="mt-10">
+    <a class="inline-flex items-center gap-2 text-sm underline" href="/watch">
+      ← Back to Watch
+    </a>
+  </section>
+</main>
+
+<style>
+  /* Keep styles minimal and scoped so we don't disturb your global theme */
+  .iframe-16x9 { position: relative; width: 100%; max-width: 1100px; margin: 0 auto; }
+  .iframe-16x9::before { content: ""; display: block; padding-top: 56.25%; } /* 16:9 */
+  .iframe-16x9 > iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: 16px; }
+  .iframe-16x9.blocked { background: var(--surface-2, #f2f3f5); border-radius: 16px; display: grid; place-items: center; color: #666; min-height: 320px; }
+  .blocked-msg { padding: 2rem; text-align: center; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.65rem 1rem; border-radius: 999px; text-decoration: none; }
+  .btn-primary { background: var(--accent, #111); color: #fff; }
+  .container { max-width: 1100px; }
+</style>
+
+<%- include('partials/footer') %>
