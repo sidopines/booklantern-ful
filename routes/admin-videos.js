@@ -3,12 +3,12 @@ const express = require('express');
 const router = express.Router();
 
 const supabase = require('../supabaseAdmin'); // service-role client (or null)
-const ensureAdmin = require('../utils/adminGate'); // JWT/X-Admin-Token gate
+const ensureAdmin = require('../utils/adminGate'); // header/secret/email gate
 
 // Only admins beyond this point
 router.use(ensureAdmin);
 
-// GET /admin/videos  — form + list
+// GET /admin/videos — form + list
 router.get('/', async (req, res) => {
   if (!supabase) {
     return res.status(503).render('admin/videos', {
@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
     if (vErr) throw vErr;
     if (gErr) throw gErr;
 
-    res.render('admin/videos', {
+    return res.render('admin/videos', {
       csrfToken: '',
       messages: {
         success: req.query.ok ? 'Saved.' : '',
@@ -39,7 +39,7 @@ router.get('/', async (req, res) => {
     });
   } catch (e) {
     console.error('[admin] load videos failed:', e);
-    res.render('admin/videos', {
+    return res.render('admin/videos', {
       csrfToken: '',
       messages: { error: 'Failed to load videos.' },
       videos: [],
@@ -62,7 +62,7 @@ router.post('/', async (req, res) => {
   if (!title || !url) return res.redirect(303, '/admin/videos?err=1');
 
   try {
-    // 1) Upsert any new genre names (comma-separated input)
+    // 1) Upsert any new genre names
     const newNames = newCSV ? newCSV.split(',').map(s => s.trim()).filter(Boolean) : [];
     let newIds = [];
     if (newNames.length) {
@@ -74,7 +74,7 @@ router.post('/', async (req, res) => {
       newIds = (upserted || []).map(g => g.id);
     }
 
-    // 2) Insert the video into admin_videos
+    // 2) Insert the video
     const { data: created, error: vErr } = await supabase
       .from('admin_videos')
       .insert([{ title, url, channel: channel || null, thumb: thumb || null }])
