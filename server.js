@@ -17,7 +17,7 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(compression());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-app.use(cookieParser()); // <-- needed so adminGate can read req.cookies
+app.use(cookieParser()); // needed so adminGate can read req.cookies
 
 // ---------- Static assets ----------
 app.use(
@@ -43,7 +43,7 @@ app.get('/robots.txt', (_req, res) => {
   res.type('text/plain').send('User-agent: *\nAllow: /\n');
 });
 
-// ---------- Safe locals for EJS (theme/footer rely on buildId) ----------
+// ---------- Safe locals for EJS ----------
 const BUILD_ID = Date.now().toString();
 app.use((req, res, next) => {
   res.locals.isAuthenticated = Boolean(
@@ -84,8 +84,7 @@ app.get(/^\/auth\/callback(?:\/.*)?$/, (req, res) => {
 });
 
 /* ============================================================
-   Hard-stop pages so they NEVER 404: /login, /register, /account
-   (These live at top level in addition to the router, by design.)
+   Hard-stop pages so they NEVER 404
    ============================================================ */
 app.get('/login', (req, res) => res.status(200).render('login', meta(req, 'Login • BookLantern')));
 app.get('/register', (req, res) => res.status(200).render('register', meta(req, 'Create account • BookLantern')));
@@ -108,7 +107,7 @@ try {
 
 try {
   const indexRoutes = require('./routes/index');
-  app.use('/', indexRoutes);
+  app.use('/', indexRoutes); // includes /, /watch, /video/:id, static pages
   console.log('[routes] mounted index router at /');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/index:', e);
@@ -116,34 +115,10 @@ try {
 
 try {
   const adminRoutes = require('./routes/admin');
-  app.use('/admin', adminRoutes);
+  app.use('/admin', adminRoutes); // admin mounts /books, /videos, /genres, /users internally
   console.log('[routes] mounted admin router at /admin');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/admin:', e);
-}
-
-try {
-  const adminBooks = require('./routes/admin-books');
-  app.use('/admin/books', adminBooks);
-  console.log('[routes] mounted admin-books router');
-} catch (e) {
-  console.error('[routes] failed to mount admin-books:', e);
-}
-
-try {
-  const adminVideos = require('./routes/admin-videos');
-  app.use('/admin/videos', adminVideos);
-  console.log('[routes] mounted admin-videos router');
-} catch (e) {
-  console.error('[routes] failed to mount admin-videos:', e);
-}
-
-try {
-  const adminVideoGenres = require('./routes/admin-video-genres');
-  app.use('/admin/genres', adminVideoGenres);
-  console.log('[routes] mounted admin-video-genres router');
-} catch (e) {
-  console.error('[routes] failed to mount admin-video-genres:', e);
 }
 
 // ---------- Health check ----------
