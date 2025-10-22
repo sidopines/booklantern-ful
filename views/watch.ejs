@@ -54,11 +54,13 @@
       <select id="genre" name="genre" class="input">
         <option value="">All</option>
         <%
-          const GENRES = Array.isArray(genres) ? genres : [];
-          const sel = typeof activeGenre === 'string' ? activeGenre : (activeGenre || '');
+          // Make the template SAFE even if the route doesn't send activeGenre.
+          const GENRES = Array.isArray(typeof genres !== 'undefined' ? genres : []) ? genres : [];
+          const _active = (typeof activeGenre !== 'undefined' && activeGenre) ? String(activeGenre) : '';
           GENRES.forEach(function(g){
+            const gid = String(g.id);
         %>
-          <option value="<%= g.id %>" <%= String(sel) === String(g.id) ? 'selected' : '' %>><%= g.name %></option>
+          <option value="<%= gid %>" <%= _active === gid ? 'selected' : '' %>><%= g.name %></option>
         <% }) %>
       </select>
       <button class="btn" type="submit">Apply</button>
@@ -66,17 +68,24 @@
 
     <section class="grid" id="watchGrid" aria-live="polite">
       <%
-        const VIDS = Array.isArray(videos) ? videos : [];
+        const VIDS = Array.isArray(typeof videos !== 'undefined' ? videos : []) ? videos : [];
         if (!VIDS.length) {
       %>
         <div class="muted">No videos yet.</div>
       <% } else {
            VIDS.forEach(function(v){
-             const href = v.id ? `/player/${v.id}` : (v.url || '#');
+             const id = v && v.id ? String(v.id) : '';
+             const href = id ? `/player/${id}` : (v && v.url ? v.url : '#');
+
+             // Safe host derivation for the "by ..." line
+             function hostOf(u){
+               try { return new URL(u).hostname.replace(/^www\./,''); } catch(_e){ return ''; }
+             }
+             const host = v && v.channel ? v.channel : (v && v.url ? hostOf(v.url) : '');
       %>
-        <article class="card" tabindex="-1" data-url="<%= v.url || '' %>">
+        <article class="card" tabindex="-1" data-url="<%= v && v.url ? v.url : '' %>">
           <div class="thumb">
-            <% if (v.thumb) { %>
+            <% if (v && v.thumb) { %>
               <img loading="lazy" alt="" src="<%= v.thumb %>">
             <% } else { %>
               <!-- Will be auto-filled for YouTube below -->
@@ -89,21 +98,10 @@
                 <polygon points="26,20 48,32 26,44" fill="#111827"/>
               </svg>
             </div>
-            <a class="thumbLink" href="<%= href %>" aria-label="Play <%= v.title %>"></a>
+            <a class="thumbLink" href="<%= href %>" aria-label="Play <%= v && v.title ? v.title : 'video' %>"></a>
           </div>
-
-          <h3 class="title"><a href="<%= href %>"><%= v.title %></a></h3>
-
-          <% 
-            let host = '';
-            try { if (v.url) { host = (new URL(v.url)).hostname.replace(/^www\./,''); } } catch(_e) { host = ''; }
-          %>
-          <% if (v.channel) { %>
-            <div class="muted">by <%= v.channel %></div>
-          <% } else if (host) { %>
-            <div class="muted">by <%= host %></div>
-          <% } %>
-
+          <h3 class="title"><a href="<%= href %>"><%= v && v.title ? v.title : 'Untitled video' %></a></h3>
+          <% if (host) { %><div class="muted">by <%= host %></div><% } %>
           <a class="watchBtn" href="<%= href %>">Watch</a>
         </article>
       <% }) } %>
