@@ -1,50 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('../partials/head'); %>
-  <title>Admin • Dashboard</title>
-  <style>
-    .wrap{max-width:1080px;margin:24px auto 64px;padding:0 16px;}
-    .grid{
-      display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-      gap:16px;
-    }
-    .card{background:#fff;border:1px solid #eee;border-radius:14px;padding:16px}
-    .num{font-size:28px;font-weight:700;margin:8px 0}
-    .links a{margin-right:12px}
-  </style>
+  <%- include('../partials/header'); %>
+  <title>Admin • BookLantern</title>
 </head>
 <body>
-  <%- include('../partials/header'); %>
+  <%- include('../partials/navbar'); %>
 
-  <main class="wrap">
-    <h1>Admin • Dashboard</h1>
+  <main class="container" style="padding:24px 0 64px;">
+    <h1 class="page-title">Admin</h1>
 
-    <section class="grid" style="margin:16px 0 24px;">
-      <div class="card">
-        <div>Users</div>
-        <div class="num"><%= (counts && counts.usersCount)  || 0 %></div>
-        <div class="links"><a href="/admin/users">Open</a></div>
+    <section class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin:16px 0 32px;">
+      <div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff;">
+        <div class="muted">Users</div>
+        <div style="font-size:28px;font-weight:700"><%= counts.usersCount || 0 %></div>
       </div>
-      <div class="card">
-        <div>Books</div>
-        <div class="num"><%= (counts && counts.booksCount)  || 0 %></div>
-        <div class="links"><a href="/admin/books">Manage</a></div>
+      <div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff;">
+        <div class="muted">Books</div>
+        <div style="font-size:28px;font-weight:700"><%= counts.booksCount || 0 %></div>
       </div>
-      <div class="card">
-        <div>Videos</div>
-        <div class="num"><%= (counts && counts.videosCount) || 0 %></div>
-        <div class="links"><a href="/admin/videos">Manage</a></div>
+      <div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff;">
+        <div class="muted">Videos</div>
+        <div style="font-size:28px;font-weight:700"><%= counts.videosCount || 0 %></div>
       </div>
-      <div class="card">
-        <div>Video Genres</div>
-        <div class="num"><%= (counts && counts.genresCount) || 0 %></div>
-        <div class="links"><a href="/admin/video-genres">Manage</a></div>
+      <div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff;">
+        <div class="muted">Video genres</div>
+        <div style="font-size:28px;font-weight:700"><%= counts.genresCount || 0 %></div>
       </div>
     </section>
 
-    <p><a href="/admin/books">Books</a> • <a href="/admin/videos">Videos</a> • <a href="/admin/video-genres">Video genres</a> • <a href="/admin/users">Users</a></p>
+    <section class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;">
+      <a class="card" href="/admin/books" style="display:block;padding:16px;border:1px solid #eee;border-radius:12px;background:#fff;text-decoration:none;color:inherit">
+        <h3 style="margin:0 0 6px;">Manage Books</h3>
+        <p class="muted">Add/remove books & shelves.</p>
+      </a>
+      <a class="card" href="/admin/videos" style="display:block;padding:16px;border:1px solid #eee;border-radius:12px;background:#fff;text-decoration:none;color:inherit">
+        <h3 style="margin:0 0 6px;">Manage Videos</h3>
+        <p class="muted">Add videos and tag their genres.</p>
+      </a>
+      <a class="card" href="/admin/genres" style="display:block;padding:16px;border:1px solid #eee;border-radius:12px;background:#fff;text-decoration:none;color:inherit">
+        <h3 style="margin:0 0 6px;">Manage Video Genres</h3>
+        <p class="muted">Create, rename, or delete genres.</p>
+      </a>
+      <a class="card" href="/admin/users" style="display:block;padding:16px;border:1px solid #eee;border-radius:12px;background:#fff;text-decoration:none;color:inherit">
+        <h3 style="margin:0 0 6px;">Open Users</h3>
+        <p class="muted">Read-only list (or hook to your CRM).</p>
+      </a>
+    </section>
   </main>
 
   <%- include('../partials/footer'); %>
