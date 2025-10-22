@@ -4,44 +4,38 @@ const router = express.Router();
 
 const supabase = require('../supabaseAdmin'); // service-role, may be null
 
-// Helpers ---------------------------------------------------
-const isArr = (v) => Array.isArray(v) ? v : [];
+// Helpers
+const arr = (v) => (Array.isArray(v) ? v : []);
+const isStr = (v) => typeof v === 'string' && v.trim().length > 0;
 
-// Very small YouTube helpers (safe fallbacks if URL not YouTube)
-function ytIdFromUrl(url = '') {
+// Parse a YouTube url to an object: { id, embedUrl, thumb }
+function parseYouTube(url) {
+  if (!isStr(url)) return null;
   try {
     const u = new URL(url);
-    if (u.hostname === 'youtu.be') return u.pathname.slice(1);
-    if (u.hostname.includes('youtube.com')) {
-      if (u.searchParams.get('v')) return u.searchParams.get('v');
-      // /embed/<id> or /shorts/<id>
-      const parts = u.pathname.split('/').filter(Boolean);
-      if (parts[0] === 'embed' && parts[1]) return parts[1];
-      if (parts[0] === 'shorts' && parts[1]) return parts[1];
+    let id = '';
+    if (u.hostname === 'youtu.be') {
+      id = u.pathname.replace(/^\/+/, '');
+    } else if (u.hostname.includes('youtube.com')) {
+      // v param or /shorts/:id or /watch?v=...
+      if (u.searchParams.get('v')) id = u.searchParams.get('v');
+      const m = u.pathname.match(/\/(embed|shorts)\/([^/?#]+)/);
+      if (!id && m) id = m[2];
     }
-  } catch {}
-  return '';
-}
-function ytThumb(id) {
-  return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : '';
-}
-function toPlayerHref(id) {
-  return `/video/${encodeURIComponent(id)}`;
+    if (!id) return null;
+    const embedUrl = `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&playsinline=1`;
+    const thumb = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+    return { id, embedUrl, thumb };
+  } catch {
+    return null;
+  }
 }
 
 // -----------------------------
 // Homepage
 // -----------------------------
 router.get('/', async (_req, res) => {
-  const shelvesList = [
-    'trending',
-    'philosophy',
-    'history',
-    'science',
-    'biographies',
-    'religion',
-    'classics'
-  ];
+  const shelvesList = ['trending','philosophy','history','science','biographies','religion','classics'];
 
   let shelvesData = {};
   if (supabase) {
@@ -64,35 +58,50 @@ router.get('/', async (_req, res) => {
 // Watch (videos catalogue page)
 // -----------------------------
 router.get('/watch', async (req, res) => {
-  const selectedGenre = typeof req.query.genre === 'string' ? req.query.genre : '';
+  const selectedGenre = isStr(req.query.genre) ? req.query.genre : '';
 
   let genres = [];
   let videos = [];
 
   if (supabase) {
     try {
-      const gq = supabase.from('video_genres').select('*').order('name', { ascending: true });
-      const vq = supabase.from('admin_videos').select('*').order('created_at', { ascending: false });
+      const gq = supabase
+        .from('video_genres')
+        .select('*')
+        .order('name', { ascending: true });
+
+      // Pull all videos, we’ll optionally filter by a mapping lookup
+      const vq = supabase
+        .from('admin_videos')
+        .select('*')
+        .order('created_at', { ascending: false });
 
       const [g, v] = await Promise.all([gq, vq]);
       genres = g.data || [];
       videos = v.data || [];
 
-      // If a genre is selected, filter videos using the mapping table
+      // If a specific genre is selected, intersect via video_genres_map
       if (selectedGenre) {
         const { data: maps = [] } = await supabase
           .from('video_genres_map')
           .select('video_id')
           .eq('genre_id', selectedGenre);
-        const allowIds = new Set(isArr(maps).map(m => m.video_id));
-        videos = videos.filter(v => allowIds.has(v.id));
+
+        const allowed = new Set(maps.map((m) => m.video_id));
+        videos = videos.filter((vid) => allowed.has(vid.id));
       }
 
-      // decorate with derived thumb + internal link
-      videos = videos.map(v => {
-        const yid = ytIdFromUrl(v.url || '');
-        const derived = !v.thumb ? ytThumb(yid) : v.thumb;
-        return { ...v, derivedThumb: derived, playerHref: toPlayerHref(v.id) };
+      // Derive thumbs from YouTube url if missing, and a safe outbound URL
+      videos = videos.map((v) => {
+        const y = parseYouTube(v.url);
+        const derivedThumb = y?.thumb || null;
+        const safeUrl = y?.embedUrl || v.url || null;
+        return {
+          ...v,
+          // keep original url, but we’ll link to our /video page (not outbound)
+          _derivedThumb: derivedThumb,
+          _safeOutbound: safeUrl
+        };
       });
     } catch {
       genres = [];
@@ -104,10 +113,10 @@ router.get('/watch', async (req, res) => {
 });
 
 // -----------------------------
-// Video player page (keeps users on site)
+// Video player page
 // -----------------------------
 router.get('/video/:id', async (req, res) => {
-  const id = String(req.params.id || '');
+  const id = String(req.params.id || '').trim();
   if (!id || !supabase) return res.status(404).render('404');
 
   try {
@@ -115,27 +124,36 @@ router.get('/video/:id', async (req, res) => {
       .from('admin_videos')
       .select('*')
       .eq('id', id)
-      .maybeSingle();
+      .single();
+
     if (error || !v) return res.status(404).render('404');
 
-    // Build an embed URL (YouTube supported; fallback is external link)
-    const yid = ytIdFromUrl(v.url || '');
-    const embedSrc = yid
-      ? `https://www.youtube-nocookie.com/embed/${yid}?rel=0& modestbranding=1`
-      : '';
+    const y = parseYouTube(v.url);
+    const embedUrl = y?.embedUrl || null;
+    const thumb = v.thumb || y?.thumb || null;
 
-    return res.render('video', { video: v, embedSrc });
-  } catch {
-    return res.status(500).render('error', { error: new Error('Failed to load video') });
+    return res.render('video', {
+      video: {
+        id: v.id,
+        title: v.title,
+        channel: v.channel,
+        url: v.url,
+        embedUrl,
+        thumb
+      }
+    });
+  } catch (e) {
+    console.error('[video] fetch failed:', e);
+    return res.status(500).render('error', { error: e });
   }
 });
 
 // -----------------------------
-// Read (reader shell) — requires ?provider and ?id
+// Read (reader shell)
 // -----------------------------
 router.get('/read', (req, res) => {
-  const provider = typeof req.query.provider === 'string' ? req.query.provider : '';
-  const id = typeof req.query.id === 'string' ? req.query.id : '';
+  const provider = isStr(req.query.provider) ? req.query.provider : '';
+  const id = isStr(req.query.id) ? req.query.id : '';
   return res.render('read', { provider, id });
 });
 
@@ -145,7 +163,7 @@ router.get('/read', (req, res) => {
 router.get('/about', (_req, res) => res.render('about', {}));
 router.get('/contact', (_req, res) => res.render('contact', {}));
 router.get('/privacy', (_req, res) => res.render('privacy', {}));
-router.get('/terms', (_req, res) => res.render('terms', {}));
+router.get('/terms',   (_req, res) => res.render('terms', {}));
 
 // -----------------------------
 // Minimal search stub
