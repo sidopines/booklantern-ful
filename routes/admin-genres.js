@@ -1,59 +1,97 @@
-// routes/admin-genres.js
+// routes/admin-genres.js — Admin: Genres (CommonJS)
+
 const express = require('express');
-const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE,
-  { auth: { persistSession: false } }
-);
+const router = express.Router();
 
-// GET /admin/genres
+function getSupabaseAdmin() {
+  const url =
+    process.env.SUPABASE_URL ||
+    process.env.supabaseUrl ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.PUBLIC_SUPABASE_URL;
+
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_KEY ||
+    process.env.supabaseKey ||
+    process.env.SUPABASE_ANON_KEY;
+
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
+function encode(s) {
+  try { return encodeURIComponent(String(s)); } catch { return '1'; }
+}
+function decode(s) {
+  try { return decodeURIComponent(String(s)); } catch { return ''; }
+}
+
+/* GET /admin/genres ------------------------------------------------------- */
 router.get('/genres', async (req, res) => {
+  const sb = getSupabaseAdmin();
   const messages = {};
-  if (req.query.ok) messages.success = 'Saved.';
-  if (req.query.err) messages.error = decodeURIComponent(req.query.err);
+  if (req.query.ok)  messages.success = 'Saved.';
+  if (req.query.err) messages.error   = decode(req.query.err);
+
+  if (!sb) {
+    return res.render('admin-genres', {
+      messages,
+      rows: [],
+      envError: 'Supabase URL/Key missing. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.'
+    });
+  }
 
   try {
-    const { data: genres, error } = await supabase
-      .from('book_genres')
-      .select('id,slug,label')
-      .order('label', { ascending: true });
-
+    const { data, error } = await sb.from('genres').select('slug,name').order('name');
     if (error) throw error;
-
-    res.render('admin-genres', { title: 'Admin • Book Genres', messages, genres });
+    return res.render('admin-genres', {
+      messages,
+      rows: data || [],
+      envError: null
+    });
   } catch (e) {
     console.error('[admin] load genres failed:', e);
-    res.render('admin-genres', { title: 'Admin • Book Genres', messages: { error: 'Failed to load genres.' }, genres: [] });
+    messages.error = e.message || 'Failed to load genres.';
+    return res.render('admin-genres', {
+      messages,
+      rows: [],
+      envError: null
+    });
   }
 });
 
-// POST /admin/genres (create)
+/* POST /admin/genres ------------------------------------------------------ */
 router.post('/genres', async (req, res) => {
+  const sb = getSupabaseAdmin();
+  if (!sb) {
+    const msg = encode('Supabase is not configured on the server.');
+    return res.redirect(303, '/admin/genres?err=' + msg);
+  }
+
   try {
-    const { slug, label } = req.body;
-    if (!slug || !label) throw new Error('Both slug and label are required.');
-    const { error } = await supabase.from('book_genres').insert([{ slug: slug.trim(), label: label.trim() }]);
+    const name = (req.body.name || '').trim();
+    let slug = (req.body.slug || '').trim().toLowerCase();
+
+    if (!name) throw new Error('Name is required.');
+
+    if (!slug) {
+      slug = name.toLowerCase()
+        .replace(/&/g, 'and')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+
+    const { error } = await sb.from('genres').insert({ slug, name });
     if (error) throw error;
-    res.redirect(303, '/admin/genres?ok=1');
+
+    return res.redirect(303, '/admin/genres?ok=1');
   } catch (e) {
     console.error('[admin] add genre failed:', e);
-    res.redirect(303, '/admin/genres?err=' + encodeURIComponent(e.message || 'Save failed.'));
-  }
-});
-
-// POST /admin/genres/:id/delete
-router.post('/genres/:id/delete', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { error } = await supabase.from('book_genres').delete().eq('id', id);
-    if (error) throw error;
-    res.redirect(303, '/admin/genres?ok=1');
-  } catch (e) {
-    console.error('[admin] delete genre failed:', e);
-    res.redirect(303, '/admin/genres?err=' + encodeURIComponent(e.message || 'Delete failed.'));
+    return res.redirect(303, '/admin/genres?err=' + encode(e.message || '1'));
   }
 });
 
