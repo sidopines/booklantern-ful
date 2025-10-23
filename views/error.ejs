@@ -1,14 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
-  <%- include('partials/head', { pageTitle: pageTitle || 'Something went wrong', title: pageTitle || 'Something went wrong' }) %>
+  <%
+    // All guards to keep this page bullet-proof
+    const _status = (typeof statusCode !== 'undefined' && statusCode) ? statusCode : 500;
+    const _message = (typeof message !== 'undefined' && message) ? message : 'Something went wrong';
+    const _title = (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'Something went wrong';
+    const _showStack = (typeof showStack !== 'undefined') ? !!showStack : false;
+    const _stack = (typeof stack !== 'undefined' && stack) ? stack : '';
+  %>
+  <%- include('partials/head', { pageTitle: _title, title: _title }) %>
   <body class="page">
     <%- include('partials/navbar') %>
+
     <main class="container" style="max-width: 900px;">
-      <h1 class="title">Something went wrong</h1>
-      <p><%= message || 'An unexpected error occurred. Please try again later.' %></p>
-      <p><a class="btn" href="/">← Back to Home</a></p>
+      <h1 class="title"><%= _title %></h1>
+      <p class="muted"><%= _message %></p>
+      <p class="muted">Status: <%= _status %></p>
+
+      <% if (_showStack && _stack) { %>
+        <pre style="margin-top: 16px; padding: 12px; border-radius: 12px; background: #f6f7fb; overflow: auto;"><%= _stack %></pre>
+      <% } %>
+
+      <div style="margin-top: 16px;">
+        <a href="/" class="btn">← Back to Home</a>
+      </div>
     </main>
+
     <%- include('partials/footer') %>
-    <script src="/public/js/theme.js?v=<%= Date.now() %>"></script>
   </body>
 </html>
