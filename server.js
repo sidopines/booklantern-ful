@@ -131,10 +131,29 @@ try {
 
 try {
   const adminRoutes = require('./routes/admin');
-  app.use('/admin', adminRoutes); // admin mounts /books, /videos, /genres, /users internally
+  app.use('/admin', adminRoutes); // legacy/general admin dashboard
   console.log('[routes] mounted admin router at /admin');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/admin:', e);
+}
+
+/* ---------- NEW: dedicated admin + reader routes ----------
+   These make /admin/books, /admin/genres, and /reader/:id
+   work even if the legacy admin router does not mount them.
+----------------------------------------------------------- */
+try {
+  app.use('/admin', require('./routes/admin-books'));   // /admin/books
+  app.use('/admin', require('./routes/admin-genres'));  // /admin/genres
+  console.log('[routes] mounted admin-books and admin-genres at /admin');
+} catch (e) {
+  console.error('[routes] failed to mount admin-books/admin-genres:', e);
+}
+
+try {
+  app.use('/reader', require('./routes/reader'));       // /reader/:id — in-site EPUB reader
+  console.log('[routes] mounted reader router at /reader');
+} catch (e) {
+  console.error('[routes] failed to mount ./routes/reader:', e);
 }
 
 // ---------- Health check ----------
