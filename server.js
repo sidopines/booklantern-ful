@@ -8,6 +8,57 @@ const cookieParser = require('cookie-parser');
 
 const app = express();
 
+/* -----------------------------------------------------------
+   Supabase env normalization (pre-route, before any require)
+   Some routers expect SUPABASE_KEY; others use SERVICE_ROLE.
+   Normalize so require-time clients don't crash.
+----------------------------------------------------------- */
+(function normalizeSupabaseEnv() {
+  const url =
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.PUBLIC_SUPABASE_URL ||
+    '';
+
+  // Prefer service role key for server-side admin tasks
+  const serviceRole =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    '';
+
+  const anon =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    '';
+
+  // Provide common aliases so any router that uses a different
+  // variable name will still find a valid key.
+  if (url && !process.env.SUPABASE_URL) process.env.SUPABASE_URL = url;
+
+  // Some modules look for SUPABASE_KEY; give them service role if present,
+  // otherwise fall back to anon (read-only).
+  if (!process.env.SUPABASE_KEY) {
+    process.env.SUPABASE_KEY = serviceRole || anon || '';
+  }
+
+  // Keep originals too
+  if (serviceRole && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = serviceRole;
+  }
+
+  const keyPreview = (process.env.SUPABASE_KEY || '').slice(0, 5);
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+    console.log(
+      `[supabaseEnv] Ready (url set, key alias ok, preview ${keyPreview}•••)`
+    );
+  } else {
+    console.warn(
+      '[supabaseEnv] Missing SUPABASE_URL and/or SUPABASE_KEY. ' +
+        'Routers that need Supabase will be skipped.'
+    );
+  }
+})();
+
 // ---------- Express core ----------
 app.set('trust proxy', true);
 app.set('view engine', 'ejs');
@@ -137,23 +188,30 @@ try {
   console.error('[routes] failed to mount ./routes/admin:', e);
 }
 
-/* ---------- NEW: dedicated admin + reader routes ----------
-   These make /admin/books, /admin/genres, and /reader/:id
-   work even if the legacy admin router does not mount them.
------------------------------------------------------------ */
-try {
-  app.use('/admin', require('./routes/admin-books'));   // /admin/books
-  app.use('/admin', require('./routes/admin-genres'));  // /admin/genres
-  console.log('[routes] mounted admin-books and admin-genres at /admin');
-} catch (e) {
-  console.error('[routes] failed to mount admin-books/admin-genres:', e);
-}
+/* ---------- Dedicated admin + reader routes ----------
+   Mount only if normalized Supabase env is present.
+----------------------------------------------------- */
+const hasSB = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_KEY);
 
-try {
-  app.use('/reader', require('./routes/reader'));       // /reader/:id — in-site EPUB reader
-  console.log('[routes] mounted reader router at /reader');
-} catch (e) {
-  console.error('[routes] failed to mount ./routes/reader:', e);
+if (hasSB) {
+  try {
+    app.use('/admin', require('./routes/admin-books'));   // /admin/books
+    app.use('/admin', require('./routes/admin-genres'));  // /admin/genres
+    console.log('[routes] mounted admin-books and admin-genres at /admin');
+  } catch (e) {
+    console.error('[routes] failed to mount admin-books/admin-genres:', e);
+  }
+
+  try {
+    app.use('/reader', require('./routes/reader'));       // /reader/:id — in-site EPUB reader
+    console.log('[routes] mounted reader router at /reader');
+  } catch (e) {
+    console.error('[routes] failed to mount ./routes/reader:', e);
+  }
+} else {
+  console.warn(
+    '[routes] Skipping admin-books/admin-genres/reader because SUPABASE_URL/KEY are not both set.'
+  );
 }
 
 // ---------- Health check ----------
