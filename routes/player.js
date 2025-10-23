@@ -1,89 +1,88 @@
-// routes/player.js
-// Express route for /player/:id that loads a video from Supabase
-// and guarantees a safe, embeddable iframe URL.
-
+// routes/player.js — fetch one video by id and render an embeddable player page
 const express = require('express');
 const router = express.Router();
 
-// Use the same server Supabase client as admin/watch to avoid anon limitations
+// Supabase admin client (service role)
 let sb = null;
 try {
-  sb = require('../supabaseAdmin'); // service role client
+  sb = require('../supabaseAdmin'); // exports a client or null
 } catch {
   sb = null;
-  console.warn('[player.js] supabaseAdmin not available; player route will fail.');
 }
 
-// ---- Helper: turn a pasted video URL into an embeddable URL ----
-function toEmbedUrl(raw) {
-  if (!raw) return null;
+// Extract a YouTube ID from a URL (watch/share/embed forms)
+function youTubeIdFrom(url) {
   try {
-    const u = new URL(raw);
+    const u = new URL(url);
     const host = u.hostname.replace(/^www\./, '');
-
-    // YouTube
-    if (host === 'youtube.com' || host === 'm.youtube.com') {
-      if (u.pathname === '/watch') {
-        const id = u.searchParams.get('v');
-        if (id) return `https://www.youtube-nocookie.com/embed/${id}`;
-      }
-      if (u.pathname.startsWith('/shorts/')) {
-        const id = u.pathname.split('/')[2];
-        if (id) return `https://www.youtube-nocookie.com/embed/${id}`;
-      }
-      if (u.pathname.startsWith('/embed/')) {
-        return `https://www.youtube-nocookie.com${u.pathname}${u.search}`;
-      }
+    if (host === 'youtu.be') return u.pathname.slice(1);
+    if (host.endsWith('youtube.com')) {
+      if (u.pathname.startsWith('/watch')) return u.searchParams.get('v') || '';
+      if (u.pathname.startsWith('/embed/')) return u.pathname.split('/').pop() || '';
+      if (u.pathname.startsWith('/shorts/')) return u.pathname.split('/').pop() || '';
     }
-    if (host === 'youtu.be') {
-      const id = u.pathname.slice(1);
-      if (id) return `https://www.youtube-nocookie.com/embed/${id}`;
-    }
-
-    // Vimeo
-    if (host === 'vimeo.com' || host === 'player.vimeo.com') {
-      const parts = u.pathname.split('/').filter(Boolean);
-      const id = parts.pop();
-      if (host === 'player.vimeo.com' && parts[0] === 'video' && id) {
-        return u.toString();
-      }
-      if (id && /^\d+$/.test(id)) {
-        return `https://player.vimeo.com/video/${id}`;
-      }
-    }
-
-    return null;
   } catch {
+    // ignore
+  }
+  return '';
+}
+
+function toEmbedInfo(rawUrl) {
+  const ytId = youTubeIdFrom(rawUrl || '');
+  if (ytId) {
+    return {
+      platform: 'youtube',
+      embedUrl: `https://www.youtube.com/embed/${ytId}`,
+    };
+  }
+  // Fallback: show nothing (or extend here for Vimeo, etc.)
+  return { platform: 'unknown', embedUrl: '' };
+}
+
+async function getVideoById(id) {
+  if (!sb) return null;
+  const { data, error } = await sb
+    .from('admin_videos')
+    // IMPORTANT: use url (NOT link/description which don't exist)
+    .select('id,title,url,channel,thumb,created_at')
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    console.warn('[player] fetch failed:', error.message);
     return null;
   }
+  return data || null;
 }
 
 // GET /player/:id
 router.get('/player/:id', async (req, res) => {
-  if (!sb) return res.status(500).render('error');
+  const id = String(req.params.id || '').trim();
+  if (!id) return res.redirect('/watch');
 
-  const { id } = req.params;
+  try {
+    const row = await getVideoById(id);
+    if (!row) {
+      // Use your existing 404 view name
+      return res.status(404).render('404');
+    }
 
-  // Use the same table/view the Watch grid uses so IDs match
-  const { data: video, error } = await sb
-    .from('admin_videos')
-    .select('id,title,url,link,source_url,channel,thumb,created_at')
-    .eq('id', id)
-    .single();
-
-  if (error || !video) {
-    console.error('[player.js] Video fetch error:', error || 'not found');
-    return res.status(404).render('errors/404', { message: 'Video not found' });
+    const embed = toEmbedInfo(row.url);
+    return res.render('player', {
+      title: row.title || 'Untitled video',
+      channel: row.channel || '',
+      thumb: row.thumb || null,
+      url: row.url || '',
+      embedUrl: embed.embedUrl,   // for <iframe src="">
+      isEmbeddable: !!embed.embedUrl,
+      createdAt: row.created_at || null,
+    });
+  } catch (e) {
+    console.error('[player] render failed:', e);
+    return res.status(500).render('error', {
+      message: 'Unable to load the video right now.',
+    });
   }
-
-  const rawUrl = video.source_url || video.url || video.link || null;
-  const embedUrl = toEmbedUrl(rawUrl);
-
-  return res.render('player', {
-    video,
-    embedUrl,
-    pageTitle: video.title ? `${video.title} • BookLantern` : 'Video • BookLantern',
-  });
 });
 
 module.exports = router;
