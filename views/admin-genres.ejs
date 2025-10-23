@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/public/css/site.css?v=<%= Date.now() %>">
+</head>
+<body class="admin">
+  <main class="container">
+    <h1>Admin • Book Genres</h1>
+
+    <% if (messages && messages.error) { %>
+      <div class="alert alert-error"><%= messages.error %></div>
+    <% } %>
+    <% if (messages && messages.success) { %>
+      <div class="alert alert-success"><%= messages.success %></div>
+    <% } %>
+
+    <section class="card">
+      <h2>Add genre</h2>
+      <form method="post" action="/admin/genres">
+        <label>Slug
+          <input type="text" name="slug" placeholder="classics" required />
+        </label>
+        <label>Label
+          <input type="text" name="label" placeholder="Classics" required />
+        </label>
+        <button type="submit">Save</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Existing genres</h2>
+      <% if (!genres || genres.length === 0) { %>
+        <p>No genres yet.</p>
+      <% } else { %>
+        <table class="table">
+          <thead><tr><th>Slug</th><th>Label</th><th></th></tr></thead>
+          <tbody>
+            <% genres.forEach(g => { %>
+              <tr>
+                <td><%= g.slug %></td>
+                <td><%= g.label %></td>
+                <td>
+                  <form method="post" action="/admin/genres/<%= g.id %>/delete" onsubmit="return confirm('Delete this genre?')">
+                    <button type="submit">Delete</button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+    </section>
+  </main>
+</body>
+</html>
