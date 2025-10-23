@@ -142,15 +142,25 @@ app.get('/healthz', (_req, res) => res.status(200).send('OK'));
 
 // ---------- 404 ----------
 app.use((req, res) => {
-  try { res.status(404).render('404'); }
+  try { res.status(404).render('404', { ...meta(req, 'Not Found') }); }
   catch { res.status(404).send('Not Found'); }
 });
 
 // ---------- 500 ----------
 app.use((err, req, res, _next) => {
   console.error('🔥 Unhandled error:', err);
-  try { res.status(500).render('error', { error: err }); }
-  catch { res.status(500).send('Internal Server Error'); }
+  try {
+    res
+      .status(500)
+      .render('error', {
+        ...meta(req, 'Something went wrong'),
+        statusCode: 500,
+        error: err,
+        showStack: process.env.NODE_ENV !== 'production'
+      });
+  } catch {
+    res.status(500).send('Internal Server Error');
+  }
 });
 
 // ---------- Start ----------
