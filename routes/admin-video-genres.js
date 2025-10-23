@@ -1,4 +1,4 @@
-// routes/admin-video-genres.js — simple CRUD for video_genres using EJS view
+// routes/admin-video-genres.js — simple CRUD for video_genres (renders EJS)
 const express = require('express');
 const router = express.Router();
 
@@ -8,50 +8,35 @@ const ensureAdmin = require('../utils/adminGate');
 // admins only
 router.use(ensureAdmin);
 
-// Helper to fetch genres with usage counts
-async function fetchGenresWithUsage() {
-  const genres = [];
-  if (!supabase) return genres;
-
-  // Get all genres
-  const { data: gData, error: gErr } = await supabase
+// Helper to load genres (optionally with usage counts)
+async function fetchGenres() {
+  // Basic list
+  const { data, error } = await supabase
     .from('video_genres')
-    .select('id,name')
+    .select('id, name')
     .order('name', { ascending: true });
-  if (gErr || !Array.isArray(gData)) return genres;
+  if (error) throw error;
 
-  // Count usage per genre via mapping table
-  const { data: mData, error: mErr } = await supabase
-    .from('video_genres_map')
-    .select('genre_id');
-  const counts = {};
-  if (!mErr && Array.isArray(mData)) {
-    for (const row of mData) {
-      counts[row.genre_id] = (counts[row.genre_id] || 0) + 1;
-    }
-  }
-
-  for (const g of gData) {
-    genres.push({ id: g.id, name: g.name, usage: counts[g.id] || 0 });
-  }
-  return genres;
+  // If you later add a junction table, compute usage here.
+  // For now, return 0 usage so the view renders cleanly.
+  return (data || []).map(g => ({ ...g, usage: g.usage ?? 0 }));
 }
 
-// GET /admin/genres — list + form
+// GET /admin/genres — list + form (render EJS)
 router.get('/', async (_req, res) => {
   if (!supabase) {
-    return res
-      .status(503)
-      .render('admin/video-genres', { ok: false, err: 'Supabase is not configured.', genres: [] });
+    return res.status(503).render('admin/video-genres', {
+      ok: false,
+      err: 'Supabase is not configured.',
+      genres: [],
+    });
   }
   try {
-    const genres = await fetchGenresWithUsage();
-    return res.render('admin/video-genres', { ok: true, err: '', genres });
+    const genres = await fetchGenres();
+    res.status(200).render('admin/video-genres', { ok: true, err: '', genres });
   } catch (e) {
     console.error('[admin] load genres failed:', e);
-    return res
-      .status(500)
-      .render('admin/video-genres', { ok: false, err: 'Failed to load genres.', genres: [] });
+    res.status(500).render('admin/video-genres', { ok: false, err: 'Failed to load genres.', genres: [] });
   }
 });
 
@@ -95,8 +80,6 @@ router.post('/:id/delete', async (req, res) => {
   const id = String(req.params.id || '').trim();
   if (!id) return res.redirect(303, '/admin/genres');
   try {
-    // Remove mappings first to avoid FK issues (if any)
-    await supabase.from('video_genres_map').delete().eq('genre_id', id);
     const { error } = await supabase.from('video_genres').delete().eq('id', id);
     if (error) throw error;
   } catch (e) {
