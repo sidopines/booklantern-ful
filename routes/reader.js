@@ -1,39 +1,57 @@
-// routes/reader.js
+// routes/reader.js — In-site EPUB/PDF reader shell
+
 const express = require('express');
-const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE,
-  { auth: { persistSession: false } }
-);
+const router = express.Router();
 
-// GET /reader/:id
+function getSupabaseAnon() {
+  const url =
+    process.env.SUPABASE_URL ||
+    process.env.supabaseUrl ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.PUBLIC_SUPABASE_URL;
+
+  const key =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_KEY ||
+    process.env.supabaseKey ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
+/* GET /reader/:id
+   Renders an internal reader page that loads EPUB.js / PDF.js in your own site.
+   Expects curated_books.file_url (direct epub/pdf) or falls back to source_url.
+-------------------------------------------------------------------------- */
 router.get('/:id', async (req, res) => {
-  const { id } = req.params;
+  const sb = getSupabaseAnon();
+  const id = String(req.params.id || '');
+
+  if (!sb) {
+    return res.status(200).render('reader', {
+      error: 'Supabase URL/Key missing on server.',
+      book: null
+    });
+  }
+
   try {
-    const { data: book, error } = await supabase
+    const { data: book, error } = await sb
       .from('curated_books')
-      .select('*')
+      .select('id,title,author,cover,source_url,file_url,category')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
-    if (error || !book) throw (error || new Error('Book not found.'));
+    if (error) throw error;
+    if (!book) return res.status(404).render('reader', { error: 'Book not found.', book: null });
 
-    // Try to guess an EPUB URL if we only have provider/id
-    let epubUrl = null;
-    if (book.source_url && /\.epub(\.noimages|\.images)?$/i.test(book.source_url)) {
-      epubUrl = book.source_url;
-    } else if (book.provider === 'gutenberg' && book.provider_id) {
-      // Common Gutenberg pattern. Change to ".epub.noimages" if you prefer that default.
-      epubUrl = `https://www.gutenberg.org/ebooks/${encodeURIComponent(book.provider_id)}.epub.images`;
-    }
-
-    res.render('reader', { title: book.title, book, epubUrl });
+    // Reader page loads an internal script to init EPUB.js/PDF.js with book.file_url
+    return res.render('reader', { error: null, book });
   } catch (e) {
     console.error('[reader] load failed:', e);
-    res.status(404).send('Book not found');
+    return res.status(500).render('reader', { error: e.message || 'Reader error.', book: null });
   }
 });
 
