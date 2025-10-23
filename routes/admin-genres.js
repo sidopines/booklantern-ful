@@ -1,4 +1,4 @@
-// routes/admin-genres.js — Admin: Genres (CommonJS)
+// routes/admin-genres.js — Admin: Genres (works with book_genres OR genres)
 
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
@@ -23,22 +23,27 @@ function getSupabaseAdmin() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-function encode(s) {
-  try { return encodeURIComponent(String(s)); } catch { return '1'; }
-}
-function decode(s) {
-  try { return decodeURIComponent(String(s)); } catch { return ''; }
+function enc(s) { try { return encodeURIComponent(String(s)); } catch { return '1'; } }
+function dec(s) { try { return decodeURIComponent(String(s)); } catch { return ''; } }
+
+async function firstExistingTable(sb, candidates) {
+  for (const t of candidates) {
+    const { error } = await sb.from(t).select('slug').limit(1);
+    if (!error || error.code === 'PGRST116') return t; // PGRST116 = no rows, table exists
+    if (error && error.code !== 'PGRST205') throw error; // other errors -> surface
+  }
+  return null;
 }
 
-/* GET /admin/genres ------------------------------------------------------- */
 router.get('/genres', async (req, res) => {
   const sb = getSupabaseAdmin();
   const messages = {};
   if (req.query.ok)  messages.success = 'Saved.';
-  if (req.query.err) messages.error   = decode(req.query.err);
+  if (req.query.err) messages.error   = dec(req.query.err);
 
   if (!sb) {
     return res.render('admin-genres', {
+      title: 'Admin • Genres',
       messages,
       rows: [],
       envError: 'Supabase URL/Key missing. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.'
@@ -46,17 +51,30 @@ router.get('/genres', async (req, res) => {
   }
 
   try {
-    const { data, error } = await sb.from('genres').select('slug,name').order('name');
-    if (error) throw error;
+    const table = await firstExistingTable(sb, ['book_genres', 'genres']);
+    let rows = [];
+    if (table) {
+      const { data, error } = await sb.from(table).select('slug,name').order('name');
+      if (error) throw error;
+      rows = data || [];
+    } else if (Array.isArray(res.locals.categories) && res.locals.categories.length) {
+      rows = res.locals.categories.map(slug => ({
+        slug: String(slug),
+        name: String(slug).replace(/(^|-)([a-z])/g, (_, p1, c) => (p1 ? ' ' : '') + c.toUpperCase()).trim()
+      }));
+    }
+
     return res.render('admin-genres', {
+      title: 'Admin • Genres',
       messages,
-      rows: data || [],
+      rows,
       envError: null
     });
   } catch (e) {
     console.error('[admin] load genres failed:', e);
     messages.error = e.message || 'Failed to load genres.';
     return res.render('admin-genres', {
+      title: 'Admin • Genres',
       messages,
       rows: [],
       envError: null
@@ -64,18 +82,15 @@ router.get('/genres', async (req, res) => {
   }
 });
 
-/* POST /admin/genres ------------------------------------------------------ */
 router.post('/genres', async (req, res) => {
   const sb = getSupabaseAdmin();
   if (!sb) {
-    const msg = encode('Supabase is not configured on the server.');
-    return res.redirect(303, '/admin/genres?err=' + msg);
+    return res.redirect(303, '/admin/genres?err=' + enc('Supabase is not configured on the server.'));
   }
 
   try {
     const name = (req.body.name || '').trim();
     let slug = (req.body.slug || '').trim().toLowerCase();
-
     if (!name) throw new Error('Name is required.');
 
     if (!slug) {
@@ -85,13 +100,16 @@ router.post('/genres', async (req, res) => {
         .replace(/^-+|-+$/g, '');
     }
 
-    const { error } = await sb.from('genres').insert({ slug, name });
+    const table = await firstExistingTable(sb, ['book_genres', 'genres']);
+    if (!table) throw new Error('No genres table exists (book_genres or genres).');
+
+    const { error } = await sb.from(table).insert({ slug, name });
     if (error) throw error;
 
     return res.redirect(303, '/admin/genres?ok=1');
   } catch (e) {
     console.error('[admin] add genre failed:', e);
-    return res.redirect(303, '/admin/genres?err=' + encode(e.message || '1'));
+    return res.redirect(303, '/admin/genres?err=' + enc(e.message || '1'));
   }
 });
 
