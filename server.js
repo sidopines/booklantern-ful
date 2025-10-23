@@ -9,53 +9,62 @@ const cookieParser = require('cookie-parser');
 const app = express();
 
 /* -----------------------------------------------------------
-   Supabase env normalization (pre-route, before any require)
-   Some routers expect SUPABASE_KEY; others use SERVICE_ROLE.
-   Normalize so require-time clients don't crash.
+   Supabase env normalization (must run BEFORE any route require)
+   Covers all common variants + camelCase used by some files.
 ----------------------------------------------------------- */
 (function normalizeSupabaseEnv() {
-  const url =
+  // Source values from any known names
+  const urlRaw =
     process.env.SUPABASE_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.PUBLIC_SUPABASE_URL ||
+    process.env.supabaseUrl ||
     '';
 
-  // Prefer service role key for server-side admin tasks
-  const serviceRole =
+  const serviceRoleRaw =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_SERVICE_KEY ||
+    process.env.supabaseKey || // some files use camelCase
     '';
 
-  const anon =
+  const anonRaw =
     process.env.SUPABASE_ANON_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     '';
 
-  // Provide common aliases so any router that uses a different
-  // variable name will still find a valid key.
-  if (url && !process.env.SUPABASE_URL) process.env.SUPABASE_URL = url;
+  // Choose best keys
+  const finalUrl = urlRaw;
+  const finalService = serviceRoleRaw || ''; // prefer server-side key
+  const finalAnon = anonRaw || '';
 
-  // Some modules look for SUPABASE_KEY; give them service role if present,
-  // otherwise fall back to anon (read-only).
+  // Write canonical names
+  if (finalUrl) process.env.SUPABASE_URL = finalUrl;
+  if (finalService) process.env.SUPABASE_SERVICE_ROLE_KEY = finalService;
   if (!process.env.SUPABASE_KEY) {
-    process.env.SUPABASE_KEY = serviceRole || anon || '';
+    process.env.SUPABASE_KEY = finalService || finalAnon || '';
   }
 
-  // Keep originals too
-  if (serviceRole && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    process.env.SUPABASE_SERVICE_ROLE_KEY = serviceRole;
-  }
+  // Also publish ALL aliases that any route might check
+  if (!process.env.SUPABASE_SERVICE_KEY && finalService)
+    process.env.SUPABASE_SERVICE_KEY = finalService;
 
-  const keyPreview = (process.env.SUPABASE_KEY || '').slice(0, 5);
-  if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
-    console.log(
-      `[supabaseEnv] Ready (url set, key alias ok, preview ${keyPreview}•••)`
-    );
+  if (!process.env.SUPABASE_ANON_KEY && finalAnon)
+    process.env.SUPABASE_ANON_KEY = finalAnon;
+
+  // CamelCase aliases (some custom modules throw if these are absent)
+  if (!process.env.supabaseKey)
+    process.env.supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || '';
+  if (!process.env.supabaseUrl)
+    process.env.supabaseUrl = process.env.SUPABASE_URL || '';
+
+  const haveUrl = Boolean(process.env.SUPABASE_URL || process.env.supabaseUrl);
+  const haveKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.supabaseKey);
+
+  if (haveUrl && haveKey) {
+    const keyPreview = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.supabaseKey).slice(0, 5);
+    console.log(`[supabaseEnv] Ready (url set, key alias ok, preview ${keyPreview}•••)`);
   } else {
-    console.warn(
-      '[supabaseEnv] Missing SUPABASE_URL and/or SUPABASE_KEY. ' +
-        'Routers that need Supabase will be skipped.'
-    );
+    console.warn('[supabaseEnv] Missing SUPABASE URL and/or KEY. Some routers will be skipped.');
   }
 })();
 
@@ -68,7 +77,7 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(compression());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-app.use(cookieParser()); // needed so adminGate can read req.cookies
+app.use(cookieParser());
 
 // ---------- Static assets ----------
 app.use(
@@ -189,9 +198,12 @@ try {
 }
 
 /* ---------- Dedicated admin + reader routes ----------
-   Mount only if normalized Supabase env is present.
+   Only mount if we have a usable Supabase URL + key.
 ----------------------------------------------------- */
-const hasSB = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_KEY);
+const hasSB = Boolean(
+  (process.env.SUPABASE_URL || process.env.supabaseUrl) &&
+  (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.supabaseKey)
+);
 
 if (hasSB) {
   try {
@@ -209,9 +221,7 @@ if (hasSB) {
     console.error('[routes] failed to mount ./routes/reader:', e);
   }
 } else {
-  console.warn(
-    '[routes] Skipping admin-books/admin-genres/reader because SUPABASE_URL/KEY are not both set.'
-  );
+  console.warn('[routes] Skipping admin-books/admin-genres/reader because Supabase URL/Key not detected.');
 }
 
 // ---------- Health check ----------
