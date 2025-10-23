@@ -1,18 +1,14 @@
-<%- include('./partials/head', { pageTitle: 'Page Not Found - BookLantern' }) %>
-<body>
-  <%- include('./partials/navbar') %>
-
-  <main class="stack center" style="--gap:32px; padding:60px 16px; text-align:center;">
-    <h1 style="font-size:2.5rem; font-weight:800; color:var(--ink);">404</h1>
-    <p style="max-width:600px; margin:0 auto; color:var(--ink-2); font-size:1.1rem;">
-      Sorry, the page you were looking for could not be found.  
-      It may have been moved, or the link might be broken.
-    </p>
-    <div>
-      <a class="btn primary" href="/">← Back to Home</a>
-    </div>
-  </main>
-
-  <%- include('./partials/footer') %>
-</body>
+<!DOCTYPE html>
+<html lang="en">
+  <%- include('partials/head', { pageTitle: pageTitle || 'Not Found', title: pageTitle || 'Not Found' }) %>
+  <body class="page">
+    <%- include('partials/navbar') %>
+    <main class="container" style="max-width: 900px;">
+      <h1 class="title">Not Found</h1>
+      <p>The page you’re looking for doesn’t exist.</p>
+      <p><a class="btn" href="/">← Back to Home</a></p>
+    </main>
+    <%- include('partials/footer') %>
+    <script src="/public/js/theme.js?v=<%= Date.now() %>"></script>
+  </body>
 </html>
