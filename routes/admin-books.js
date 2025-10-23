@@ -4,41 +4,69 @@ const router = express.Router();
 
 const supabase = require('../supabaseAdmin');            // service-role client (or null)
 const ensureAdmin = require('../utils/adminGate');       // JWT/X-Admin-Token gate
+const categoriesCfg = (() => {
+  try { return require('../config/categories'); } catch { return []; }
+})();
+
+const CATEGORY_FALLBACK = ['trending','philosophy','history','science'];
+const CATEGORIES = categoriesCfg.length ? categoriesCfg : CATEGORY_FALLBACK;
 
 // Only admins beyond this point
 router.use(ensureAdmin);
+
+// Helper: build a source URL from provider + id (supports a few well-known providers)
+function buildSourceUrl({ provider, providerId }) {
+  const p = (provider || '').trim().toLowerCase();
+  const id = (providerId || '').trim();
+  if (!p || !id) return null;
+
+  switch (p) {
+    case 'gutenberg':
+    case 'project gutenberg':
+      return `https://www.gutenberg.org/ebooks/${id}`;
+    case 'internetarchive':
+    case 'archive':
+    case 'ia':
+      return `https://archive.org/details/${id}`;
+    default:
+      return null;
+  }
+}
 
 // GET /admin/books — form + list
 router.get('/', async (req, res) => {
   if (!supabase) {
     return res.status(503).render('admin/books', {
+      messages: { error: 'Supabase is not configured on the server.' },
       books: [],
-      messages: { error: 'Supabase is not configured on the server.' }
+      categories: CATEGORIES,
     });
   }
 
   try {
-    const { data, error } = await supabase
+    // Be explicit about columns that actually exist on curated_books
+    const { data: books = [], error } = await supabase
       .from('curated_books')
-      .select('id,title,author,provider,provider_id,cover,description,created_at')
-      .order('created_at', { ascending: false });
+      .select('id, title, author, cover_image, source_url, category, created_at')
+      .order('created_at', { ascending: false, nullsFirst: false });
 
     if (error) throw error;
 
-    const msg =
-      req.query.ok ? { success: 'Saved.' } :
-      req.query.err ? { error: 'Operation failed.' } :
-      null;
+    const messages = {};
+    if (req.query.ok) messages.success = 'Saved.';
+    if (req.query.err) messages.error = 'Operation failed. Check your inputs and try again.';
 
     res.render('admin/books', {
-      books: Array.isArray(data) ? data : [],
-      messages: msg
+      messages,
+      books,
+      categories: CATEGORIES,
     });
   } catch (e) {
     console.error('[admin] load books failed:', e);
     res.status(500).render('admin/books', {
+      messages: { error: 'Failed to load books.' },
       books: [],
-      messages: { error: 'Failed to load books.' }
+      categories: CATEGORIES,
     });
   }
 });
@@ -49,12 +77,17 @@ router.post('/', async (req, res) => {
 
   const title       = String(req.body.title || '').trim();
   const author      = String(req.body.author || '').trim();
+  const coverImage  = String(req.body.coverImage || '').trim();
+  const sourceUrlIn = String(req.body.sourceUrl || '').trim();
   const provider    = String(req.body.provider || '').trim();
-  const provider_id = String(req.body.provider_id || '').trim();
-  const cover       = String(req.body.cover || '').trim();
-  const description = String(req.body.description || '').trim();
+  const providerId  = String(req.body.provider_id || '').trim();
+  const category    = String(req.body.category || '').trim().toLowerCase();
 
-  if (!title) {
+  // derive source URL if provider combo given
+  const derived = buildSourceUrl({ provider, providerId });
+  const sourceUrl = sourceUrlIn || derived || '';
+
+  if (!title || !sourceUrl || !category) {
     return res.redirect(303, '/admin/books?err=1');
   }
 
@@ -62,10 +95,9 @@ router.post('/', async (req, res) => {
     const { error } = await supabase.from('curated_books').insert([{
       title,
       author: author || null,
-      provider: provider || null,
-      provider_id: provider_id || null,
-      cover: cover || null,
-      description: description || null
+      cover_image: coverImage || null,
+      source_url: sourceUrl,
+      category,
     }]);
 
     if (error) throw error;
