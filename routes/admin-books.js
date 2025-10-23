@@ -4,9 +4,6 @@ const router = express.Router();
 
 const supabase = require('../supabaseAdmin');            // service-role client (or null)
 const ensureAdmin = require('../utils/adminGate');       // JWT/X-Admin-Token gate
-const categoriesCfg = (() => {
-  try { return require('../config/categories'); } catch { return []; }
-})();
 
 // Only admins beyond this point
 router.use(ensureAdmin);
@@ -15,34 +12,33 @@ router.use(ensureAdmin);
 router.get('/', async (req, res) => {
   if (!supabase) {
     return res.status(503).render('admin/books', {
-      ok: false,
-      err: 'Supabase is not configured on the server.',
       books: [],
-      categories: categoriesCfg.length ? categoriesCfg : ['trending','philosophy','history','science'],
+      messages: { error: 'Supabase is not configured on the server.' }
     });
   }
 
   try {
-    const { data: books = [], error } = await supabase
+    const { data, error } = await supabase
       .from('curated_books')
-      .select('*')
+      .select('id,title,author,provider,provider_id,cover,description,created_at')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
+    const msg =
+      req.query.ok ? { success: 'Saved.' } :
+      req.query.err ? { error: 'Operation failed.' } :
+      null;
+
     res.render('admin/books', {
-      ok: Boolean(req.query.ok),
-      err: req.query.err ? 'Operation failed.' : '',
-      books,
-      categories: categoriesCfg.length ? categoriesCfg : ['trending','philosophy','history','science'],
+      books: Array.isArray(data) ? data : [],
+      messages: msg
     });
   } catch (e) {
     console.error('[admin] load books failed:', e);
-    res.render('admin/books', {
-      ok: false,
-      err: 'Failed to load books.',
+    res.status(500).render('admin/books', {
       books: [],
-      categories: categoriesCfg.length ? categoriesCfg : ['trending','philosophy','history','science'],
+      messages: { error: 'Failed to load books.' }
     });
   }
 });
@@ -51,13 +47,14 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   if (!supabase) return res.redirect(303, '/admin/books?err=1');
 
-  const title      = String(req.body.title || '').trim();
-  const author     = String(req.body.author || '').trim();
-  const coverImage = String(req.body.coverImage || '').trim();
-  const sourceUrl  = String(req.body.sourceUrl || '').trim();
-  const category   = String(req.body.category || '').trim().toLowerCase();
+  const title       = String(req.body.title || '').trim();
+  const author      = String(req.body.author || '').trim();
+  const provider    = String(req.body.provider || '').trim();
+  const provider_id = String(req.body.provider_id || '').trim();
+  const cover       = String(req.body.cover || '').trim();
+  const description = String(req.body.description || '').trim();
 
-  if (!title || !sourceUrl || !category) {
+  if (!title) {
     return res.redirect(303, '/admin/books?err=1');
   }
 
@@ -65,9 +62,10 @@ router.post('/', async (req, res) => {
     const { error } = await supabase.from('curated_books').insert([{
       title,
       author: author || null,
-      cover_image: coverImage || null,
-      source_url: sourceUrl,
-      category,
+      provider: provider || null,
+      provider_id: provider_id || null,
+      cover: cover || null,
+      description: description || null
     }]);
 
     if (error) throw error;
