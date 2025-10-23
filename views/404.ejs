@@ -1,14 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
-  <%- include('partials/head', { pageTitle: pageTitle || 'Not Found', title: pageTitle || 'Not Found' }) %>
+  <% 
+    // Guard against undefined locals so EJS never throws here
+    const _title = (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : 'Not Found';
+  %>
+  <%- include('partials/head', { pageTitle: _title, title: _title }) %>
   <body class="page">
     <%- include('partials/navbar') %>
+
     <main class="container" style="max-width: 900px;">
-      <h1 class="title">Not Found</h1>
-      <p>The page you’re looking for doesn’t exist.</p>
-      <p><a class="btn" href="/">← Back to Home</a></p>
+      <h1 class="title"><%= _title %></h1>
+      <p class="muted">The page you’re looking for doesn’t exist.</p>
+
+      <div style="margin-top: 16px;">
+        <a href="/" class="btn">← Back to Home</a>
+      </div>
     </main>
+
     <%- include('partials/footer') %>
-    <script src="/public/js/theme.js?v=<%= Date.now() %>"></script>
   </body>
 </html>
