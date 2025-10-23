@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/public/css/site.css?v=<%= Date.now() %>">
+</head>
+<body class="admin">
+  <main class="container">
+    <h1>Admin • Books</h1>
+
+    <% if (messages && messages.error) { %>
+      <div class="alert alert-error"><%= messages.error %></div>
+    <% } %>
+    <% if (messages && messages.success) { %>
+      <div class="alert alert-success"><%= messages.success %></div>
+    <% } %>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Add a book</h2>
+        <form method="post" action="/admin/books">
+          <label>Title
+            <input type="text" name="title" required />
+          </label>
+
+          <label>Author
+            <input type="text" name="author" />
+          </label>
+
+          <label>Genre / Shelf
+            <select name="category" required>
+              <option value="" disabled selected>Select a shelf…</option>
+              <% (genres || []).forEach(g => { %>
+                <option value="<%= g.slug %>"><%= g.label %></option>
+              <% }) %>
+            </select>
+          </label>
+
+          <label>Cover URL
+            <input type="url" name="cover" placeholder="https://…" />
+          </label>
+
+          <label>Source URL (preferred)
+            <input type="url" name="source_url" placeholder="https://archive.org/... or https://.../book.epub" />
+          </label>
+
+          <div class="row">
+            <div>
+              <label>Provider (e.g. gutenberg)
+                <input type="text" name="provider" placeholder="gutenberg" />
+              </label>
+            </div>
+            <div>
+              <label>Provider ID
+                <input type="text" name="provider_id" placeholder="1342" />
+              </label>
+            </div>
+          </div>
+
+          <button type="submit">Save</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>How this works</h2>
+        <p>This page posts to <code>POST /admin/books</code>, then lists below from <code>curated_books</code>.
+        Select a shelf and the homepage knows which row to place it on.</p>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2>Books</h2>
+      <% if (!books || books.length === 0) { %>
+        <p>No books yet.</p>
+      <% } else { %>
+        <table class="table">
+          <thead>
+            <tr><th>Title</th><th>Author</th><th>Shelf</th><th>Reader</th></tr>
+          </thead>
+          <tbody>
+          <% books.forEach(b => { %>
+            <tr>
+              <td><%= b.title %></td>
+              <td><%= b.author || '' %></td>
+              <td><%= b.category %></td>
+              <td><a href="/reader/<%= b.id %>">Open</a></td>
+            </tr>
+          <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+    </section>
+  </main>
+</body>
+</html>
