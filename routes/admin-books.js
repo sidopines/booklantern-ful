@@ -1,126 +1,89 @@
-// routes/admin-books.js — service-role writes for curated_books
+// routes/admin-books.js
 const express = require('express');
 const router = express.Router();
+const { createClient } = require('@supabase/supabase-js');
 
-const supabase = require('../supabaseAdmin');            // service-role client (or null)
-const ensureAdmin = require('../utils/adminGate');       // JWT/X-Admin-Token gate
-const categoriesCfg = (() => {
-  try { return require('../config/categories'); } catch { return []; }
-})();
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE,
+  { auth: { persistSession: false } }
+);
 
-const CATEGORY_FALLBACK = ['trending','philosophy','history','science'];
-const CATEGORIES = categoriesCfg.length ? categoriesCfg : CATEGORY_FALLBACK;
-
-// Only admins beyond this point
-router.use(ensureAdmin);
-
-// Helper: build a source URL from provider + id (supports a few well-known providers)
-function buildSourceUrl({ provider, providerId }) {
-  const p = (provider || '').trim().toLowerCase();
-  const id = (providerId || '').trim();
-  if (!p || !id) return null;
-
-  switch (p) {
-    case 'gutenberg':
-    case 'project gutenberg':
-      return `https://www.gutenberg.org/ebooks/${id}`;
-    case 'internetarchive':
-    case 'archive':
-    case 'ia':
-      return `https://archive.org/details/${id}`;
-    default:
-      return null;
-  }
-}
-
-// GET /admin/books — form + list
-router.get('/', async (req, res) => {
-  if (!supabase) {
-    return res.status(503).render('admin/books', {
-      messages: { error: 'Supabase is not configured on the server.' },
-      books: [],
-      categories: CATEGORIES,
-    });
-  }
+// GET /admin/books
+router.get('/books', async (req, res) => {
+  const messages = {};
+  if (req.query.ok) messages.success = 'Saved.';
+  if (req.query.err) messages.error = decodeURIComponent(req.query.err);
 
   try {
-    // Be explicit about columns that actually exist on curated_books
-    const { data: books = [], error } = await supabase
-      .from('curated_books')
-      .select('id, title, author, cover_image, source_url, category, created_at')
-      .order('created_at', { ascending: false, nullsFirst: false });
+    const [{ data: genres, error: gErr }, { data: books, error: bErr }] =
+      await Promise.all([
+        supabase.from('book_genres').select('slug,label').order('label', { ascending: true }),
+        supabase.from('curated_books').select('*').order('created_at', { ascending: false })
+      ]);
 
-    if (error) throw error;
+    if (gErr) throw gErr;
+    if (bErr) throw bErr;
 
-    const messages = {};
-    if (req.query.ok) messages.success = 'Saved.';
-    if (req.query.err) messages.error = 'Operation failed. Check your inputs and try again.';
-
-    res.render('admin/books', {
+    return res.render('admin-books', {
+      title: 'Admin • Books',
       messages,
-      books,
-      categories: CATEGORIES,
+      genres,
+      books
     });
   } catch (e) {
     console.error('[admin] load books failed:', e);
-    res.status(500).render('admin/books', {
-      messages: { error: 'Failed to load books.' },
-      books: [],
-      categories: CATEGORIES,
+    messages.error = 'Failed to load books.';
+    return res.status(200).render('admin-books', {
+      title: 'Admin • Books',
+      messages,
+      genres: [],
+      books: []
     });
   }
 });
 
-// POST /admin/books — create a curated book
-router.post('/', async (req, res) => {
-  if (!supabase) return res.redirect(303, '/admin/books?err=1');
-
-  const title       = String(req.body.title || '').trim();
-  const author      = String(req.body.author || '').trim();
-  const coverImage  = String(req.body.coverImage || '').trim();
-  const sourceUrlIn = String(req.body.sourceUrl || '').trim();
-  const provider    = String(req.body.provider || '').trim();
-  const providerId  = String(req.body.provider_id || '').trim();
-  const category    = String(req.body.category || '').trim().toLowerCase();
-
-  // derive source URL if provider combo given
-  const derived = buildSourceUrl({ provider, providerId });
-  const sourceUrl = sourceUrlIn || derived || '';
-
-  if (!title || !sourceUrl || !category) {
-    return res.redirect(303, '/admin/books?err=1');
-  }
-
+// POST /admin/books
+router.post('/books', async (req, res) => {
   try {
-    const { error } = await supabase.from('curated_books').insert([{
+    const {
       title,
-      author: author || null,
-      cover_image: coverImage || null,
-      source_url: sourceUrl,
-      category,
+      author,
+      category,          // slug from book_genres
+      cover,             // cover URL
+      source_url,        // preferred/canonical link (can be .epub)
+      provider,          // e.g. 'gutenberg'
+      provider_id        // e.g. '1342'
+    } = req.body;
+
+    if (!title || !category) {
+      throw new Error('Title and Genre/Shelf are required.');
+    }
+
+    // If no source_url is provided but Gutenberg is, try to set something sensible
+    let finalSource = source_url && source_url.trim() ? source_url.trim() : null;
+    if (!finalSource && provider === 'gutenberg' && provider_id) {
+      // Basic canonical page (you can change to a direct .epub if you prefer)
+      finalSource = `https://www.gutenberg.org/ebooks/${encodeURIComponent(provider_id)}`;
+    }
+
+    const { error: insErr } = await supabase.from('curated_books').insert([{
+      title: title.trim(),
+      author: author && author.trim() || null,
+      category: category.trim(),
+      cover: cover && cover.trim() || null,
+      source_url: finalSource,
+      provider: provider && provider.trim() || null,
+      provider_id: provider_id && String(provider_id).trim() || null
     }]);
 
-    if (error) throw error;
+    if (insErr) throw insErr;
+
     return res.redirect(303, '/admin/books?ok=1');
   } catch (e) {
     console.error('[admin] add book failed:', e);
-    return res.redirect(303, '/admin/books?err=1');
-  }
-});
-
-// POST /admin/books/delete — delete by id
-router.post('/delete', async (req, res) => {
-  if (!supabase) return res.redirect(303, '/admin/books?err=1');
-  const id = String(req.body.id || '').trim();
-  if (!id) return res.redirect(303, '/admin/books?err=1');
-
-  try {
-    const { error } = await supabase.from('curated_books').delete().eq('id', id);
-    if (error) throw error;
-    return res.redirect(303, '/admin/books?ok=1');
-  } catch (e) {
-    console.error('[admin] delete book failed:', e);
-    return res.redirect(303, '/admin/books?err=1');
+    const msg = encodeURIComponent(e.message || 'Save failed.');
+    return res.redirect(303, '/admin/books?err=' + msg);
   }
 });
 
