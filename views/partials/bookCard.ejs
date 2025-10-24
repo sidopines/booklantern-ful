@@ -1,12 +1,12 @@
-<li class="card book-card" role="listitem" style="width: 180px;">
-  <a class="book-card__thumb" href="<%= b.readUrl %>" aria-label="Read <%= b.title %>" style="text-decoration:none;">
-    <!-- Strict 2:3 box that nothing can override -->
+<li class="card book-card" role="listitem" style="width:220px; max-width:240px;">
+  <a class="book-card__thumb" href="<%= b.readUrl %>" aria-label="Read <%= b.title %>" style="display:block; text-decoration:none;">
+    <!-- Responsive 2:3 box that scales with the card width -->
     <span
       style="
         position:relative;
         display:block;
-        width:150px;
-        height:225px;            /* 2:3 */
+        width:100%;
+        aspect-ratio:2/3;          /* keeps the poster shape at any width */
         border-radius:12px;
         overflow:hidden;
         background:#f3f3f3;
@@ -21,9 +21,9 @@
         style="
           position:absolute;
           inset:0;
-          width:100% !important;     /* hard override any globals */
-          height:100% !important;    /* hard override any globals */
-          max-width:none !important; /* prevent auto scaling rules */
+          width:100% !important;
+          height:100% !important;
+          max-width:none !important;
           object-fit:cover !important;
           object-position:center;
           display:block;
@@ -32,7 +32,7 @@
     </span>
   </a>
 
-  <div class="book-card__meta" style="margin-top:10px; width:150px;">
+  <div class="book-card__meta" style="margin-top:10px;">
     <h3 class="book-card__title" style="font-size:14px; line-height:1.25; margin:0 0 4px;">
       <a href="<%= b.readUrl %>" style="text-decoration:none; color:inherit;"><%= b.title %></a>
     </h3>
