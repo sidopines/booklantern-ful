@@ -1,28 +1,108 @@
 <%
-  const list = Array.isArray(items) ? items : [];
-  const klass = typeof sectionClass !== 'undefined' ? sectionClass : '';
-  const _title = typeof title !== 'undefined' ? title : 'Books';
-  const uid = 'track_' + Math.random().toString(36).slice(2, 9);
+  // views/partials/bookCarousel.ejs
+  const list   = Array.isArray(items) ? items : [];
+  const title_ = typeof title === 'string' && title ? title : 'Books';
+  const klass  = typeof sectionClass === 'string' ? sectionClass : '';
+  const seeMoreHref = typeof seeMoreHref === 'string' ? seeMoreHref : '';
+
+  const uid = 'crsl_' + Math.random().toString(36).slice(2, 9);
 %>
 
-<section class="carousel <%= klass %>">
-  <div class="row" style="align-items:center;justify-content:space-between;margin-bottom:10px;">
-    <h2><%= _title %></h2>
-    <% if (list.length > 0) { %>
-      <div class="arrows">
-        <button type="button" class="carousel-btn prev" aria-label="Previous" data-target="#<%= uid %>">‹</button>
-        <button type="button" class="carousel-btn next" aria-label="Next" data-target="#<%= uid %>">›</button>
-      </div>
+<section class="shelf <%= klass %>" data-carousel="<%= uid %>">
+  <div class="shelf__head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <h2 style="margin:0;"><%= title_ %></h2>
+    <% if (seeMoreHref || title_) { %>
+      <a class="shelf__more" href="<%= seeMoreHref || ('/search?q=subject:' + encodeURIComponent(title_)) %>">See more</a>
     <% } %>
   </div>
 
-  <% if (list.length) { %>
-    <div id="<%= uid %>" class="carousel-track" role="list" aria-label="<%= _title %>">
-      <% list.forEach(it => { %>
-        <%- include('./bookCard.ejs', { item: it }) %>
-      <% }) %>
-    </div>
+  <% if (!list.length) { %>
+    <div class="card" style="padding:16px;">No books yet for this shelf.</div>
   <% } else { %>
-    <div class="card">Nothing here yet.</div>
+    <div class="crsl" style="position:relative;">
+      <!-- track -->
+      <div id="<%= uid %>"
+           class="crsl__track"
+           role="list"
+           tabindex="0"
+           style="
+             display:grid;
+             grid-auto-flow:column;
+             grid-auto-columns: clamp(180px, 22vw, 240px);
+             gap:16px;
+             overflow-x:auto;
+             padding: 6px 2px 10px;
+             scroll-snap-type:x mandatory;
+             scrollbar-width:thin;
+           ">
+        <% list.forEach(function(it){ %>
+          <div class="crsl__item" role="listitem" style="scroll-snap-align:start;">
+            <%- include('./bookCard', { b: it }) %>
+          </div>
+        <% }) %>
+      </div>
+
+      <!-- minimal arrows -->
+      <button type="button" class="crsl__btn crsl__btn--prev" aria-label="Previous"
+              data-prev="<%= uid %>">‹</button>
+      <button type="button" class="crsl__btn crsl__btn--next" aria-label="Next"
+              data-next="<%= uid %>">›</button>
+
+      <style>
+        [data-carousel="<%= uid %>"] .crsl__btn{
+          position:absolute; top:38%; transform:translateY(-50%);
+          width:34px; height:34px; border-radius:999px; border:1px solid rgba(0,0,0,.08);
+          background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.08);
+          display:grid; place-items:center; font-size:20px; line-height:1; cursor:pointer;
+          opacity:.92; transition:opacity .15s ease, transform .15s ease;
+        }
+        [data-carousel="<%= uid %>"] .crsl__btn[disabled]{ opacity:.35; cursor:default; }
+        [data-carousel="<%= uid %>"] .crsl__btn:hover{ transform:translateY(-50%) scale(1.04); }
+        [data-carousel="<%= uid %>"] .crsl__btn--prev{ left:-6px; }
+        [data-carousel="<%= uid %>"] .crsl__btn--next{ right:-6px; }
+        /* ensure book cards fill their slot cleanly */
+        [data-carousel="<%= uid %>"] .crsl__item > .book-card{ width:100%; }
+      </style>
+
+      <script>
+        (function(){
+          const id = "<%= uid %>";
+          const track = document.getElementById(id);
+          if(!track) return;
+
+          const prev = document.querySelector('[data-prev="'+id+'"]');
+          const next = document.querySelector('[data-next="'+id+'"]');
+
+          // hide arrows if not scrollable
+          function setButtons(){
+            const canScroll = track.scrollWidth > track.clientWidth + 2;
+            prev.style.display = next.style.display = canScroll ? 'grid' : 'none';
+            if(!canScroll) return;
+            prev.disabled = (track.scrollLeft <= 2);
+            next.disabled = (track.scrollLeft + track.clientWidth >= track.scrollWidth - 2);
+          }
+
+          function step(dir){
+            const first = track.querySelector('.crsl__item');
+            const w = first ? first.getBoundingClientRect().width : 220;
+            track.scrollBy({ left: dir * (w + 16), behavior: 'smooth' });
+          }
+
+          prev && prev.addEventListener('click', () => step(-1));
+          next && next.addEventListener('click', () => step( 1));
+          track.addEventListener('scroll', setButtons, { passive:true });
+          window.addEventListener('resize', setButtons);
+
+          // snap keyboard arrows when track focused
+          track.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
+            if (e.key === 'ArrowRight'){ e.preventDefault(); step( 1); }
+          });
+
+          // initial state after render
+          requestAnimationFrame(setButtons);
+        })();
+      </script>
+    </div>
   <% } %>
 </section>
