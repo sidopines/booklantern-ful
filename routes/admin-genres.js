@@ -1,73 +1,88 @@
 // routes/admin-genres.js
 const express = require('express');
-const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+const router = express.Router();
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error('supabaseKey is required.');
+const SUPABASE_URL =
+  process.env.SUPABASE_URL ||
+  process.env.supabaseUrl;
+
+const SUPABASE_SERVICE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SERVICE_KEY ||
+  process.env.SUPABASE_KEY ||
+  process.env.supabaseKey;
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  throw new Error('Supabase URL/key missing for admin-genres router.');
 }
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   auth: { persistSession: false },
 });
 
-function adminGate(req, res, next) {
-  if (req.query.admin_key && String(req.query.admin_key).startsWith('BL_ADMIN_')) {
-    return next();
-  }
-  next();
+function messagesFromQuery(q) {
+  const msg = {};
+  if (q.ok)  msg.success = 'Saved.';
+  if (q.err) msg.error   = decodeURIComponent(q.err);
+  return msg;
 }
 
 // GET /admin/genres
-router.get('/genres', adminGate, async (req, res) => {
-  const messages = {};
-  if (req.query.ok)  messages.success = 'Saved.';
-  if (req.query.err) messages.error   = decodeURIComponent(req.query.err);
+router.get('/genres', async (req, res, next) => {
+  try {
+    const { data, error } = await sb
+      .from('book_genres')
+      .select('slug,name,homepage_row,created_at')
+      .order('homepage_row', { ascending: true, nullsFirst: false })
+      .order('name', { ascending: true });
 
-  const { data, error } = await supabase
-    .from('book_genres')
-    .select('id, slug, name, homepage_row, created_at')
-    .order('name', { ascending: true });
+    if (error) {
+      console.error('[admin] load genres failed:', error);
+      return res.status(500).render('admin-genres', {
+        ...messagesFromQuery({ err: error.message }),
+        genres: [],
+        pageTitle: 'Admin • Genres',
+      });
+    }
 
-  if (error) {
-    console.error('[admin] load genres failed:', error);
-    messages.error = (messages.error ? messages.error + ' — ' : '') + (error.message || 'Failed to load genres');
+    res.render('admin-genres', {
+      ...messagesFromQuery(req.query),
+      genres: data || [],
+      pageTitle: 'Admin • Genres',
+    });
+  } catch (e) {
+    console.error('[admin] load genres failed:', e);
+    next(e);
   }
-
-  return res.render('admin-genres', {
-    title: 'Admin • Genres',
-    genres: data || [],
-    messages,
-  });
 });
 
-// POST /admin/genres
-router.post('/genres', adminGate, async (req, res) => {
+// POST /admin/genres — upsert by slug
+router.post('/genres', async (req, res) => {
   try {
-    const { slug, name, homepage_row } = req.body;
+    const slug = (req.body.slug || '').trim();
+    const name = (req.body.name || '').trim();
+    const homepage_row = req.body.homepage_row ? Number(req.body.homepage_row) : null;
+
     if (!slug || !name) {
       const msg = encodeURIComponent('Both slug and name are required.');
       return res.redirect(303, '/admin/genres?err=' + msg);
     }
-    const { error } = await supabase.from('book_genres').insert({
-      slug: slug.trim(),
-      name: name.trim(),
-      homepage_row: homepage_row ? Number(homepage_row) : null,
-    });
+
+    const { error } = await sb
+      .from('book_genres')
+      .upsert({ slug, name, homepage_row }, { onConflict: 'slug' });
 
     if (error) {
-      console.error('[admin] add genre failed:', error);
+      console.error('[admin] upsert genre failed:', error);
       const msg = encodeURIComponent(error.message || '1');
       return res.redirect(303, '/admin/genres?err=' + msg);
     }
 
     return res.redirect(303, '/admin/genres?ok=1');
   } catch (e) {
-    console.error('[admin] add genre failed:', e);
+    console.error('[admin] upsert genre failed:', e);
     const msg = encodeURIComponent(e.message || '1');
     return res.redirect(303, '/admin/genres?err=' + msg);
   }
