@@ -1,18 +1,22 @@
-<%
-/* Robust fallbacks so the card always works */
-const prov  = b && (b.provider || '');
-const pid   = b && (b.provider_id || b.id || '');
-const cover = b && (b.cover_image || b.cover || '/public/placeholder-cover.svg');
-const title = b && b.title ? b.title : 'Untitled';
-const author = b && b.author ? b.author : '';
-const href  = `/read?provider=${encodeURIComponent(prov)}&id=${encodeURIComponent(pid)}`;
-%>
+<li class="card book-card" role="listitem" style="width: 180px;">
+  <a class="book-card__thumb" href="<%= b.readUrl %>" aria-label="Read <%= b.title %>">
+    <img
+      src="<%= b.cover_image || b.cover || '/public/img/placeholder-cover.svg' %>"
+      alt="Cover of <%= b.title %>"
+      loading="lazy"
+      width="140"
+      height="210"
+      style="display:block;border-radius:8px;object-fit:cover;width:140px;height:210px;"
+    />
+  </a>
 
-<a class="card book" href="<%= href %>" role="listitem" aria-label="Read <%= title %>">
-  <img class="book__cover" src="<%= cover %>" alt="">
-  <div class="book__meta">
-    <h3 class="book__title"><%= title %></h3>
-    <% if (author) { %><p class="book__author"><%= author %></p><% } %>
-    <span class="btn btn--sm">Read</span>
+  <div class="book-card__meta" style="margin-top:8px;">
+    <h3 class="book-card__title" style="font-size:14px; line-height:1.2; margin:0 0 4px;">
+      <a href="<%= b.readUrl %>" style="text-decoration:none;"><%= b.title %></a>
+    </h3>
+    <% if (b.author) { %>
+      <p class="book-card__author" style="margin:0 0 8px; color:#666; font-size:12px;"><%= b.author %></p>
+    <% } %>
+    <a class="btn btn-sm" href="<%= b.readUrl %>">Read</a>
   </div>
-</a>
+</li>
