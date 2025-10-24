@@ -66,8 +66,6 @@
     <% } %>
 
     <% LIST.forEach(function (cat) {
-         // Accept multiple shapes to be robust:
-         //   { key, label, items }  OR  { key, title, items }  OR  { name, title, items }
          const key   = (cat && (cat.key || cat.name)) || '';
          const label = (cat && (cat.label || cat.title)) || (key ? (key.charAt(0).toUpperCase() + key.slice(1)) : 'Shelf');
          const items = (cat && Array.isArray(cat.items)) ? cat.items : [];
@@ -85,6 +83,8 @@
         <% } else { %>
           <div class="carousel" role="list">
             <% items.forEach(function (b) { %>
+              <!-- Ensure the partial has a gated Read URL to use -->
+              <% b.readUrl = b.readUrl || b._readUrl; %>
               <%- include('./partials/bookCard', { b: b }) %>
             <% }) %>
           </div>
