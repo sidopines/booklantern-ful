@@ -1,173 +1,74 @@
-// routes/index.js — public site pages; always pass safe locals to views
-const express = require('express');
-const router = express.Router();
-
-const supabase = require('../supabaseAdmin'); // service-role, may be null
-
-// Helpers
-const arr = (v) => (Array.isArray(v) ? v : []);
-const isStr = (v) => typeof v === 'string' && v.trim().length > 0;
-
-// Parse a YouTube url to an object: { id, embedUrl, thumb }
-function parseYouTube(url) {
-  if (!isStr(url)) return null;
-  try {
-    const u = new URL(url);
-    let id = '';
-    if (u.hostname === 'youtu.be') {
-      id = u.pathname.replace(/^\/+/, '');
-    } else if (u.hostname.includes('youtube.com')) {
-      // v param or /shorts/:id or /watch?v=...
-      if (u.searchParams.get('v')) id = u.searchParams.get('v');
-      const m = u.pathname.match(/\/(embed|shorts)\/([^/?#]+)/);
-      if (!id && m) id = m[2];
-    }
-    if (!id) return null;
-    const embedUrl = `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&playsinline=1`;
-    const thumb = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
-    return { id, embedUrl, thumb };
-  } catch {
-    return null;
-  }
-}
-
 // -----------------------------
 // Homepage
 // -----------------------------
 router.get('/', async (_req, res) => {
-  const shelvesList = ['trending','philosophy','history','science','biographies','religion','classics'];
+  // Fallback labels by row if we don't have genre names yet.
+  const ROW_LABELS = {
+    1: 'Trending',
+    2: 'Philosophy',
+    3: 'History',
+    4: 'Science',
+    5: 'Religion',
+    6: 'Classics',
+    7: 'Biographies',
+  };
 
-  let shelvesData = {};
-  if (supabase) {
-    try {
-      const { data: featured } = await supabase
-        .from('featured_books')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1);
-      shelvesData.trending = featured || [];
-    } catch {
-      shelvesData = {};
-    }
+  // How many cards per shelf to show on the homepage
+  const PER_SHELF = 10;
+
+  let shelvesList = []; // [{ key, label, items: [] }]
+  if (!supabase) {
+    return res.render('index', { shelvesList, shelvesData: {} });
   }
-
-  return res.render('index', { shelvesList, shelvesData });
-});
-
-// -----------------------------
-// Watch (videos catalogue page)
-// -----------------------------
-router.get('/watch', async (req, res) => {
-  const selectedGenre = isStr(req.query.genre) ? req.query.genre : '';
-
-  let genres = [];
-  let videos = [];
-
-  if (supabase) {
-    try {
-      const gq = supabase
-        .from('video_genres')
-        .select('*')
-        .order('name', { ascending: true });
-
-      // Pull all videos, we’ll optionally filter by a mapping lookup
-      const vq = supabase
-        .from('admin_videos')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      const [g, v] = await Promise.all([gq, vq]);
-      genres = g.data || [];
-      videos = v.data || [];
-
-      // If a specific genre is selected, intersect via video_genres_map
-      if (selectedGenre) {
-        const { data: maps = [] } = await supabase
-          .from('video_genres_map')
-          .select('video_id')
-          .eq('genre_id', selectedGenre);
-
-        const allowed = new Set(maps.map((m) => m.video_id));
-        videos = videos.filter((vid) => allowed.has(vid.id));
-      }
-
-      // Derive thumbs from YouTube url if missing, and a safe outbound URL
-      videos = videos.map((v) => {
-        const y = parseYouTube(v.url);
-        const derivedThumb = y?.thumb || null;
-        const safeUrl = y?.embedUrl || v.url || null;
-        return {
-          ...v,
-          // keep original url, but we’ll link to our /video page (not outbound)
-          _derivedThumb: derivedThumb,
-          _safeOutbound: safeUrl
-        };
-      });
-    } catch {
-      genres = [];
-      videos = [];
-    }
-  }
-
-  return res.render('watch', { genres, selectedGenre, videos });
-});
-
-// -----------------------------
-// Video player page
-// -----------------------------
-router.get('/video/:id', async (req, res) => {
-  const id = String(req.params.id || '').trim();
-  if (!id || !supabase) return res.status(404).render('404');
 
   try {
-    const { data: v, error } = await supabase
-      .from('admin_videos')
+    // Pull all curated rows the homepage can use
+    const { data: rows, error } = await supabase
+      .from('video_and_curated_books_catalog')   // ← your view
       .select('*')
-      .eq('id', id)
-      .single();
+      .order('created_at', { ascending: false });
 
-    if (error || !v) return res.status(404).render('404');
+    if (error) throw error;
 
-    const y = parseYouTube(v.url);
-    const embedUrl = y?.embedUrl || null;
-    const thumb = v.thumb || y?.thumb || null;
+    // Group by homepage_row (1..7) and build shelves
+    const byRow = new Map();
+    for (const r of rows || []) {
+      const rowNum = Number(r.homepage_row || 0);
+      if (!rowNum) continue;
+      if (!byRow.has(rowNum)) byRow.set(rowNum, []);
+      byRow.get(rowNum).push({
+        id: r.id,
+        title: r.title,
+        author: r.author,
+        cover: r.cover_image || r.cover || null,
+        cover_image: r.cover_image || r.cover || null,
+        source_url: r.source_url || null,
+        provider: r.provider || null,
+        provider_id: r.provider_id || null,
+        genre_slug: r.genre_slug || null,
+        genre_name: r.genre_name || null,
+        created_at: r.created_at,
+      });
+    }
 
-    return res.render('video', {
-      video: {
-        id: v.id,
-        title: v.title,
-        channel: v.channel,
-        url: v.url,
-        embedUrl,
-        thumb
-      }
-    });
+    // Turn groups into shelves, capping list length
+    shelvesList = Array.from(byRow.entries())
+      .sort((a, b) => a[0] - b[0]) // 1..7
+      .map(([row, items]) => {
+        const label = items[0]?.genre_name || ROW_LABELS[row] || 'Shelf';
+        const key = (items[0]?.genre_slug || label || `row-${row}`)
+          .toString()
+          .toLowerCase();
+        return {
+          key,
+          label,
+          items: items.slice(0, PER_SHELF),
+        };
+      });
+
+    return res.render('index', { shelvesList, shelvesData: {} });
   } catch (e) {
-    console.error('[video] fetch failed:', e);
-    return res.status(500).render('error', { error: e });
+    console.error('[home] failed to load shelves:', e);
+    return res.render('index', { shelvesList: [], shelvesData: {} });
   }
 });
-
-// -----------------------------
-// Read (reader shell)
-// -----------------------------
-router.get('/read', (req, res) => {
-  const provider = isStr(req.query.provider) ? req.query.provider : '';
-  const id = isStr(req.query.id) ? req.query.id : '';
-  return res.render('read', { provider, id });
-});
-
-// -----------------------------
-// Static pages
-// -----------------------------
-router.get('/about', (_req, res) => res.render('about', {}));
-router.get('/contact', (_req, res) => res.render('contact', {}));
-router.get('/privacy', (_req, res) => res.render('privacy', {}));
-router.get('/terms',   (_req, res) => res.render('terms', {}));
-
-// -----------------------------
-// Minimal search stub
-// -----------------------------
-router.get('/search', (_req, res) => res.render('search', { query: '', results: [] }));
-
-module.exports = router;
