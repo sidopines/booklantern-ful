@@ -1,115 +1,75 @@
-// routes/admin-genres.js — Admin: Genres (works with book_genres OR genres)
-
+// routes/admin-genres.js
 const express = require('express');
+const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 
-const router = express.Router();
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 
-function getSupabaseAdmin() {
-  const url =
-    process.env.SUPABASE_URL ||
-    process.env.supabaseUrl ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.PUBLIC_SUPABASE_URL;
-
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY ||
-    process.env.SUPABASE_KEY ||
-    process.env.supabaseKey ||
-    process.env.SUPABASE_ANON_KEY;
-
-  if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('supabaseKey is required.');
 }
 
-function enc(s) { try { return encodeURIComponent(String(s)); } catch { return '1'; } }
-function dec(s) { try { return decodeURIComponent(String(s)); } catch { return ''; } }
-
-async function firstExistingTable(sb, candidates) {
-  for (const t of candidates) {
-    const { error } = await sb.from(t).select('slug').limit(1);
-    if (!error || error.code === 'PGRST116') return t; // PGRST116 = no rows, table exists
-    if (error && error.code !== 'PGRST205') throw error; // other errors -> surface
-  }
-  return null;
-}
-
-router.get('/genres', async (req, res) => {
-  const sb = getSupabaseAdmin();
-  const messages = {};
-  if (req.query.ok)  messages.success = 'Saved.';
-  if (req.query.err) messages.error   = dec(req.query.err);
-
-  if (!sb) {
-    return res.render('admin-genres', {
-      title: 'Admin • Genres',
-      messages,
-      rows: [],
-      envError: 'Supabase URL/Key missing. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.'
-    });
-  }
-
-  try {
-    const table = await firstExistingTable(sb, ['book_genres', 'genres']);
-    let rows = [];
-    if (table) {
-      const { data, error } = await sb.from(table).select('slug,name').order('name');
-      if (error) throw error;
-      rows = data || [];
-    } else if (Array.isArray(res.locals.categories) && res.locals.categories.length) {
-      rows = res.locals.categories.map(slug => ({
-        slug: String(slug),
-        name: String(slug).replace(/(^|-)([a-z])/g, (_, p1, c) => (p1 ? ' ' : '') + c.toUpperCase()).trim()
-      }));
-    }
-
-    return res.render('admin-genres', {
-      title: 'Admin • Genres',
-      messages,
-      rows,
-      envError: null
-    });
-  } catch (e) {
-    console.error('[admin] load genres failed:', e);
-    messages.error = e.message || 'Failed to load genres.';
-    return res.render('admin-genres', {
-      title: 'Admin • Genres',
-      messages,
-      rows: [],
-      envError: null
-    });
-  }
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { persistSession: false },
 });
 
-router.post('/genres', async (req, res) => {
-  const sb = getSupabaseAdmin();
-  if (!sb) {
-    return res.redirect(303, '/admin/genres?err=' + enc('Supabase is not configured on the server.'));
+function adminGate(req, res, next) {
+  if (req.query.admin_key && String(req.query.admin_key).startsWith('BL_ADMIN_')) {
+    return next();
+  }
+  next();
+}
+
+// GET /admin/genres
+router.get('/genres', adminGate, async (req, res) => {
+  const messages = {};
+  if (req.query.ok)  messages.success = 'Saved.';
+  if (req.query.err) messages.error   = decodeURIComponent(req.query.err);
+
+  const { data, error } = await supabase
+    .from('book_genres')
+    .select('id, slug, name, homepage_row, created_at')
+    .order('name', { ascending: true });
+
+  if (error) {
+    console.error('[admin] load genres failed:', error);
+    messages.error = (messages.error ? messages.error + ' — ' : '') + (error.message || 'Failed to load genres');
   }
 
+  return res.render('admin-genres', {
+    title: 'Admin • Genres',
+    genres: data || [],
+    messages,
+  });
+});
+
+// POST /admin/genres
+router.post('/genres', adminGate, async (req, res) => {
   try {
-    const name = (req.body.name || '').trim();
-    let slug = (req.body.slug || '').trim().toLowerCase();
-    if (!name) throw new Error('Name is required.');
-
-    if (!slug) {
-      slug = name.toLowerCase()
-        .replace(/&/g, 'and')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
+    const { slug, name, homepage_row } = req.body;
+    if (!slug || !name) {
+      const msg = encodeURIComponent('Both slug and name are required.');
+      return res.redirect(303, '/admin/genres?err=' + msg);
     }
+    const { error } = await supabase.from('book_genres').insert({
+      slug: slug.trim(),
+      name: name.trim(),
+      homepage_row: homepage_row ? Number(homepage_row) : null,
+    });
 
-    const table = await firstExistingTable(sb, ['book_genres', 'genres']);
-    if (!table) throw new Error('No genres table exists (book_genres or genres).');
-
-    const { error } = await sb.from(table).insert({ slug, name });
-    if (error) throw error;
+    if (error) {
+      console.error('[admin] add genre failed:', error);
+      const msg = encodeURIComponent(error.message || '1');
+      return res.redirect(303, '/admin/genres?err=' + msg);
+    }
 
     return res.redirect(303, '/admin/genres?ok=1');
   } catch (e) {
     console.error('[admin] add genre failed:', e);
-    return res.redirect(303, '/admin/genres?err=' + enc(e.message || '1'));
+    const msg = encodeURIComponent(e.message || '1');
+    return res.redirect(303, '/admin/genres?err=' + msg);
   }
 });
 
