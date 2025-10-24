@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title><%= title %> • Reader</title>
+  <title><%= (book && book.title) ? book.title : 'Reader' %> • Reader</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     html,body { height:100%; margin:0; }
@@ -13,8 +13,8 @@
 </head>
 <body>
   <div class="bar">
-    <span class="title"><%= book.title %></span>
-    <span>by <%= book.author || 'Unknown' %></span>
+    <span class="title"><%= (book && book.title) || 'Untitled' %></span>
+    <span>by <%= (book && book.author) || 'Unknown' %></span>
   </div>
 
   <% if (epubUrl) { %>
@@ -30,7 +30,7 @@
         if (e.key === 'ArrowLeft') rendition.prev();
       });
     </script>
-  <% } else if (book.source_url) { %>
+  <% } else if (book && book.source_url) { %>
     <!-- Fallback: show the source page inside the site -->
     <iframe src="<%- book.source_url %>" id="viewer" frameborder="0"></iframe>
   <% } else { %>
