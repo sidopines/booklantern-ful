@@ -34,13 +34,18 @@ function toCard(row, isAuthed) {
   const provider = row.provider || null;
   const pid = row.provider_id || null;
 
-  // Destination that actually opens the reader for this book
-  const directRead =
-    provider && pid
-      ? `/read?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(pid)}`
-      : '/read';
+  // Choose destination that actually opens the book:
+  // - External providers -> /read?provider=...&id=...
+  // - Curated books stored in our DB -> /reader/:id
+  let directRead = '/read';
+  if (provider && pid) {
+    directRead = `/read?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(pid)}`;
+  } else if (row.id) {
+    // curated_books id
+    directRead = `/reader/${encodeURIComponent(row.id)}`;
+  }
 
-  // Gate only the click: guests go to login?next=directRead, authed go straight to directRead
+  // Gate the click only:
   const readUrl = isAuthed ? directRead : `/login?next=${encodeURIComponent(directRead)}`;
 
   return {
@@ -51,7 +56,7 @@ function toCard(row, isAuthed) {
     cover_image: row.cover_image || row.cover || null,
     provider,
     provider_id: pid,
-    readUrl // <- pass to the view/partial
+    readUrl // partials can link with this; no global redirects
   };
 }
 
@@ -206,13 +211,45 @@ router.get('/video/:id', async (req, res) => {
 });
 
 // -----------------------------
-// Read (reader shell) — do NOT force login here
-// Only the Read buttons we build are gated via /login?next=…
+// Read (reader shell) — page shows staff picks with gated Read buttons.
+// NOTE: We do NOT redirect here. Only links are gated with /login?next=…
 // -----------------------------
-router.get('/read', (req, res) => {
+router.get('/read', async (req, res) => {
   const provider = isStr(req.query.provider) ? req.query.provider : '';
   const id = isStr(req.query.id) ? req.query.id : '';
-  return res.render('read', { provider, id });
+
+  const isAuthed =
+    Boolean((req.session && req.session.user) || req.user || req.authUser);
+
+  // Load staff picks from curated_books (category='staff_picks')
+  let staffPicks = [];
+  if (supabase) {
+    try {
+      const { data = [] } = await supabase
+        .from('curated_books')
+        .select('id,title,author,cover,category')
+        .eq('category', 'staff_picks')
+        .order('created_at', { ascending: false })
+        .limit(24);
+
+      staffPicks = data.map((r) => {
+        const direct = `/reader/${encodeURIComponent(r.id)}`;
+        const readUrl = isAuthed ? direct : `/login?next=${encodeURIComponent(direct)}`;
+        return {
+          id: r.id,
+          title: r.title,
+          author: r.author,
+          cover: r.cover || null,
+          readUrl
+        };
+      });
+    } catch (e) {
+      console.error('[read] staff picks load failed:', e);
+      staffPicks = [];
+    }
+  }
+
+  return res.render('read', { provider, id, staffPicks });
 });
 
 // -----------------------------
