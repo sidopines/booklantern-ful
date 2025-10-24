@@ -1,96 +1,130 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title><%= title %></title>
-  <link rel="stylesheet" href="/public/css/site.css?v=<%= Date.now() %>">
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title><%= (pageTitle || title || 'Admin • Books') %></title>
+  <link rel="stylesheet" href="/public/css/site.css?v=<%= (buildId || Date.now()) %>">
+  <link rel="stylesheet" href="/public/css/nav.css?v=<%= (buildId || Date.now()) %>">
+  <link rel="stylesheet" href="/public/css/hero.css?v=<%= (buildId || Date.now()) %>">
+  <link rel="stylesheet" href="/public/css/footer.css?v=<%= (buildId || Date.now()) %>">
+  <link rel="stylesheet" href="/public/css/carousel.css?v=<%= (buildId || Date.now()) %>">
 </head>
 <body class="admin">
-  <main class="container">
+
+  <%- include('partials/admin-nav', { active: 'books' }) %>
+
+  <main class="container" style="max-width: 960px">
     <h1>Admin • Books</h1>
 
+    <!-- Flash banners -->
     <% if (messages && messages.error) { %>
-      <div class="alert alert-error"><%= messages.error %></div>
+      <div class="alert alert-danger" role="alert" style="margin:12px 0">
+        <%= messages.error %>
+      </div>
     <% } %>
     <% if (messages && messages.success) { %>
-      <div class="alert alert-success"><%= messages.success %></div>
+      <div class="alert alert-success" role="alert" style="margin:12px 0">
+        <%= messages.success %>
+      </div>
     <% } %>
 
-    <div class="grid">
-      <section class="card">
-        <h2>Add a book</h2>
-        <form method="post" action="/admin/books">
-          <label>Title
-            <input type="text" name="title" required />
-          </label>
+    <div style="display:flex; gap:16px; align-items:flex-start; margin-top:10px;">
+      <!-- Add a book -->
+      <section class="card" style="flex:0 0 360px">
+        <div class="card-body">
+          <h2 style="margin-top:0">Add a book</h2>
 
-          <label>Author
-            <input type="text" name="author" />
-          </label>
+          <form method="post" action="/admin/books" autocomplete="off">
+            <label>Title
+              <input name="title" class="input" type="text" required value="<%= (prefill && prefill.title) || '' %>">
+            </label>
 
-          <label>Genre / Shelf
-            <select name="category" required>
-              <option value="" disabled selected>Select a shelf…</option>
-              <% (genres || []).forEach(g => { %>
-                <option value="<%= g.slug %>"><%= g.label %></option>
-              <% }) %>
-            </select>
-          </label>
+            <label>Author
+              <input name="author" class="input" type="text" value="<%= (prefill && prefill.author) || '' %>">
+            </label>
 
-          <label>Cover URL
-            <input type="url" name="cover" placeholder="https://…" />
-          </label>
+            <label>Genre / Shelf
+              <select name="genre_slug" class="input" required>
+                <option value="">Select a shelf…</option>
+                <% (genres || []).forEach(function(g){ %>
+                  <option value="<%= g.slug %>"><%= g.name || g.slug %></option>
+                <% }) %>
+              </select>
+            </label>
 
-          <label>Source URL (preferred)
-            <input type="url" name="source_url" placeholder="https://archive.org/... or https://.../book.epub" />
-          </label>
+            <label>Cover URL
+              <input name="cover" class="input" placeholder="https://…" type="url" value="<%= (prefill && prefill.cover) || '' %>">
+            </label>
 
-          <div class="row">
-            <div>
-              <label>Provider (e.g. gutenberg)
-                <input type="text" name="provider" placeholder="gutenberg" />
+            <label>Source URL (preferred)
+              <input name="source_url" class="input" placeholder="https://archive.org/… or https://gutenberg.org/…" type="url" value="<%= (prefill && prefill.source_url) || '' %>">
+            </label>
+
+            <div style="display:flex; gap:8px;">
+              <label style="flex:1">Provider (e.g. gutenberg)
+                <input name="provider" class="input" type="text" value="<%= (prefill && prefill.provider) || 'gutenberg' %>">
+              </label>
+              <label style="flex:1">Provider ID
+                <input name="provider_id" class="input" type="text" value="<%= (prefill && prefill.provider_id) || '' %>">
               </label>
             </div>
-            <div>
-              <label>Provider ID
-                <input type="text" name="provider_id" placeholder="1342" />
-              </label>
-            </div>
-          </div>
 
-          <button type="submit">Save</button>
-        </form>
+            <button class="btn" type="submit" style="margin-top:10px">Save</button>
+          </form>
+        </div>
       </section>
 
-      <section class="card">
-        <h2>How this works</h2>
-        <p>This page posts to <code>POST /admin/books</code>, then lists below from <code>curated_books</code>.
-        Select a shelf and the homepage knows which row to place it on.</p>
-      </section>
+      <!-- Help card -->
+      <aside class="card" style="flex:0 0 280px">
+        <div class="card-body">
+          <h2 style="margin-top:0">How this works</h2>
+          <p>This page posts to <code>/admin/books</code>, then lists below from <code>curated_books</code>.</p>
+          <p>Select a <strong>Genre / Shelf</strong> so the book appears in the right shelf on the homepage.</p>
+        </div>
+      </aside>
     </div>
 
-    <section class="card">
-      <h2>Books</h2>
-      <% if (!books || books.length === 0) { %>
-        <p>No books yet.</p>
-      <% } else { %>
-        <table class="table">
-          <thead>
-            <tr><th>Title</th><th>Author</th><th>Shelf</th><th>Reader</th></tr>
-          </thead>
-          <tbody>
-          <% books.forEach(b => { %>
-            <tr>
-              <td><%= b.title %></td>
-              <td><%= b.author || '' %></td>
-              <td><%= b.category %></td>
-              <td><a href="/reader/<%= b.id %>">Open</a></td>
-            </tr>
-          <% }) %>
-          </tbody>
-        </table>
-      <% } %>
+    <!-- Current curated books -->
+    <section class="card" style="margin-top:18px;">
+      <div class="card-body">
+        <h2 style="margin-top:0">Books</h2>
+        <% if (!books || books.length === 0) { %>
+          <p>No books yet.</p>
+        <% } else { %>
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Author</th>
+                  <th>Shelf</th>
+                  <th>Source</th>
+                  <th>Provider</th>
+                </tr>
+              </thead>
+              <tbody>
+              <% books.forEach(function(b){ %>
+                <tr>
+                  <td><%= b.title %></td>
+                  <td><%= b.author || '' %></td>
+                  <td><%= (b.genre_name || b.genre_slug || '') %></td>
+                  <td>
+                    <% if (b.source_url) { %>
+                      <a href="<%= b.source_url %>" target="_blank" rel="noopener">open</a>
+                    <% } %>
+                  </td>
+                  <td><%= [b.provider, b.provider_id].filter(Boolean).join(' • ') %></td>
+                </tr>
+              <% }) %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      </div>
     </section>
   </main>
+
+  <script src="/public/js/theme.js?v=<%= (buildId || Date.now()) %>"></script>
 </body>
 </html>
