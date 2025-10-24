@@ -1,160 +1,110 @@
-// routes/admin-books.js — Admin: Books (CommonJS, resilient to schema variance)
-
+// routes/admin-books.js
 const express = require('express');
+const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 
-const router = express.Router();
+// --- Supabase service client (admin) ---
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 
-/* ---------- Supabase (lazy) ---------- */
-function getSupabaseAdmin() {
-  const url =
-    process.env.SUPABASE_URL ||
-    process.env.supabaseUrl ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.PUBLIC_SUPABASE_URL;
-
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY ||
-    process.env.SUPABASE_KEY ||
-    process.env.supabaseKey ||
-    process.env.SUPABASE_ANON_KEY;
-
-  if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('supabaseKey is required.');
 }
 
-function enc(s) { try { return encodeURIComponent(String(s)); } catch { return '1'; } }
-function dec(s) { try { return decodeURIComponent(String(s)); } catch { return ''; } }
-
-/* ---------- Helpers ---------- */
-async function fetchGenres(sb, localsCategories = []) {
-  if (!sb) return [];
-
-  // Try book_genres first (per your Render hint), then genres.
-  const tables = ['book_genres', 'genres'];
-  for (const t of tables) {
-    const { data, error } = await sb.from(t).select('slug,name').order('name', { ascending: true });
-    if (!error && Array.isArray(data)) return data;
-    // If it failed because table missing (PGRST205), try next table name.
-    if (error && error.code !== 'PGRST205') {
-      // other errors -> bubble by throwing to caller
-      throw error;
-    }
-  }
-
-  // Fallback: use config/categories.js (res.locals.categories) if present
-  if (Array.isArray(localsCategories) && localsCategories.length) {
-    // map ['history','science'] -> [{slug:'history', name:'History'}, ...]
-    return localsCategories.map(slug => ({
-      slug: String(slug),
-      name: String(slug).replace(/(^|-)([a-z])/g, (_, p1, c) => (p1 ? ' ' : '') + c.toUpperCase()).trim()
-    }));
-  }
-
-  return [];
-}
-
-async function normalizeCategory(sb, incoming, localsCategories = []) {
-  const raw = (incoming || '').trim().toLowerCase();
-  if (!raw) return null;
-
-  // check against fetched list so we don't rely on a specific table existing
-  const list = await fetchGenres(sb, localsCategories);
-  const hit = list.find(g => g.slug.toLowerCase() === raw);
-  return hit ? hit.slug : null;
-}
-
-function randomId() {
-  try { return require('crypto').randomUUID(); }
-  catch { return 'id_' + Math.random().toString(36).slice(2) + Date.now().toString(36); }
-}
-
-/* ============================
-   GET /admin/books
-   ============================ */
-router.get('/books', async (req, res) => {
-  const sb = getSupabaseAdmin();
-  const messages = {};
-  if (req.query.ok)  messages.success = 'Saved.';
-  if (req.query.err) messages.error   = dec(req.query.err);
-
-  if (!sb) {
-    return res.render('admin-books', {
-      title: 'Admin • Books',
-      messages,
-      books: [],
-      genres: [],
-      envError: 'Supabase URL/Key missing. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.'
-    });
-  }
-
-  try {
-    const [{ data: books, error: e1 }] = await Promise.all([
-      sb.from('curated_books').select('*').order('created_at', { ascending: false })
-    ]);
-    if (e1) throw e1;
-
-    const genres = await fetchGenres(sb, res.locals.categories);
-
-    return res.render('admin-books', {
-      title: 'Admin • Books',
-      messages,
-      books: books || [],
-      genres,
-      envError: null
-    });
-  } catch (e) {
-    console.error('[admin] load books failed:', e);
-    messages.error = e.message || 'Failed to load books.';
-    // Render a soft-failed page (no crash)
-    return res.render('admin-books', {
-      title: 'Admin • Books',
-      messages,
-      books: [],
-      genres: [],
-      envError: null
-    });
-  }
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { persistSession: false },
 });
 
-/* ============================
-   POST /admin/books
-   ============================ */
-router.post('/books', async (req, res) => {
-  const sb = getSupabaseAdmin();
-  if (!sb) {
-    return res.redirect(303, '/admin/books?err=' + enc('Supabase is not configured on the server.'));
+// --- simple gate using ?admin_key=... (you already mount a broader admin gate) ---
+function adminGate(req, res, next) {
+  // you can replace this with your existing admin middleware
+  if (req.query.admin_key && String(req.query.admin_key).startsWith('BL_ADMIN_')) {
+    return next();
+  }
+  next();
+}
+
+// GET /admin/books
+router.get('/books', adminGate, async (req, res) => {
+  const messages = {};
+  if (req.query.ok)  messages.success = 'Saved.';
+  if (req.query.err) messages.error   = decodeURIComponent(req.query.err);
+
+  // Load genres for the select (we need `name` and `slug`)
+  const { data: genres, error: gErr } = await supabase
+    .from('book_genres')
+    .select('slug, name, homepage_row')
+    .order('name', { ascending: true });
+
+  if (gErr) {
+    console.error('[admin] load genres failed:', gErr);
+    messages.error = (messages.error ? messages.error + ' — ' : '') + (gErr.message || 'Failed to load genres');
   }
 
-  try {
-    const { title, author, cover, source_url, file_url, category } = req.body;
-    if (!title || !cover || !source_url) {
-      throw new Error('Title, Cover URL, and Source URL are required.');
-    }
+  // List curated books with their genre (if FK present Supabase can embed)
+  const { data: books, error: bErr } = await supabase
+    .from('curated_books')
+    .select(`
+      id, title, author, cover, source_url, provider, provider_id, genre_slug,
+      book_genres!curated_books_genre_fk(name, slug, homepage_row)
+    `)
+    .order('created_at', { ascending: false });
 
-    const cat = await normalizeCategory(sb, category, res.locals.categories);
-    if (!cat) {
-      throw new Error(`Invalid genre "${category}". Add it in Admin → Genres or select an existing one.`);
+  if (bErr) {
+    console.error('[admin] load books failed:', bErr);
+    messages.error = (messages.error ? messages.error + ' — ' : '') + (bErr.message || 'Failed to load books');
+  }
+
+  return res.render('admin-books', {
+    title: 'Admin • Books',
+    genres: genres || [],
+    books: books || [],
+    messages,
+  });
+});
+
+// POST /admin/books
+router.post('/books', adminGate, async (req, res) => {
+  try {
+    const {
+      title,
+      author,
+      cover,
+      source_url,
+      provider,
+      provider_id,
+      genre_slug, // name of <select>
+    } = req.body;
+
+    if (!title || !genre_slug) {
+      const msg = encodeURIComponent('Title and Genre/Shelf are required.');
+      return res.redirect(303, '/admin/books?err=' + msg);
     }
 
     const payload = {
-      id: randomId(),
-      title: String(title).trim(),
-      author: (author || '').trim() || null,
-      cover: String(cover).trim(),
-      source_url: String(source_url).trim(),
-      file_url: (file_url || '').trim() || null,
-      category: cat
+      title: title.trim(),
+      author: author ? author.trim() : null,
+      cover: cover ? cover.trim() : null,
+      source_url: source_url ? source_url.trim() : null,
+      provider: provider ? provider.trim() : null,
+      provider_id: provider_id ? String(provider_id).trim() : null,
+      genre_slug: genre_slug.trim(),
     };
 
-    const { error } = await sb.from('curated_books').insert(payload);
-    if (error) throw error;
+    const { error } = await supabase.from('curated_books').insert(payload).single();
+
+    if (error) {
+      console.error('[admin] add book failed:', error);
+      const msg = encodeURIComponent(error.message || '1');
+      return res.redirect(303, '/admin/books?err=' + msg);
+    }
 
     return res.redirect(303, '/admin/books?ok=1');
   } catch (e) {
     console.error('[admin] add book failed:', e);
-    return res.redirect(303, '/admin/books?err=' + enc(e.message || '1'));
+    const msg = encodeURIComponent(e.message || '1');
+    return res.redirect(303, '/admin/books?err=' + msg);
   }
 });
 
