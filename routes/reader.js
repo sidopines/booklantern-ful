@@ -1,5 +1,4 @@
 // routes/reader.js — In-site EPUB/PDF reader shell
-
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 
@@ -33,7 +32,8 @@ router.get('/:id', async (req, res) => {
   if (!sb) {
     return res.status(200).render('reader', {
       error: 'Supabase URL/Key missing on server.',
-      book: null
+      book: { title: 'Unknown', author: '' },
+      epubUrl: null
     });
   }
 
@@ -45,13 +45,28 @@ router.get('/:id', async (req, res) => {
       .maybeSingle();
 
     if (error) throw error;
-    if (!book) return res.status(404).render('reader', { error: 'Book not found.', book: null });
+    if (!book) {
+      return res.status(404).render('reader', {
+        error: 'Book not found.',
+        book: { title: 'Unknown', author: '' },
+        epubUrl: null
+      });
+    }
 
-    // Reader page loads an internal script to init EPUB.js/PDF.js with book.file_url
-    return res.render('reader', { error: null, book });
+    const epubUrl = book.file_url || null;
+
+    return res.render('reader', {
+      error: null,
+      book,
+      epubUrl
+    });
   } catch (e) {
     console.error('[reader] load failed:', e);
-    return res.status(500).render('reader', { error: e.message || 'Reader error.', book: null });
+    return res.status(500).render('reader', {
+      error: e.message || 'Reader error.',
+      book: { title: 'Unknown', author: '' },
+      epubUrl: null
+    });
   }
 });
 
