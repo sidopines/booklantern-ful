@@ -29,34 +29,33 @@ function parseYouTube(url) {
   }
 }
 
-/** Build a book card object with a gated Read link */
+/** Build a homepage card with a gated Read link.
+ * Priority for destination:
+ *  - If row.provider + row.provider_id exist ➜ /read?provider=...&id=...
+ *  - else if row.id exists (curated book)     ➜ /reader/:id
+ */
 function toCard(row, isAuthed) {
   const provider = row.provider || null;
   const pid = row.provider_id || null;
 
-  // Choose destination that actually opens the book:
-  // - External providers -> /read?provider=...&id=...
-  // - Curated books stored in our DB -> /reader/:id
-  let directRead = '/read';
-  if (provider && pid) {
-    directRead = `/read?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(pid)}`;
-  } else if (row.id) {
-    // curated_books id
-    directRead = `/reader/${encodeURIComponent(row.id)}`;
-  }
+  const directRead =
+    provider && pid
+      ? `/read?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(pid)}`
+      : (row.id ? `/reader/${encodeURIComponent(row.id)}` : '/read');
 
-  // Gate the click only:
-  const readUrl = isAuthed ? directRead : `/login?next=${encodeURIComponent(directRead)}`;
+  const readUrl = isAuthed
+    ? directRead
+    : `/login?next=${encodeURIComponent(directRead)}`;
 
   return {
     id: row.id,
-    title: row.title,
-    author: row.author,
+    title: row.title || 'Untitled',
+    author: row.author || '',
     cover: row.cover || row.cover_image || null,
     cover_image: row.cover_image || row.cover || null,
     provider,
     provider_id: pid,
-    readUrl // partials can link with this; no global redirects
+    readUrl
   };
 }
 
@@ -64,17 +63,25 @@ function toCard(row, isAuthed) {
 // Homepage
 // -----------------------------
 router.get('/', async (req, res) => {
-  // Order of shelves we want to try to show
-  const desiredSlugs = ['trending','philosophy','history','science','biographies','religion','classics'];
+  const desiredSlugs = [
+    'trending',
+    'philosophy',
+    'history',
+    'science',
+    'biographies',
+    'religion',
+    'classics'
+  ];
 
-  const isAuthed =
-    Boolean((req.session && req.session.user) || req.user || req.authUser);
+  const isAuthed = Boolean(
+    (req.session && req.session.user) || req.user || req.authUser
+  );
 
   let shelvesList = [];
 
   if (supabase) {
     try {
-      // Pull latest catalog rows; this view should include curated books + genre info
+      // Unified view that includes curated books and their genres
       const { data = [] } = await supabase
         .from('video_and_curated_books_catalog')
         .select('*')
@@ -89,12 +96,14 @@ router.get('/', async (req, res) => {
         grouped.get(slug).push(r);
       }
 
-      // Build shelves in the desired order (each shows up to 12 items)
+      // Build shelves by our desired order (cap 12 cards per shelf)
       shelvesList = desiredSlugs
         .filter((slug) => grouped.has(slug))
         .map((slug) => {
           const rows = grouped.get(slug).slice(0, 12);
-          const label = rows[0]?.genre_name || (slug.charAt(0).toUpperCase() + slug.slice(1));
+          const label =
+            rows[0]?.genre_name ||
+            (slug.charAt(0).toUpperCase() + slug.slice(1));
           return {
             key: slug,
             label,
@@ -102,13 +111,15 @@ router.get('/', async (req, res) => {
           };
         });
 
-      // Fallback: if nothing matched, show a single Featured shelf from whatever we have
+      // Fallback to a single Featured shelf if nothing matched
       if (!shelvesList.length && data.length) {
-        shelvesList = [{
-          key: 'featured',
-          label: 'Featured',
-          items: data.slice(0, 12).map((r) => toCard(r, isAuthed))
-        }];
+        shelvesList = [
+          {
+            key: 'featured',
+            label: 'Featured',
+            items: data.slice(0, 12).map((r) => toCard(r, isAuthed))
+          }
+        ];
       }
     } catch (e) {
       console.error('[home] fetch catalog failed:', e);
@@ -211,45 +222,12 @@ router.get('/video/:id', async (req, res) => {
 });
 
 // -----------------------------
-// Read (reader shell) — page shows staff picks with gated Read buttons.
-// NOTE: We do NOT redirect here. Only links are gated with /login?next=…
+// Read (reader shell) — no global redirect; gating is per-button
 // -----------------------------
-router.get('/read', async (req, res) => {
+router.get('/read', (req, res) => {
   const provider = isStr(req.query.provider) ? req.query.provider : '';
   const id = isStr(req.query.id) ? req.query.id : '';
-
-  const isAuthed =
-    Boolean((req.session && req.session.user) || req.user || req.authUser);
-
-  // Load staff picks from curated_books (category='staff_picks')
-  let staffPicks = [];
-  if (supabase) {
-    try {
-      const { data = [] } = await supabase
-        .from('curated_books')
-        .select('id,title,author,cover,category')
-        .eq('category', 'staff_picks')
-        .order('created_at', { ascending: false })
-        .limit(24);
-
-      staffPicks = data.map((r) => {
-        const direct = `/reader/${encodeURIComponent(r.id)}`;
-        const readUrl = isAuthed ? direct : `/login?next=${encodeURIComponent(direct)}`;
-        return {
-          id: r.id,
-          title: r.title,
-          author: r.author,
-          cover: r.cover || null,
-          readUrl
-        };
-      });
-    } catch (e) {
-      console.error('[read] staff picks load failed:', e);
-      staffPicks = [];
-    }
-  }
-
-  return res.render('read', { provider, id, staffPicks });
+  return res.render('read', { provider, id });
 });
 
 // -----------------------------
@@ -258,10 +236,10 @@ router.get('/read', async (req, res) => {
 router.get('/about', (_req, res) => res.render('about', {}));
 router.get('/contact', (_req, res) => res.render('contact', {}));
 router.get('/privacy', (_req, res) => res.render('privacy', {}));
-router.get('/terms',   (_req, res) => res.render('terms', {}));
+router.get('/terms', (_req, res) => res.render('terms', {}));
 
 // -----------------------------
-// Minimal search (fixes 500: provide `q`)
+// Minimal search (always provide q)
 // -----------------------------
 router.get('/search', (req, res) => {
   const q = isStr(req.query.q) ? req.query.q : '';
