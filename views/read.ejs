@@ -4,11 +4,19 @@
   <%- include('partials/header'); %>
   <title>Read • BookLantern</title>
   <style>
-    .reader-shell { max-width: 980px; margin: 24px auto 64px; }
+    .reader-shell { max-width: 1100px; margin: 24px auto 64px; padding: 0 16px; }
     .reader-shell .pane { border:1px solid #eee; border-radius:12px; padding:12px; min-height: 420px; background:#fff; }
     .reader-shell .muted { color:#666; font-size: 14px; }
     .reader-shell .row { display:flex; gap:16px; }
     .reader-shell .row > * { flex:1; }
+    .shelf { margin-top: 32px; }
+    .shelf__head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:14px; }
+    .card { background:#fff; border:1px solid #eee; border-radius:12px; padding:10px; }
+    .card img { width:100%; height:auto; border-radius:8px; }
+    .card h4 { margin:8px 0 4px; font-size:16px; line-height:1.3; }
+    .card p { margin:0; font-size:13px; color:#666; }
+    .card .btn { margin-top:8px; display:inline-block; padding:6px 10px; border:1px solid #ddd; border-radius:8px; font-size:13px; text-decoration:none; }
   </style>
 </head>
 <body>
@@ -33,6 +41,27 @@
         <section class="pane" id="reader"></section>
         <aside class="pane" id="notes"></aside>
       </div>
+    <% } %>
+
+    <!-- Staff picks (server-provided). Each Read button is already gated to /login?next=… for guests -->
+    <% if (Array.isArray(staffPicks) && staffPicks.length) { %>
+      <section class="shelf">
+        <div class="shelf__head">
+          <h2>Staff picks</h2>
+        </div>
+        <div class="grid" role="list">
+          <% staffPicks.forEach(function(b){ %>
+            <article class="card" role="listitem">
+              <% if (b.cover || b.cover_image) { %>
+                <img src="<%= b.cover || b.cover_image %>" alt="<%= b.title %> cover">
+              <% } %>
+              <h4><%= b.title %></h4>
+              <p><%= b.author || '' %></p>
+              <a class="btn" href="<%= b.readUrl %>">Read</a>
+            </article>
+          <% }) %>
+        </div>
+      </section>
     <% } %>
   </main>
 
