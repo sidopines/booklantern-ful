@@ -1,102 +1,68 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title><%= (pageTitle || title || 'Admin • Genres') %></title>
+  <title>
+    <%= (typeof pageTitle !== 'undefined' ? pageTitle
+         : (typeof title !== 'undefined' ? title : 'Admin • Genres')) %>
+  </title>
   <link rel="stylesheet" href="/public/css/site.css?v=<%= (buildId || Date.now()) %>">
   <link rel="stylesheet" href="/public/css/nav.css?v=<%= (buildId || Date.now()) %>">
   <link rel="stylesheet" href="/public/css/hero.css?v=<%= (buildId || Date.now()) %>">
+  <link rel="stylesheet" href="/public/css/carousel.css?v=<%= (buildId || Date.now()) %>">
   <link rel="stylesheet" href="/public/css/footer.css?v=<%= (buildId || Date.now()) %>">
 </head>
 <body class="admin">
 
-  <%- include('partials/admin-nav', { active: 'genres' }) %>
-
-  <main class="container" style="max-width: 900px">
+  <main class="container narrow">
     <h1>Admin • Genres</h1>
 
-    <!-- Flash banners -->
-    <% if (messages && messages.error) { %>
-      <div class="alert alert-danger" role="alert" style="margin:12px 0">
-        <%= messages.error %>
-      </div>
+    <% if (typeof error !== 'undefined' && error) { %>
+      <p class="banner error"><%= error %></p>
     <% } %>
-    <% if (messages && messages.success) { %>
-      <div class="alert alert-success" role="alert" style="margin:12px 0">
-        <%= messages.success %>
-      </div>
+    <% if (typeof success !== 'undefined' && success) { %>
+      <p class="banner success"><%= success %></p>
     <% } %>
 
-    <div style="display:flex; gap:16px; align-items:flex-start; margin-top:10px;">
-      <!-- Create / update genre -->
-      <section class="card" style="flex:0 0 360px">
-        <div class="card-body">
-          <h2 style="margin-top:0">Add or update a genre</h2>
-
-          <form method="post" action="/admin/genres" autocomplete="off">
-            <label>Slug (machine name, e.g. <code>classics</code>)
-              <input name="slug" class="input" type="text" required value="">
-            </label>
-
-            <label>Name (label, e.g. <code>Classics</code>)
-              <input name="name" class="input" type="text" required value="">
-            </label>
-
-            <label>Homepage row (1–8)
-              <input name="homepage_row" class="input" type="number" min="1" max="16" value="">
-            </label>
-
-            <button class="btn" type="submit" style="margin-top:10px">Save</button>
-          </form>
-
-          <p style="font-size:.9em; color:#666; margin-top:8px;">
-            Saving an existing slug will update its name/row.
-          </p>
-        </div>
+    <div class="grid two">
+      <section class="card">
+        <h3>Add / Update a shelf</h3>
+        <form method="post" action="/admin/genres">
+          <label>Slug
+            <input type="text" name="slug" placeholder="classics" required />
+          </label>
+          <label>Name
+            <input type="text" name="name" placeholder="Classics" required />
+          </label>
+          <label>Homepage row (1–8)
+            <input type="number" name="homepage_row" min="1" max="8" />
+          </label>
+          <button class="btn" type="submit">Save</button>
+        </form>
       </section>
 
-      <!-- Existing genres -->
-      <section class="card" style="flex:1;">
-        <div class="card-body">
-          <h2 style="margin-top:0">Genres / Shelves</h2>
-          <% if (!genres || genres.length === 0) { %>
-            <p>No genres yet.</p>
-          <% } else { %>
-            <div class="table-responsive">
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th>Slug</th>
-                    <th>Name</th>
-                    <th>Homepage row</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                <% genres.forEach(function(g){ %>
-                  <tr>
-                    <td><code><%= g.slug %></code></td>
-                    <td><%= g.name || '' %></td>
-                    <td><%= g.homepage_row == null ? '' : g.homepage_row %></td>
-                    <td>
-                      <form method="post" action="/admin/genres/delete" style="display:inline">
-                        <input type="hidden" name="slug" value="<%= g.slug %>">
-                        <button class="btn btn-danger" type="submit"
-                                onclick="return confirm('Delete genre ‘<%= g.slug %>’?');">
-                          Delete
-                        </button>
-                      </form>
-                    </td>
-                  </tr>
-                <% }) %>
-                </tbody>
-              </table>
-            </div>
-          <% } %>
-        </div>
-      </section>
+      <aside class="card">
+        <h3>How this works</h3>
+        <p>Upsert shelves into <code>book_genres</code>. The homepage uses <code>homepage_row</code> to decide the order of shelves.</p>
+      </aside>
     </div>
+
+    <section class="card">
+      <h2>Existing shelves</h2>
+      <% if (!genres || genres.length === 0) { %>
+        <p>No shelves yet.</p>
+      <% } else { %>
+        <ul class="unstyled">
+          <% genres.forEach(g => { %>
+            <li>
+              <code><%= g.slug %></code> — <strong><%= g.name %></strong>
+              <% if (g.homepage_row) { %> (row <%= g.homepage_row %>)<% } %>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </section>
   </main>
 
   <script src="/public/js/theme.js?v=<%= (buildId || Date.now()) %>"></script>
