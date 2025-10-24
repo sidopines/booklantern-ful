@@ -1,4 +1,4 @@
-// server.js — CommonJS, explicit route mounting
+// server.js — CommonJS, explicit route mounting (final)
 
 const path = require('path');
 const express = require('express');
@@ -24,7 +24,8 @@ const app = express();
   const serviceRoleRaw =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_SERVICE_KEY ||
-    process.env.supabaseKey || // some files use camelCase
+    process.env.SUPABASE_KEY || // sometimes people set this directly
+    process.env.supabaseKey ||   // some files use camelCase
     '';
 
   const anonRaw =
@@ -40,6 +41,8 @@ const app = express();
   // Write canonical names
   if (finalUrl) process.env.SUPABASE_URL = finalUrl;
   if (finalService) process.env.SUPABASE_SERVICE_ROLE_KEY = finalService;
+
+  // Fallback SUPABASE_KEY (some modules read this)
   if (!process.env.SUPABASE_KEY) {
     process.env.SUPABASE_KEY = finalService || finalAnon || '';
   }
@@ -53,18 +56,31 @@ const app = express();
 
   // CamelCase aliases (some custom modules throw if these are absent)
   if (!process.env.supabaseKey)
-    process.env.supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || '';
+    process.env.supabaseKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || '';
   if (!process.env.supabaseUrl)
     process.env.supabaseUrl = process.env.SUPABASE_URL || '';
 
   const haveUrl = Boolean(process.env.SUPABASE_URL || process.env.supabaseUrl);
-  const haveKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.supabaseKey);
+  const haveKey = Boolean(
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_KEY ||
+      process.env.supabaseKey
+  );
 
   if (haveUrl && haveKey) {
-    const keyPreview = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.supabaseKey).slice(0, 5);
-    console.log(`[supabaseEnv] Ready (url set, key alias ok, preview ${keyPreview}•••)`);
+    const keyPreview = (
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_KEY ||
+      process.env.supabaseKey
+    ).slice(0, 5);
+    console.log(
+      `[supabaseEnv] Ready (url set, key alias ok, preview ${keyPreview}•••)`
+    );
   } else {
-    console.warn('[supabaseEnv] Missing SUPABASE URL and/or KEY. Some routers will be skipped.');
+    console.warn(
+      '[supabaseEnv] Missing SUPABASE URL and/or KEY. Some routers will be skipped.'
+    );
   }
 })();
 
@@ -136,7 +152,10 @@ function meta(req, title, desc = 'Free books & educational videos.') {
 app.get(/^\/auth\/callback(?:\/.*)?$/, (req, res) => {
   try {
     const canonicalUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-    return res.render('auth-callback', { canonicalUrl, ...meta(req, 'Almost there…') });
+    return res.render('auth-callback', {
+      canonicalUrl,
+      ...meta(req, 'Almost there…'),
+    });
   } catch (e) {
     console.error('[auth-callback] render failed:', e);
     return res.status(500).send('Auth callback error');
@@ -146,11 +165,16 @@ app.get(/^\/auth\/callback(?:\/.*)?$/, (req, res) => {
 /* ============================================================
    Hard-stop pages so they NEVER 404
    ============================================================ */
-app.get('/login', (req, res) => res.status(200).render('login', meta(req, 'Login • BookLantern')));
-app.get('/register', (req, res) => res.status(200).render('register', meta(req, 'Create account • BookLantern')));
+app.get('/login', (req, res) =>
+  res.status(200).render('login', meta(req, 'Login • BookLantern'))
+);
+app.get('/register', (req, res) =>
+  res.status(200).render('register', meta(req, 'Create account • BookLantern'))
+);
 app.get('/account', (_req, res) => {
-  try { return res.render('account'); }
-  catch (e) {
+  try {
+    return res.render('account');
+  } catch (e) {
     console.error('[account] render failed:', e);
     return res.status(500).send('Account render error');
   }
@@ -189,39 +213,48 @@ try {
   console.error('[routes] failed to mount ./routes/watch:', e);
 }
 
-try {
-  const adminRoutes = require('./routes/admin');
-  app.use('/admin', adminRoutes); // legacy/general admin dashboard
-  console.log('[routes] mounted admin router at /admin');
-} catch (e) {
-  console.error('[routes] failed to mount ./routes/admin:', e);
-}
-
-/* ---------- Dedicated admin + reader routes ----------
-   Only mount if we have a usable Supabase URL + key.
------------------------------------------------------ */
+/* ---------- Admin + reader routes (Supabase-backed) ----------
+   IMPORTANT: mount the dedicated /admin/books and /admin/genres
+   BEFORE the legacy combined /routes/admin to avoid shadowing.
+-------------------------------------------------------------- */
 const hasSB = Boolean(
   (process.env.SUPABASE_URL || process.env.supabaseUrl) &&
-  (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.supabaseKey)
+    (process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_KEY ||
+      process.env.supabaseKey)
 );
 
 if (hasSB) {
   try {
-    app.use('/admin', require('./routes/admin-books'));   // /admin/books
-    app.use('/admin', require('./routes/admin-genres'));  // /admin/genres
+    app.use('/admin', require('./routes/admin-books')); // /admin/books
+    app.use('/admin', require('./routes/admin-genres')); // /admin/genres
     console.log('[routes] mounted admin-books and admin-genres at /admin');
   } catch (e) {
     console.error('[routes] failed to mount admin-books/admin-genres:', e);
   }
 
   try {
-    app.use('/reader', require('./routes/reader'));       // /reader/:id — in-site EPUB reader
+    app.use('/reader', require('./routes/reader')); // /reader/:id — in-site EPUB reader
     console.log('[routes] mounted reader router at /reader');
   } catch (e) {
     console.error('[routes] failed to mount ./routes/reader:', e);
   }
 } else {
-  console.warn('[routes] Skipping admin-books/admin-genres/reader because Supabase URL/Key not detected.');
+  console.warn(
+    '[routes] Skipping admin-books/admin-genres/reader because Supabase URL/Key not detected.'
+  );
+}
+
+/* ---------- Legacy/general admin dashboard ----------
+   Mount AFTER the dedicated routers so any overlapping paths
+   in ./routes/admin will not override /admin/books or /admin/genres.
+----------------------------------------------------- */
+try {
+  const adminRoutes = require('./routes/admin');
+  app.use('/admin', adminRoutes);
+  console.log('[routes] mounted admin router at /admin');
+} catch (e) {
+  console.error('[routes] failed to mount ./routes/admin:', e);
 }
 
 // ---------- Health check ----------
@@ -229,22 +262,23 @@ app.get('/healthz', (_req, res) => res.status(200).send('OK'));
 
 // ---------- 404 ----------
 app.use((req, res) => {
-  try { res.status(404).render('404', { ...meta(req, 'Not Found') }); }
-  catch { res.status(404).send('Not Found'); }
+  try {
+    res.status(404).render('404', { ...meta(req, 'Not Found') });
+  } catch {
+    res.status(404).send('Not Found');
+  }
 });
 
 // ---------- 500 ----------
 app.use((err, req, res, _next) => {
   console.error('🔥 Unhandled error:', err);
   try {
-    res
-      .status(500)
-      .render('error', {
-        ...meta(req, 'Something went wrong'),
-        statusCode: 500,
-        error: err,
-        showStack: process.env.NODE_ENV !== 'production'
-      });
+    res.status(500).render('error', {
+      ...meta(req, 'Something went wrong'),
+      statusCode: 500,
+      error: err,
+      showStack: process.env.NODE_ENV !== 'production',
+    });
   } catch {
     res.status(500).send('Internal Server Error');
   }
