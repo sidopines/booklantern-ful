@@ -1,32 +1,18 @@
 <%
-// EXPECTS: { b }
-// b: { id?, title, author?, cover?, href, provider? }
-// Fallbacks kept minimal and neutral (no provider badges unless passed).
-const title   = (b && b.title)  ? String(b.title)  : 'Untitled';
-const author  = (b && b.author) ? String(b.author) : '';
-const href    = (b && b.href)   ? String(b.href)   : '#';
-const cover   = (b && b.cover)  ? String(b.cover)  : '/public/img/cover-fallback.svg';
-const altText = author ? `${title} — ${author}` : title;
+/* Robust fallbacks so the card always works */
+const prov  = b && (b.provider || '');
+const pid   = b && (b.provider_id || b.id || '');
+const cover = b && (b.cover_image || b.cover || '/public/placeholder-cover.svg');
+const title = b && b.title ? b.title : 'Untitled';
+const author = b && b.author ? b.author : '';
+const href  = `/read?provider=${encodeURIComponent(prov)}&id=${encodeURIComponent(pid)}`;
 %>
 
-<article class="bl-card" role="listitem">
-  <a class="bl-card__thumb" href="<%= href %>" aria-label="<%= altText %>">
-    <img
-      src="<%= cover %>"
-      alt="<%= altText %>"
-      loading="lazy"
-      decoding="async"
-      width="140"
-      height="210"
-    />
-  </a>
-
-  <div class="bl-card__meta">
-    <h3 class="bl-card__title"><a href="<%= href %>"><%= title %></a></h3>
-    <% if (author) { %><p class="bl-card__author"><%= author %></p><% } %>
+<a class="card book" href="<%= href %>" role="listitem" aria-label="Read <%= title %>">
+  <img class="book__cover" src="<%= cover %>" alt="">
+  <div class="book__meta">
+    <h3 class="book__title"><%= title %></h3>
+    <% if (author) { %><p class="book__author"><%= author %></p><% } %>
+    <span class="btn btn--sm">Read</span>
   </div>
-
-  <div class="bl-card__cta">
-    <a class="btn bl-card__btn" href="<%= href %>">Read</a>
-  </div>
-</article>
+</a>
