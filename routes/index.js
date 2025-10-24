@@ -29,28 +29,22 @@ function parseYouTube(url) {
   }
 }
 
-/** Build a homepage card with a gated Read link.
- * Priority for destination:
- *  - If row.provider + row.provider_id exist ➜ /read?provider=...&id=...
- *  - else if row.id exists (curated book)     ➜ /reader/:id
- */
-function toCard(row, isAuthed) {
+/** Build a homepage card object with a gated Read link (provider/provider_id ➜ /read) */
+function toHomeCard(row, isAuthed) {
   const provider = row.provider || null;
   const pid = row.provider_id || null;
 
   const directRead =
     provider && pid
       ? `/read?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(pid)}`
-      : (row.id ? `/reader/${encodeURIComponent(row.id)}` : '/read');
+      : '/read';
 
-  const readUrl = isAuthed
-    ? directRead
-    : `/login?next=${encodeURIComponent(directRead)}`;
+  const readUrl = isAuthed ? directRead : `/login?next=${encodeURIComponent(directRead)}`;
 
   return {
     id: row.id,
-    title: row.title || 'Untitled',
-    author: row.author || '',
+    title: row.title,
+    author: row.author,
     cover: row.cover || row.cover_image || null,
     cover_image: row.cover_image || row.cover || null,
     provider,
@@ -59,36 +53,38 @@ function toCard(row, isAuthed) {
   };
 }
 
+/** Build a /read staff-pick card (curated_books ➜ internal reader /reader/:id) */
+function toReaderCard(row, isAuthed) {
+  const directReader = `/reader/${encodeURIComponent(row.id)}`;
+  const readUrl = isAuthed ? directReader : `/login?next=${encodeURIComponent(directReader)}`;
+
+  return {
+    id: row.id,
+    title: row.title,
+    author: row.author,
+    cover: row.cover || null,
+    cover_image: row.cover || null,
+    readUrl
+  };
+}
+
 // -----------------------------
 // Homepage
 // -----------------------------
 router.get('/', async (req, res) => {
-  const desiredSlugs = [
-    'trending',
-    'philosophy',
-    'history',
-    'science',
-    'biographies',
-    'religion',
-    'classics'
-  ];
-
-  const isAuthed = Boolean(
-    (req.session && req.session.user) || req.user || req.authUser
-  );
+  const desiredSlugs = ['trending', 'philosophy', 'history', 'science', 'biographies', 'religion', 'classics'];
+  const isAuthed = Boolean((req.session && req.session.user) || req.user || req.authUser);
 
   let shelvesList = [];
 
   if (supabase) {
     try {
-      // Unified view that includes curated books and their genres
       const { data = [] } = await supabase
         .from('video_and_curated_books_catalog')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(300);
 
-      // Group by genre_slug
       const grouped = new Map();
       for (const r of data) {
         const slug = r.genre_slug || 'misc';
@@ -96,30 +92,24 @@ router.get('/', async (req, res) => {
         grouped.get(slug).push(r);
       }
 
-      // Build shelves by our desired order (cap 12 cards per shelf)
       shelvesList = desiredSlugs
         .filter((slug) => grouped.has(slug))
         .map((slug) => {
           const rows = grouped.get(slug).slice(0, 12);
-          const label =
-            rows[0]?.genre_name ||
-            (slug.charAt(0).toUpperCase() + slug.slice(1));
+          const label = rows[0]?.genre_name || (slug.charAt(0).toUpperCase() + slug.slice(1));
           return {
             key: slug,
             label,
-            items: rows.map((r) => toCard(r, isAuthed))
+            items: rows.map((r) => toHomeCard(r, isAuthed))
           };
         });
 
-      // Fallback to a single Featured shelf if nothing matched
       if (!shelvesList.length && data.length) {
-        shelvesList = [
-          {
-            key: 'featured',
-            label: 'Featured',
-            items: data.slice(0, 12).map((r) => toCard(r, isAuthed))
-          }
-        ];
+        shelvesList = [{
+          key: 'featured',
+          label: 'Featured',
+          items: data.slice(0, 12).map((r) => toHomeCard(r, isAuthed))
+        }];
       }
     } catch (e) {
       console.error('[home] fetch catalog failed:', e);
@@ -165,7 +155,6 @@ router.get('/watch', async (req, res) => {
         videos = videos.filter((vid) => allowed.has(vid.id));
       }
 
-      // derive thumbs and safe URLs
       videos = videos.map((v) => {
         const y = parseYouTube(v.url);
         const derivedThumb = y?.thumb || null;
@@ -222,12 +211,32 @@ router.get('/video/:id', async (req, res) => {
 });
 
 // -----------------------------
-// Read (reader shell) — no global redirect; gating is per-button
+// Read (reader shell) — show reader pane if params, plus Staff picks grid
+// Only the Read buttons are gated; no global redirects.
 // -----------------------------
-router.get('/read', (req, res) => {
+router.get('/read', async (req, res) => {
   const provider = isStr(req.query.provider) ? req.query.provider : '';
   const id = isStr(req.query.id) ? req.query.id : '';
-  return res.render('read', { provider, id });
+  const isAuthed = Boolean((req.session && req.session.user) || req.user || req.authUser);
+
+  let staffPicks = [];
+  if (supabase) {
+    try {
+      // Pull recent curated books; feel free to adjust filter/order.
+      const { data = [] } = await supabase
+        .from('curated_books')
+        .select('id,title,author,cover,created_at')
+        .order('created_at', { ascending: false })
+        .limit(12);
+
+      staffPicks = data.map((r) => toReaderCard(r, isAuthed));
+    } catch (e) {
+      console.error('[read] staff picks load failed:', e);
+      staffPicks = [];
+    }
+  }
+
+  return res.render('read', { provider, id, staffPicks });
 });
 
 // -----------------------------
@@ -236,10 +245,10 @@ router.get('/read', (req, res) => {
 router.get('/about', (_req, res) => res.render('about', {}));
 router.get('/contact', (_req, res) => res.render('contact', {}));
 router.get('/privacy', (_req, res) => res.render('privacy', {}));
-router.get('/terms', (_req, res) => res.render('terms', {}));
+router.get('/terms',   (_req, res) => res.render('terms', {}));
 
 // -----------------------------
-// Minimal search (always provide q)
+// Minimal search (fixes 500: provide `q`)
 // -----------------------------
 router.get('/search', (req, res) => {
   const q = isStr(req.query.q) ? req.query.q : '';
