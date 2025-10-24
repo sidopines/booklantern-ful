@@ -5,7 +5,6 @@ const router = express.Router();
 const supabase = require('../supabaseAdmin'); // service-role, may be null
 
 // Helpers
-const arr = (v) => (Array.isArray(v) ? v : []);
 const isStr = (v) => typeof v === 'string' && v.trim().length > 0;
 
 // Parse a YouTube url to an object: { id, embedUrl, thumb }
@@ -30,27 +29,89 @@ function parseYouTube(url) {
   }
 }
 
+/** Build a book card object with a gated Read link */
+function toCard(row, isAuthed) {
+  const provider = row.provider || null;
+  const pid = row.provider_id || null;
+
+  // Destination that actually opens the reader for this book
+  const directRead =
+    provider && pid
+      ? `/read?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(pid)}`
+      : '/read';
+
+  // Gate only the click: guests go to login?next=directRead, authed go straight to directRead
+  const readUrl = isAuthed ? directRead : `/login?next=${encodeURIComponent(directRead)}`;
+
+  return {
+    id: row.id,
+    title: row.title,
+    author: row.author,
+    cover: row.cover || row.cover_image || null,
+    cover_image: row.cover_image || row.cover || null,
+    provider,
+    provider_id: pid,
+    readUrl // <- pass to the view/partial
+  };
+}
+
 // -----------------------------
 // Homepage
 // -----------------------------
-router.get('/', async (_req, res) => {
-  const shelvesList = ['trending','philosophy','history','science','biographies','religion','classics'];
+router.get('/', async (req, res) => {
+  // Order of shelves we want to try to show
+  const desiredSlugs = ['trending','philosophy','history','science','biographies','religion','classics'];
 
-  let shelvesData = {};
+  const isAuthed =
+    Boolean((req.session && req.session.user) || req.user || req.authUser);
+
+  let shelvesList = [];
+
   if (supabase) {
     try {
-      const { data: featured } = await supabase
-        .from('featured_books')
+      // Pull latest catalog rows; this view should include curated books + genre info
+      const { data = [] } = await supabase
+        .from('video_and_curated_books_catalog')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(1);
-      shelvesData.trending = featured || [];
-    } catch {
-      shelvesData = {};
+        .limit(300);
+
+      // Group by genre_slug
+      const grouped = new Map();
+      for (const r of data) {
+        const slug = r.genre_slug || 'misc';
+        if (!grouped.has(slug)) grouped.set(slug, []);
+        grouped.get(slug).push(r);
+      }
+
+      // Build shelves in the desired order (each shows up to 12 items)
+      shelvesList = desiredSlugs
+        .filter((slug) => grouped.has(slug))
+        .map((slug) => {
+          const rows = grouped.get(slug).slice(0, 12);
+          const label = rows[0]?.genre_name || (slug.charAt(0).toUpperCase() + slug.slice(1));
+          return {
+            key: slug,
+            label,
+            items: rows.map((r) => toCard(r, isAuthed))
+          };
+        });
+
+      // Fallback: if nothing matched, show a single Featured shelf from whatever we have
+      if (!shelvesList.length && data.length) {
+        shelvesList = [{
+          key: 'featured',
+          label: 'Featured',
+          items: data.slice(0, 12).map((r) => toCard(r, isAuthed))
+        }];
+      }
+    } catch (e) {
+      console.error('[home] fetch catalog failed:', e);
+      shelvesList = [];
     }
   }
 
-  return res.render('index', { shelvesList, shelvesData });
+  return res.render('index', { shelvesList, shelvesData: {} });
 });
 
 // -----------------------------
@@ -145,18 +206,10 @@ router.get('/video/:id', async (req, res) => {
 });
 
 // -----------------------------
-// Read (reader shell) — redirect guests to login
+// Read (reader shell) — do NOT force login here
+// Only the Read buttons we build are gated via /login?next=…
 // -----------------------------
 router.get('/read', (req, res) => {
-  const loggedIn = Boolean(
-    (req.session && req.session.user) || req.user || req.authUser
-  );
-
-  if (!loggedIn) {
-    const next = encodeURIComponent(req.originalUrl || '/read');
-    return res.redirect(`/login?next=${next}`);
-  }
-
   const provider = isStr(req.query.provider) ? req.query.provider : '';
   const id = isStr(req.query.id) ? req.query.id : '';
   return res.render('read', { provider, id });
