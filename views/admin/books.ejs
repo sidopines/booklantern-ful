@@ -13,12 +13,14 @@
     .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .row .grow{flex:1}
     .input, textarea, select{width:100%}
-    .btn{display:inline-block;border:1px solid #ddd;border-radius:8px;padding:8px 12px;background:#fafafa}
+    .btn{display:inline-block;border:1px solid #ddd;border-radius:8px;padding:8px 12px;background:#fafafa;cursor:pointer}
     .btn.danger{border-color:#f3d2d2;background:#fff3f3;color:#a00}
+    .btn.primary{background:#111;color:#fff;border-color:#111}
     .select, .input{border:1px solid #ddd;border-radius:8px;padding:8px 10px}
     .note{background:#fff9e6;border:1px solid #ffe7a3;padding:8px 10px;border-radius:8px}
     .note.ok{background:#f0fdf4;border-color:#bbf7d0;color:#065f46}
     .note.err{background:#fff1f2;border-color:#fecaca;color:#9f1239}
+    .note.deleted{background:#fef2f2;border-color:#fecaca;color:#7f1d1d}
   </style>
 </head>
 <body>
@@ -32,6 +34,9 @@
     <% } %>
     <% if (messages && messages.success) { %>
       <p class="note ok"><%= messages.success %></p>
+    <% } %>
+    <% if (messages && messages.deleted) { %>
+      <p class="note deleted"><%= messages.deleted %></p>
     <% } %>
 
     <div class="grid">
@@ -53,9 +58,11 @@
 
           <div class="row">
             <label class="grow">Genre / Shelf
+              <!-- categories = [{slug,name}] -->
               <select class="select" name="category" required>
+                <option value="">Select a shelf…</option>
                 <% (categories || []).forEach(function(cat){ %>
-                  <option value="<%= String(cat).toLowerCase() %>"><%= cat %></option>
+                  <option value="<%- cat.slug %>"><%- cat.name %></option>
                 <% }) %>
               </select>
             </label>
@@ -83,7 +90,7 @@
           </div>
 
           <div class="row">
-            <button class="btn" type="submit">Save</button>
+            <button class="btn primary" type="submit">Save</button>
           </div>
         </form>
       </section>
@@ -92,12 +99,8 @@
       <aside class="card">
         <h2 style="margin-top:0;">How this works</h2>
         <p class="muted">
-          This page pairs with <code>routes/admin-books.js</code>. It posts to
-          <code>POST /admin/books</code> and shows a list below from
-          <code>GET /admin/books</code>.
-        </p>
-        <p class="muted">
-          Select a <strong>Genre / Shelf</strong> so the book appears in the right shelf on the homepage.
+          This page posts to <code>POST /admin/books</code> and lists below from <code>curated_books</code>.
+          Pick a <strong>Genre / Shelf</strong> to place the book on the correct homepage row.
         </p>
       </aside>
     </div>
@@ -112,22 +115,22 @@
         <table class="tbl">
           <thead>
             <tr>
-              <th>Title</th>
-              <th>Author</th>
-              <th>Genre</th>
-              <th>Actions</th>
+              <th style="width:42%;">Title</th>
+              <th style="width:28%;">Author</th>
+              <th style="width:20%;">Genre</th>
+              <th style="width:10%;">Actions</th>
             </tr>
           </thead>
           <tbody>
           <% LIST.forEach(function(b){ %>
             <tr>
-              <td><%= b.title %></td>
-              <td><%= b.author || '' %></td>
-              <td><%= b.category || '' %></td>
+              <td><%- b.title %></td>
+              <td><%- b.author || '' %></td>
+              <td><%- b.category || '' %></td>
               <td>
                 <form method="POST" action="/admin/books/delete" style="display:inline;">
-                  <input type="hidden" name="id" value="<%= b.id %>">
-                  <button class="btn danger" type="submit" onclick="return confirm('Delete this book?')">Delete</button>
+                  <input type="hidden" name="id" value="<%- b.id %>">
+                  <button class="btn danger" type="submit" onclick="return confirm('Delete “<%- (b.title || '').replace(/"/g, '\\"') %>”? This cannot be undone.');">Delete</button>
                 </form>
               </td>
             </tr>
