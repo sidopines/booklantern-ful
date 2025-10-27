@@ -2,37 +2,38 @@
 <html lang="en">
 <head>
   <%- include('../partials/head'); %>
-  <title>Edit Book • Admin</title>
+  <title>Admin • Edit book</title>
   <style>
-    .admin-wrap{max-width:780px;margin:24px auto 64px;}
+    .admin-wrap{max-width:980px;margin:24px auto 64px;}
     .card{border:1px solid #eee;border-radius:12px;padding:16px;background:#fff}
     .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .row .grow{flex:1}
     .input, textarea, select{width:100%}
-    .btn{display:inline-block;border:1px solid #ddd;border-radius:8px;padding:8px 12px;background:#fafafa;cursor:pointer}
-    .btn.primary{background:#111;color:#fff;border-color:#111}
-    .btn.muted{background:#f7f7f7}
-    .btn.danger{border-color:#f3d2d2;background:#fff3f3;color:#a00}
-    .select, .input{border:1px solid #ddd;border-radius:8px;padding:8px 10px}
-    .note{background:#fff9e6;border:1px solid #ffe7a3;padding:8px 10px;border-radius:8px;margin-bottom:12px}
-    .note.err{background:#fff1f2;border-color:#fecaca;color:#9f1239}
+    .btn{display:inline-block;border:1px solid #ddd;border-radius:8px;padding:8px 12px;background:#fafafa}
+    .btn.primary{background:#101010;color:#fff;border-color:#101010}
+    .note.err{background:#fff1f2;border:1px solid #fecaca;color:#9f1239;padding:8px 10px;border-radius:8px}
+    .note.ok{background:#f0fdf4;border:1px solid #bbf7d0;color:#065f46;padding:8px 10px;border-radius:8px}
+    a.link{color:#222;text-decoration:underline}
   </style>
 </head>
 <body>
   <%- include('../partials/header'); %>
 
   <main class="admin-wrap">
-    <a class="btn muted" href="/admin/books">← Back to Books</a>
-
-    <h1 style="margin-top:12px;">Edit book</h1>
+    <a class="link" href="/admin/books">← Back to books</a>
+    <h1 style="margin-bottom:8px;">Edit book</h1>
 
     <% if (messages && messages.error) { %>
       <p class="note err"><%= messages.error %></p>
     <% } %>
+    <% if (messages && messages.success) { %>
+      <p class="note ok"><%= messages.success %></p>
+    <% } %>
 
     <section class="card">
       <form method="POST" action="/admin/books/update">
-        <input type="hidden" name="id" value="<%- book.id %>">
+        <!-- SINGLE source of truth for id -->
+        <input type="hidden" name="id" value="<%= book.id %>">
 
         <div class="row">
           <label class="grow">Title
@@ -48,10 +49,9 @@
 
         <div class="row">
           <label class="grow">Genre / Shelf
-            <select class="select" name="category" required>
-              <option value="">Select a shelf…</option>
-              <% (categories || []).forEach(function(cat){ %>
-                <option value="<%- cat.slug %>" <%- (book.genre_slug === cat.slug ? 'selected' : '') %>><%- cat.name %></option>
+            <select class="input" name="genre_slug" required>
+              <% (genres || []).forEach(function(g){ %>
+                <option value="<%= g.slug %>" <%= (book.genre_slug === g.slug ? 'selected' : '') %>><%= g.name %></option>
               <% }) %>
             </select>
           </label>
@@ -59,33 +59,28 @@
 
         <div class="row">
           <label class="grow">Cover URL
-            <input class="input" type="url" name="coverImage" value="<%- book.cover || '' %>">
+            <input class="input" type="url" name="cover" value="<%- book.cover || '' %>" placeholder="https://…/cover.jpg">
           </label>
         </div>
 
         <div class="row">
           <label class="grow">Source URL (preferred)
-            <input class="input" type="url" name="sourceUrl" value="<%- book.source_url || '' %>">
+            <input class="input" type="url" name="source_url" value="<%- book.source_url || '' %>" placeholder="https://…">
           </label>
         </div>
 
         <div class="row">
           <label class="grow">OR Provider (e.g. gutenberg)
-            <input class="input" type="text" name="provider" value="<%- book.provider || '' %>">
+            <input class="input" type="text" name="provider" value="<%- book.provider || '' %>" placeholder="gutenberg">
           </label>
           <label class="grow">Provider ID
-            <input class="input" type="text" name="provider_id" value="<%- book.provider_id || '' %>">
+            <input class="input" type="text" name="provider_id" value="<%- book.provider_id || '' %>" placeholder="1342">
           </label>
         </div>
 
-        <div class="row" style="margin-top:10px;">
+        <div class="row" style="margin-top:8px;">
           <button class="btn primary" type="submit">Update</button>
           <a class="btn" href="/admin/books">Cancel</a>
-          <span style="flex:1"></span>
-          <form method="POST" action="/admin/books/delete" onsubmit="return confirm('Delete this book? This cannot be undone.');">
-            <input type="hidden" name="id" value="<%- book.id %>">
-            <button class="btn danger" type="submit">Delete</button>
-          </form>
         </div>
       </form>
     </section>
