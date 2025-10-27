@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('../partials/head'); %>
+  <title>Edit Book • Admin</title>
+  <style>
+    .admin-wrap{max-width:780px;margin:24px auto 64px;}
+    .card{border:1px solid #eee;border-radius:12px;padding:16px;background:#fff}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .row .grow{flex:1}
+    .input, textarea, select{width:100%}
+    .btn{display:inline-block;border:1px solid #ddd;border-radius:8px;padding:8px 12px;background:#fafafa;cursor:pointer}
+    .btn.primary{background:#111;color:#fff;border-color:#111}
+    .btn.muted{background:#f7f7f7}
+    .btn.danger{border-color:#f3d2d2;background:#fff3f3;color:#a00}
+    .select, .input{border:1px solid #ddd;border-radius:8px;padding:8px 10px}
+    .note{background:#fff9e6;border:1px solid #ffe7a3;padding:8px 10px;border-radius:8px;margin-bottom:12px}
+    .note.err{background:#fff1f2;border-color:#fecaca;color:#9f1239}
+  </style>
+</head>
+<body>
+  <%- include('../partials/header'); %>
+
+  <main class="admin-wrap">
+    <a class="btn muted" href="/admin/books">← Back to Books</a>
+
+    <h1 style="margin-top:12px;">Edit book</h1>
+
+    <% if (messages && messages.error) { %>
+      <p class="note err"><%= messages.error %></p>
+    <% } %>
+
+    <section class="card">
+      <form method="POST" action="/admin/books/update">
+        <input type="hidden" name="id" value="<%- book.id %>">
+
+        <div class="row">
+          <label class="grow">Title
+            <input class="input" type="text" name="title" value="<%- book.title || '' %>" required>
+          </label>
+        </div>
+
+        <div class="row">
+          <label class="grow">Author
+            <input class="input" type="text" name="author" value="<%- book.author || '' %>">
+          </label>
+        </div>
+
+        <div class="row">
+          <label class="grow">Genre / Shelf
+            <select class="select" name="category" required>
+              <option value="">Select a shelf…</option>
+              <% (categories || []).forEach(function(cat){ %>
+                <option value="<%- cat.slug %>" <%- (book.genre_slug === cat.slug ? 'selected' : '') %>><%- cat.name %></option>
+              <% }) %>
+            </select>
+          </label>
+        </div>
+
+        <div class="row">
+          <label class="grow">Cover URL
+            <input class="input" type="url" name="coverImage" value="<%- book.cover || '' %>">
+          </label>
+        </div>
+
+        <div class="row">
+          <label class="grow">Source URL (preferred)
+            <input class="input" type="url" name="sourceUrl" value="<%- book.source_url || '' %>">
+          </label>
+        </div>
+
+        <div class="row">
+          <label class="grow">OR Provider (e.g. gutenberg)
+            <input class="input" type="text" name="provider" value="<%- book.provider || '' %>">
+          </label>
+          <label class="grow">Provider ID
+            <input class="input" type="text" name="provider_id" value="<%- book.provider_id || '' %>">
+          </label>
+        </div>
+
+        <div class="row" style="margin-top:10px;">
+          <button class="btn primary" type="submit">Update</button>
+          <a class="btn" href="/admin/books">Cancel</a>
+          <span style="flex:1"></span>
+          <form method="POST" action="/admin/books/delete" onsubmit="return confirm('Delete this book? This cannot be undone.');">
+            <input type="hidden" name="id" value="<%- book.id %>">
+            <button class="btn danger" type="submit">Delete</button>
+          </form>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <%- include('../partials/footer'); %>
+</body>
+</html>
