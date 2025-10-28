@@ -3,8 +3,7 @@ const express = require('express');
 const router = express.Router();
 const nodemailer = require('nodemailer');
 
-// Your existing admin client. If your project uses a different path/name,
-// change the require accordingly.
+// Optional Supabase admin client for logging to DB
 let supabaseAdmin = null;
 try {
   supabaseAdmin = require('../supabaseAdmin');
@@ -15,18 +14,31 @@ try {
 /* =========================
    Email (Mailjet via SMTP)
    ========================= */
-const mailTransporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'in-v3.mailjet.com',
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: false, // STARTTLS on 587
-  auth: {
-    user: process.env.SMTP_USER, // Mailjet API Key
-    pass: process.env.SMTP_PASS  // Mailjet Secret Key
-  }
-});
+// Accept both SMTP_* and MAILJET_* env styles
+const SMTP_HOST = process.env.SMTP_HOST || 'in-v3.mailjet.com';
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
+const SMTP_USER = process.env.SMTP_USER || process.env.MAILJET_API_KEY || process.env.MJ_APIKEY_PUBLIC;
+const SMTP_PASS = process.env.SMTP_PASS || process.env.MAILJET_SECRET_KEY || process.env.MJ_APIKEY_PRIVATE;
 
-const MAIL_FROM = process.env.MAIL_FROM || 'BookLantern <info@booklantern.org>';
-const MAIL_TO   = process.env.MAIL_TO   || 'info@booklantern.org';
+// From / To fallbacks (align with your Render screen)
+const MAIL_FROM =
+  process.env.MAIL_FROM ||
+  (process.env.MAILJET_FROM_EMAIL
+    ? `${process.env.MAILJET_FROM_NAME || 'BookLantern'} <${process.env.MAILJET_FROM_EMAIL}>`
+    : 'BookLantern <info@booklantern.org>');
+
+const MAIL_TO =
+  process.env.MAIL_TO ||
+  process.env.MAILJET_TO ||
+  process.env.CONTACT_NOTIFY_TO ||
+  'info@booklantern.org';
+
+const mailTransporter = nodemailer.createTransport({
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  secure: false, // STARTTLS on 587
+  auth: SMTP_USER && SMTP_PASS ? { user: SMTP_USER, pass: SMTP_PASS } : undefined,
+});
 
 /* =========================
    Helpers
@@ -42,15 +54,14 @@ function escapeHtml(s) {
 }
 
 /* =========================
-   GET /contact  (renders page)
+   GET /contact (renders page)
    ========================= */
 router.get('/contact', (req, res) => {
-  // Pass referrer if you want your back link partial to use it
   res.render('contact', { referrer: req.get('referer') || null });
 });
 
 /* =========================
-   POST /contact  (save + email)
+   POST /contact (save + email)
    ========================= */
 router.post('/contact', async (req, res) => {
   try {
@@ -78,12 +89,12 @@ router.post('/contact', async (req, res) => {
           email: safeEmail,
           message: safeMsg,
           ip: req.ip,
-          user_agent: req.get('user-agent') || null
+          user_agent: req.get('user-agent') || null,
         });
       if (dbErr) console.error('[contact] supabase insert error:', dbErr);
     }
 
-    // Notify you
+    // Admin notification
     const adminHtml = `
       <p><strong>New contact message</strong></p>
       <p><strong>Name:</strong> ${escapeHtml(safeName)}<br>
@@ -99,9 +110,9 @@ router.post('/contact', async (req, res) => {
     await mailTransporter.sendMail({
       from: MAIL_FROM,
       to: MAIL_TO,
-      replyTo: safeEmail,
+      replyTo: safeEmail ? { name: safeName || safeEmail, address: safeEmail } : undefined,
       subject: 'New Contact Message — BookLantern',
-      html: adminHtml
+      html: adminHtml,
     });
 
     // Auto-acknowledge sender
@@ -116,16 +127,14 @@ router.post('/contact', async (req, res) => {
       from: MAIL_FROM,
       to: safeEmail,
       subject: 'We received your message — BookLantern',
-      html: ackHtml
+      html: ackHtml,
     });
 
-    // Show success flash on the page
     return res.render('contact', { sent: true });
-
   } catch (err) {
     console.error('[contact] error:', err);
     return res.render('contact', {
-      error: 'Something went wrong sending your message. Please try again.'
+      error: 'Something went wrong sending your message. Please try again.',
     });
   }
 });
