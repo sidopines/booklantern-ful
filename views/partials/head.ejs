@@ -74,10 +74,26 @@
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true,   // REQUIRED so auth-callback can read tokens in the URL hash
-        flowType: 'implicit'        // <<< switch from 'pkce' → 'implicit' for email magic links
+        detectSessionInUrl: true,   // allow reading tokens from URL hash on first load
+        // For email magic links, implicit works best; PKCE is used automatically for OAuth
+        flowType: 'implicit'
       }
     });
+  })();
+</script>
+
+<!-- Global forwarder safety net:
+     If any page (not /auth/callback) receives auth params in URL, forward them. -->
+<script>
+  (function () {
+    try {
+      if (location.pathname === '/auth/callback') return;
+      var q = location.search || "";
+      var h = location.hash   || "";
+      if (/#(?:.*access_token=|.*refresh_token=)/.test(h) || /[?&](code|token_hash)=/.test(q)) {
+        location.replace('/auth/callback' + q + h);
+      }
+    } catch (_) {}
   })();
 </script>
 
