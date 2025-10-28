@@ -1,25 +1,53 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('partials/head'); %>
-
-  <!-- Early forwarder: if a Supabase auth URL lands here, hand it to /auth/callback immediately -->
+  <!-- Ultra-early forwarder: if auth params are present on /login, hand them to /auth/callback immediately -->
   <script>
-    (function () {
+    (function forwardAuthNow(){
       try {
-        var q = location.search || "";
-        var h = location.hash   || "";
-        if (location.pathname !== "/auth/callback" && (
-             /#(?:.*access_token=|.*refresh_token=)/.test(h) ||     // legacy magic link (hash tokens)
-             /[?&](code|token_hash)=/.test(q)                       // PKCE / verifyOtp
-           )) {
-          location.replace("/auth/callback" + q + h);
+        if (location.pathname === '/auth/callback') return;
+        var q = location.search || '';
+        var h = location.hash   || '';
+        var hasHashTokens = /(?:^|[#&])access_token=|(?:^|[#&])refresh_token=/.test(h);
+        var hasQueryTokens = /[?&](code|token_hash)=/.test(q);
+        if (hasHashTokens || hasQueryTokens) {
+          // Keep the whole search + hash so auth-callback can finish the session
+          location.replace('/auth/callback' + q + h);
         }
-      } catch (_) {}
+      } catch(_) {}
     })();
   </script>
+
+  <%- include('partials/head'); %>
 </head>
-<body>
+<body onload="(function(){try{
+  var q=location.search||'', h=location.hash||'';
+  if(/(?:^|[#&])access_token=|(?:^|[#&])refresh_token=/.test(h) || /[?&](code|token_hash)=/.test(q)){
+    location.replace('/auth/callback'+q+h);
+  }
+}catch(_){}})();">
+
+  <!-- Safety net: run again after DOM is ready (Safari timing quirk) -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function(){
+      try {
+        var q=location.search||'', h=location.hash||'';
+        if(/(?:^|[#&])access_token=|(?:^|[#&])refresh_token=/.test(h) || /[?&](code|token_hash)=/.test(q)){
+          location.replace('/auth/callback'+q+h);
+        }
+      } catch(_){}
+      // Watchdog: one more try in case extensions delay script execution
+      setTimeout(function(){
+        try {
+          var q=location.search||'', h=location.hash||'';
+          if(/(?:^|[#&])access_token=|(?:^|[#&])refresh_token=/.test(h) || /[?&](code|token_hash)=/.test(q)){
+            location.replace('/auth/callback'+q+h);
+          }
+        } catch(_){}
+      }, 400);
+    });
+  </script>
+
   <%- include('partials/navbar'); %>
 
   <main class="page-wrap" style="max-width:900px;margin:32px auto 72px;">
@@ -38,7 +66,6 @@
       </form>
 
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-        <!-- Use buttons so we can prefer client OAuth; fall back to server href if needed -->
         <a id="btnGoogle" class="btn" href="/auth/oauth/google">Continue with Google</a>
         <a id="btnApple"  class="btn" href="/auth/oauth/apple">Continue with Apple</a>
       </div>
@@ -53,13 +80,16 @@
 
   <script>
     (function () {
-      // If an auth URL still sneaks in (rare), forward again from here.
-      var has = String(location.hash || '').toLowerCase();
-      var qs  = new URLSearchParams(location.search);
-      if (/#(?:.*access_token=|.*refresh_token=)/.test(has) || /[?&](code|token_hash)=/.test(location.search)) {
-        location.replace('/auth/callback' + location.search + location.hash);
-        return;
-      }
+      // Final safety: if tokens still present for any reason, forward again.
+      (function finalCheck(){
+        try {
+          var q=location.search||'', h=location.hash||'';
+          if(/(?:^|[#&])access_token=|(?:^|[#&])refresh_token=/.test(h) || /[?&](code|token_hash)=/.test(q)){
+            location.replace('/auth/callback'+q+h);
+            return;
+          }
+        } catch(_){}
+      })();
 
       var sb  = window.supabaseClient;
       var msg = document.getElementById('msg');
@@ -74,7 +104,6 @@
         msg.style.color      = '#222';
       }
 
-      // Already signed in? Bounce to /account quickly.
       (async function autoRedirectIfSignedIn(){
         try {
           if (!sb) return;
@@ -86,13 +115,12 @@
         } catch (e) { /* ignore */ }
       })();
 
-      // Magic link email
       if (btn) {
         btn.addEventListener('click', async function(){
           var email = (document.getElementById('email').value || '').trim();
 
           if (!email) { show('err','Enter your email first.'); return; }
-          if (!window.supabaseClient) { show('err','Auth is not configured on the client. Please try again later.'); return; }
+          if (!window.supabaseClient) { show('err','Auth is not configured on the client.'); return; }
 
           btn.disabled = true;
           var prior = btn.textContent;
@@ -116,7 +144,6 @@
         });
       }
 
-      // Prefer client-side OAuth start (works with PKCE and your /auth/callback handler).
       function hookOAuth(anchorEl, provider){
         if (!anchorEl) return;
         anchorEl.addEventListener('click', async function(e){
@@ -131,7 +158,6 @@
               }
             });
           } catch (_) {
-            // If anything goes wrong, fall back to original href (server may handle it)
             window.location.href = anchorEl.getAttribute('href');
           }
         });
