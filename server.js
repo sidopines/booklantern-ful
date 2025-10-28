@@ -24,8 +24,8 @@ const app = express();
   const serviceRoleRaw =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_SERVICE_KEY ||
-    process.env.SUPABASE_KEY || // sometimes people set this directly
-    process.env.supabaseKey ||   // some files use camelCase
+    process.env.SUPABASE_KEY ||
+    process.env.supabaseKey ||
     '';
 
   const anonRaw =
@@ -33,28 +33,21 @@ const app = express();
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     '';
 
-  // Choose best keys
   const finalUrl = urlRaw;
-  const finalService = serviceRoleRaw || ''; // prefer server-side key
+  const finalService = serviceRoleRaw || '';
   const finalAnon = anonRaw || '';
 
-  // Write canonical names
   if (finalUrl) process.env.SUPABASE_URL = finalUrl;
   if (finalService) process.env.SUPABASE_SERVICE_ROLE_KEY = finalService;
 
-  // Fallback SUPABASE_KEY (some modules read this)
   if (!process.env.SUPABASE_KEY) {
     process.env.SUPABASE_KEY = finalService || finalAnon || '';
   }
-
-  // Also publish ALL aliases that any route might check
   if (!process.env.SUPABASE_SERVICE_KEY && finalService)
     process.env.SUPABASE_SERVICE_KEY = finalService;
-
   if (!process.env.SUPABASE_ANON_KEY && finalAnon)
     process.env.SUPABASE_ANON_KEY = finalAnon;
 
-  // CamelCase aliases (some custom modules throw if these are absent)
   if (!process.env.supabaseKey)
     process.env.supabaseKey =
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || '';
@@ -191,10 +184,18 @@ try {
 
 try {
   const indexRoutes = require('./routes/index');
-  app.use('/', indexRoutes); // static pages, home, read, etc.
+  app.use('/', indexRoutes); // static pages, home, read, GET /contact (legacy)
   console.log('[routes] mounted index router at /');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/index:', e);
+}
+
+try {
+  const contactRoutes = require('./routes/contact');
+  app.use('/', contactRoutes); // GET /contact (enhanced) + POST /contact
+  console.log('[routes] mounted contact router at /');
+} catch (e) {
+  console.error('[routes] failed to mount ./routes/contact:', e);
 }
 
 try {
@@ -213,10 +214,7 @@ try {
   console.error('[routes] failed to mount ./routes/watch:', e);
 }
 
-/* ---------- Admin + reader routes (Supabase-backed) ----------
-   IMPORTANT: mount the dedicated /admin/books and /admin/genres
-   BEFORE the legacy combined /routes/admin to avoid shadowing.
--------------------------------------------------------------- */
+/* ---------- Admin + reader routes (Supabase-backed) ---------- */
 const hasSB = Boolean(
   (process.env.SUPABASE_URL || process.env.supabaseUrl) &&
     (process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -245,10 +243,7 @@ if (hasSB) {
   );
 }
 
-/* ---------- Legacy/general admin dashboard ----------
-   Mount AFTER the dedicated routers so any overlapping paths
-   in ./routes/admin will not override /admin/books or /admin/genres.
------------------------------------------------------ */
+/* ---------- Legacy/general admin dashboard ---------- */
 try {
   const adminRoutes = require('./routes/admin');
   app.use('/admin', adminRoutes);
