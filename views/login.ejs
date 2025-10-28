@@ -2,6 +2,22 @@
 <html lang="en">
 <head>
   <%- include('partials/head'); %>
+
+  <!-- Early forwarder: if a Supabase auth URL lands here, hand it to /auth/callback immediately -->
+  <script>
+    (function () {
+      try {
+        var q = location.search || "";
+        var h = location.hash   || "";
+        if (location.pathname !== "/auth/callback" && (
+             /#(?:.*access_token=|.*refresh_token=)/.test(h) ||     // legacy magic link (hash tokens)
+             /[?&](code|token_hash)=/.test(q)                       // PKCE / verifyOtp
+           )) {
+          location.replace("/auth/callback" + q + h);
+        }
+      } catch (_) {}
+    })();
+  </script>
 </head>
 <body>
   <%- include('partials/navbar'); %>
@@ -22,8 +38,9 @@
       </form>
 
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-        <a class="btn" href="/auth/oauth/google">Continue with Google</a>
-        <a class="btn" href="/auth/oauth/apple">Continue with Apple</a>
+        <!-- Use buttons so we can prefer client OAuth; fall back to server href if needed -->
+        <a id="btnGoogle" class="btn" href="/auth/oauth/google">Continue with Google</a>
+        <a id="btnApple"  class="btn" href="/auth/oauth/apple">Continue with Apple</a>
       </div>
 
       <p style="margin-top:12px;font-size:0.95rem;color:#555;">
@@ -36,17 +53,10 @@
 
   <script>
     (function () {
-      // --- Forward any Supabase auth URL straight to /auth/callback so it can finish the flow.
+      // If an auth URL still sneaks in (rare), forward again from here.
       var has = String(location.hash || '').toLowerCase();
       var qs  = new URLSearchParams(location.search);
-      var looksLikeAuth =
-        has.includes('access_token=') ||
-        has.includes('refresh_token=') ||
-        qs.has('code') ||                 // OAuth PKCE ?code=...
-        qs.has('type');                   // signup | magiclink | recovery | email_change | invitation
-
-      if (looksLikeAuth) {
-        // Preserve the whole search+hash so auth-callback can read it.
+      if (/#(?:.*access_token=|.*refresh_token=)/.test(has) || /[?&](code|token_hash)=/.test(location.search)) {
         location.replace('/auth/callback' + location.search + location.hash);
         return;
       }
@@ -64,7 +74,7 @@
         msg.style.color      = '#222';
       }
 
-      // If already signed in (e.g., session restored), go to /account.
+      // Already signed in? Bounce to /account quickly.
       (async function autoRedirectIfSignedIn(){
         try {
           if (!sb) return;
@@ -76,34 +86,58 @@
         } catch (e) { /* ignore */ }
       })();
 
-      if (!btn) return;
+      // Magic link email
+      if (btn) {
+        btn.addEventListener('click', async function(){
+          var email = (document.getElementById('email').value || '').trim();
 
-      btn.addEventListener('click', async function(){
-        var email = (document.getElementById('email').value || '').trim();
+          if (!email) { show('err','Enter your email first.'); return; }
+          if (!window.supabaseClient) { show('err','Auth is not configured on the client. Please try again later.'); return; }
 
-        if (!email) { show('err','Enter your email first.'); return; }
-        if (!window.supabaseClient) { show('err','Auth is not configured on the client. Please try again later.'); return; }
+          btn.disabled = true;
+          var prior = btn.textContent;
+          btn.textContent = 'Sending…';
+          try {
+            var res = await window.supabaseClient.auth.signInWithOtp({
+              email: email,
+              options: {
+                emailRedirectTo: window.location.origin + '/auth/callback',
+                shouldCreateUser: true
+              }
+            });
+            if (res && res.error) throw res.error;
+            show('ok','✅ The sign-in link has been emailed to you. Please check your inbox.');
+          } catch (e) {
+            show('err', e && e.message ? e.message : 'Could not send link.');
+          } finally {
+            btn.disabled = false;
+            btn.textContent = prior;
+          }
+        });
+      }
 
-        btn.disabled = true;
-        var prior = btn.textContent;
-        btn.textContent = 'Sending…';
-        try {
-          var res = await window.supabaseClient.auth.signInWithOtp({
-            email: email,
-            options: {
-              emailRedirectTo: window.location.origin + '/auth/callback',
-              shouldCreateUser: true
-            }
-          });
-          if (res && res.error) throw res.error;
-          show('ok','✅ The sign-in link has been emailed to you. Please check your inbox.');
-        } catch (e) {
-          show('err', e && e.message ? e.message : 'Could not send link.');
-        } finally {
-          btn.disabled = false;
-          btn.textContent = prior;
-        }
-      });
+      // Prefer client-side OAuth start (works with PKCE and your /auth/callback handler).
+      function hookOAuth(anchorEl, provider){
+        if (!anchorEl) return;
+        anchorEl.addEventListener('click', async function(e){
+          try {
+            if (!window.supabaseClient) return; // fall back to server href
+            e.preventDefault();
+            await window.supabaseClient.auth.signInWithOAuth({
+              provider: provider,
+              options: {
+                redirectTo: window.location.origin + '/auth/callback',
+                skipBrowserRedirect: false
+              }
+            });
+          } catch (_) {
+            // If anything goes wrong, fall back to original href (server may handle it)
+            window.location.href = anchorEl.getAttribute('href');
+          }
+        });
+      }
+      hookOAuth(document.getElementById('btnGoogle'), 'google');
+      hookOAuth(document.getElementById('btnApple'),  'apple');
     })();
   </script>
 </body>
