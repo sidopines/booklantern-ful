@@ -28,7 +28,7 @@
 <link rel="stylesheet" href="/public/css/hero.css?v=<%= buildId %>">
 <link rel="stylesheet" href="/public/css/footer.css?v=<%= buildId %>">
 
-<!-- Pre-paint theme init (no flash). -->
+<!-- Theme init -->
 <script>
   (function () {
     try {
@@ -48,49 +48,44 @@
 <!-- Supabase client (browser) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-  // Expose env to the client
+  // Expose env
   window.__SB_URL  = "<%= process.env.SUPABASE_URL || '' %>";
   window.__SB_ANON = "<%= process.env.SUPABASE_ANON_KEY || '' %>";
 
-  // Create a single shared client with correct auth options.
+  // Create a single shared client
   (function () {
     if (!window.__SB_URL || !window.__SB_ANON) {
-      console.warn('[supabase] Missing SUPABASE_URL or SUPABASE_ANON_KEY in env.');
+      console.warn('[supabase] Missing SUPABASE_URL or SUPABASE_ANON_KEY.');
       window.supabaseClient = null;
       return;
     }
-
     var create = (window.supabase && window.supabase.createClient)
       ? window.supabase.createClient
       : (typeof supabase !== 'undefined' && supabase.createClient ? supabase.createClient : null);
-
     if (!create) {
-      console.error('[supabase] createClient not found on window. Check CDN script loading.');
+      console.error('[supabase] createClient not found on window.');
       window.supabaseClient = null;
       return;
     }
-
     window.supabaseClient = create(window.__SB_URL, window.__SB_ANON, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true,   // allow reading tokens from URL hash on first load
-        // For email magic links, implicit works best; PKCE is used automatically for OAuth
-        flowType: 'implicit'
+        detectSessionInUrl: true,   // read hash on first load
+        flowType: 'implicit'        // magic links; OAuth still works
       }
     });
   })();
 </script>
 
-<!-- Global forwarder safety net:
-     If any page (not /auth/callback) receives auth params in URL, forward them. -->
+<!-- Global forwarder safety net (runs on every page except auth-callback) -->
 <script>
   (function () {
     try {
       if (location.pathname === '/auth/callback') return;
-      var q = location.search || "";
-      var h = location.hash   || "";
-      if (/#(?:.*access_token=|.*refresh_token=)/.test(h) || /[?&](code|token_hash)=/.test(q)) {
+      var q = location.search || '';
+      var h = location.hash   || '';
+      if (/(?:^|[#&])access_token=|(?:^|[#&])refresh_token=/.test(h) || /[?&](code|token_hash)=/.test(q)) {
         location.replace('/auth/callback' + q + h);
       }
     } catch (_) {}
