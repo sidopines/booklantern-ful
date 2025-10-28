@@ -24,8 +24,8 @@ const app = express();
   const serviceRoleRaw =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_SERVICE_KEY ||
-    process.env.SUPABASE_KEY ||
-    process.env.supabaseKey ||
+    process.env.SUPABASE_KEY || // sometimes people set this directly
+    process.env.supabaseKey ||   // some files use camelCase
     '';
 
   const anonRaw =
@@ -33,21 +33,28 @@ const app = express();
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     '';
 
+  // Choose best keys
   const finalUrl = urlRaw;
-  const finalService = serviceRoleRaw || '';
+  const finalService = serviceRoleRaw || ''; // prefer server-side key
   const finalAnon = anonRaw || '';
 
+  // Write canonical names
   if (finalUrl) process.env.SUPABASE_URL = finalUrl;
   if (finalService) process.env.SUPABASE_SERVICE_ROLE_KEY = finalService;
 
+  // Fallback SUPABASE_KEY (some modules read this)
   if (!process.env.SUPABASE_KEY) {
     process.env.SUPABASE_KEY = finalService || finalAnon || '';
   }
+
+  // Also publish ALL aliases that any route might check
   if (!process.env.SUPABASE_SERVICE_KEY && finalService)
     process.env.SUPABASE_SERVICE_KEY = finalService;
+
   if (!process.env.SUPABASE_ANON_KEY && finalAnon)
     process.env.SUPABASE_ANON_KEY = finalAnon;
 
+  // CamelCase aliases (some custom modules throw if these are absent)
   if (!process.env.supabaseKey)
     process.env.supabaseKey =
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || '';
@@ -184,7 +191,7 @@ try {
 
 try {
   const indexRoutes = require('./routes/index');
-  app.use('/', indexRoutes); // static pages, home, read, GET /contact (legacy)
+  app.use('/', indexRoutes); // static pages, home, read, etc.
   console.log('[routes] mounted index router at /');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/index:', e);
@@ -192,7 +199,7 @@ try {
 
 try {
   const contactRoutes = require('./routes/contact');
-  app.use('/', contactRoutes); // GET /contact (enhanced) + POST /contact
+  app.use('/', contactRoutes); // <-- ensures POST /contact exists
   console.log('[routes] mounted contact router at /');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/contact:', e);
