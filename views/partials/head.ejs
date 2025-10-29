@@ -28,26 +28,68 @@
 <link rel="stylesheet" href="/public/css/hero.css?v=<%= buildId %>">
 <link rel="stylesheet" href="/public/css/footer.css?v=<%= buildId %>">
 
-<!-- 🚀 EARLY AUTH FORWARDER (runs before anything else)
-     If the current URL contains Supabase auth tokens (hash or query),
-     immediately hand off to /auth/callback with the same search+hash.
--->
+<!-- ---------- ULTRA-EARLY AUTH FORWARDER (Safari-safe) ---------- -->
+<!-- If URL carries Supabase auth tokens (hash or query), immediately send to /auth/callback. -->
 <script>
-  (function () {
-    try {
-      var search = window.location.search || '';
-      var hash   = window.location.hash || '';
-      var lookQ  = /[?&](code|type)=/i.test(search);
-      var lookH  = /(#|&)(access_token|refresh_token|type=)/i.test(hash);
-      if (lookQ || lookH) {
-        var target = '/auth/callback' + search + hash;
-        if (window.location.pathname !== '/auth/callback') {
-          window.location.replace(target);
+(function forwardAuthNow(){
+  try {
+    var p = window.location.pathname || "/";
+    // Already on callback? Do nothing.
+    if (p === "/auth/callback") return;
+
+    var search = window.location.search || "";
+    var hash   = window.location.hash   || "";
+
+    // Look for any auth indicators in search or hash
+    var hasAuthInSearch = /[?&](code|type)=/i.test(search);
+    var hasAuthInHash   = /(^#|[&#])(access_token|refresh_token|type=|code=)/i.test(hash);
+
+    if (hasAuthInSearch || hasAuthInHash) {
+      var target = "/auth/callback" + search + hash;
+
+      // Try the strongest redirect first.
+      try { window.location.assign(target); } catch(e){}
+
+      // Fallback: replace (avoids back button loop)
+      try { if (window.location.pathname !== "/auth/callback") window.location.replace(target); } catch(e){}
+
+      // Last resort: schedule a retry very soon (Safari hash parsing race).
+      setTimeout(function(){
+        if (window.location.pathname !== "/auth/callback") {
+          window.location.href = target;
         }
-      }
-    } catch (_) {}
-  })();
+      }, 15);
+
+      // Prevent the rest of the page from running while we redirect.
+      return;
+    }
+
+    // As an additional safety: if we end up on /login with a giant hash, bounce anyway.
+    if (p === "/login" && (window.location.hash || "").length > 1) {
+      var fallbackTarget = "/auth/callback" + (window.location.search || "") + (window.location.hash || "");
+      try { window.location.assign(fallbackTarget); } catch(e){}
+      setTimeout(function(){
+        if (window.location.pathname !== "/auth/callback") {
+          window.location.href = fallbackTarget;
+        }
+      }, 15);
+      return;
+    }
+  } catch (_e) {
+    // If anything throws, try a very defensive redirect based on visible parts.
+    try {
+      var t = "/auth/callback" + (window.location.search || "") + (window.location.hash || "");
+      if (window.location.pathname !== "/auth/callback") window.location.href = t;
+    } catch(__) {}
+  }
+})();
 </script>
+
+<!-- If JS is blocked or crashes, attempt an immediate meta refresh to /auth/callback carrying the same URL parts. -->
+<noscript>
+  <meta http-equiv="refresh" content="0; url=/auth/callback">
+</noscript>
+<!-- ---------- END ULTRA-EARLY AUTH FORWARDER ---------- -->
 
 <!-- Pre-paint theme init (no flash). -->
 <script>
@@ -95,7 +137,7 @@
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        // We handle the URL tokens ourselves on /auth/callback.
+        // We do URL handling ourselves on /auth/callback.
         detectSessionInUrl: false,
         flowType: 'implicit'
       }
