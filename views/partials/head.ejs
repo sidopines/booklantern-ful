@@ -28,7 +28,28 @@
 <link rel="stylesheet" href="/public/css/hero.css?v=<%= buildId %>">
 <link rel="stylesheet" href="/public/css/footer.css?v=<%= buildId %>">
 
-<!-- Theme init -->
+<!-- 🚀 EARLY AUTH FORWARDER (runs before anything else)
+     If the current URL contains Supabase auth tokens (hash or query),
+     immediately hand off to /auth/callback with the same search+hash.
+-->
+<script>
+  (function () {
+    try {
+      var search = window.location.search || '';
+      var hash   = window.location.hash || '';
+      var lookQ  = /[?&](code|type)=/i.test(search);
+      var lookH  = /(#|&)(access_token|refresh_token|type=)/i.test(hash);
+      if (lookQ || lookH) {
+        var target = '/auth/callback' + search + hash;
+        if (window.location.pathname !== '/auth/callback') {
+          window.location.replace(target);
+        }
+      }
+    } catch (_) {}
+  })();
+</script>
+
+<!-- Pre-paint theme init (no flash). -->
 <script>
   (function () {
     try {
@@ -48,47 +69,37 @@
 <!-- Supabase client (browser) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-  // Expose env
+  // Expose env to the client
   window.__SB_URL  = "<%= process.env.SUPABASE_URL || '' %>";
   window.__SB_ANON = "<%= process.env.SUPABASE_ANON_KEY || '' %>";
 
-  // Create a single shared client
+  // Create a single shared client with correct auth options.
   (function () {
     if (!window.__SB_URL || !window.__SB_ANON) {
-      console.warn('[supabase] Missing SUPABASE_URL or SUPABASE_ANON_KEY.');
+      console.warn('[supabase] Missing SUPABASE_URL or SUPABASE_ANON_KEY in env.');
       window.supabaseClient = null;
       return;
     }
+
     var create = (window.supabase && window.supabase.createClient)
       ? window.supabase.createClient
       : (typeof supabase !== 'undefined' && supabase.createClient ? supabase.createClient : null);
+
     if (!create) {
-      console.error('[supabase] createClient not found on window.');
+      console.error('[supabase] createClient not found on window. Check CDN script loading.');
       window.supabaseClient = null;
       return;
     }
+
     window.supabaseClient = create(window.__SB_URL, window.__SB_ANON, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true,   // read hash on first load
-        flowType: 'implicit'        // magic links; OAuth still works
+        // We handle the URL tokens ourselves on /auth/callback.
+        detectSessionInUrl: false,
+        flowType: 'implicit'
       }
     });
-  })();
-</script>
-
-<!-- Global forwarder safety net (runs on every page except auth-callback) -->
-<script>
-  (function () {
-    try {
-      if (location.pathname === '/auth/callback') return;
-      var q = location.search || '';
-      var h = location.hash   || '';
-      if (/(?:^|[#&])access_token=|(?:^|[#&])refresh_token=/.test(h) || /[?&](code|token_hash)=/.test(q)) {
-        location.replace('/auth/callback' + q + h);
-      }
-    } catch (_) {}
   })();
 </script>
 
