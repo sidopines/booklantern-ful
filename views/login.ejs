@@ -1,53 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Ultra-early forwarder: if auth params are present on /login, hand them to /auth/callback immediately -->
-  <script>
-    (function forwardAuthNow(){
-      try {
-        if (location.pathname === '/auth/callback') return;
-        var q = location.search || '';
-        var h = location.hash   || '';
-        var hasHashTokens = /(?:^|[#&])access_token=|(?:^|[#&])refresh_token=/.test(h);
-        var hasQueryTokens = /[?&](code|token_hash)=/.test(q);
-        if (hasHashTokens || hasQueryTokens) {
-          // Keep the whole search + hash so auth-callback can finish the session
-          location.replace('/auth/callback' + q + h);
-        }
-      } catch(_) {}
-    })();
-  </script>
-
   <%- include('partials/head'); %>
 </head>
-<body onload="(function(){try{
-  var q=location.search||'', h=location.hash||'';
-  if(/(?:^|[#&])access_token=|(?:^|[#&])refresh_token=/.test(h) || /[?&](code|token_hash)=/.test(q)){
-    location.replace('/auth/callback'+q+h);
-  }
-}catch(_){}})();">
-
-  <!-- Safety net: run again after DOM is ready (Safari timing quirk) -->
-  <script>
-    document.addEventListener('DOMContentLoaded', function(){
-      try {
-        var q=location.search||'', h=location.hash||'';
-        if(/(?:^|[#&])access_token=|(?:^|[#&])refresh_token=/.test(h) || /[?&](code|token_hash)=/.test(q)){
-          location.replace('/auth/callback'+q+h);
-        }
-      } catch(_){}
-      // Watchdog: one more try in case extensions delay script execution
-      setTimeout(function(){
-        try {
-          var q=location.search||'', h=location.hash||'';
-          if(/(?:^|[#&])access_token=|(?:^|[#&])refresh_token=/.test(h) || /[?&](code|token_hash)=/.test(q)){
-            location.replace('/auth/callback'+q+h);
-          }
-        } catch(_){}
-      }, 400);
-    });
-  </script>
-
+<body>
   <%- include('partials/navbar'); %>
 
   <main class="page-wrap" style="max-width:900px;margin:32px auto 72px;">
@@ -66,8 +22,9 @@
       </form>
 
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-        <a id="btnGoogle" class="btn" href="/auth/oauth/google">Continue with Google</a>
-        <a id="btnApple"  class="btn" href="/auth/oauth/apple">Continue with Apple</a>
+        <!-- If you later wire these to Supabase OAuth, they can stay as anchors or become JS calls. -->
+        <a class="btn" href="/auth/oauth/google">Continue with Google</a>
+        <a class="btn" href="/auth/oauth/apple">Continue with Apple</a>
       </div>
 
       <p style="margin-top:12px;font-size:0.95rem;color:#555;">
@@ -80,17 +37,6 @@
 
   <script>
     (function () {
-      // Final safety: if tokens still present for any reason, forward again.
-      (function finalCheck(){
-        try {
-          var q=location.search||'', h=location.hash||'';
-          if(/(?:^|[#&])access_token=|(?:^|[#&])refresh_token=/.test(h) || /[?&](code|token_hash)=/.test(q)){
-            location.replace('/auth/callback'+q+h);
-            return;
-          }
-        } catch(_){}
-      })();
-
       var sb  = window.supabaseClient;
       var msg = document.getElementById('msg');
       var btn = document.getElementById('sendLink');
@@ -104,6 +50,7 @@
         msg.style.color      = '#222';
       }
 
+      // If already signed in (e.g., session restored), go to /account.
       (async function autoRedirectIfSignedIn(){
         try {
           if (!sb) return;
@@ -115,55 +62,34 @@
         } catch (e) { /* ignore */ }
       })();
 
-      if (btn) {
-        btn.addEventListener('click', async function(){
-          var email = (document.getElementById('email').value || '').trim();
+      if (!btn) return;
 
-          if (!email) { show('err','Enter your email first.'); return; }
-          if (!window.supabaseClient) { show('err','Auth is not configured on the client.'); return; }
+      btn.addEventListener('click', async function(){
+        var email = (document.getElementById('email').value || '').trim();
 
-          btn.disabled = true;
-          var prior = btn.textContent;
-          btn.textContent = 'Sending…';
-          try {
-            var res = await window.supabaseClient.auth.signInWithOtp({
-              email: email,
-              options: {
-                emailRedirectTo: window.location.origin + '/auth/callback',
-                shouldCreateUser: true
-              }
-            });
-            if (res && res.error) throw res.error;
-            show('ok','✅ The sign-in link has been emailed to you. Please check your inbox.');
-          } catch (e) {
-            show('err', e && e.message ? e.message : 'Could not send link.');
-          } finally {
-            btn.disabled = false;
-            btn.textContent = prior;
-          }
-        });
-      }
+        if (!email) { show('err','Enter your email first.'); return; }
+        if (!window.supabaseClient) { show('err','Auth is not configured on the client. Please try again later.'); return; }
 
-      function hookOAuth(anchorEl, provider){
-        if (!anchorEl) return;
-        anchorEl.addEventListener('click', async function(e){
-          try {
-            if (!window.supabaseClient) return; // fall back to server href
-            e.preventDefault();
-            await window.supabaseClient.auth.signInWithOAuth({
-              provider: provider,
-              options: {
-                redirectTo: window.location.origin + '/auth/callback',
-                skipBrowserRedirect: false
-              }
-            });
-          } catch (_) {
-            window.location.href = anchorEl.getAttribute('href');
-          }
-        });
-      }
-      hookOAuth(document.getElementById('btnGoogle'), 'google');
-      hookOAuth(document.getElementById('btnApple'),  'apple');
+        btn.disabled = true;
+        var prior = btn.textContent;
+        btn.textContent = 'Sending…';
+        try {
+          var res = await window.supabaseClient.auth.signInWithOtp({
+            email: email,
+            options: {
+              emailRedirectTo: window.location.origin + '/auth/callback',
+              shouldCreateUser: true
+            }
+          });
+          if (res && res.error) throw res.error;
+          show('ok','✅ The sign-in link has been emailed to you. Please check your inbox.');
+        } catch (e) {
+          show('err', e && e.message ? e.message : 'Could not send link.');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = prior;
+        }
+      });
     })();
   </script>
 </body>
