@@ -22,7 +22,6 @@
       </form>
 
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-        <!-- If you later wire these to Supabase OAuth, they can stay as anchors or become JS calls. -->
         <a class="btn" href="/auth/oauth/google">Continue with Google</a>
         <a class="btn" href="/auth/oauth/apple">Continue with Apple</a>
       </div>
@@ -50,7 +49,6 @@
         msg.style.color      = '#222';
       }
 
-      // If already signed in (e.g., session restored), go to /account.
       (async function autoRedirectIfSignedIn(){
         try {
           if (!sb) return;
@@ -66,7 +64,6 @@
 
       btn.addEventListener('click', async function(){
         var email = (document.getElementById('email').value || '').trim();
-
         if (!email) { show('err','Enter your email first.'); return; }
         if (!window.supabaseClient) { show('err','Auth is not configured on the client. Please try again later.'); return; }
 
