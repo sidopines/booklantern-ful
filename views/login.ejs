@@ -1,114 +1,157 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('partials/head') %>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Login · BookLantern</title>
-  <style>
-    #auth-status{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-      max-width:720px;margin:3rem auto;padding:1rem 1.25rem;border:1px solid rgba(0,0,0,.08);border-radius:12px}
-    #auth-status .muted{opacity:.75}
-    #auth-status .error{color:#b00020;white-space:pre-wrap;word-break:break-word}
-  </style>
-  <!-- Expose env for EJS (works if process.env or app.locals is set) -->
-  <meta id="sb-env"
-        data-url="<%= (typeof SUPABASE_URL!=='undefined' && SUPABASE_URL) || (process.env.SUPABASE_URL || '') %>"
-        data-key="<%= (typeof SUPABASE_ANON_KEY!=='undefined' && SUPABASE_ANON_KEY) || (process.env.SUPABASE_ANON_KEY || '') %>">
+  <%- include('partials/head', { title: 'Login • BookLantern' }) %>
 </head>
-<body>
+<body class="theme-body">
   <%- include('partials/navbar') %>
 
-  <main>
-    <section id="auth-status">
-      <h1>Sign in</h1>
-      <p class="muted">If you clicked a magic link in your email, this page will complete your sign-in automatically.</p>
-      <div id="auth-progress" class="muted">Waiting for tokens…</div>
-      <pre id="auth-error" class="error" style="display:none"></pre>
-      <noscript><p class="error">JavaScript is required to sign in.</p></noscript>
+  <main class="container mx-auto px-4 py-10">
+    <section class="card shadow-sm rounded-2xl max-w-3xl mx-auto">
+      <div class="p-6 md:p-8">
+        <h1 class="text-3xl font-semibold mb-3">Sign in</h1>
+        <p id="status" class="text-sm text-muted mb-4">
+          If you clicked a magic link in your email, this page will complete your sign-in automatically.
+        </p>
+
+        <!-- Fallback UI (hidden unless needed) -->
+        <div id="fallback" class="hidden space-y-4">
+          <div class="rounded-xl border p-4">
+            <p class="text-sm mb-2">If your email client removed the code, paste your link below:</p>
+            <input id="paste-url" type="url" placeholder="Paste your magic link URL" class="w-full rounded-lg border px-3 py-2" autocomplete="off">
+            <button id="paste-go" class="btn btn-primary mt-2">Complete sign-in</button>
+          </div>
+
+          <div class="rounded-xl border p-4">
+            <p class="text-sm mb-2">Or resend a new link:</p>
+            <div class="flex gap-2">
+              <input id="resend-email" type="email" placeholder="your@email.com" class="flex-1 rounded-lg border px-3 py-2" autocomplete="email">
+              <button id="resend-btn" class="btn">Send magic link</button>
+            </div>
+            <p id="resend-note" class="text-xs text-muted mt-2"></p>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
 
   <%- include('partials/footer') %>
 
-  <!-- ✅ UMD bundle: no /npm subrequests, no modules -->
-  <script src="https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" defer></script>
+  <!-- Config for client JS -->
+  <script>
+    window.APP = {
+      SUPABASE_URL: "<%= process.env.PUBLIC_SUPABASE_URL %>",
+      SUPABASE_ANON_KEY: "<%= process.env.PUBLIC_SUPABASE_ANON_KEY %>",
+      POST_LOGIN_REDIRECT: "<%= typeof next !== 'undefined' ? next : '/dashboard' %>"
+    };
+  </script>
+
+  <!-- Use UMD build to avoid /npm/+esm 404s -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
   <script>
-    (function(){
-      const statusEl = document.getElementById('auth-progress');
-      const errEl = document.getElementById('auth-error');
-      const envEl = document.getElementById('sb-env');
+    (function () {
+      const $ = (s) => document.querySelector(s);
+      const status = $('#status');
+      const fallback = $('#fallback');
 
-      function setStatus(t){ if(statusEl) statusEl.textContent = t; }
-      function showError(e){
-        if(!errEl) return;
-        errEl.style.display='block';
-        errEl.textContent = (e && e.message) ? e.message : (typeof e==='string'? e : JSON.stringify(e,null,2));
+      function setStatus(msg) { if (status) status.textContent = msg; }
+
+      function parseParams(urlLike) {
+        try {
+          const u = new URL(urlLike);
+          const fromHash  = new URLSearchParams(u.hash?.startsWith('#') ? u.hash.slice(1) : '');
+          const fromQuery = u.searchParams;
+
+          const access_token  = fromHash.get('access_token')  || fromQuery.get('access_token');
+          const refresh_token = fromHash.get('refresh_token') || fromQuery.get('refresh_token');
+          const expires_in    = Number(fromHash.get('expires_in') || fromQuery.get('expires_in') || 3600);
+          const token_type    = fromHash.get('token_type') || fromQuery.get('token_type') || 'bearer';
+
+          if (!access_token || !refresh_token) return null;
+          return { access_token, refresh_token, expires_in, token_type };
+        } catch { return null; }
       }
-      function parseHashParams(){
-        const h = window.location.hash||''; if(!h || h.length<2) return null;
-        return new URLSearchParams(h[0]==='#'? h.slice(1):h);
-      }
-      function nextParam(){
-        try{ return new URL(window.location.href).searchParams.get('next'); }catch{ return null; }
-      }
 
-      async function run(){
-        try{
-          const SUPABASE_URL = envEl?.getAttribute('data-url') || '';
-          const SUPABASE_ANON_KEY = envEl?.getAttribute('data-key') || '';
-          if(!SUPABASE_URL || !SUPABASE_ANON_KEY){
-            setStatus('Missing Supabase configuration.');
-            showError('SUPABASE_URL / SUPABASE_ANON_KEY are not available to this page.');
-            return;
-          }
+      async function completeSessionFrom(urlLike) {
+        if (!window.supabase || !window.APP) return false;
+        const params = parseParams(urlLike);
+        if (!params) return false;
 
-          setStatus('Initializing…');
-          // window.supabase is provided by UMD bundle
-          const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-          const DEFAULT_REDIRECT = '/dashboard';
+        const client = window.supabase.createClient(window.APP.SUPABASE_URL, window.APP.SUPABASE_ANON_KEY);
+        try {
+          setStatus('Completing sign-in…');
+          const { error } = await client.auth.setSession({
+            access_token: params.access_token,
+            refresh_token: params.refresh_token
+          });
+          if (error) throw error;
 
-          const hash = parseHashParams();
-          const hasTokens = hash && (hash.has('access_token') || hash.has('code'));
-
-          if(hasTokens){
-            setStatus('Completing sign-in from magic link…');
-            const { data, error } = await client.auth.getSessionFromUrl({ storeSession:true, persistSession:true });
-            if(error){ setStatus('Sign-in failed.'); showError(error); return; }
-
-            const { data: chk } = await client.auth.getSession();
-            if(!chk?.session?.access_token){ setStatus('Could not establish session.'); showError('No access token after getSessionFromUrl.'); return; }
-
-            setStatus('Signed in. Redirecting…');
-            const n = nextParam();
-            const target = (n && n.startsWith('/')) ? n : DEFAULT_REDIRECT;
-            window.location.replace(target);
-            return;
-          }
-
-          // If already signed in, bounce away from /login
-          const { data: chk } = await client.auth.getSession();
-          if(chk?.session?.access_token){
-            setStatus('You are already signed in. Redirecting…');
-            const n = nextParam();
-            window.location.replace((n && n.startsWith('/')) ? n : DEFAULT_REDIRECT);
-            return;
-          }
-
-          setStatus('No tokens found. Please request a magic link to sign in.');
-        }catch(e){
-          setStatus('Unexpected error.');
-          showError(e);
+          // Clean sensitive bits from the URL
+          history.replaceState(null, '', '/login');
+          const to = window.APP.POST_LOGIN_REDIRECT || '/dashboard';
+          location.assign(to);
+          return true;
+        } catch (e) {
+          console.error('[login] setSession failed', e);
+          setStatus('Could not complete sign-in. You can paste the link below or resend a new one.');
+          if (fallback) fallback.classList.remove('hidden');
+          return false;
         }
       }
 
-      // Wait for UMD to load
-      if(document.readyState === 'complete' || document.readyState === 'interactive'){
-        window.addEventListener('load', run);
-      } else {
-        document.addEventListener('DOMContentLoaded', () => window.addEventListener('load', run));
+      function canonicalizeIfFragment() {
+        // If we arrived with #access_token, stick to /login but strip fragment after use.
+        // Some clients show the fragment but block script until interaction; we still try.
+        return !!(location.hash && location.hash.includes('access_token='));
       }
+
+      async function init() {
+        // 1) If fragment present, try immediately.
+        if (canonicalizeIfFragment()) {
+          const ok = await completeSessionFrom(location.href);
+          if (ok) return;
+        }
+        // 2) Try query params (in case fragment got converted by client).
+        const ok2 = await completeSessionFrom(location.href);
+        if (ok2) return;
+
+        // 3) Show fallback UI.
+        setStatus('No tokens found. Please request a magic link, or use the fallback below.');
+        if (fallback) fallback.classList.remove('hidden');
+
+        // Fallback: paste box
+        const pasteBtn = $('#paste-go');
+        if (pasteBtn) {
+          pasteBtn.addEventListener('click', async () => {
+            const val = ($('#paste-url')?.value || '').trim();
+            if (!val) return;
+            await completeSessionFrom(val);
+          });
+        }
+
+        // Fallback: resend magic link
+        const resendBtn = $('#resend-btn');
+        const note = $('#resend-note');
+        if (resendBtn) {
+          resendBtn.addEventListener('click', async () => {
+            try {
+              const email = ($('#resend-email')?.value || '').trim();
+              if (!email) { note.textContent = 'Enter your email first.'; return; }
+              const client = window.supabase.createClient(window.APP.SUPABASE_URL, window.APP.SUPABASE_ANON_KEY);
+              const redirectTo = `${location.origin}/login`; // return to this page
+              const { error } = await client.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
+              if (error) throw error;
+              note.textContent = 'Magic link sent. Check your inbox.';
+            } catch (e) {
+              console.error(e);
+              note.textContent = 'Could not send link. Please try again.';
+            }
+          });
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', init);
     })();
   </script>
 </body>
