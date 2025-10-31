@@ -6,24 +6,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Login · BookLantern</title>
   <style>
-    /* Simple, unobtrusive status panel for debugging */
-    #auth-status {
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      max-width: 720px; margin: 3rem auto; padding: 1rem 1.25rem;
-      border: 1px solid rgba(0,0,0,.08); border-radius: 12px;
-    }
-    #auth-status .muted { opacity:.75; font-size:.95rem }
-    #auth-status .error { color:#b00020; white-space:pre-wrap; word-break:break-word }
-    #auth-status code { background: rgba(0,0,0,.05); padding: .1rem .3rem; border-radius: 6px }
+    #auth-status{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      max-width:720px;margin:3rem auto;padding:1rem 1.25rem;border:1px solid rgba(0,0,0,.08);border-radius:12px}
+    #auth-status .muted{opacity:.75}
+    #auth-status .error{color:#b00020;white-space:pre-wrap;word-break:break-word}
   </style>
-
-  <!-- OPTIONAL: expose env via data-* if your app.locals are not wired -->
-  <!-- If you already set app.locals.SUPABASE_URL/ANON_KEY, these EJS vars will work. -->
+  <!-- Expose env for EJS (works if process.env or app.locals is set) -->
   <meta id="sb-env"
-        data-url="<%= typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : (process.env.SUPABASE_URL || '') %>"
-        data-key="<%= typeof SUPABASE_ANON_KEY !== 'undefined' ? SUPABASE_ANON_KEY : (process.env.SUPABASE_ANON_KEY || '') %>">
+        data-url="<%= (typeof SUPABASE_URL!=='undefined' && SUPABASE_URL) || (process.env.SUPABASE_URL || '') %>"
+        data-key="<%= (typeof SUPABASE_ANON_KEY!=='undefined' && SUPABASE_ANON_KEY) || (process.env.SUPABASE_ANON_KEY || '') %>">
 </head>
-
 <body>
   <%- include('partials/navbar') %>
 
@@ -39,101 +31,85 @@
 
   <%- include('partials/footer') %>
 
-  <!-- Supabase JS v2 (ESM) -->
-  <script type="module">
-    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+  <!-- ✅ UMD bundle: no /npm subrequests, no modules -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" defer></script>
 
-    const statusEl = document.getElementById("auth-progress");
-    const errEl = document.getElementById("auth-error");
-    const envEl = document.getElementById("sb-env");
+  <script>
+    (function(){
+      const statusEl = document.getElementById('auth-progress');
+      const errEl = document.getElementById('auth-error');
+      const envEl = document.getElementById('sb-env');
 
-    function setStatus(msg){ if(statusEl) statusEl.textContent = msg; }
-    function showError(err){
-      if(!errEl) return;
-      errEl.style.display = "block";
-      errEl.textContent = typeof err === "string" ? err : (err?.message || JSON.stringify(err, null, 2));
-    }
-
-    function parseHashParams(){
-      const hash = window.location.hash || "";
-      if(!hash || hash.length < 2) return null;
-      return new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
-    }
-
-    function getNextParam(){
-      const url = new URL(window.location.href);
-      return url.searchParams.get("next");
-    }
-
-    function getEnv(){
-      // Prefer meta data-* (works if app.locals OR process.env were exposed to EJS)
-      const url = envEl?.getAttribute("data-url") || "";
-      const key = envEl?.getAttribute("data-key") || "";
-      return { url, key };
-    }
-
-    async function run(){
-      try{
-        const { url: SUPABASE_URL, key: SUPABASE_ANON_KEY } = getEnv();
-        if(!SUPABASE_URL || !SUPABASE_ANON_KEY){
-          setStatus("Missing Supabase configuration.");
-          showError("SUPABASE_URL / SUPABASE_ANON_KEY are not available to this page. Expose them via app.locals or process.env in EJS.");
-          return;
-        }
-
-        setStatus("Initializing…");
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        const DEFAULT_REDIRECT = "/dashboard";
-
-        // Accept both modern hash style (#access_token, #refresh_token) and PKCE (?code=)
-        const hashParams = parseHashParams();
-        const hasHashTokens =
-          hashParams && (hashParams.has("access_token") || hashParams.has("code")) &&
-          (hashParams.has("refresh_token") || hashParams.has("code"));
-
-        if(hasHashTokens){
-          setStatus("Completing sign-in from magic link…");
-          const { data, error } = await supabase.auth.getSessionFromUrl({
-            storeSession: true,
-            persistSession: true
-          });
-          if(error){
-            setStatus("Sign-in failed.");
-            showError(error);
-            return;
-          }
-          const { data: sessionCheck } = await supabase.auth.getSession();
-          if(!sessionCheck?.session?.access_token){
-            setStatus("Could not establish session.");
-            showError("No access token present after getSessionFromUrl.");
-            return;
-          }
-          setStatus("Signed in. Redirecting…");
-          const next = getNextParam();
-          const target = next && next.startsWith("/") ? next : DEFAULT_REDIRECT;
-          window.location.replace(target);
-          return;
-        }
-
-        // If user is already logged in and visits /login directly, redirect them.
-        const { data: sessionCheck } = await supabase.auth.getSession();
-        if(sessionCheck?.session?.access_token){
-          setStatus("You are already signed in. Redirecting…");
-          const next = getNextParam();
-          const target = next && next.startsWith("/") ? next : DEFAULT_REDIRECT;
-          window.location.replace(target);
-          return;
-        }
-
-        // Nothing to do (no tokens + no session)
-        setStatus("No tokens found. Please request a magic link to sign in.");
-      }catch(e){
-        setStatus("Unexpected error.");
-        showError(e);
+      function setStatus(t){ if(statusEl) statusEl.textContent = t; }
+      function showError(e){
+        if(!errEl) return;
+        errEl.style.display='block';
+        errEl.textContent = (e && e.message) ? e.message : (typeof e==='string'? e : JSON.stringify(e,null,2));
       }
-    }
+      function parseHashParams(){
+        const h = window.location.hash||''; if(!h || h.length<2) return null;
+        return new URLSearchParams(h[0]==='#'? h.slice(1):h);
+      }
+      function nextParam(){
+        try{ return new URL(window.location.href).searchParams.get('next'); }catch{ return null; }
+      }
 
-    document.addEventListener("DOMContentLoaded", run);
+      async function run(){
+        try{
+          const SUPABASE_URL = envEl?.getAttribute('data-url') || '';
+          const SUPABASE_ANON_KEY = envEl?.getAttribute('data-key') || '';
+          if(!SUPABASE_URL || !SUPABASE_ANON_KEY){
+            setStatus('Missing Supabase configuration.');
+            showError('SUPABASE_URL / SUPABASE_ANON_KEY are not available to this page.');
+            return;
+          }
+
+          setStatus('Initializing…');
+          // window.supabase is provided by UMD bundle
+          const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          const DEFAULT_REDIRECT = '/dashboard';
+
+          const hash = parseHashParams();
+          const hasTokens = hash && (hash.has('access_token') || hash.has('code'));
+
+          if(hasTokens){
+            setStatus('Completing sign-in from magic link…');
+            const { data, error } = await client.auth.getSessionFromUrl({ storeSession:true, persistSession:true });
+            if(error){ setStatus('Sign-in failed.'); showError(error); return; }
+
+            const { data: chk } = await client.auth.getSession();
+            if(!chk?.session?.access_token){ setStatus('Could not establish session.'); showError('No access token after getSessionFromUrl.'); return; }
+
+            setStatus('Signed in. Redirecting…');
+            const n = nextParam();
+            const target = (n && n.startsWith('/')) ? n : DEFAULT_REDIRECT;
+            window.location.replace(target);
+            return;
+          }
+
+          // If already signed in, bounce away from /login
+          const { data: chk } = await client.auth.getSession();
+          if(chk?.session?.access_token){
+            setStatus('You are already signed in. Redirecting…');
+            const n = nextParam();
+            window.location.replace((n && n.startsWith('/')) ? n : DEFAULT_REDIRECT);
+            return;
+          }
+
+          setStatus('No tokens found. Please request a magic link to sign in.');
+        }catch(e){
+          setStatus('Unexpected error.');
+          showError(e);
+        }
+      }
+
+      // Wait for UMD to load
+      if(document.readyState === 'complete' || document.readyState === 'interactive'){
+        window.addEventListener('load', run);
+      } else {
+        document.addEventListener('DOMContentLoaded', () => window.addEventListener('load', run));
+      }
+    })();
   </script>
 </body>
 </html>
