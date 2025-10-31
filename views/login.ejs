@@ -1,133 +1,41 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('partials/head'); %>
+  <%- include('partials/head') %>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login · BookLantern</title>
+  <style>
+    /* unobtrusive status panel for debugging */
+    #auth-status {font-family: ui-sans-serif, system-ui, -apple-system; max-width: 680px; margin: 3rem auto; padding: 1rem 1.25rem; border: 1px solid rgba(0,0,0,.08); border-radius: 12px;}
+    #auth-status .muted {opacity:.75; font-size:.9rem}
+    #auth-status .error {color:#b00020; white-space:pre-wrap; word-break:break-word}
+    #auth-status code {background: rgba(0,0,0,.04); padding: .1rem .3rem; border-radius: 6px}
+  </style>
 </head>
 <body>
-  <!-- Backup forwarder right at body start (if head execution was delayed) -->
-  <script>
-    (function backupForwarder(){
-      try {
-        var p = location.pathname || "/";
-        if (p === "/auth/callback") return;
-        var search = location.search || "";
-        var hash   = location.hash   || "";
-        if ((/([?&](code|type|token_hash)=)/i.test(search)) || (/(^#|[&#])(access_token|refresh_token|type=)/i.test(hash))) {
-          var target = "/auth/callback" + search + hash;
-          try { location.replace(target); } catch(e) { location.href = target; }
-        }
-      } catch(_) {}
-    })();
-  </script>
+  <%- include('partials/navbar') %>
 
-  <%- include('partials/navbar'); %>
-
-  <main class="page-wrap" style="max-width:900px;margin:32px auto 72px;">
-    <h1 class="page-title">Login</h1>
-
-    <!-- Visible notice if tokens are present but redirect blocked -->
-    <div id="handoff" style="display:none;margin:0 0 12px;padding:10px;border-radius:8px;background:#fff3cd;border:1px solid #ffe69c;color:#664d03">
-      Redirecting you securely… If nothing happens, <a id="handoffLink">tap here</a>.
-    </div>
-
-    <section class="card" style="border:1px solid #eee;border-radius:12px;padding:16px;background:#fff;">
-      <div id="msg" style="display:none;margin:0 0 12px;padding:10px;border-radius:8px;"></div>
-
-      <p>Use a one-time link we email to you, or continue with Google / Apple.</p>
-
-      <form id="magic-form" class="login-form" onsubmit="return false;" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <input id="email" type="email" placeholder="you@example.com" required
-               style="flex:1;min-width:260px;padding:10px;border:1px solid #ddd;border-radius:8px;">
-        <button id="sendLink" class="btn" type="button">Send sign-in link</button>
-        <a class="btn btn-ghost" href="/register">Don’t have an account? Create one</a>
-      </form>
-
-      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-        <a class="btn" href="/auth/oauth/google">Continue with Google</a>
-        <a class="btn" href="/auth/oauth/apple">Continue with Apple</a>
-      </div>
-
-      <p style="margin-top:12px;font-size:0.95rem;color:#555;">
-        Having trouble? Check your spam folder, or request another link.
-      </p>
+  <main>
+    <section id="auth-status">
+      <h1>Sign in</h1>
+      <p class="muted">If you clicked a magic link, this page will complete your sign-in automatically.</p>
+      <div id="auth-progress" class="muted">Waiting for tokens…</div>
+      <pre id="auth-error" class="error" style="display:none"></pre>
+      <noscript><p class="error">JavaScript is required to sign in.</p></noscript>
     </section>
   </main>
 
-  <%- include('partials/footer'); %>
+  <%- include('partials/footer') %>
 
+  <!-- Config from server env (make sure these locals are set in app.js) -->
   <script>
-    (function handoffBanner(){
-      try {
-        var search = location.search || "";
-        var hash   = location.hash   || "";
-        var hasTokens = /([?&](code|type|token_hash)=)/i.test(search) || /(^#|[&#])(access_token|refresh_token|type=)/i.test(hash);
-        if (hasTokens) {
-          var target = "/auth/callback" + search + hash;
-          var box = document.getElementById('handoff');
-          var link = document.getElementById('handoffLink');
-          if (box && link) {
-            link.setAttribute('href', target);
-            box.style.display = 'block';
-          }
-        }
-      } catch (_) {}
-    })();
+    window.__SUPABASE_URL__ = "<%= typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : (process.env.SUPABASE_URL || '') %>";
+    window.__SUPABASE_ANON_KEY__ = "<%= typeof SUPABASE_ANON_KEY !== 'undefined' ? SUPABASE_ANON_KEY : (process.env.SUPABASE_ANON_KEY || '') %>";
+    window.__LOGIN_REDIRECT_DEFAULT__ = "/dashboard";
   </script>
 
-  <script>
-    (function () {
-      var sb  = window.supabaseClient;
-      var msg = document.getElementById('msg');
-      var btn = document.getElementById('sendLink');
-
-      function show(type, text){
-        if (!msg) return;
-        msg.style.display = 'block';
-        msg.textContent   = text;
-        msg.style.background = type === 'ok' ? '#e8f7e8' : '#ffecec';
-        msg.style.border     = type === 'ok' ? '1px solid #b7e2b7' : '1px solid #ffcdcd';
-        msg.style.color      = '#222';
-      }
-
-      (async function autoRedirectIfSignedIn(){
-        try {
-          if (!sb) return;
-          var res = await sb.auth.getSession();
-          if (res && res.data && res.data.session) {
-            try { history.replaceState({}, document.title, location.pathname); } catch (_) {}
-            location.href = '/account';
-          }
-        } catch (e) { /* ignore */ }
-      })();
-
-      if (!btn) return;
-
-      btn.addEventListener('click', async function(){
-        var email = (document.getElementById('email').value || '').trim();
-        if (!email) { show('err','Enter your email first.'); return; }
-        if (!window.supabaseClient) { show('err','Auth is not configured on the client. Please try again later.'); return; }
-
-        btn.disabled = true;
-        var prior = btn.textContent;
-        btn.textContent = 'Sending…';
-        try {
-          var res = await window.supabaseClient.auth.signInWithOtp({
-            email: email,
-            options: {
-              emailRedirectTo: window.location.origin + '/auth/callback',
-              shouldCreateUser: true
-            }
-          });
-          if (res && res.error) throw res.error;
-          show('ok','✅ The sign-in link has been emailed to you. Please check your inbox.');
-        } catch (e) {
-          show('err', e && e.message ? e.message : 'Could not send link.');
-        } finally {
-          btn.disabled = false;
-          btn.textContent = prior;
-        }
-      });
-    })();
-  </script>
+  <!-- Auth callback handler -->
+  <script type="module" src="/public/js/auth-callback.js"></script>
 </body>
 </html>
