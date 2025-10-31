@@ -28,35 +28,66 @@
 <link rel="stylesheet" href="/public/css/hero.css?v=<%= buildId %>">
 <link rel="stylesheet" href="/public/css/footer.css?v=<%= buildId %>">
 
-<!-- Ultra-early auth forwarder -->
+<!-- ---------- ULTRA-EARLY AUTH FORWARDER (Safari/Chrome/Edge/Old WebKit) ---------- -->
 <script>
 (function forwardAuthNow(){
-  function hasAuthBits() {
-    var s = window.location.search || "";
-    var h = window.location.hash   || "";
-    return /[?&](code|type|token_hash)=/i.test(s) || /(^#|[&#])(access_token|refresh_token|type=|code=)/i.test(h);
-  }
-  function go(t){
-    try{window.location.assign(t);}catch(e){}
-    try{if(window.location.pathname!=="/auth/callback")window.location.replace(t);}catch(e){}
-    setTimeout(function(){if(window.location.pathname!=="/auth/callback")window.location.href=t;},120);
-  }
-  try{
-    var p = window.location.pathname || "/";
+  try {
+    var p      = location.pathname || "/";
+    var search = location.search   || "";
+    var hash   = location.hash     || "";
+
+    // If already on /auth/callback, don't bounce again.
     if (p === "/auth/callback") return;
-    if (hasAuthBits()) { go("/auth/callback"+(window.location.search||"")+(window.location.hash||"")); return; }
-    if (p === "/login" && (window.location.hash||"").length>1) {
-      go("/auth/callback"+(window.location.search||"")+(window.location.hash||""));
+
+    // Detect any auth tokens or type markers in either search or hash.
+    var hasAuthInSearch = /[?&](code|type|token_hash|verify_token|provider_token)=/i.test(search);
+    var hasAuthInHash   = /(^#|[&#])(access_token|refresh_token|type=|provider_token|token)/i.test(hash);
+
+    if (hasAuthInSearch || hasAuthInHash) {
+      var target = "/auth/callback" + search + hash;
+
+      // Paint something immediately to avoid blank white in Safari.
+      try {
+        document.write('<style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:24px;color:#111}</style>');
+        document.write('Redirecting you securely… If nothing happens, <a href="'+target.replace(/"/g,'&quot;')+'">tap here</a>.');
+      } catch (_) {}
+
+      // Strongest redirect first.
+      try { location.assign(target); } catch(e) {}
+
+      // Replace (no back-button loop).
+      try { if (location.pathname !== "/auth/callback") location.replace(target); } catch(e) {}
+
+      // Last resort retry (Safari hash timing).
+      setTimeout(function(){
+        if (location.pathname !== "/auth/callback") location.href = target;
+      }, 25);
+
+      return; // stop rest of head from executing on this paint
+    }
+
+    // Safety: if we somehow land on /login with a giant hash, bounce anyway.
+    if (p === "/login" && (hash || "").length > 1) {
+      var fb = "/auth/callback" + search + hash;
+      try { location.replace(fb); } catch(e) { location.href = fb; }
       return;
     }
-  }catch(_e){
-    try{ if(window.location.pathname!=="/auth/callback") window.location.href="/auth/callback"; }catch(__){}
+  } catch (_e) {
+    // Defensive: try a generic forward carrying visible parts.
+    try {
+      var t = "/auth/callback" + (location.search || "") + (location.hash || "");
+      if (location.pathname !== "/auth/callback") location.href = t;
+    } catch(__) {}
   }
 })();
 </script>
+
+<!-- If JS is blocked, try an immediate meta refresh to /auth/callback.
+     (Meta can't carry #hash, but still helps for ?code PKCE flows.) -->
 <noscript>
   <meta http-equiv="refresh" content="0; url=/auth/callback">
 </noscript>
+<!-- ---------- END ULTRA-EARLY AUTH FORWARDER ---------- -->
 
 <!-- Pre-paint theme init (no flash). -->
 <script>
@@ -75,10 +106,13 @@
   })();
 </script>
 
+<!-- Supabase client (browser) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+  // Expose env to the client
   window.__SB_URL  = "<%= process.env.SUPABASE_URL || '' %>";
   window.__SB_ANON = "<%= process.env.SUPABASE_ANON_KEY || '' %>";
+
   (function () {
     if (!window.__SB_URL || !window.__SB_ANON) {
       console.warn('[supabase] Missing SUPABASE_URL or SUPABASE_ANON_KEY in env.');
@@ -94,9 +128,15 @@
       return;
     }
     window.supabaseClient = create(window.__SB_URL, window.__SB_ANON, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, flowType: 'implicit' }
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false, // we do our own URL handling
+        flowType: 'implicit'
+      }
     });
   })();
 </script>
 
+<!-- Theme toggle behavior -->
 <script defer src="/public/js/theme.js?v=<%= buildId %>"></script>
