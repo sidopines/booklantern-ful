@@ -43,7 +43,7 @@
     try { if (window.location.pathname !== "/auth/callback") window.location.replace(target); } catch(e){}
     setTimeout(function(){
       if (window.location.pathname !== "/auth/callback") window.location.href = target;
-    }, 300);
+    }, 120);
   }
   try {
     var p = window.location.pathname || "/";
@@ -55,28 +55,31 @@
       return;
     }
 
-    // Explicit guard for magic-link landing on /login with a giant hash.
     if (p === "/login" && (window.location.hash || "").length > 1) {
       var fallbackTarget = "/auth/callback" + (window.location.search || "") + (window.location.hash || "");
       go(fallbackTarget);
       return;
     }
 
-    // Safari sometimes populates hash late; retry shortly + on DOM ready.
-    var retries = 0;
-    function retry() {
+    // Retry quickly; some Safari builds populate the hash later.
+    var tries = 0;
+    (function retry(){
       if (window.location.pathname === "/auth/callback") return;
       if (hasAuthBits()) {
         var t = "/auth/callback" + (window.location.search || "") + (window.location.hash || "");
         go(t);
         return;
       }
-      if (++retries <= 2) {
-        setTimeout(retry, retries === 1 ? 100 : 300);
+      if (++tries <= 3) setTimeout(retry, tries === 1 ? 30 : tries === 2 ? 90 : 250);
+    })();
+
+    document.addEventListener('DOMContentLoaded', function(){
+      if (window.location.pathname === "/auth/callback") return;
+      if (hasAuthBits()) {
+        var t = "/auth/callback" + (window.location.search || "") + (window.location.hash || "");
+        go(t);
       }
-    }
-    setTimeout(retry, 15);
-    document.addEventListener('DOMContentLoaded', retry);
+    });
   } catch (_e) {
     try {
       var t = "/auth/callback" + (window.location.search || "") + (window.location.hash || "");
@@ -87,7 +90,6 @@
 </script>
 
 <noscript>
-  <!-- If JS is disabled we cannot preserve the URL hash, but at least land on /auth/callback -->
   <meta http-equiv="refresh" content="0; url=/auth/callback">
 </noscript>
 <!-- ---------- END ULTRA-EARLY AUTH FORWARDER ---------- -->
@@ -112,33 +114,26 @@
 <!-- Supabase client (browser) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-  // Expose env to the client
   window.__SB_URL  = "<%= process.env.SUPABASE_URL || '' %>";
   window.__SB_ANON = "<%= process.env.SUPABASE_ANON_KEY || '' %>";
-
-  // Create a single shared client with correct auth options.
   (function () {
     if (!window.__SB_URL || !window.__SB_ANON) {
       console.warn('[supabase] Missing SUPABASE_URL or SUPABASE_ANON_KEY in env.');
       window.supabaseClient = null;
       return;
     }
-
     var create = (window.supabase && window.supabase.createClient)
       ? window.supabase.createClient
       : (typeof supabase !== 'undefined' && supabase.createClient ? supabase.createClient : null);
-
     if (!create) {
       console.error('[supabase] createClient not found on window. Check CDN script loading.');
       window.supabaseClient = null;
       return;
     }
-
     window.supabaseClient = create(window.__SB_URL, window.__SB_ANON, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        // We do URL handling ourselves on /auth/callback.
         detectSessionInUrl: false,
         flowType: 'implicit'
       }
