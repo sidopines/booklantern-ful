@@ -10,7 +10,6 @@ const app = express();
 
 /* -----------------------------------------------------------
    Supabase env normalization (must run BEFORE any route require)
-   Covers all common variants + camelCase used by some files.
 ----------------------------------------------------------- */
 (function normalizeSupabaseEnv() {
   const urlRaw =
@@ -32,20 +31,16 @@ const app = express();
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     '';
 
-  const finalUrl = urlRaw;
-  const finalService = serviceRoleRaw || '';
-  const finalAnon = anonRaw || '';
-
-  if (finalUrl) process.env.SUPABASE_URL = finalUrl;
-  if (finalService) process.env.SUPABASE_SERVICE_ROLE_KEY = finalService;
+  if (urlRaw) process.env.SUPABASE_URL = urlRaw;
+  if (serviceRoleRaw) process.env.SUPABASE_SERVICE_ROLE_KEY = serviceRoleRaw;
 
   if (!process.env.SUPABASE_KEY) {
-    process.env.SUPABASE_KEY = finalService || finalAnon || '';
+    process.env.SUPABASE_KEY = serviceRoleRaw || anonRaw || '';
   }
-  if (!process.env.SUPABASE_SERVICE_KEY && finalService)
-    process.env.SUPABASE_SERVICE_KEY = finalService;
-  if (!process.env.SUPABASE_ANON_KEY && finalAnon)
-    process.env.SUPABASE_ANON_KEY = finalAnon;
+  if (!process.env.SUPABASE_SERVICE_KEY && serviceRoleRaw)
+    process.env.SUPABASE_SERVICE_KEY = serviceRoleRaw;
+  if (!process.env.SUPABASE_ANON_KEY && anonRaw)
+    process.env.SUPABASE_ANON_KEY = anonRaw;
 
   if (!process.env.supabaseKey)
     process.env.supabaseKey =
@@ -106,7 +101,7 @@ app.get('/sw.js', (req, res) => {
   });
 });
 
-// Minimal robots.txt to avoid 404 noise
+// Minimal robots.txt
 app.get('/robots.txt', (_req, res) => {
   res.type('text/plain').send('User-agent: *\nAllow: /\n');
 });
@@ -138,8 +133,8 @@ function meta(req, title, desc = 'Free books & educational videos.') {
 }
 
 /* ============================================================
-   Auth callback FIRST (magic link / recovery / email confirm)
-   ============================================================ */
+   /auth/callback — render neutral finalizer
+============================================================ */
 app.get(/^\/auth\/callback(?:\/.*)?$/, (req, res) => {
   try {
     const canonicalUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
@@ -154,35 +149,56 @@ app.get(/^\/auth\/callback(?:\/.*)?$/, (req, res) => {
 });
 
 /* ============================================================
-   HARD STOP: special-case /login?confirmed=1
-   If Safari lands here with #access_token in the fragment,
-   serve a TINY page that IMMEDIATELY forwards to /auth/callback
-   carrying the same search + hash (no other markup/JS involved).
-   ============================================================ */
+   /login — SPECIAL CASE when ?confirmed is present
+   Serve a zero-chrome forwarder that carries the fragment.
+============================================================ */
 app.get('/login', (req, res) => {
-  if (typeof req.query.confirmed !== 'undefined') {
-    // Minimal HTML with immediate client-side redirect.
-    // Using replace() avoids back-button loops.
+  const hasConfirmed = Object.prototype.hasOwnProperty.call(
+    req.query,
+    'confirmed'
+  );
+  if (hasConfirmed) {
+    // Inline + external for maximum compatibility.
     return res
       .status(200)
       .type('html')
       .send(`<!doctype html>
 <html><head>
 <meta charset="utf-8" />
-<title>Redirecting…</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-</head><body>
-<script>(function(){try{var t="/auth/callback"+(location.search||"")+(location.hash||"");if(location.pathname!=="/auth/callback"){location.replace(t);} }catch(e){location.href="/auth/callback";}})();</script>
+<title>Redirecting…</title>
+</head>
+<body style="background:#fff;">
+<p style="font:16px/1.3 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:24px;">
+  Redirecting you securely… If nothing happens, <a id="fallback" href="/auth/callback">tap here</a>.
+</p>
+<script>
+(function(){
+  try {
+    var tgt = "/auth/callback" + (location.search||"") + (location.hash||"");
+    // multi-try in case some methods are blocked
+    try { location.assign(tgt); } catch(_) {}
+    try { if (location.pathname !== "/auth/callback") location.replace(tgt); } catch(_) {}
+    try { if (location.pathname !== "/auth/callback") location.href = tgt; } catch(_) {}
+    // also set the href for the visible link so it preserves your hash if clicked
+    try { document.getElementById('fallback').setAttribute('href', tgt); } catch(_) {}
+    setTimeout(function(){ if (location.pathname !== "/auth/callback") location.href = tgt; }, 120);
+  } catch(e) {
+    location.href = "/auth/callback";
+  }
+})();
+</script>
+<script src="/public/js/forward.js"></script>
 <noscript><meta http-equiv="refresh" content="0; url=/auth/callback"></noscript>
 </body></html>`);
   }
-  // Normal login page render (no confirmed flag)
+  // Normal render if you just open /login
   return res.status(200).render('login', meta(req, 'Login • BookLantern'));
 });
 
 /* ============================================================
-   Register + Account (never 404)
-   ============================================================ */
+   Register + Account
+============================================================ */
 app.get('/register', (req, res) =>
   res.status(200).render('register', meta(req, 'Create account • BookLantern'))
 );
