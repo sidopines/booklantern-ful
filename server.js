@@ -13,7 +13,6 @@ const app = express();
    Covers all common variants + camelCase used by some files.
 ----------------------------------------------------------- */
 (function normalizeSupabaseEnv() {
-  // Source values from any known names
   const urlRaw =
     process.env.SUPABASE_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -24,8 +23,8 @@ const app = express();
   const serviceRoleRaw =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_SERVICE_KEY ||
-    process.env.SUPABASE_KEY || // sometimes people set this directly
-    process.env.supabaseKey ||   // some files use camelCase
+    process.env.SUPABASE_KEY ||
+    process.env.supabaseKey ||
     '';
 
   const anonRaw =
@@ -33,28 +32,21 @@ const app = express();
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     '';
 
-  // Choose best keys
   const finalUrl = urlRaw;
-  const finalService = serviceRoleRaw || ''; // prefer server-side key
+  const finalService = serviceRoleRaw || '';
   const finalAnon = anonRaw || '';
 
-  // Write canonical names
   if (finalUrl) process.env.SUPABASE_URL = finalUrl;
   if (finalService) process.env.SUPABASE_SERVICE_ROLE_KEY = finalService;
 
-  // Fallback SUPABASE_KEY (some modules read this)
   if (!process.env.SUPABASE_KEY) {
     process.env.SUPABASE_KEY = finalService || finalAnon || '';
   }
-
-  // Also publish ALL aliases that any route might check
   if (!process.env.SUPABASE_SERVICE_KEY && finalService)
     process.env.SUPABASE_SERVICE_KEY = finalService;
-
   if (!process.env.SUPABASE_ANON_KEY && finalAnon)
     process.env.SUPABASE_ANON_KEY = finalAnon;
 
-  // CamelCase aliases (some custom modules throw if these are absent)
   if (!process.env.supabaseKey)
     process.env.supabaseKey =
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || '';
@@ -141,7 +133,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Small helper for meta locals (null-safe)
 function meta(req, title, desc = 'Free books & educational videos.') {
   return { pageTitle: title, pageDescription: desc, req };
 }
@@ -163,11 +154,35 @@ app.get(/^\/auth\/callback(?:\/.*)?$/, (req, res) => {
 });
 
 /* ============================================================
-   Hard-stop pages so they NEVER 404
+   HARD STOP: special-case /login?confirmed=1
+   If Safari lands here with #access_token in the fragment,
+   serve a TINY page that IMMEDIATELY forwards to /auth/callback
+   carrying the same search + hash (no other markup/JS involved).
    ============================================================ */
-app.get('/login', (req, res) =>
-  res.status(200).render('login', meta(req, 'Login • BookLantern'))
-);
+app.get('/login', (req, res) => {
+  if (typeof req.query.confirmed !== 'undefined') {
+    // Minimal HTML with immediate client-side redirect.
+    // Using replace() avoids back-button loops.
+    return res
+      .status(200)
+      .type('html')
+      .send(`<!doctype html>
+<html><head>
+<meta charset="utf-8" />
+<title>Redirecting…</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+</head><body>
+<script>(function(){try{var t="/auth/callback"+(location.search||"")+(location.hash||"");if(location.pathname!=="/auth/callback"){location.replace(t);} }catch(e){location.href="/auth/callback";}})();</script>
+<noscript><meta http-equiv="refresh" content="0; url=/auth/callback"></noscript>
+</body></html>`);
+  }
+  // Normal login page render (no confirmed flag)
+  return res.status(200).render('login', meta(req, 'Login • BookLantern'));
+});
+
+/* ============================================================
+   Register + Account (never 404)
+   ============================================================ */
 app.get('/register', (req, res) =>
   res.status(200).render('register', meta(req, 'Create account • BookLantern'))
 );
@@ -191,7 +206,7 @@ try {
 
 try {
   const indexRoutes = require('./routes/index');
-  app.use('/', indexRoutes); // static pages, home, read, etc.
+  app.use('/', indexRoutes);
   console.log('[routes] mounted index router at /');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/index:', e);
@@ -199,7 +214,7 @@ try {
 
 try {
   const contactRoutes = require('./routes/contact');
-  app.use('/', contactRoutes); // <-- ensures POST /contact exists
+  app.use('/', contactRoutes);
   console.log('[routes] mounted contact router at /');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/contact:', e);
@@ -207,7 +222,7 @@ try {
 
 try {
   const playerRoutes = require('./routes/player');
-  app.use('/', playerRoutes); // /player/:id
+  app.use('/', playerRoutes);
   console.log('[routes] mounted player router at /');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/player:', e);
@@ -215,13 +230,12 @@ try {
 
 try {
   const watchRoutes = require('./routes/watch');
-  app.use('/watch', watchRoutes); // dedicated /watch router
+  app.use('/watch', watchRoutes);
   console.log('[routes] mounted watch router at /watch');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/watch:', e);
 }
 
-/* ---------- Admin + reader routes (Supabase-backed) ---------- */
 const hasSB = Boolean(
   (process.env.SUPABASE_URL || process.env.supabaseUrl) &&
     (process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -231,15 +245,15 @@ const hasSB = Boolean(
 
 if (hasSB) {
   try {
-    app.use('/admin', require('./routes/admin-books')); // /admin/books
-    app.use('/admin', require('./routes/admin-genres')); // /admin/genres
+    app.use('/admin', require('./routes/admin-books'));
+    app.use('/admin', require('./routes/admin-genres'));
     console.log('[routes] mounted admin-books and admin-genres at /admin');
   } catch (e) {
     console.error('[routes] failed to mount admin-books/admin-genres:', e);
   }
 
   try {
-    app.use('/reader', require('./routes/reader')); // /reader/:id — in-site EPUB reader
+    app.use('/reader', require('./routes/reader'));
     console.log('[routes] mounted reader router at /reader');
   } catch (e) {
     console.error('[routes] failed to mount ./routes/reader:', e);
@@ -250,7 +264,6 @@ if (hasSB) {
   );
 }
 
-/* ---------- Legacy/general admin dashboard ---------- */
 try {
   const adminRoutes = require('./routes/admin');
   app.use('/admin', adminRoutes);
