@@ -4,27 +4,31 @@
   <%- include('partials/head'); %>
 </head>
 <body>
-  <!-- Page-level safety net: if we ever reach /login with hash tokens, bounce immediately -->
+  <!-- Backup forwarder right at body start (if head execution was delayed) -->
   <script>
-  (function () {
-    try {
-      var p = window.location.pathname || "/";
-      var h = window.location.hash || "";
-      if (p === "/login" && h.length > 1 && /(^#|[&#])(access_token|refresh_token|type=|code=)/i.test(h)) {
-        var t = "/auth/callback" + (window.location.search || "") + h;
-        try { window.location.assign(t); } catch(e){}
-        try { if (window.location.pathname !== "/auth/callback") window.location.replace(t); } catch(e){}
-        setTimeout(function(){ if (window.location.pathname !== "/auth/callback") window.location.href = t; }, 50);
-        return;
-      }
-    } catch (_e) {}
-  })();
+    (function backupForwarder(){
+      try {
+        var p = location.pathname || "/";
+        if (p === "/auth/callback") return;
+        var search = location.search || "";
+        var hash   = location.hash   || "";
+        if ((/([?&](code|type|token_hash)=)/i.test(search)) || (/(^#|[&#])(access_token|refresh_token|type=)/i.test(hash))) {
+          var target = "/auth/callback" + search + hash;
+          try { location.replace(target); } catch(e) { location.href = target; }
+        }
+      } catch(_) {}
+    })();
   </script>
 
   <%- include('partials/navbar'); %>
 
   <main class="page-wrap" style="max-width:900px;margin:32px auto 72px;">
     <h1 class="page-title">Login</h1>
+
+    <!-- Visible notice if tokens are present but redirect blocked -->
+    <div id="handoff" style="display:none;margin:0 0 12px;padding:10px;border-radius:8px;background:#fff3cd;border:1px solid #ffe69c;color:#664d03">
+      Redirecting you securely… If nothing happens, <a id="handoffLink">tap here</a>.
+    </div>
 
     <section class="card" style="border:1px solid #eee;border-radius:12px;padding:16px;background:#fff;">
       <div id="msg" style="display:none;margin:0 0 12px;padding:10px;border-radius:8px;"></div>
@@ -50,6 +54,25 @@
   </main>
 
   <%- include('partials/footer'); %>
+
+  <script>
+    (function handoffBanner(){
+      try {
+        var search = location.search || "";
+        var hash   = location.hash   || "";
+        var hasTokens = /([?&](code|type|token_hash)=)/i.test(search) || /(^#|[&#])(access_token|refresh_token|type=)/i.test(hash);
+        if (hasTokens) {
+          var target = "/auth/callback" + search + hash;
+          var box = document.getElementById('handoff');
+          var link = document.getElementById('handoffLink');
+          if (box && link) {
+            link.setAttribute('href', target);
+            box.style.display = 'block';
+          }
+        }
+      } catch (_) {}
+    })();
+  </script>
 
   <script>
     (function () {
