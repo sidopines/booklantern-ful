@@ -39,9 +39,15 @@
 
   <script>
   (async function () {
-    // Requires window.supabaseClient created in ./partials/head
-    const sb = window.supabaseClient;
+    // If supabase failed to initialize, show a clear error (no blank page).
+    if (!window.supabaseClient) {
+      var st = document.getElementById('state');
+      st.textContent = 'Auth client did not initialize. Check SUPABASE_URL and SUPABASE_ANON_KEY.';
+      document.getElementById('backLinks').style.display = 'block';
+      return;
+    }
 
+    const sb    = window.supabaseClient;
     const state = document.getElementById('state');
     const form  = document.getElementById('pwForm');
     const msg   = document.getElementById('msg');
@@ -62,7 +68,6 @@
     const type = String(q.get('type') || h.get('type') || '').toLowerCase();
     const err  = q.get('error_description') || h.get('error_description');
 
-    // If Supabase provided an error in the URL, show it.
     if (err) {
       state.textContent = decodeURIComponent(err);
       back.style.display = 'block';
@@ -70,7 +75,7 @@
       return;
     }
 
-    // ---- 1) OAuth PKCE (?code=...) ----
+    // 1) OAuth PKCE (?code=...)
     const code = q.get('code');
     if (code) {
       try {
@@ -78,11 +83,11 @@
       } catch (e) {
         console.warn('exchangeCodeForSession failed:', e);
       } finally {
-        urlClean(); // remove code from URL
+        urlClean(); // remove ?code...
       }
     }
 
-    // ---- 2) Legacy magic link (tokens in #hash) ----
+    // 2) Legacy magic link (tokens in #hash)
     const access_token  = h.get('access_token');
     const refresh_token = h.get('refresh_token');
     if (access_token && refresh_token) {
@@ -95,8 +100,8 @@
       }
     }
 
-    // ---- 3) New verifyOtp flow (?type=magiclink|signup|email_change|… & token_hash=… & email=…) ----
-    const token_hash = q.get('token_hash');
+    // 3) verifyOtp flow (?type=magiclink|signup|email_change|recovery & token_hash=...)
+    const token_hash = q.get('token_hash') || q.get('verify_token');
     const email = q.get('email') || q.get('user_email') || '';
     if (token_hash && type) {
       try {
@@ -105,10 +110,10 @@
         console.warn('verifyOtp failed:', e);
         state.textContent = e && e.message ? e.message : 'Unable to verify your link. Please request a new one.';
         back.style.display = 'block';
-        urlClean(); // remove query
+        urlClean();
         return;
       }
-      urlClean(); // verified — remove query params
+      urlClean();
     }
 
     // Do we have a session now?
@@ -143,7 +148,7 @@
     }
 
     // Email confirmations / magic links
-    if (['signup','magiclink','email_change','invitation','verified'].includes(type)) {
+    if (['signup','magiclink','email_change','invitation','verified','confirmation'].includes(type)) {
       if (!session) {
         state.textContent = 'We couldn’t complete sign-in from that link. Please request a new magic link.';
         back.style.display = 'block';
