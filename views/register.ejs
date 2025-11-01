@@ -32,36 +32,31 @@
 
   <%- include('partials/auth-boot') %>
   <script>
-(async () => {
-  const sb = window.supabaseClient;
-  const emailInput = document.querySelector('#reg-email');
-  const btn = document.querySelector('#sendRegLink');
-  const err = document.querySelector('#register-error') || (()=>{const p=document.createElement('p');p.id='register-error';p.style='margin-top:8px;color:#b00020;';(document.body).appendChild(p);return p;})();
-  
-  const msg = document.getElementById('msg');
-  function show(type, text){
-    if (!msg) return;
-    msg.style.display = 'block';
-    msg.textContent   = text;
-    msg.style.background = type === 'ok' ? '#e8f7e8' : '#ffecec';
-    msg.style.border     = type === 'ok' ? '1px solid #b7e2b7' : '1px solid #ffcdcd';
-    msg.style.color      = '#222';
-  }
-  
-  if (btn && emailInput) {
+(function () {
+  const sb    = window.supabaseClient;
+  const input = document.querySelector('#register-email') || document.querySelector('#reg-email') || document.querySelector('input[type="email"]');
+  const btn   = document.querySelector('#send-signup')    || document.querySelector('#sendRegLink') || document.querySelector('button[type="submit"]');
+  let   err   = document.querySelector('#register-error');
+  if (!err) { err = document.createElement('p'); err.id='register-error'; err.style='margin-top:8px;color:#b00020;'; (document.body).appendChild(err); }
+
+  if (!sb) { err.textContent = 'Auth client failed to load.'; return; }
+
+  // PKCE/OAuth auto-handled by detectSessionInUrl; if session exists, send user on.
+  sb.auth.getSession().then(({ data, error }) => {
+    if (!error && data?.session) window.location.assign("/dashboard");
+  });
+
+  if (btn && input) {
     btn.addEventListener('click', async (e) => {
       e.preventDefault();
-      const email=(emailInput.value||'').trim();
-      if(!email){ show('err','Please enter an email.'); return; }
+      err.textContent='';
+      const email=(input.value||'').trim();
+      if(!email){ err.textContent='Please enter an email.'; return; }
       const { error } = await sb.auth.signInWithOtp({
         email,
-        options: { 
-          emailRedirectTo: window.location.origin + '/auth/callback',
-          shouldCreateUser: true
-        }
+        options: { emailRedirectTo: window.location.origin + '/login?confirmed=1' }
       });
-      if (error) show('err', error.message); 
-      else show('ok', '✅ Sign-up link sent. Check your email.');
+      err.textContent = error ? error.message : 'Sign-up link sent. Check your email.';
     });
   }
 })();
