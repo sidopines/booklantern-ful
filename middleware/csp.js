@@ -1,85 +1,55 @@
-// middleware/csp.js (CommonJS)
 const helmet = require('helmet');
-const { URL } = require('url');
-
-function supabaseHost() {
-  try {
-    const u = new URL(
-      process.env.SUPABASE_URL ||
-      process.env.NEXT_PUBLIC_SUPABASE_URL ||
-      process.env.PUBLIC_SUPABASE_URL ||
-      ''
-    );
-    return u.hostname; // e.g. xyzcompany.supabase.co
-  } catch { return null; }
-}
 
 module.exports = function csp() {
-  const sbHost = supabaseHost();
-
   return helmet({
     contentSecurityPolicy: {
       useDefaults: true,
       directives: {
-        // Default sandbox
         "default-src": ["'self'"],
 
-        // JS we actually use (keep YouTube bootstrap; avoid random CDNs)
-        "script-src": ["'self'", "https://www.youtube.com", "https://s.ytimg.com"],
+        // Allow inline script for the /login forwarder and small EJS snippets.
+        "script-src": [
+          "'self'",
+          "'unsafe-inline'",
+          "https://www.youtube.com",
+          "https://www.youtube-nocookie.com",
+          "https://s.ytimg.com",
+          "https://apis.google.com",
+          "https://www.gstatic.com",
+          "https://accounts.google.com"
+        ],
 
-        // Our player iframe origins
+        // Thumbnails and book covers can come from anywhere.
+        "img-src": ["*", "data:", "blob:"],
+
+        // YouTube + Google OAuth popups/iframes.
         "frame-src": [
           "'self'",
+          "https://www.youtube.com",
           "https://www.youtube-nocookie.com",
-          "https://www.youtube.com"
+          "https://accounts.google.com"
         ],
 
-        // Thumbnails & book covers from our trusted libraries
-        "img-src": [
-          "'self'",
-          "data:",
-          // YouTube thumbs
-          "https://i.ytimg.com",
-          "https://img.youtube.com",
-          // Open Library covers
-          "https://covers.openlibrary.org",
-          // Archive / IA derivatives
-          "https://archive.org",
-          "https://www.archive.org",
-          "https://iiif.archivelab.org",
-          // Gutenberg covers
-          "https://www.gutenberg.org",
-          "https://gutenberg.org",
-          // Library of Congress images
-          "https://tile.loc.gov",
-          "https://cdn.loc.gov"
-        ],
-
-        // XHR/fetch destinations (Supabase + Mailjet if called client-side)
+        // Supabase, Google APIs, YouTube, etc.
         "connect-src": [
           "'self'",
+          "https://*.supabase.co",
           "https://www.youtube.com",
-          "https://s.ytimg.com"
-        ].concat(
-          sbHost ? [`https://${sbHost}`] : []
-        ).concat(
-          process.env.MJ_APIURL ? [process.env.MJ_APIURL] : []
-        ),
+          "https://s.ytimg.com",
+          "https://www.googleapis.com"
+        ],
 
-        // Allow inline styles used by EJS/Tailwind
+        // Inline styles used by EJS/Tailwind.
         "style-src": ["'self'", "'unsafe-inline'"],
 
-        // If we ever serve audio/video files directly
-        "media-src": ["'self'"],
+        // Fonts (if any)
+        "font-src": ["'self'", "data:", "https://fonts.gstatic.com"],
 
-        // Form submits back to us
-        "form-action": ["'self'"],
+        // Media (future: audio/video covers)
+        "media-src": ["*", "data:", "blob:"],
 
-        // Prevent being framed elsewhere
-        "frame-ancestors": ["'self'"],
-
-        // Good hygiene
-        "base-uri": ["'self'"]
+        // Optional: allow data URLs for favicons if needed
+        // "worker-src": ["'self'", "blob:"]
       }
     },
     crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
