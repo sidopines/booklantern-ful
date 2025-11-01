@@ -1,11 +1,11 @@
-// routes/player.js — fetch one video by id and render an embeddable player page
+// routes/player.js — safe, fallback-first player
 const express = require('express');
 const router = express.Router();
 
 let sb = null;
 try { sb = require('../supabaseAdmin'); } catch { sb = null; }
 
-// ---- YouTube helpers -------------------------------------------------------
+// ---------------- YouTube helpers ----------------
 function youTubeIdFrom(url) {
   try {
     const u = new URL(url);
@@ -15,24 +15,27 @@ function youTubeIdFrom(url) {
       if (u.pathname.startsWith('/watch')) return u.searchParams.get('v') || '';
       if (u.pathname.startsWith('/embed/')) return u.pathname.split('/').pop() || '';
       if (u.pathname.startsWith('/shorts/')) return u.pathname.split('/').pop() || '';
+      const m = u.pathname.match(/\/(live)\/([^/?#]+)/);
+      if (m) return m[2] || '';
     }
-  } catch {}
+  } catch { /* ignore */ }
   return '';
 }
 function toEmbedUrl(rawUrl) {
   const id = youTubeIdFrom(rawUrl || '');
-  return id ? `https://www.youtube.com/embed/${id}` : '';
+  // nocookie avoids Safari ITP / 3rd-party cookie issues in Codespaces
+  return id ? `https://www.youtube-nocookie.com/embed/${id}` : '';
 }
 
-// ---- Data ------------------------------------------------------------------
+// ---------------- Data (optional) ----------------
 async function getVideoById(id) {
   if (!sb) return null;
   const { data, error } = await sb
     .from('admin_videos')
-    // IMPORTANT: your table uses `url` (NOT `link`)
-    .select('id,title,url,channel,thumb,created_at')
+    .select('id,title,url,channel,thumb,created_at') // no description
     .eq('id', id)
-    .single();
+    .maybeSingle();
+
   if (error) {
     console.warn('[player] fetch failed:', error.message);
     return null;
@@ -40,28 +43,49 @@ async function getVideoById(id) {
   return data || null;
 }
 
-// ---- Route -----------------------------------------------------------------
+// ---------------- Route ----------------
 router.get('/player/:id', async (req, res) => {
   const id = String(req.params.id || '').trim();
   if (!id) return res.redirect('/watch');
 
   try {
-    const row = await getVideoById(id);
-    if (!row) return res.status(404).render('404', { pageTitle: 'Video not found' });
+    // 1) Always accept explicit URL from query (fallback-first)
+    const qp = req.query || {};
+    const qpUrl = typeof qp.u === 'string' ? qp.u : '';
+    const qpRow = qpUrl
+      ? {
+          id,
+          title: (typeof qp.t === 'string' && qp.t) || 'Video',
+          url: qpUrl,
+          channel: (typeof qp.ch === 'string' && qp.ch) || '',
+          thumb: (typeof qp.th === 'string' && qp.th) || '',
+          created_at: null,
+        }
+      : null;
 
+    // 2) If no query fallback, try DB (optional)
+    const row = qpRow || (await getVideoById(id));
+
+    if (!row || !row.url) {
+      return res.status(404).render('404', { pageTitle: 'Video not found' });
+    }
+
+    const title = row.title || 'Untitled video';
     const embedUrl = toEmbedUrl(row.url);
+    const isEmbeddable = Boolean(embedUrl);
+
     return res.render('player', {
-      title: row.title || 'Untitled video',
-      pageTitle: row.title || 'Video',
+      title,
+      pageTitle: title,
       channel: row.channel || '',
       thumb: row.thumb || null,
       url: row.url || '',
       embedUrl,
-      isEmbeddable: !!embedUrl,
+      isEmbeddable,
       createdAt: row.created_at || null,
     });
   } catch (e) {
-    console.error('[player] render failed:', e);
+    console.error('[player] render failed:', e && e.stack ? e.stack : e);
     return res
       .status(500)
       .render('error', { pageTitle: 'Error', message: 'Unable to load the video right now.' });

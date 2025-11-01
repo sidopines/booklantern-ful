@@ -2,7 +2,6 @@
 <html lang="en">
   <%- include('partials/head', { pageTitle: pageTitle || title || 'Watch', title: pageTitle || title || 'Watch' }) %>
   <body class="page">
-    <!-- FIX: your repo uses partials/navbar.ejs -->
     <%- include('partials/navbar') %>
 
     <main class="container" style="max-width: 1100px;">
@@ -10,9 +9,10 @@
 
       <div class="card" style="padding:0; overflow:hidden;">
         <% if (isEmbeddable && embedUrl) { %>
-          <div style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden; background:#eee;">
+          <div style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden; background:#eee; border-radius:12px;">
             <iframe
-              src="<%= embedUrl %>"
+              src="<%= embedUrl %>?rel=0&modestbranding=1&playsinline=1"
+              referrerpolicy="strict-origin-when-cross-origin"
               title="<%= title %>"
               frameborder="0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
