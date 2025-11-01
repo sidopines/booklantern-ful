@@ -28,6 +28,7 @@
               <input id="resend-email" type="email" placeholder="your@email.com" class="flex-1 rounded-lg border px-3 py-2" autocomplete="email">
               <button id="resend-btn" class="btn">Send magic link</button>
             </div>
+            <p id="auth-error" style="margin-top:8px;color:#b00020;"></p>
             <p id="resend-note" class="text-xs text-muted mt-2"></p>
           </div>
         </div>
@@ -141,7 +142,12 @@
               const client = window.supabase.createClient(window.APP.SUPABASE_URL, window.APP.SUPABASE_ANON_KEY);
               const redirectTo = `${location.origin}/login`; // return to this page
               const { error } = await client.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
-              if (error) throw error;
+              if (error) {
+                console.error('[auth] OTP error:', error.message);
+                const el = document.querySelector('#auth-error');
+                if (el) el.textContent = error.message;
+                return;
+              }
               note.textContent = 'Magic link sent. Check your inbox.';
             } catch (e) {
               console.error(e);
