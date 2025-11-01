@@ -40,33 +40,32 @@
 
   <%- include('partials/auth-boot') %>
   <script>
-(async () => {
-  const sb = window.supabaseClient;
-  const form = document.querySelector('#emailLoginForm');
-  const emailInput = document.querySelector('#resend-email');
-  const errEl = document.querySelector('#auth-error') || (() => {
-    const p = document.createElement('p'); p.id='auth-error'; p.style='margin-top:8px;color:#b00020;';
-    (form || document.body).appendChild(p); return p;
-  })();
+(function () {
+  const sb   = window.supabaseClient;
+  const form = document.querySelector('#emailLoginForm') || document.querySelector('form');
+  const input= document.querySelector('#email-input')     || document.querySelector('#resend-email') || document.querySelector('input[type="email"]');
+  const btn  = document.querySelector('#send-magic')      || document.querySelector('#resend-btn') || document.querySelector('button[type="submit"]');
+  let   err  = document.querySelector('#auth-error');
+  if (!err) { err = document.createElement('p'); err.id='auth-error'; err.style='margin-top:8px;color:#b00020;'; (form||document.body).appendChild(err); }
 
-  // Auto-complete if returned with tokens in hash
-  const { data: sessData, error: sessErr } = await sb.auth.getSession();
-  if (!sessErr && sessData?.session) window.location.href = "/dashboard";
+  if (!sb) { err.textContent = 'Auth client failed to load.'; return; }
 
-  // Send magic link
-  const btn = document.querySelector('#resend-btn');
-  if (btn && emailInput) {
+  // If redirected from magic link or OAuth, Supabase will set the session automatically via detectSessionInUrl.
+  sb.auth.getSession().then(({ data, error }) => {
+    if (!error && data?.session) window.location.assign("/dashboard");
+  });
+
+  if (btn && input) {
     btn.addEventListener('click', async (e) => {
       e.preventDefault();
-      errEl.textContent = '';
-      const email = (emailInput.value || '').trim();
-      if (!email) { errEl.textContent = 'Please enter an email.'; return; }
+      err.textContent = '';
+      const email = (input.value||'').trim();
+      if (!email) { err.textContent = 'Please enter an email.'; return; }
       const { error } = await sb.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: window.location.origin + '/login?confirmed=1' }
       });
-      if (error) errEl.textContent = error.message;
-      else errEl.textContent = 'Magic link sent. Check your email.';
+      err.textContent = error ? error.message : 'Magic link sent. Check your email.';
     });
   }
 })();
