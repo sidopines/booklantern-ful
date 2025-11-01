@@ -27,14 +27,22 @@ function originOf(req) {
  * /login — render the login page (never 404)
  */
 router.get('/login', (req, res) => {
-  res.status(200).render('login', meta(req, 'Login • BookLantern'));
+  res.status(200).render('login', {
+    ...meta(req, 'Login • BookLantern'),
+    supabaseUrl: process.env.SUPABASE_URL,
+    supabaseAnon: process.env.SUPABASE_ANON_KEY
+  });
 });
 
 /**
  * /register — render the register page (never 404)
  */
 router.get('/register', (req, res) => {
-  res.status(200).render('register', meta(req, 'Create account • BookLantern'));
+  res.status(200).render('register', {
+    ...meta(req, 'Create account • BookLantern'),
+    supabaseUrl: process.env.SUPABASE_URL,
+    supabaseAnon: process.env.SUPABASE_ANON_KEY
+  });
 });
 
 /**
