@@ -11,6 +11,7 @@ module.exports = function csp() {
         "script-src": [
           "'self'",
           "'unsafe-inline'",
+          "https://cdn.jsdelivr.net",
           "https://www.youtube.com",
           "https://www.youtube-nocookie.com",
           "https://s.ytimg.com",

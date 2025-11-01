@@ -12,7 +12,7 @@
     <section class="card" style="border:1px solid #eee;border-radius:12px;padding:16px;background:#fff;">
       <div id="msg" style="display:none;margin:0 0 12px;padding:10px;border-radius:8px;"></div>
 
-      <p>We’ll email you a one-time link to finish creating your account.</p>
+      <p>We'll email you a one-time link to finish creating your account.</p>
 
       <form id="register-form" class="login-form" onsubmit="return false;" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <input id="reg-email" type="email" placeholder="you@example.com" required
@@ -30,53 +30,41 @@
 
   <%- include('partials/footer'); %>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <%- include('partials/auth-boot') %>
   <script>
-    (function () {
-      var url  = (window.__BL_SB && __BL_SB.url)  || '';
-      var anon = (window.__BL_SB && __BL_SB.anon) || '';
-
-      if (url && anon && window.supabase && !window.supabaseClient) {
-        try {
-          window.supabaseClient = window.supabase.createClient(url, anon, {
-            auth: { persistSession: true, autoRefreshToken: true }
-          });
-        } catch (e) {}
-      }
-
-      var msg = document.getElementById('msg');
-      function show(type, text){
-        if (!msg) return;
-        msg.style.display = 'block';
-        msg.textContent   = text;
-        msg.style.background = type === 'ok' ? '#e8f7e8' : '#ffecec';
-        msg.style.border     = type === 'ok' ? '1px solid #b7e2b7' : '1px solid #ffcdcd';
-        msg.style.color      = '#222';
-      }
-
-      var btn = document.getElementById('sendRegLink');
-      if (!btn) return;
-
-      btn.addEventListener('click', async function(){
-        var email = (document.getElementById('reg-email').value || '').trim();
-        if (!email) { show('err','Enter your email first.'); return; }
-        if (!window.supabaseClient) { show('err','Auth is not configured on the client. Please try again later.'); return; }
-
-        try {
-          var res = await window.supabaseClient.auth.signInWithOtp({
-            email: email,
-            options: {
-              emailRedirectTo: window.location.origin + '/auth/callback',
-              shouldCreateUser: true
-            }
-          });
-          if (res && res.error) throw res.error;
-          show('ok','✅ The sign-up link has been emailed to you. Please check your inbox.');
-        } catch (e) {
-          show('err', e && e.message ? e.message : 'Could not send link.');
+(async () => {
+  const sb = window.supabaseClient;
+  const emailInput = document.querySelector('#reg-email');
+  const btn = document.querySelector('#sendRegLink');
+  const err = document.querySelector('#register-error') || (()=>{const p=document.createElement('p');p.id='register-error';p.style='margin-top:8px;color:#b00020;';(document.body).appendChild(p);return p;})();
+  
+  const msg = document.getElementById('msg');
+  function show(type, text){
+    if (!msg) return;
+    msg.style.display = 'block';
+    msg.textContent   = text;
+    msg.style.background = type === 'ok' ? '#e8f7e8' : '#ffecec';
+    msg.style.border     = type === 'ok' ? '1px solid #b7e2b7' : '1px solid #ffcdcd';
+    msg.style.color      = '#222';
+  }
+  
+  if (btn && emailInput) {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const email=(emailInput.value||'').trim();
+      if(!email){ show('err','Please enter an email.'); return; }
+      const { error } = await sb.auth.signInWithOtp({
+        email,
+        options: { 
+          emailRedirectTo: window.location.origin + '/auth/callback',
+          shouldCreateUser: true
         }
       });
-    })();
+      if (error) show('err', error.message); 
+      else show('ok', '✅ Sign-up link sent. Check your email.');
+    });
+  }
+})();
   </script>
 </body>
 </html>

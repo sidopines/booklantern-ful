@@ -38,127 +38,38 @@
 
   <%- include('partials/footer') %>
 
-  <!-- Config for client JS -->
+  <%- include('partials/auth-boot') %>
   <script>
-    window.APP = {
-      SUPABASE_URL: "<%= process.env.PUBLIC_SUPABASE_URL %>",
-      SUPABASE_ANON_KEY: "<%= process.env.PUBLIC_SUPABASE_ANON_KEY %>",
-      POST_LOGIN_REDIRECT: "<%= typeof next !== 'undefined' ? next : '/dashboard' %>"
-    };
-  </script>
+(async () => {
+  const sb = window.supabaseClient;
+  const form = document.querySelector('#emailLoginForm');
+  const emailInput = document.querySelector('#resend-email');
+  const errEl = document.querySelector('#auth-error') || (() => {
+    const p = document.createElement('p'); p.id='auth-error'; p.style='margin-top:8px;color:#b00020;';
+    (form || document.body).appendChild(p); return p;
+  })();
 
-  <!-- Use UMD build to avoid /npm/+esm 404s -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  // Auto-complete if returned with tokens in hash
+  const { data: sessData, error: sessErr } = await sb.auth.getSession();
+  if (!sessErr && sessData?.session) window.location.href = "/dashboard";
 
-  <script>
-    (function () {
-      const $ = (s) => document.querySelector(s);
-      const status = $('#status');
-      const fallback = $('#fallback');
-
-      function setStatus(msg) { if (status) status.textContent = msg; }
-
-      function parseParams(urlLike) {
-        try {
-          const u = new URL(urlLike);
-          const fromHash  = new URLSearchParams(u.hash?.startsWith('#') ? u.hash.slice(1) : '');
-          const fromQuery = u.searchParams;
-
-          const access_token  = fromHash.get('access_token')  || fromQuery.get('access_token');
-          const refresh_token = fromHash.get('refresh_token') || fromQuery.get('refresh_token');
-          const expires_in    = Number(fromHash.get('expires_in') || fromQuery.get('expires_in') || 3600);
-          const token_type    = fromHash.get('token_type') || fromQuery.get('token_type') || 'bearer';
-
-          if (!access_token || !refresh_token) return null;
-          return { access_token, refresh_token, expires_in, token_type };
-        } catch { return null; }
-      }
-
-      async function completeSessionFrom(urlLike) {
-        if (!window.supabase || !window.APP) return false;
-        const params = parseParams(urlLike);
-        if (!params) return false;
-
-        const client = window.supabase.createClient(window.APP.SUPABASE_URL, window.APP.SUPABASE_ANON_KEY);
-        try {
-          setStatus('Completing sign-in…');
-          const { error } = await client.auth.setSession({
-            access_token: params.access_token,
-            refresh_token: params.refresh_token
-          });
-          if (error) throw error;
-
-          // Clean sensitive bits from the URL
-          history.replaceState(null, '', '/login');
-          const to = window.APP.POST_LOGIN_REDIRECT || '/dashboard';
-          location.assign(to);
-          return true;
-        } catch (e) {
-          console.error('[login] setSession failed', e);
-          setStatus('Could not complete sign-in. You can paste the link below or resend a new one.');
-          if (fallback) fallback.classList.remove('hidden');
-          return false;
-        }
-      }
-
-      function canonicalizeIfFragment() {
-        // If we arrived with #access_token, stick to /login but strip fragment after use.
-        // Some clients show the fragment but block script until interaction; we still try.
-        return !!(location.hash && location.hash.includes('access_token='));
-      }
-
-      async function init() {
-        // 1) If fragment present, try immediately.
-        if (canonicalizeIfFragment()) {
-          const ok = await completeSessionFrom(location.href);
-          if (ok) return;
-        }
-        // 2) Try query params (in case fragment got converted by client).
-        const ok2 = await completeSessionFrom(location.href);
-        if (ok2) return;
-
-        // 3) Show fallback UI.
-        setStatus('No tokens found. Please request a magic link, or use the fallback below.');
-        if (fallback) fallback.classList.remove('hidden');
-
-        // Fallback: paste box
-        const pasteBtn = $('#paste-go');
-        if (pasteBtn) {
-          pasteBtn.addEventListener('click', async () => {
-            const val = ($('#paste-url')?.value || '').trim();
-            if (!val) return;
-            await completeSessionFrom(val);
-          });
-        }
-
-        // Fallback: resend magic link
-        const resendBtn = $('#resend-btn');
-        const note = $('#resend-note');
-        if (resendBtn) {
-          resendBtn.addEventListener('click', async () => {
-            try {
-              const email = ($('#resend-email')?.value || '').trim();
-              if (!email) { note.textContent = 'Enter your email first.'; return; }
-              const client = window.supabase.createClient(window.APP.SUPABASE_URL, window.APP.SUPABASE_ANON_KEY);
-              const redirectTo = `${location.origin}/login`; // return to this page
-              const { error } = await client.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
-              if (error) {
-                console.error('[auth] OTP error:', error.message);
-                const el = document.querySelector('#auth-error');
-                if (el) el.textContent = error.message;
-                return;
-              }
-              note.textContent = 'Magic link sent. Check your inbox.';
-            } catch (e) {
-              console.error(e);
-              note.textContent = 'Could not send link. Please try again.';
-            }
-          });
-        }
-      }
-
-      document.addEventListener('DOMContentLoaded', init);
-    })();
+  // Send magic link
+  const btn = document.querySelector('#resend-btn');
+  if (btn && emailInput) {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      errEl.textContent = '';
+      const email = (emailInput.value || '').trim();
+      if (!email) { errEl.textContent = 'Please enter an email.'; return; }
+      const { error } = await sb.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.origin + '/login?confirmed=1' }
+      });
+      if (error) errEl.textContent = error.message;
+      else errEl.textContent = 'Magic link sent. Check your email.';
+    });
+  }
+})();
   </script>
 </body>
 </html>
