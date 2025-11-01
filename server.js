@@ -1,3 +1,4 @@
+require("dotenv").config();
 // server.js — CommonJS, explicit route mounting (final)
 
 const path = require('path');
