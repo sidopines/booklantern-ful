@@ -53,12 +53,15 @@
     <section class="grid" id="watchGrid" aria-live="polite">
       <%
         const VIDS = Array.isArray(locals.videos) ? locals.videos : [];
+        function esc(s){ try { return encodeURIComponent(String(s||'')); } catch(_e){ return ''; } }
         if (!VIDS.length) {
       %>
         <div class="muted">No videos yet.</div>
       <% } else {
            VIDS.forEach(function(v){
-             const href = v.id ? `/player/${v.id}` : (v.url || '#');
+             const base = v.id ? `/player/${v.id}` : '/player/unknown';
+             const qp = `?u=${esc(v.url)}&t=${esc(v.title)}&ch=${esc(v.channel||'')}&th=${esc(v.thumb||'')}`;
+             const href = `${base}${qp}`;
       %>
         <article class="card" tabindex="-1" data-url="<%= v.url || '' %>">
           <div class="thumb">
@@ -91,7 +94,6 @@
   <%- include('partials/footer'); %>
 
   <script>
-    // If a video has no explicit thumb but is a YouTube URL, show a derived thumbnail
     (function autoThumb(){
       const cards = document.querySelectorAll('[data-url]');
       function ytId(u){

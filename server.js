@@ -6,8 +6,10 @@ const express = require('express');
 const compression = require('compression');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
+const csp = require('./middleware/csp'); // ← ADDED
 
 const app = express();
+app.use(csp()); // ← ADDED
 
 /* -----------------------------------------------------------
    Supabase env normalization (must run BEFORE any route require)
