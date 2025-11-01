@@ -1,15 +1,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   (function () {
-    const url  = "<%= supabaseUrl %>";
-    const anon = "<%= supabaseAnon %>";
+    const url  = "<%= typeof supabaseUrl  !== 'undefined' ? supabaseUrl  : '' %>";
+    const anon = "<%= typeof supabaseAnon !== 'undefined' ? supabaseAnon : '' %>";
     if (!url || !anon) { console.error("[auth] Missing SUPABASE envs"); return; }
     window.supabaseClient = window.supabase?.createClient(url, anon, {
-      auth: {
-        detectSessionInUrl: true,     // parse #access_token from magic links
-        persistSession: true,
-        flowType: 'pkce'              // works for OAuth too
-      }
+      auth: { detectSessionInUrl: true, persistSession: true, flowType: 'pkce' }
     });
   })();
 </script>
