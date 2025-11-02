@@ -60,6 +60,26 @@
         window.location.replace(next);
       }
     }
+    // b) If tokens are in the hash (non-PKCE OTP), set the session from hash
+    if (!code && window.location.hash && window.location.hash.length > 1) {
+      const hash = new URLSearchParams(window.location.hash.slice(1));
+      const access_token  = hash.get('access_token');
+      const refresh_token = hash.get('refresh_token');
+      const token_type    = hash.get('token_type');
+      const expires_in    = parseInt(hash.get('expires_in') || '0', 10);
+      if (access_token && refresh_token) {
+        const { error } = await sb.auth.setSession({ access_token, refresh_token });
+        if (error) {
+          console.error('[auth] setSession error:', error.message);
+          const el = document.querySelector('#auth-error'); if (el) el.textContent = error.message;
+        } else {
+          // Clean hash so it doesn't loop
+          history.replaceState(null, '', url.pathname + url.search);
+          const next = url.searchParams.get('next') || '/dashboard';
+          window.location.replace(next);
+        }
+      }
+    }
   })();
 
   // b) Magic-link sender
