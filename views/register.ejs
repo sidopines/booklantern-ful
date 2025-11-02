@@ -46,6 +46,20 @@
       if (error) { console.error('[auth] exchange error:', error.message); if (el) { el.textContent = error.message; el.style.display = 'block'; el.style.color = '#b00020'; } }
       else { window.location.replace(url.searchParams.get('next') || '/dashboard'); }
     }
+    // also handle non-PKCE OTP tokens in hash
+    if (!code && window.location.hash && window.location.hash.length > 1) {
+      const hash = new URLSearchParams(window.location.hash.slice(1));
+      const access_token  = hash.get('access_token');
+      const refresh_token = hash.get('refresh_token');
+      if (access_token && refresh_token) {
+        const { error } = await sb.auth.setSession({ access_token, refresh_token });
+        if (error) { console.error('[auth] setSession error:', error.message); if (el) { el.textContent = error.message; el.style.display = 'block'; el.style.color = '#b00020'; } }
+        else {
+          history.replaceState(null, '', url.pathname + url.search);
+          window.location.replace(url.searchParams.get('next') || '/dashboard');
+        }
+      }
+    }
   })();
 
   // b) Google / Apple buttons
