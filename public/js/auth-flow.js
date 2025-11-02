@@ -1,5 +1,14 @@
 // BookLantern unified auth-flow: handles OAuth (code) + magic-link (hash) returns
 (function () {
+  // Early: strip ?confirmed=1 (or any "confirmed") to avoid loops from hosted pages
+  try {
+    const u = new URL(window.location.href);
+    if (u.searchParams.has('confirmed')) {
+      u.searchParams.delete('confirmed');
+      history.replaceState(null, '', u.pathname + (u.searchParams.toString() ? '?' + u.searchParams.toString() : '') + u.hash);
+    }
+  } catch (e) { /* noop */ }
+
   let sb = window.supabaseClient;
   try {
     if (!sb) {
