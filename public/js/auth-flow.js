@@ -1,6 +1,16 @@
 // BookLantern unified auth-flow: handles OAuth (code) + magic-link (hash) returns
 (function () {
-  const sb = window.supabaseClient;
+  let sb = window.supabaseClient;
+  try {
+    if (!sb) {
+      const urlMeta  = document.querySelector("meta[name=\"bl-sb-url\"]");
+      const keyMeta  = document.querySelector("meta[name=\"bl-sb-anon\"]");
+      if (urlMeta && keyMeta && window.supabase && window.supabase.createClient) {
+        sb = window.supabase.createClient(urlMeta.content, keyMeta.content, { auth: { persistSession: true, detectSessionInUrl: true } });
+        window.supabaseClient = sb;
+      }
+    }
+  } catch (e) { console.error("[auth] bootstrap error", e); }
   if (!sb) return;
 
   const url  = new URL(window.location.href);
