@@ -36,7 +36,9 @@
       if (error) { console.error('[auth] setSession error:', error); return false; }
       // Clean up the hash to keep URL pretty
       history.replaceState(null, '', url.pathname + url.search);
-      window.location.replace(next);
+      // Safety: never redirect back to /login or anything with confirmed=1
+      const safeNext = (next && next !== '/login' && !/confirmed=1/.test(next)) ? next : '/';
+      window.location.replace(safeNext);
       return true;
     } catch (e) {
       console.error('[auth] setSession threw:', e);
@@ -56,7 +58,9 @@
       url.searchParams.delete('error');
       url.searchParams.delete('error_description');
       history.replaceState(null, '', url.pathname + (url.search ? '?'+url.searchParams.toString() : ''));
-      window.location.replace(next);
+      // Safety: never redirect back to /login or anything with confirmed=1
+      const safeNext = (next && next !== '/login' && !/confirmed=1/.test(next)) ? next : '/';
+      window.location.replace(safeNext);
       return true;
     } catch (e) {
       console.error('[auth] exchangeCodeForSession threw:', e);
