@@ -44,7 +44,7 @@
     if (code) {
       const { error } = await sb.auth.exchangeCodeForSession(window.location.href);
       if (error) { console.error('[auth] exchange error:', error.message); if (el) { el.textContent = error.message; el.style.display = 'block'; el.style.color = '#b00020'; } }
-      else { window.location.replace(url.searchParams.get('next') || '/dashboard'); }
+      else { window.location.replace(url.searchParams.get('next') || '/'); }
     }
     // also handle non-PKCE OTP tokens in hash
     if (!code && window.location.hash && window.location.hash.length > 1) {
@@ -56,7 +56,7 @@
         if (error) { console.error('[auth] setSession error:', error.message); if (el) { el.textContent = error.message; el.style.display = 'block'; el.style.color = '#b00020'; } }
         else {
           history.replaceState(null, '', url.pathname + url.search);
-          window.location.replace(url.searchParams.get('next') || '/dashboard');
+          window.location.replace(url.searchParams.get('next') || '/');
         }
       }
     }
