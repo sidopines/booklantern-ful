@@ -89,7 +89,7 @@
     sendBtn.addEventListener('click', async (e) => {
       e.preventDefault();
       const email = (document.querySelector('[data-email]')?.value || document.querySelector('#resend-email')?.value || '').trim();
-      const redirectTo = `/login`;
+      const redirectTo = '<%= typeof redirectTo !== "undefined" ? redirectTo : (typeof locals !== "undefined" && locals.redirectTo ? locals.redirectTo : window.location.origin + "/auth/callback") %>';
       const errEl = document.querySelector('#auth-error');
       if (!email) { if (errEl) errEl.textContent = 'Please enter an email.'; return; }
       const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo }});
