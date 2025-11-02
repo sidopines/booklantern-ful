@@ -79,6 +79,18 @@ app.set('trust proxy', true);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+// ---------- Auth view locals (forces required vars on /login, /register) ----------
+app.use((req, res, next) => {
+  if (req.path === '/login' || req.path === '/register') {
+    const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'https');
+    const host = req.get('host');
+    res.locals.redirectTo = `${proto}://${host}/login?confirmed=1`;
+    res.locals.supabaseUrl = process.env.SUPABASE_URL;
+    res.locals.supabaseAnon = process.env.SUPABASE_ANON_KEY;
+  }
+  return next();
+});
+// -------------------------------------------------------------------------------
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(compression());
 app.use(express.urlencoded({ extended: true }));
@@ -151,60 +163,12 @@ app.get(/^\/auth\/callback(?:\/.*)?$/, (req, res) => {
   }
 });
 
-/* ============================================================
-   /login — SPECIAL CASE when ?confirmed is present
-   Serve a zero-chrome forwarder that carries the fragment.
-============================================================ */
-app.get('/login', (req, res) => {
-  const hasConfirmed = Object.prototype.hasOwnProperty.call(
-    req.query,
-    'confirmed'
-  );
-  if (hasConfirmed) {
-    // Inline + external for maximum compatibility.
-    return res
-      .status(200)
-      .type('html')
-      .send(`<!doctype html>
-<html><head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Redirecting…</title>
-</head>
-<body style="background:#fff;">
-<p style="font:16px/1.3 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:24px;">
-  Redirecting you securely… If nothing happens, <a id="fallback" href="/auth/callback">tap here</a>.
-</p>
-<script>
-(function(){
-  try {
-    var tgt = "/auth/callback" + (location.search||"") + (location.hash||"");
-    // multi-try in case some methods are blocked
-    try { location.assign(tgt); } catch(_) {}
-    try { if (location.pathname !== "/auth/callback") location.replace(tgt); } catch(_) {}
-    try { if (location.pathname !== "/auth/callback") location.href = tgt; } catch(_) {}
-    // also set the href for the visible link so it preserves your hash if clicked
-    try { document.getElementById('fallback').setAttribute('href', tgt); } catch(_) {}
-    setTimeout(function(){ if (location.pathname !== "/auth/callback") location.href = tgt; }, 120);
-  } catch(e) {
-    location.href = "/auth/callback";
-  }
-})();
-</script>
-<script src="/public/js/forward.js"></script>
-<noscript><meta http-equiv="refresh" content="0; url=/auth/callback"></noscript>
-</body></html>`);
-  }
-  // Normal render if you just open /login
-  return res.status(200).render('login', meta(req, 'Login • BookLantern'));
-});
+/* /login special-case forwarder removed: handled in routes/loginShim.js */
 
 /* ============================================================
-   Register + Account
+  Register + Account
+  (legacy /register handler removed; handled by routes/loginShim.js)
 ============================================================ */
-app.get('/register', (req, res) =>
-  res.status(200).render('register', meta(req, 'Create account • BookLantern'))
-);
 app.get('/account', (_req, res) => {
   try {
     return res.render('account');
