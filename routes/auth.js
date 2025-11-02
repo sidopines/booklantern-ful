@@ -29,8 +29,9 @@ function redirectWithNext(res, basePath, next) {
 /* ----------------------------- Public routes ----------------------------- */
 
 // Stable first-party callback endpoint (no server redirects)
+// Renders a minimal page that consumes tokens/hash and redirects
 router.get('/auth/callback', (req, res) => {
-  return res.render('login', { title: 'Sign in' });
+  return res.render('auth-callback', { title: 'Signing you in…' });
 });
 
 // Legacy GET /login → show the Supabase-driven login page
