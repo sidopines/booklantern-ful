@@ -64,7 +64,7 @@
 
   // b) Google / Apple buttons
   const go = async (prov) => {
-    const redirectTo = "<%= redirectTo %>";
+    const redirectTo = `${location.origin}/login?confirmed=1`;
     const { error } = await sb.auth.signInWithOAuth({ provider: prov, options: { redirectTo } });
     if (error) { const el = document.querySelector('#msg'); if (el) { el.textContent = error.message; el.style.display = 'block'; el.style.color = '#b00020'; } }
   };
@@ -83,7 +83,7 @@
       if (msgEl) msgEl.textContent = '';
       const email = (input.value || '').trim();
       if (!email) { if (msgEl) { msgEl.textContent = 'Please enter an email.'; msgEl.style.display = 'block'; msgEl.style.color = '#b00020'; } return; }
-      const redirectTo = "<%= redirectTo %>";
+      const redirectTo = `${location.origin}/login?confirmed=1`;
       const { error } = await sb.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: redirectTo }
