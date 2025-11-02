@@ -1,11 +1,12 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   (function () {
-    const url  = "<%= typeof supabaseUrl  !== 'undefined' ? supabaseUrl  : '' %>";
-    const anon = "<%= typeof supabaseAnon !== 'undefined' ? supabaseAnon : '' %>";
+    const url  = "<%= supabaseUrl %>";
+    const anon = "<%= supabaseAnon %>";
     if (!url || !anon) { console.error("[auth] Missing SUPABASE envs"); return; }
-    window.supabaseClient = window.supabase?.createClient(url, anon, {
-      auth: { detectSessionInUrl: true, persistSession: true, flowType: 'pkce' }
+    window.supabaseClient = window.supabase.createClient(url, anon, {
+      auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
     });
   })();
 </script>

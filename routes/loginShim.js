@@ -27,10 +27,13 @@ function originOf(req) {
  * /login — render the login page (never 404)
  */
 router.get('/login', (req, res) => {
+  const base = process.env.BASE_URL || originOf(req);
+  const next = req.query.next || '/dashboard';
   res.status(200).render('login', {
     ...meta(req, 'Login • BookLantern'),
     supabaseUrl: process.env.SUPABASE_URL,
-    supabaseAnon: process.env.SUPABASE_ANON_KEY
+    supabaseAnon: process.env.SUPABASE_ANON_KEY,
+    redirectTo: `${base}/login?confirmed=1&next=${encodeURIComponent(next)}`
   });
 });
 
@@ -38,10 +41,13 @@ router.get('/login', (req, res) => {
  * /register — render the register page (never 404)
  */
 router.get('/register', (req, res) => {
+  const base = process.env.BASE_URL || originOf(req);
+  const next = req.query.next || '/dashboard';
   res.status(200).render('register', {
     ...meta(req, 'Create account • BookLantern'),
     supabaseUrl: process.env.SUPABASE_URL,
-    supabaseAnon: process.env.SUPABASE_ANON_KEY
+    supabaseAnon: process.env.SUPABASE_ANON_KEY,
+    redirectTo: `${base}/login?confirmed=1&next=${encodeURIComponent(next)}`
   });
 });
 
