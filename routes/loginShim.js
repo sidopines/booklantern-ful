@@ -15,6 +15,7 @@ function baseUrl(req) {
  * Renders login with Supabase envs + redirectTo for magic link / OAuth flows.
  */
 router.get('/login', (req, res) => {
+  res.set({ 'Cache-Control': 'no-store, max-age=0', 'Pragma': 'no-cache' });
   const redirectTo = `${baseUrl(req)}/auth/callback`; // Stable callback endpoint
   res.render('login', {
     title: 'Login',
@@ -29,6 +30,7 @@ router.get('/login', (req, res) => {
  * Renders register with Supabase envs + redirectTo as well.
  */
 router.get('/register', (req, res) => {
+  res.set({ 'Cache-Control': 'no-store, max-age=0', 'Pragma': 'no-cache' });
   const redirectTo = `${baseUrl(req)}/auth/callback`; // Stable callback endpoint
   res.render('register', {
     title: 'Create account',

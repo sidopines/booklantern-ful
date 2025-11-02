@@ -29,8 +29,12 @@ function redirectWithNext(res, basePath, next) {
 /* ----------------------------- Public routes ----------------------------- */
 
 // Stable first-party callback endpoint (no server redirects)
-// Renders a minimal page that consumes tokens/hash and redirects
+// No auth gating; this page consumes tokens/hash and then redirects.
 router.get('/auth/callback', (req, res) => {
+  res.set({
+    'Cache-Control': 'no-store, max-age=0',
+    'Pragma': 'no-cache'
+  });
   return res.render('auth-callback', { title: 'Signing you in…' });
 });
 
