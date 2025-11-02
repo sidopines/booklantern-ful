@@ -56,8 +56,8 @@
         console.error('[auth] exchange error:', error.message);
         const el = document.querySelector('#auth-error'); if (el) el.textContent = error.message;
       } else {
-        const next = url.searchParams.get('next') || '/dashboard';
-        window.location.replace(next);
+         const next = url.searchParams.get('next') || '/';
+         window.location.replace(next);
       }
     }
     // b) If tokens are in the hash (non-PKCE OTP), set the session from hash
@@ -75,7 +75,7 @@
         } else {
           // Clean hash so it doesn't loop
           history.replaceState(null, '', url.pathname + url.search);
-          const next = url.searchParams.get('next') || '/dashboard';
+          const next = url.searchParams.get('next') || '/';
           window.location.replace(next);
         }
       }
