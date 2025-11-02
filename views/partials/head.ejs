@@ -84,9 +84,11 @@
 
 <!-- If JS is blocked, try an immediate meta refresh to /auth/callback.
      (Meta can't carry #hash, but still helps for ?code PKCE flows.) -->
+<% if (typeof disableMetaRefresh === 'undefined' || !disableMetaRefresh) { %>
 <noscript>
   <meta http-equiv="refresh" content="0; url=/auth/callback">
 </noscript>
+<% } %>
 <!-- ---------- END ULTRA-EARLY AUTH FORWARDER ---------- -->
 
 <!-- Pre-paint theme init (no flash). -->

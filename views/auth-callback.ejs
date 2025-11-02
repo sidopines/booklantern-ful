@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
   <%- include('./partials/head', {
-    pageTitle: 'Secure Redirect • BookLantern',
+    pageTitle: 'Signing you in… • BookLantern',
     pageDescription: 'Complete your login or password update.',
-    canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '')
+    canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : ''),
+    disableMetaRefresh: true
   }) %>
   <style>
     .card { border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.06); }
