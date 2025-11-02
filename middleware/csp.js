@@ -35,6 +35,7 @@ module.exports = function csp() {
         "connect-src": [
           "'self'",
           "https://*.supabase.co",
+          "https://*.supabase.in",
           "https://www.youtube.com",
           "https://s.ytimg.com",
           "https://www.googleapis.com"

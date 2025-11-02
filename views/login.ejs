@@ -42,30 +42,38 @@
   <script>
 (function () {
   const sb   = window.supabaseClient;
-  const form = document.querySelector('#emailLoginForm') || document.querySelector('form');
-  const input= document.querySelector('#email-input')     || document.querySelector('#resend-email') || document.querySelector('input[type="email"]');
-  const btn  = document.querySelector('#send-magic')      || document.querySelector('#resend-btn') || document.querySelector('button[type="submit"]');
-  let   err  = document.querySelector('#auth-error');
-  if (!err) { err = document.createElement('p'); err.id='auth-error'; err.style='margin-top:8px;color:#b00020;'; (form||document.body).appendChild(err); }
+  const byId = (id) => document.getElementById(id);
 
-  if (!sb) { err.textContent = 'Auth client failed to load.'; return; }
+  // a) If we returned from Supabase with a code, exchange it for a session
+  (async () => {
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('code');
+    const errorDesc = url.searchParams.get('error_description');
+    if (errorDesc) { const el = document.querySelector('#auth-error'); if (el) el.textContent = decodeURIComponent(errorDesc); }
+    if (code) {
+      const { error } = await sb.auth.exchangeCodeForSession(window.location.href);
+      if (error) {
+        console.error('[auth] exchange error:', error.message);
+        const el = document.querySelector('#auth-error'); if (el) el.textContent = error.message;
+      } else {
+        const next = url.searchParams.get('next') || '/dashboard';
+        window.location.replace(next);
+      }
+    }
+  })();
 
-  // If redirected from magic link or OAuth, Supabase will set the session automatically via detectSessionInUrl.
-  sb.auth.getSession().then(({ data, error }) => {
-    if (!error && data?.session) window.location.assign("/dashboard");
-  });
-
-  if (btn && input) {
-    btn.addEventListener('click', async (e) => {
+  // b) Magic-link sender
+  const sendBtn = document.querySelector('[data-send-magic]') || document.querySelector('#resend-btn');
+  if (sendBtn) {
+    sendBtn.addEventListener('click', async (e) => {
       e.preventDefault();
-      err.textContent = '';
-      const email = (input.value||'').trim();
-      if (!email) { err.textContent = 'Please enter an email.'; return; }
-      const { error } = await sb.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: window.location.origin + '/login?confirmed=1' }
-      });
-      err.textContent = error ? error.message : 'Magic link sent. Check your email.';
+      const email = (document.querySelector('[data-email]')?.value || document.querySelector('#resend-email')?.value || '').trim();
+      const redirectTo = "<%= redirectTo %>";
+      const errEl = document.querySelector('#auth-error');
+      if (!email) { if (errEl) errEl.textContent = 'Please enter an email.'; return; }
+      const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo }});
+      if (error) { console.error('[auth] OTP error:', error.message); if (errEl) errEl.textContent = error.message; }
+      else { if (errEl) errEl.textContent = 'Magic link sent. Check your email.'; }
     });
   }
 })();
