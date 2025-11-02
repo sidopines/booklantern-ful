@@ -31,7 +31,7 @@
   <%- include('partials/footer'); %>
 
   <%- include('partials/auth-boot') %>
-  <script src="/public/js/auth-flow.js"></script>
+  <script src="/public/js/auth-flow.js?v=<%= Date.now() %>""></script>
   <script>
 (function () {
   const sb    = window.supabaseClient;
