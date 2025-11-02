@@ -28,7 +28,7 @@ function originOf(req) {
  */
 router.get('/login', (req, res) => {
   const base = process.env.BASE_URL || originOf(req);
-  const next = req.query.next || '/dashboard';
+  const next = req.query.next || '/';
   res.status(200).render('login', {
     ...meta(req, 'Login • BookLantern'),
     supabaseUrl: process.env.SUPABASE_URL,
@@ -42,7 +42,7 @@ router.get('/login', (req, res) => {
  */
 router.get('/register', (req, res) => {
   const base = process.env.BASE_URL || originOf(req);
-  const next = req.query.next || '/dashboard';
+  const next = req.query.next || '/';
   res.status(200).render('register', {
     ...meta(req, 'Create account • BookLantern'),
     supabaseUrl: process.env.SUPABASE_URL,
