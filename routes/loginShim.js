@@ -15,7 +15,7 @@ function baseUrl(req) {
  * Renders login with Supabase envs + redirectTo for magic link / OAuth flows.
  */
 router.get('/login', (req, res) => {
-  const redirectTo = `${baseUrl(req)}/login?confirmed=1`; // PKCE/code-exchange lands here
+  const redirectTo = `${baseUrl(req)}/auth/callback`; // Stable callback endpoint
   res.render('login', {
     title: 'Login',
     redirectTo,
@@ -29,7 +29,7 @@ router.get('/login', (req, res) => {
  * Renders register with Supabase envs + redirectTo as well.
  */
 router.get('/register', (req, res) => {
-  const redirectTo = `${baseUrl(req)}/login?confirmed=1`; // unify callback target
+  const redirectTo = `${baseUrl(req)}/auth/callback`; // Stable callback endpoint
   res.render('register', {
     title: 'Create account',
     redirectTo,

@@ -28,6 +28,11 @@ function redirectWithNext(res, basePath, next) {
 
 /* ----------------------------- Public routes ----------------------------- */
 
+// Stable first-party callback endpoint (no server redirects)
+router.get('/auth/callback', (req, res) => {
+  return res.render('login', { title: 'Sign in' });
+});
+
 // Legacy GET /login → show the Supabase-driven login page
 router.get('/login', (req, res) => {
   return redirectWithNext(res, '/login', req.query.next);
