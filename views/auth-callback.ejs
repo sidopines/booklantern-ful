@@ -3,55 +3,49 @@
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self';
-                 script-src 'self' https://esm.sh;
-                 connect-src 'self' https://*.supabase.co https://*.supabase.in;
-                 img-src 'self' data:;
-                 style-src 'self' 'unsafe-inline';
-                 base-uri 'none';
-                 frame-ancestors 'none';
-                 upgrade-insecure-requests">
+        content="default-src 'self'; script-src 'self' https://esm.sh; connect-src 'self' https://*.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Completing sign-in…</title>
-  <style>
-    body{font-family:system-ui,-apple-system,sans-serif;margin:0;display:grid;place-items:center;height:100vh;background:#0f172a;color:#e2e8f0}
-    p{max-width:400px;text-align:center}
-  </style>
 </head>
 <body>
   <p>Completing sign-in…</p>
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
     const SUPABASE_URL = "<%= process.env.SUPABASE_URL %>";
     const SUPABASE_ANON_KEY = "<%= process.env.SUPABASE_ANON_KEY %>";
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, detectSessionInUrl: false }
-    });
+    const NEXT = "<%= (typeof next !== 'undefined' && next) ? next : '/account' %>";
 
-    // accept both hash and query tokens
-    const params = new URLSearchParams(location.hash?.slice(1) || location.search?.slice(1));
-    const access_token  = params.get('access_token');
-    const refresh_token = params.get('refresh_token');
-    const code = params.get('code'); // PKCE/OAuth
-    const next = "<%= next %>" || "/account";
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Try PKCE first (code in query), then hash tokens fallback
+    const url = new URL(window.location.href);
+    const hasCode = url.searchParams.get('code');
+    const hash = window.location.hash;
 
     (async () => {
       try {
-        if (access_token && refresh_token) {
+        if (hasCode) {
+          const { error } = await supabase.auth.exchangeCodeForSession(url);
+          if (error) throw error;
+        } else if (hash && hash.includes('access_token')) {
+          const params = new URLSearchParams(hash.substring(1));
+          const access_token = params.get('access_token');
+          const refresh_token = params.get('refresh_token');
+          if (!access_token || !refresh_token) throw new Error('Missing tokens in hash');
           const { error } = await supabase.auth.setSession({ access_token, refresh_token });
           if (error) throw error;
-        } else if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) throw error;
+          history.replaceState(null, '', url.pathname + url.search); // drop hash
         } else {
-          location.replace('/login');
-          return;
+          // Nothing to process — go to login
+          return window.location.replace('/login');
         }
-        // clean landing without polluting history
-        location.replace(next.startsWith('/') ? next : '/account');
+
+        // Success → go to account (or provided next)
+        window.location.replace(NEXT.startsWith('/') ? NEXT : '/account');
       } catch (e) {
         console.error(e);
-        location.replace('/login');
+        window.location.replace('/login');
       }
     })();
   </script>
