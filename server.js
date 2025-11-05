@@ -148,20 +148,8 @@ function meta(req, title, desc = 'Free books & educational videos.') {
 }
 
 /* ============================================================
-   /auth/callback — render neutral finalizer
+   /auth/callback — now handled by routes/auth.js (mounted above)
 ============================================================ */
-app.get(/^\/auth\/callback(?:\/.*)?$/, (req, res) => {
-  try {
-    const canonicalUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-    return res.render('auth-callback', {
-      canonicalUrl,
-      ...meta(req, 'Almost there…'),
-    });
-  } catch (e) {
-    console.error('[auth-callback] render failed:', e);
-    return res.status(500).send('Auth callback error');
-  }
-});
 
 /* /login special-case forwarder removed: handled in routes/loginShim.js */
 
