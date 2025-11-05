@@ -11,6 +11,21 @@ const csp = require('./middleware/csp'); // ← ADDED
 const app = express();
 app.use(csp()); // ← ADDED
 
+// ---- Public allowlist for routes that must remain unauthenticated ----
+const PUBLIC_PATHS__ALLOWLIST = new Set([
+  '/', '/login', '/register', '/auth/callback',
+  '/about', '/contact', '/robots.txt', '/favicon.ico'
+]);
+function isPublicPath(req) {
+  return PUBLIC_PATHS__ALLOWLIST.has(req.path)
+      || req.path.startsWith('/public')
+      || req.path.startsWith('/img')
+      || req.path.startsWith('/css')
+      || req.path.startsWith('/js')
+      || req.path.startsWith('/assets');
+}
+// ---------------------------------------------------------------------
+
 /* -----------------------------------------------------------
    Supabase env normalization (must run BEFORE any route require)
 ----------------------------------------------------------- */
