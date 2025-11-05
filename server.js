@@ -84,7 +84,7 @@ app.use((req, res, next) => {
   if (req.path === '/login' || req.path === '/register') {
     const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'https');
     const host = req.get('host');
-    res.locals.redirectTo = `${proto}://${host}/login?confirmed=1`;
+    res.locals.redirectTo = `${proto}://${host}/auth/callback`;
     res.locals.supabaseUrl = process.env.SUPABASE_URL;
     res.locals.supabaseAnon = process.env.SUPABASE_ANON_KEY;
   }

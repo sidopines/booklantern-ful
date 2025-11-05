@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('partials/head', { title: 'Login • BookLantern' }) %>
+  <%- include('partials/head', { pageTitle: 'Login • BookLantern' }) %>
 </head>
 <body class="theme-body">
   <%- include('partials/navbar') %>
@@ -9,27 +9,27 @@
   <main class="container mx-auto px-4 py-10">
     <section class="card shadow-sm rounded-2xl max-w-3xl mx-auto">
       <div class="p-6 md:p-8">
-        <h1 class="text-3xl font-semibold mb-3">Sign in</h1>
-        <p id="status" class="text-sm text-muted mb-4">
-          If you clicked a magic link in your email, this page will complete your sign-in automatically.
+        <h1 class="text-3xl font-semibold mb-3">Sign in with email</h1>
+        <p class="text-sm text-muted mb-4">
+          We'll send you a magic link to sign in—no password needed.
         </p>
 
-        <!-- Fallback UI (hidden unless needed) -->
-        <div id="fallback" class="hidden space-y-4">
+        <div class="space-y-4">
           <div class="rounded-xl border p-4">
-            <p class="text-sm mb-2">If your email client removed the code, paste your link below:</p>
-            <input id="paste-url" type="url" placeholder="Paste your magic link URL" class="w-full rounded-lg border px-3 py-2" autocomplete="off">
-            <button id="paste-go" class="btn btn-primary mt-2">Complete sign-in</button>
+            <label for="email" class="text-sm font-medium mb-2 block">Email address</label>
+            <input 
+              id="email" 
+              type="email" 
+              placeholder="your@email.com" 
+              class="w-full rounded-lg border px-3 py-2 mb-3" 
+              autocomplete="email"
+              required>
+            <button id="send-magic-btn" class="btn btn-primary w-full">Send magic link</button>
+            <p id="message" class="text-sm mt-3"></p>
           </div>
 
-          <div class="rounded-xl border p-4">
-            <p class="text-sm mb-2">Or resend a new link:</p>
-            <div class="flex gap-2">
-              <input id="resend-email" type="email" placeholder="your@email.com" class="flex-1 rounded-lg border px-3 py-2" autocomplete="email">
-              <button id="resend-btn" class="btn">Send magic link</button>
-            </div>
-            <p id="auth-error" style="margin-top:8px;color:#b00020;"></p>
-            <p id="resend-note" class="text-xs text-muted mt-2"></p>
+          <div class="text-center text-sm text-muted">
+            <p>Don't have an account? <a href="/register" class="text-primary">Sign up</a></p>
           </div>
         </div>
       </div>
@@ -37,67 +37,75 @@
   </main>
 
   <%- include('partials/footer') %>
-
   <%- include('partials/auth-boot') %>
-  <script src="/public/js/auth-flow.js?v=<%= Date.now() %>""></script>
+
   <script>
-(function () {
-  const sb   = window.supabaseClient;
-  const byId = (id) => document.getElementById(id);
-
-  // a) If we returned from Supabase with a code, exchange it for a session
-  (async () => {
-    const url = new URL(window.location.href);
-    const code = url.searchParams.get('code');
-    const errorDesc = url.searchParams.get('error_description');
-    if (errorDesc) { const el = document.querySelector('#auth-error'); if (el) el.textContent = decodeURIComponent(errorDesc); }
-    if (code) {
-      const { error } = await sb.auth.exchangeCodeForSession(window.location.href);
-      if (error) {
-        console.error('[auth] exchange error:', error.message);
-        const el = document.querySelector('#auth-error'); if (el) el.textContent = error.message;
-      } else {
-         const next = url.searchParams.get('next') || '/';
-         window.location.replace(next);
-      }
+  (function () {
+    const sb = window.supabaseClient;
+    if (!sb) {
+      console.error('[login] Supabase client not initialized');
+      document.getElementById('message').textContent = 'Error: Auth client not loaded';
+      document.getElementById('message').style.color = '#b00020';
+      return;
     }
-    // b) If tokens are in the hash (non-PKCE OTP), set the session from hash
-    if (!code && window.location.hash && window.location.hash.length > 1) {
-      const hash = new URLSearchParams(window.location.hash.slice(1));
-      const access_token  = hash.get('access_token');
-      const refresh_token = hash.get('refresh_token');
-      const token_type    = hash.get('token_type');
-      const expires_in    = parseInt(hash.get('expires_in') || '0', 10);
-      if (access_token && refresh_token) {
-        const { error } = await sb.auth.setSession({ access_token, refresh_token });
-        if (error) {
-          console.error('[auth] setSession error:', error.message);
-          const el = document.querySelector('#auth-error'); if (el) el.textContent = error.message;
-        } else {
-          // Clean hash so it doesn't loop
-          history.replaceState(null, '', url.pathname + url.search);
-          const next = url.searchParams.get('next') || '/';
-          window.location.replace(next);
-        }
-      }
-    }
-  })();
 
-  // b) Magic-link sender
-  const sendBtn = document.querySelector('[data-send-magic]') || document.querySelector('#resend-btn');
-  if (sendBtn) {
-    sendBtn.addEventListener('click', async (e) => {
+    const btn = document.getElementById('send-magic-btn');
+    const emailInput = document.getElementById('email');
+    const msg = document.getElementById('message');
+
+    btn.addEventListener('click', async (e) => {
       e.preventDefault();
-      const email = (document.querySelector('[data-email]')?.value || document.querySelector('#resend-email')?.value || '').trim();
-      const redirectTo = '<%= typeof redirectTo !== "undefined" ? redirectTo : (typeof locals !== "undefined" && locals.redirectTo ? locals.redirectTo : window.location.origin + "/auth/callback") %>';
-      const errEl = document.querySelector('#auth-error');
-      if (!email) { if (errEl) errEl.textContent = 'Please enter an email.'; return; }
-      const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo }});
-      if (error) { console.error('[auth] OTP error:', error.message); if (errEl) errEl.textContent = error.message; }
-      else { if (errEl) errEl.textContent = 'Magic link sent. Check your email.'; }
+      const email = (emailInput.value || '').trim();
+      
+      if (!email) {
+        msg.textContent = 'Please enter your email address.';
+        msg.style.color = '#b00020';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      msg.textContent = '';
+
+      const redirectTo = '<%= typeof redirectTo !== "undefined" ? redirectTo : "https://booklantern.org/auth/callback" %>';
+      
+      console.log('[login] Requesting magic link for:', email);
+      console.log('[login] redirect_to:', redirectTo);
+
+      try {
+        const { error } = await sb.auth.signInWithOtp({ 
+          email, 
+          options: { emailRedirectTo: redirectTo }
+        });
+
+        if (error) {
+          console.error('[login] OTP error:', error.message);
+          msg.textContent = 'Error: ' + error.message;
+          msg.style.color = '#b00020';
+          btn.disabled = false;
+          btn.textContent = 'Send magic link';
+        } else {
+          console.log('[login] ✓ Magic link sent successfully');
+          msg.textContent = '✓ Magic link sent! Check your email (including spam folder).';
+          msg.style.color = '#0a7e0a';
+          emailInput.value = '';
+        }
+      } catch (ex) {
+        console.error('[login] Exception:', ex);
+        msg.textContent = 'Error: ' + (ex.message || 'Unknown error');
+        msg.style.color = '#b00020';
+        btn.disabled = false;
+        btn.textContent = 'Send magic link';
+      }
     });
-  }
-})();
+
+    // Allow Enter key to submit
+    emailInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        btn.click();
+      }
+    });
+  })();
   </script>
 </body>
 </html>

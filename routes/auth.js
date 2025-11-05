@@ -81,4 +81,61 @@ router.get('/logout', (req, res) => {
   }
 });
 
+/* ----------------------------- Debug routes ----------------------------- */
+
+// Self-test endpoint for Safari/redirect diagnostics
+router.get('/auth/self-test', (req, res) => {
+  const forwardedProto = req.headers['x-forwarded-proto'];
+  const cookies = Object.keys(req.cookies || {});
+  res.json({
+    origin: `${req.protocol}://${req.get('host')}`,
+    host: req.get('host') || '',
+    protocol: req.protocol,
+    forwarded_proto: forwardedProto || '',
+    url: req.originalUrl,
+    query: req.query || {},
+    cookies,
+    ua: req.get('user-agent') || '',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Route enumeration for debugging
+router.get('/debug/routes', (req, res) => {
+  const routes = [];
+  const app = req.app;
+  
+  // Extract routes from the Express app
+  if (app._router && app._router.stack) {
+    app._router.stack.forEach((middleware) => {
+      if (middleware.route) {
+        routes.push({
+          path: middleware.route.path,
+          methods: Object.keys(middleware.route.methods).join(', ').toUpperCase()
+        });
+      } else if (middleware.name === 'router' && middleware.handle.stack) {
+        middleware.handle.stack.forEach((handler) => {
+          if (handler.route) {
+            const basePath = middleware.regexp.source
+              .replace('\\/?', '')
+              .replace('(?=\\/|$)', '')
+              .replace(/\\/g, '')
+              .replace('^', '')
+              .replace('$', '');
+            routes.push({
+              path: basePath + handler.route.path,
+              methods: Object.keys(handler.route.methods).join(', ').toUpperCase()
+            });
+          }
+        });
+      }
+    });
+  }
+  
+  res.json({
+    routes,
+    timestamp: new Date().toISOString()
+  });
+});
+
 module.exports = router;
