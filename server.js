@@ -180,6 +180,14 @@ app.get('/account', (_req, res) => {
 
 // ---------- Mount routes explicitly ----------
 try {
+  const authRouter = require('./routes/auth');
+  app.use('/', authRouter);
+  console.log('[routes] mounted auth router at /');
+} catch (e) {
+  console.error('[routes] failed to mount ./routes/auth:', e);
+}
+
+try {
   const loginShim = require('./routes/loginShim');
   app.use('/', loginShim);
   console.log('[routes] mounted loginShim router at /');
