@@ -12,6 +12,7 @@ module.exports = function csp() {
           "'self'",
           "'unsafe-inline'",
           "https://cdn.jsdelivr.net",
+          "https://esm.sh",
           "https://www.youtube.com",
           "https://www.youtube-nocookie.com",
           "https://s.ytimg.com",
@@ -36,6 +37,7 @@ module.exports = function csp() {
           "'self'",
           "https://*.supabase.co",
           "https://*.supabase.in",
+          "https://esm.sh",
           "https://www.youtube.com",
           "https://s.ytimg.com",
           "https://www.googleapis.com"
