@@ -1,86 +1,112 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('partials/head', { 
-    pageTitle: 'Authenticating… • BookLantern',
-    pageDescription: 'Completing your sign-in',
-    disableMetaRefresh: true 
-  }) %>
-  <meta name="robots" content="noindex">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Signing you in…</title>
+  <style>
+    body{font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+         margin:0;display:grid;place-items:center;height:100dvh;background:#0b0e14;color:#e5e7eb}
+    .card{background:#111827;padding:28px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35);max-width:680px}
+    code, .mono{font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .muted{color:#9ca3af}
+    .ok{color:#a7f3d0}
+    .err{color:#fecaca}
+    .hint{color:#93c5fd}
+    a{color:#93c5fd}
+  </style>
 </head>
 <body>
-  <main class="container" style="max-width:760px;margin:60px auto;padding:0 20px;">
-    <h1>Authenticating…</h1>
-    <pre id="log" style="background:#111;color:#0f0;padding:12px;border-radius:8px;white-space:pre-wrap;min-height:160px;font-family:monospace;font-size:13px;"></pre>
-  </main>
-  <script>
-    (function(){
-      const L = (m) => { 
-        console.log('[auth-callback]', m); 
-        const p = document.createElement('div'); 
-        p.textContent = new Date().toISOString().split('T')[1].slice(0,12) + ' ' + m;
-        document.getElementById('log').appendChild(p);
+  <div class="card">
+    <h2>Completing sign-in…</h2>
+    <p class="muted">Hold on a moment while we verify your session.</p>
+    <pre id="log" class="mono muted" style="white-space:pre-wrap"></pre>
+  </div>
+
+  <script type="module">
+    // Minimal, dependency-free supabase-js loader (ESM)
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    const logEl = document.getElementById('log');
+    const log = (...args) => { logEl.textContent += args.join(' ') + "\n"; };
+
+    const SUPABASE_URL = "<%= process.env.SUPABASE_URL %>";
+    const SUPABASE_ANON_KEY = "<%= process.env.SUPABASE_ANON_KEY %>";
+
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      log("❌ Missing Supabase environment variables on server.");
+      log("SUPABASE_URL:", SUPABASE_URL);
+      log("SUPABASE_ANON_KEY present:", !!SUPABASE_ANON_KEY);
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, detectSessionInUrl: false }
+    });
+
+    // Helper: parse the fragment `#access_token=...&refresh_token=...`
+    const parseHash = () => {
+      const h = location.hash?.startsWith("#") ? location.hash.slice(1) : "";
+      const params = new URLSearchParams(h);
+      return {
+        access_token: params.get("access_token"),
+        refresh_token: params.get("refresh_token"),
+        token_type: params.get("token_type"),
+        type: params.get("type"),
+        expires_in: params.get("expires_in"),
       };
-      L('href=' + location.href);
+    };
 
-      // Boot supabase
-      if (!window.supabaseClient) { 
-        L('ERROR: supabaseClient not loaded'); 
-        L('Check that partials/head includes Supabase SDK');
-        return; 
-      }
+    const nextFromQuery = () => {
+      const u = new URL(location.href);
+      const n = u.searchParams.get("next");
+      return n && n.startsWith("/") ? n : null;
+    };
 
-      const sb = window.supabaseClient;
-      L('✓ Supabase client ready');
+    (async () => {
+      try {
+        log("• Callback loaded.");
+        const tokens = parseHash();
+        log("• Hash present:", !!location.hash, "type=", tokens.type);
 
-      // Accept BOTH forms:
-      // (A) Magic link:   #access_token=...&refresh_token=...
-      // (B) OAuth PKCE:   ?code=... (&state=...)
-      const hash = new URLSearchParams(location.hash.slice(1));
-      const qs   = new URLSearchParams(location.search);
-
-      const at = hash.get('access_token');
-      const rt = hash.get('refresh_token');
-      const code = qs.get('code');
-
-      L('Tokens in hash: ' + (at ? 'YES (access_token present)' : 'NO'));
-      L('OAuth code in query: ' + (code ? 'YES' : 'NO'));
-
-      (async () => {
-        try {
-          if (at && rt) {
-            L('→ Detected magic-link tokens; calling setSession()');
-            const { data, error } = await sb.auth.setSession({ access_token: at, refresh_token: rt });
-            if (error) { 
-              L('✗ ERROR setSession: ' + error.message); 
-              return; 
-            }
-            L('✓ setSession OK, user=' + (data?.user?.email || 'unknown'));
-            L('→ Cleaning URL and redirecting to /');
-            // Clean the URL then go home
-            history.replaceState({}, '', '/');
-            setTimeout(() => location.assign('/'), 100);
-          } else if (code) {
-            L('→ Detected OAuth code; calling exchangeCodeForSession()');
-            const { data, error } = await sb.auth.exchangeCodeForSession(code);
-            if (error) { 
-              L('✗ ERROR exchangeCodeForSession: ' + error.message); 
-              return; 
-            }
-            L('✓ exchangeCodeForSession OK, user=' + (data?.user?.email || 'unknown'));
-            L('→ Cleaning URL and redirecting to /');
-            history.replaceState({}, '', '/');
-            setTimeout(() => location.assign('/'), 100);
+        if (!tokens.access_token || !tokens.refresh_token) {
+          // Some providers send `code` (PKCE). Try exchangeCodeForSession().
+          const url = new URL(location.href);
+          const hasCode = url.searchParams.get("code");
+          if (hasCode) {
+            log("• Found `code` param. Exchanging…");
+            const { data, error } = await supabase.auth.exchangeCodeForSession(location.href);
+            if (error) throw error;
+            log("✅ Session established via code.");
           } else {
-            L('⚠ No tokens in hash and no code param. Nothing to process.');
-            L('If you came from a magic link, verify redirect_to points to /auth/callback.');
-            L('You can close this tab or go to <a href="/" style="color:#0f0">homepage</a>');
+            throw new Error("No access/refresh tokens in URL fragment.");
           }
-        } catch (e) {
-          L('✗ EXCEPTION: ' + (e?.message || e));
-          console.error('[auth-callback] Exception:', e);
+        } else {
+          log("• Setting session via tokens…");
+          const { error } = await supabase.auth.setSession({
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token
+          });
+          if (error) throw error;
+          log("✅ Session established via tokens.");
         }
-      })();
+
+        // Small check: can we read the session?
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error("Session not found after set.");
+
+        log("• User:", session.user?.email || session.user?.id);
+
+        // Redirect target
+        const next = nextFromQuery() || "/account";
+        log("• Redirecting to", next, "…");
+        // Clear the hash before leaving
+        history.replaceState(null, "", "/auth/callback");
+        location.replace(next);
+      } catch (e) {
+        console.error(e);
+        log("❌ Error:", e.message || e);
+        log("• You can go back to the ", window.origin, " or <a href='/login'>login</a>.");
+      }
     })();
   </script>
 </body>
