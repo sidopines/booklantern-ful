@@ -175,13 +175,14 @@ try {
   console.error('[routes] failed to mount ./routes/auth:', e);
 }
 
-try {
-  const loginShim = require('./routes/loginShim');
-  app.use('/', loginShim);
-  console.log('[routes] mounted loginShim router at /');
-} catch (e) {
-  console.error('[routes] failed to mount ./routes/loginShim:', e);
-}
+// loginShim disabled: auth.js now handles /login, /register, /auth/callback
+// try {
+//   const loginShim = require('./routes/loginShim');
+//   app.use('/', loginShim);
+//   console.log('[routes] mounted loginShim router at /');
+// } catch (e) {
+//   console.error('[routes] failed to mount ./routes/loginShim:', e);
+// }
 
 try {
   const indexRoutes = require('./routes/index');
