@@ -1,180 +1,87 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('./partials/head', {
-    pageTitle: 'Signing you in… • BookLantern',
-    pageDescription: 'Complete your login or password update.',
-    canonicalUrl: (typeof canonicalUrl !== 'undefined' ? canonicalUrl : ''),
-    disableMetaRefresh: true
+  <%- include('partials/head', { 
+    pageTitle: 'Authenticating… • BookLantern',
+    pageDescription: 'Completing your sign-in',
+    disableMetaRefresh: true 
   }) %>
-  <style>
-    .card { border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.06); }
-    .input { width: 100%; padding: 10px 12px; border: 1px solid var(--ink-3, #d1d5db); border-radius: 8px; }
-    .btn { padding: 10px 14px; border-radius: 8px; border: 0; cursor: pointer; }
-    .btn-primary { background: #6366f1; color: #fff; }
-    .ink-2 { color: #6b7280; }
-  </style>
+  <meta name="robots" content="noindex">
 </head>
 <body>
-  <%- include('./partials/navbar') %>
-
-  <main class="container" style="max-width:720px; margin:28px auto; padding:0 16px;">
-    <h1>Almost there…</h1>
-    <p class="ink-2" id="state">Verifying session…</p>
-
-    <!-- Password reset form (shown only for recovery with a valid session) -->
-    <form id="pwForm" class="card" style="padding:16px; display:none;">
-      <div class="stack" style="--gap:10px;">
-        <input class="input" type="password" id="newpw" placeholder="New password (min 6 chars)" required minlength="6" autocomplete="new-password">
-        <button class="btn btn-primary" type="submit">Update password</button>
-        <div id="msg" class="ink-2" style="margin-top:6px;"></div>
-      </div>
-    </form>
-
-    <p id="backLinks" class="ink-2" style="display:none; margin-top:14px;">
-      <a href="/login">Back to login</a>
-    </p>
+  <main class="container" style="max-width:760px;margin:60px auto;padding:0 20px;">
+    <h1>Authenticating…</h1>
+    <pre id="log" style="background:#111;color:#0f0;padding:12px;border-radius:8px;white-space:pre-wrap;min-height:160px;font-family:monospace;font-size:13px;"></pre>
   </main>
-
-  <%- include('./partials/footer') %>
-
   <script>
-  (async function () {
-    // If supabase failed to initialize, show a clear error (no blank page).
-    if (!window.supabaseClient) {
-      var st = document.getElementById('state');
-      st.textContent = 'Auth client did not initialize. Check SUPABASE_URL and SUPABASE_ANON_KEY.';
-      document.getElementById('backLinks').style.display = 'block';
-      return;
-    }
+    (function(){
+      const L = (m) => { 
+        console.log('[auth-callback]', m); 
+        const p = document.createElement('div'); 
+        p.textContent = new Date().toISOString().split('T')[1].slice(0,12) + ' ' + m;
+        document.getElementById('log').appendChild(p);
+      };
+      L('href=' + location.href);
 
-    const sb    = window.supabaseClient;
-    const state = document.getElementById('state');
-    const form  = document.getElementById('pwForm');
-    const msg   = document.getElementById('msg');
-    const back  = document.getElementById('backLinks');
-
-    function qs() { return new URLSearchParams(location.search); }
-    function hs() { return new URLSearchParams((location.hash || '').replace(/^#/, '')); }
-    function urlClean() {
-      try { history.replaceState({}, document.title, location.pathname); } catch (_) {}
-    }
-    function urlCleanKeepQuery() {
-      try { history.replaceState({}, document.title, location.pathname + location.search); } catch (_) {}
-    }
-
-    const q = qs();
-    const h = hs();
-
-    const type = String(q.get('type') || h.get('type') || '').toLowerCase();
-    const err  = q.get('error_description') || h.get('error_description');
-
-    if (err) {
-      state.textContent = decodeURIComponent(err);
-      back.style.display = 'block';
-      urlClean();
-      return;
-    }
-
-    // 1) OAuth PKCE (?code=...)
-    const code = q.get('code');
-    if (code) {
-      try {
-        await sb.auth.exchangeCodeForSession(window.location.href);
-      } catch (e) {
-        console.warn('exchangeCodeForSession failed:', e);
-      } finally {
-        urlClean(); // remove ?code...
-      }
-    }
-
-    // 2) Legacy magic link (tokens in #hash)
-    const access_token  = h.get('access_token');
-    const refresh_token = h.get('refresh_token');
-    if (access_token && refresh_token) {
-      try {
-        await sb.auth.setSession({ access_token, refresh_token });
-      } catch (e) {
-        console.warn('setSession failed:', e);
-      } finally {
-        urlCleanKeepQuery(); // keep ?type if present; drop hash
-      }
-    }
-
-    // 3) verifyOtp flow (?type=magiclink|signup|email_change|recovery & token_hash=...)
-    const token_hash = q.get('token_hash') || q.get('verify_token');
-    const email = q.get('email') || q.get('user_email') || '';
-    if (token_hash && type) {
-      try {
-        await sb.auth.verifyOtp({ type, token_hash, email });
-      } catch (e) {
-        console.warn('verifyOtp failed:', e);
-        state.textContent = e && e.message ? e.message : 'Unable to verify your link. Please request a new one.';
-        back.style.display = 'block';
-        urlClean();
-        return;
-      }
-      urlClean();
-    }
-
-    // Do we have a session now?
-    let { data: { session } } = await sb.auth.getSession();
-
-    // Password recovery: show the password form if session is valid.
-    if (type === 'recovery') {
-      if (!session) {
-        state.textContent = 'Your reset link is invalid or expired. Please request a new one.';
-        back.style.display = 'block';
-        return;
+      // Boot supabase
+      if (!window.supabaseClient) { 
+        L('ERROR: supabaseClient not loaded'); 
+        L('Check that partials/head includes Supabase SDK');
+        return; 
       }
 
-      state.textContent = 'Enter a new password:';
-      form.style.display = 'block';
+      const sb = window.supabaseClient;
+      L('✓ Supabase client ready');
 
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const pw = String(document.getElementById('newpw').value || '').trim();
-        if (pw.length < 6) { msg.textContent = 'Password must be at least 6 characters.'; return; }
+      // Accept BOTH forms:
+      // (A) Magic link:   #access_token=...&refresh_token=...
+      // (B) OAuth PKCE:   ?code=... (&state=...)
+      const hash = new URLSearchParams(location.hash.slice(1));
+      const qs   = new URLSearchParams(location.search);
 
-        msg.textContent = 'Updating…';
-        const { error } = await sb.auth.updateUser({ password: pw });
-        if (error) { msg.textContent = error.message; return; }
+      const at = hash.get('access_token');
+      const rt = hash.get('refresh_token');
+      const code = qs.get('code');
 
-        state.textContent = 'Password updated. Redirecting to login…';
-        form.style.display = 'none';
-        setTimeout(() => { location.href = '/login?reset=done'; }, 600);
-      });
+      L('Tokens in hash: ' + (at ? 'YES (access_token present)' : 'NO'));
+      L('OAuth code in query: ' + (code ? 'YES' : 'NO'));
 
-      return;
-    }
-
-    // Email confirmations / magic links
-    if (['signup','magiclink','email_change','invitation','verified','confirmation'].includes(type)) {
-      if (!session) {
-        state.textContent = 'We couldn’t complete sign-in from that link. Please request a new magic link.';
-        back.style.display = 'block';
-        return;
-      }
-      // fall through to redirect below
-    }
-
-    // Final redirects
-    if (session) {
-      try {
-        const { data } = await sb.auth.getUser();
-        const user = data && data.user;
-        const role = (user && user.app_metadata && user.app_metadata.role) || '';
-        state.textContent = 'Signed in. Redirecting…';
-        setTimeout(() => { location.href = (role === 'admin') ? '/admin' : '/account'; }, 300);
-      } catch (_e) {
-        state.textContent = 'Signed in. Redirecting…';
-        setTimeout(() => { location.href = '/account'; }, 300);
-      }
-    } else {
-      state.textContent = 'Session not found. You can close this tab and try logging in again.';
-      back.style.display = 'block';
-    }
-  })();
+      (async () => {
+        try {
+          if (at && rt) {
+            L('→ Detected magic-link tokens; calling setSession()');
+            const { data, error } = await sb.auth.setSession({ access_token: at, refresh_token: rt });
+            if (error) { 
+              L('✗ ERROR setSession: ' + error.message); 
+              return; 
+            }
+            L('✓ setSession OK, user=' + (data?.user?.email || 'unknown'));
+            L('→ Cleaning URL and redirecting to /');
+            // Clean the URL then go home
+            history.replaceState({}, '', '/');
+            setTimeout(() => location.assign('/'), 100);
+          } else if (code) {
+            L('→ Detected OAuth code; calling exchangeCodeForSession()');
+            const { data, error } = await sb.auth.exchangeCodeForSession(code);
+            if (error) { 
+              L('✗ ERROR exchangeCodeForSession: ' + error.message); 
+              return; 
+            }
+            L('✓ exchangeCodeForSession OK, user=' + (data?.user?.email || 'unknown'));
+            L('→ Cleaning URL and redirecting to /');
+            history.replaceState({}, '', '/');
+            setTimeout(() => location.assign('/'), 100);
+          } else {
+            L('⚠ No tokens in hash and no code param. Nothing to process.');
+            L('If you came from a magic link, verify redirect_to points to /auth/callback.');
+            L('You can close this tab or go to <a href="/" style="color:#0f0">homepage</a>');
+          }
+        } catch (e) {
+          L('✗ EXCEPTION: ' + (e?.message || e));
+          console.error('[auth-callback] Exception:', e);
+        }
+      })();
+    })();
   </script>
 </body>
 </html>
