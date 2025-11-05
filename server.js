@@ -13,7 +13,7 @@ const app = express();
 
 // ======== DEBUG HOOKS (auto-added) ========
 app.set('__DEBUG_ROUTES__', true);
-// log every redirect with stack to find who sends /auth/callback -> /login?confirmed=1
+// log every redirect with stack to find who sends /auth/callback -> /login
 app.use((req,res,next)=>{
   const orig = res.redirect.bind(res);
   res.redirect = (arg1,arg2)=>{
