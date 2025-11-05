@@ -38,24 +38,42 @@ router.get('/auth/callback', (req, res) => {
   return res.render('auth-callback', { title: 'Signing you in…' });
 });
 
-// Legacy GET /login → show the Supabase-driven login page
+// GET /login → render login page (no redirects)
 router.get('/login', (req, res) => {
-  return redirectWithNext(res, '/login', req.query.next);
+  res.set({ 'Cache-Control': 'no-store, max-age=0', 'Pragma': 'no-cache' });
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'https');
+  const host = req.get('host');
+  const redirectTo = `${proto}://${host}/auth/callback`;
+  return res.status(200).render('login', {
+    title: 'Login',
+    redirectTo,
+    supabaseUrl: process.env.SUPABASE_URL,
+    supabaseAnon: process.env.SUPABASE_ANON_KEY,
+  });
 });
 
-// Legacy POST /login (from older forms) → just send to GET /login
+// POST /login (from older forms) → redirect to GET /login to avoid resubmit
 router.post('/login', (req, res) => {
-  return redirectWithNext(res, '/login', req.body?.next || req.query?.next);
+  return res.redirect(303, '/login');
 });
 
-// Legacy GET /register → show the Supabase-driven register page
+// GET /register → render register page (no redirects)
 router.get('/register', (req, res) => {
-  return redirectWithNext(res, '/register', req.query.next);
+  res.set({ 'Cache-Control': 'no-store, max-age=0', 'Pragma': 'no-cache' });
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'https');
+  const host = req.get('host');
+  const redirectTo = `${proto}://${host}/auth/callback`;
+  return res.status(200).render('register', {
+    title: 'Create account',
+    redirectTo,
+    supabaseUrl: process.env.SUPABASE_URL,
+    supabaseAnon: process.env.SUPABASE_ANON_KEY,
+  });
 });
 
-// Legacy POST /register → just send to GET /register
+// POST /register → redirect to GET /register to avoid resubmit
 router.post('/register', (req, res) => {
-  return redirectWithNext(res, '/register', req.body?.next || req.query?.next);
+  return res.redirect(303, '/register');
 });
 
 // Legacy “dashboard” or “settings” pages now live under Supabase’s account UX
