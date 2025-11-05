@@ -11,40 +11,24 @@ const csp = require('./middleware/csp'); // ← ADDED
 const app = express();
 
 
-// ======== DEBUG HOOKS (auto-added) ========
-app.set('__DEBUG_ROUTES__', true);
-// log every redirect with stack to find who sends /auth/callback -> /login
-app.use((req,res,next)=>{
+
+
+/* SAFE_REDIRECT_LOGGER */
+app.use((req, res, next) => {
   const orig = res.redirect.bind(res);
-  res.redirect = (arg1,arg2)=>{
-    const status = typeof arg2==='string' ? arg1 : 302;
-    const url    = typeof arg2==='string' ? arg2 : arg1;
-    console.error('[REDIRECT]', req.method, req.originalUrl, '->', url, 'status', status, '
-', (new Error('redirect_trace')).stack);
-    return orig(arg1,arg2);
+  res.redirect = (...args) => {
+    try {
+      const status = (args.length === 2) ? args[0] : 302;
+      const url    = (args.length === 2) ? args[1] : args[0];
+      console.error('[REDIRECT]', req.method, req.originalUrl, '->', url, 'status', status);
+      const err = new Error('redirect_trace');
+      if (err && err.stack) console.error(String(err.stack));
+    } catch (_) { /* ignore */ }
+    return orig(...args);
   };
   next();
 });
-// trace when /auth/callback is processed at top of stack
-app.use('/auth/callback', (req,_res,next)=>{ console.error('[TRACE] entered /auth/callback at top'); next(); });
-// dump route stack
-app.get('/__debug/routes', (_req,res)=>{
-  const dumpLayer = (l, i) => {
-    const route = l.route;
-    if (route) {
-      const methods = Object.keys(route.methods||{}).join(',');
-      return `[${i}] ROUTE  ${methods.toUpperCase()}  ${route.path}`;
-    } else if (l.name === 'router' && l.handle?.stack) {
-      return `[${i}] ROUTER (mounted) with ${l.handle.stack.length} layers`;
-    } else {
-      return `[${i}] MWARE ${l.name||'(anonymous)'}`;
-    }
-  };
-  const out = (app._router?.stack||[]).map(dumpLayer).join('
-');
-  res.type('text/plain').send(out);
-});
-// ======== /DEBUG HOOKS ========
+/* /SAFE_REDIRECT_LOGGER */
 app.use(csp()); // ← ADDED
 
 // ---- Public allowlist for routes that must remain unauthenticated ----
