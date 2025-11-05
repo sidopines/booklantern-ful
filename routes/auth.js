@@ -35,7 +35,11 @@ router.get('/auth/callback', (req, res) => {
     'Cache-Control': 'no-store, max-age=0',
     'Pragma': 'no-cache'
   });
-  return res.render('auth-callback', { title: 'Signing you in…' });
+  const next = req.query.next || '/account';
+  return res.render('auth-callback', { 
+    title: 'Signing you in…',
+    next: next.startsWith('/') ? next : '/account'
+  });
 });
 
 // GET /login → render login page (no redirects)
