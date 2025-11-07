@@ -34,6 +34,17 @@ router.get('/auth/callback', (req, res) => {
   return res.status(200).render('auth-callback', { title: 'Completing sign-in…', next });
 });
 
+// TEST ENDPOINT to verify deployment
+router.get('/auth/test-deploy', (req, res) => {
+  res.set({'Cache-Control':'no-store'});
+  return res.status(200).json({ 
+    deployed: true, 
+    timestamp: new Date().toISOString(),
+    commit: 'e12d4d0',
+    message: 'If you see this, the latest code is deployed!'
+  });
+});
+
 // Legacy POSTs
 router.post('/login',    (_req, res) => res.redirect(303, '/login'));
 router.post('/register', (_req, res) => res.redirect(303, '/register'));
