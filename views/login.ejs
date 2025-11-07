@@ -121,5 +121,6 @@
       } catch (e) { /* no-op */ }
     })();
   </script>
+<script>if(location.hash && location.hash.includes('access_token')){location.replace('/auth/callback'+location.hash);}</script>
 </body>
 </html>

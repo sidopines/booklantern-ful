@@ -1,53 +1,33 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self' https://esm.sh; connect-src 'self' https://*.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'">
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Completing sign-in…</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %></title>
+  <meta http-equiv="Cache-Control" content="no-store, max-age=0">
+  <style>body{font:16px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:32px;color:#111} .box{max-width:520px;margin:12vh auto;padding:24px;border-radius:14px;box-shadow:0 8px 30px rgba(28,39,56,.08);}</style>
 </head>
 <body>
-  <p>Completing sign-in…</p>
+  <div class="box">Completing sign-in…</div>
   <script type="module">
-    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+    const SUPABASE_URL = '<%= process.env.SUPABASE_URL || "" %>';
+    const SUPABASE_ANON_KEY = '<%= process.env.SUPABASE_ANON_KEY || "" %>';
+    const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    const SUPABASE_URL = "<%= process.env.SUPABASE_URL %>";
-    const SUPABASE_ANON_KEY = "<%= process.env.SUPABASE_ANON_KEY %>";
-    const NEXT = "<%= (typeof next !== 'undefined' && next) ? next : '/account' %>";
+    // tokens arrive in the URL hash from Supabase
+    const hash = new URLSearchParams(location.hash.slice(1));
+    const access_token = hash.get('access_token');
+    const refresh_token = hash.get('refresh_token');
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    // Try PKCE first (code in query), then hash tokens fallback
-    const url = new URL(window.location.href);
-    const hasCode = url.searchParams.get('code');
-    const hash = window.location.hash;
-
-    (async () => {
-      try {
-        if (hasCode) {
-          const { error } = await supabase.auth.exchangeCodeForSession(url);
-          if (error) throw error;
-        } else if (hash && hash.includes('access_token')) {
-          const params = new URLSearchParams(hash.substring(1));
-          const access_token = params.get('access_token');
-          const refresh_token = params.get('refresh_token');
-          if (!access_token || !refresh_token) throw new Error('Missing tokens in hash');
-          const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-          if (error) throw error;
-          history.replaceState(null, '', url.pathname + url.search); // drop hash
-        } else {
-          // Nothing to process — go to login
-          return window.location.replace('/login');
-        }
-
-        // Success → go to account (or provided next)
-        window.location.replace(NEXT.startsWith('/') ? NEXT : '/account');
-      } catch (e) {
-        console.error(e);
-        window.location.replace('/login');
-      }
-    })();
+    if (access_token && refresh_token) {
+      const { error } = await sb.auth.setSession({ access_token, refresh_token });
+      // always proceed — even if error we'll try /account which will render login again if not authed
+      window.location.replace('/account');
+    } else {
+      // if someone hits this page without tokens, show login
+      window.location.replace('/login');
+    }
   </script>
 </body>
 </html>
