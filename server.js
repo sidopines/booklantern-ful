@@ -13,6 +13,14 @@ const app = express();
 
 
 
+
+// >>> Hard-stop callback route comes BEFORE everything else (no middleware can hijack it)
+app.get('/auth/callback', (req,res)=>{
+  res.set({'Cache-Control':'no-store, max-age=0','Pragma':'no-cache'});
+  try { return res.status(200).render('auth-callback', { title: 'Completing sign-in…' }); }
+  catch(e){ console.error('callback render error', e); return res.status(200).send('<!doctype html><meta charset="utf-8"><meta http-equiv="Cache-Control" content="no-store"><p>Completing sign-in…</p>'); }
+});
+// <<< Hard-stop
 /* SAFE_REDIRECT_LOGGER */
 app.use((req, res, next) => {
   const orig = res.redirect.bind(res);
@@ -318,4 +326,10 @@ app.use((err, req, res, _next) => {
 const PORT = Number(process.env.PORT || 10000);
 app.listen(PORT, () => {
   console.log(`BookLantern listening on :${PORT}`);
+
+// one-off debug route map (disable later)
+app.get('/debug-routes', (req,res)=>{
+  const stack = app._router?.stack?.flatMap(l=> l.route ? [{ path: l.route.path, methods: l.route.methods }] : []);
+  res.type('application/json').send(JSON.stringify(stack, null, 2));
+});
 });
