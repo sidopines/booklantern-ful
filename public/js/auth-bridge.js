@@ -1,10 +1,12 @@
-/* Bridge legacy /login#access_token=… to /auth/callback#… (server can't see fragments) */
 (function(){
   try {
     if (location.pathname === '/login' || location.pathname === '/register') {
       if (location.hash && location.hash.includes('access_token')) {
+        // Send the entire hash through to the callback
         location.replace('/auth/callback' + location.hash);
       }
     }
-  } catch(e) { /* no-op */ }
+  } catch(e) {
+    console.error('auth-bridge error', e);
+  }
 })();
