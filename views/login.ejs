@@ -4,6 +4,13 @@
   <%- include('partials/head', { pageTitle: 'Login • BookLantern' }) %>
 </head>
 <body class="theme-body">
+<script>
+// FIRST PRIORITY: If magic link lands here with tokens, forward to callback
+if(location.hash && location.hash.includes('access_token')){
+  location.replace('/auth/callback'+location.hash);
+}
+</script>
+
   <%- include('partials/navbar') %>
 
   <main class="container mx-auto px-4 py-10">
@@ -107,21 +114,5 @@
     });
   })();
   </script>
-
-  <!-- Bridge: if a magic link accidentally hits /login with tokens in the hash,
-       forward the entire hash to /auth/callback so the session can be set. -->
-  <script>
-    (function () {
-      try {
-        if (location.hash && /access_token=|refresh_token=/.test(location.hash)) {
-          var next = '/auth/callback' + location.hash + (location.search || '');
-          // Use replace so /login doesn't stay in history
-          location.replace(next);
-        }
-      } catch (e) { /* no-op */ }
-    })();
-  </script>
-<script>if(location.hash && location.hash.includes('access_token')){location.replace('/auth/callback'+location.hash);}</script>
-<script src="/public/js/auth-bridge.js"></script>
 </body>
 </html>

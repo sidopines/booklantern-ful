@@ -5,7 +5,11 @@
     const anon = "<%= typeof supabaseAnon !== 'undefined' ? supabaseAnon : '' %>";
     if (!url || !anon) { console.error("[auth] Missing SUPABASE envs"); return; }
     window.supabaseClient = window.supabase.createClient(url, anon, {
-      auth: { detectSessionInUrl: true, persistSession: true, autoRefreshToken: true }
+      auth: { 
+        detectSessionInUrl: false,  // ← CRITICAL: we handle tokens manually on /auth/callback
+        persistSession: true, 
+        autoRefreshToken: true 
+      }
     });
   })();
 </script>
