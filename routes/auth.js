@@ -7,29 +7,38 @@ function makeRedirectTo(req) {
   return `${proto}://${host}/auth/callback`;
 }
 
-// Unified auth page for both sign-in and sign-up
-router.get('/auth', (req, res) => {
-  res.set({
-    'Cache-Control':'no-store, max-age=0',
-    'Pragma':'no-cache'
-  });
-  return res.status(200).render('auth', {
+// Helper to generate no-cache headers and render data
+function noStoreHeaders() {
+  return {
+    'Cache-Control': 'no-store, max-age=0',
+    'Pragma': 'no-cache'
+  };
+}
+
+function authRenderData(req) {
+  return {
     title: 'Sign in or create an account',
     redirectTo: makeRedirectTo(req),
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseAnon: process.env.SUPABASE_ANON_KEY,
-  });
+  };
+}
+
+// Serve unified auth page at ALL THREE PATHS (no redirects - preserves hash!)
+// Critical: Never redirect when hash fragments might be present
+router.get('/auth', (req, res) => {
+  res.set(noStoreHeaders());
+  return res.status(200).render('auth', authRenderData(req));
 });
 
-// Aliases: /login and /register redirect to /auth, preserving hash fragments
 router.get('/login', (req, res) => {
-  const hash = req.url.includes('#') ? req.url.slice(req.url.indexOf('#')) : '';
-  return res.redirect(302, '/auth' + hash);
+  res.set(noStoreHeaders());
+  return res.status(200).render('auth', authRenderData(req));
 });
 
 router.get('/register', (req, res) => {
-  const hash = req.url.includes('#') ? req.url.slice(req.url.indexOf('#')) : '';
-  return res.redirect(302, '/auth' + hash);
+  res.set(noStoreHeaders());
+  return res.status(200).render('auth', authRenderData(req));
 });
 
 // PUBLIC: Supabase redirects here with hash tokens OR ?code for PKCE.
@@ -38,7 +47,7 @@ router.get('/auth/callback', (req, res) => {
   res.set({
     'Cache-Control':'no-store, max-age=0',
     'Pragma':'no-cache',
-    'X-Auth-Route-Version': 'unified-2024-11-07'
+    'X-Auth-Route-Version': 'no-redirect-2024-11-07'
   });
   const next = (req.query.next && req.query.next.startsWith('/')) ? req.query.next : '/account';
   return res.status(200).render('auth-callback', { title: 'Completing sign-in…', next });
