@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/head', { pageTitle: 'Sign in or create an account • BookLantern' }) %>
+</head>
+<body class="theme-body">
+<script>
+// FIRST PRIORITY: If magic link lands here with tokens, forward to callback
+try {
+  if (location.hash && location.hash.includes('access_token')) {
+    location.replace('/auth/callback' + location.hash);
+  }
+} catch(e) {
+  console.error('[auth-bridge]', e);
+}
+</script>
+
+  <%- include('partials/navbar') %>
+
+  <main class="container mx-auto px-4 py-10">
+    <section class="card shadow-sm rounded-2xl max-w-3xl mx-auto">
+      <div class="p-6 md:p-8">
+        <h1 class="text-3xl font-semibold mb-3">Sign in or create an account</h1>
+        <p class="text-sm text-muted mb-4">
+          We'll send you a magic link to sign in—no password needed.
+          New here? We'll create your account after you verify the link.
+        </p>
+
+        <div class="space-y-4">
+          <div class="rounded-xl border p-4">
+            <label for="email" class="text-sm font-medium mb-2 block">Email address</label>
+            <input 
+              id="email" 
+              type="email" 
+              placeholder="your@email.com" 
+              class="w-full rounded-lg border px-3 py-2 mb-3" 
+              autocomplete="email"
+              required>
+            <button id="send-magic-btn" class="btn btn-primary w-full">Send magic link</button>
+            <p id="message" class="text-sm mt-3"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <%- include('partials/footer') %>
+  <%- include('partials/auth-boot') %>
+
+  <script>
+  window.SUPABASE_URL = '<%= process.env.SUPABASE_URL || "" %>';
+  window.SUPABASE_ANON_KEY = '<%= process.env.SUPABASE_ANON_KEY || "" %>';
+  </script>
+  <script src="/public/js/auth-bridge.js"></script>
+  <script src="/public/js/auth-send.js" defer></script>
+
+  <script>
+  (function () {
+    const sb = window.supabaseClient;
+    if (!sb) {
+      console.error('[auth] Supabase client not initialized');
+      document.getElementById('message').textContent = 'Error: Auth client not loaded';
+      document.getElementById('message').style.color = '#b00020';
+      return;
+    }
+
+    const btn = document.getElementById('send-magic-btn');
+    const emailInput = document.getElementById('email');
+    const msg = document.getElementById('message');
+
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const email = (emailInput.value || '').trim();
+      
+      if (!email) {
+        msg.textContent = 'Please enter your email address.';
+        msg.style.color = '#b00020';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      msg.textContent = '';
+
+      const redirectTo = '<%= typeof redirectTo !== "undefined" ? redirectTo : "https://booklantern.org/auth/callback" %>';
+      
+      console.log('[auth] Requesting magic link for:', email);
+      console.log('[auth] redirect_to:', redirectTo);
+
+      try {
+        const { error } = await sb.auth.signInWithOtp({ 
+          email, 
+          options: { emailRedirectTo: redirectTo }
+        });
+
+        if (error) {
+          console.error('[auth] OTP error:', error.message);
+          msg.textContent = 'Error: ' + error.message;
+          msg.style.color = '#b00020';
+          btn.disabled = false;
+          btn.textContent = 'Send magic link';
+        } else {
+          console.log('[auth] ✓ Magic link sent successfully');
+          msg.textContent = '✓ Magic link sent! Check your email (including spam folder).';
+          msg.style.color = '#0a7e0a';
+          emailInput.value = '';
+        }
+      } catch (ex) {
+        console.error('[auth] Exception:', ex);
+        msg.textContent = 'Error: ' + (ex.message || 'Unknown error');
+        msg.style.color = '#b00020';
+        btn.disabled = false;
+        btn.textContent = 'Send magic link';
+      }
+    });
+
+    // Allow Enter key to submit
+    emailInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        btn.click();
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

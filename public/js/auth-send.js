@@ -20,7 +20,8 @@
 
       const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectUrl } });
       if(error){ console.error(error); alert('Could not send magic link. Try again.'); return; }
-      location.href = '/login?check-email=1';
+      // Redirect to unified /auth page after sending
+      location.href = '/auth?check-email=1';
     });
   }catch(e){ console.error('auth-send', e); }
 })();

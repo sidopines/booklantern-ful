@@ -37,8 +37,8 @@ const SSR_AUTH = (typeof isAuthenticated !== 'undefined' && isAuthenticated);
          class="row"
          style="gap:8px;<%= SSR_AUTH ? 'display:none;' : 'display:flex;' %>"
          aria-hidden="<%= SSR_AUTH ? 'true' : 'false' %>">
-      <a class="btn" href="/login">Login</a>
-      <a class="btn btn-primary equal" href="/register">Create account</a>
+      <a class="btn" href="/auth">Login</a>
+      <a class="btn btn-primary equal" href="/auth">Create account</a>
     </div>
 
     <div id="auth-user"
