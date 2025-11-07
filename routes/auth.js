@@ -28,8 +28,12 @@ router.get('/register', (req, res) => {
 });
 
 // PUBLIC: Supabase redirects here with hash tokens OR ?code for PKCE.
+// COMMIT: ff96fff - This should return 200 and render auth-callback.ejs
 router.get('/auth/callback', (req, res) => {
-  res.set({'Cache-Control':'no-store'});
+  res.set({
+    'Cache-Control':'no-store',
+    'X-Auth-Route-Version': 'ff96fff-2024-11-07'
+  });
   const next = (req.query.next && req.query.next.startsWith('/')) ? req.query.next : '/account';
   return res.status(200).render('auth-callback', { title: 'Completing sign-in…', next });
 });
