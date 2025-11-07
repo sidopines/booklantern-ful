@@ -107,5 +107,19 @@
     });
   })();
   </script>
+
+  <!-- Bridge: if a magic link accidentally hits /login with tokens in the hash,
+       forward the entire hash to /auth/callback so the session can be set. -->
+  <script>
+    (function () {
+      try {
+        if (location.hash && /access_token=|refresh_token=/.test(location.hash)) {
+          var next = '/auth/callback' + location.hash + (location.search || '');
+          // Use replace so /login doesn't stay in history
+          location.replace(next);
+        }
+      } catch (e) { /* no-op */ }
+    })();
+  </script>
 </body>
 </html>
