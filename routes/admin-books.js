@@ -25,6 +25,20 @@ const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 });
 
 // ----------------- helpers -----------------
+function buildSourceUrl(provider, id) {
+  if (!provider || !id) return null;
+  const p = String(provider).toLowerCase();
+  const s = String(id).trim();
+  // If user pasted a full URL in "Provider ID" by mistake, normalize:
+  if (/^https?:\/\//i.test(s)) return s;
+
+  if (p === 'gutenberg' || p === 'pg') return `https://www.gutenberg.org/ebooks/${s}`;
+  if (p === 'openlibrary' || p === 'ol') return `https://openlibrary.org/${s}`; // accepts works/OL...M etc.
+  if (p === 'archive' || p === 'ia') return `https://archive.org/details/${s}`;
+  if (p === 'loc') return `https://www.loc.gov/item/${s}`;
+  return null;
+}
+
 function messagesFromQuery(q) {
   const msg = {};
   if (q.ok)  msg.success = 'Saved.';
@@ -103,26 +117,41 @@ router.post('/books', async (req, res) => {
       author,
       category,     // from the form field name="category"
       genre_slug,   // legacy support
+      shelf,        // alternative field name
+      genre,        // alternative field name
       cover,
-      source_url,
+      cover_url,    // alternative field name
+      source_url: rawSourceUrl,
       provider,
       provider_id,
     } = req.body;
 
-    // Accept either category or genre_slug
-    const genreSlug = category || genre_slug;
+    // Normalize genre field (accept multiple field names)
+    const genreSlug = (category || genre_slug || shelf || genre || '').trim();
 
-    if (!title || !genreSlug) {
-      const msg = encodeURIComponent('Title and Genre/Shelf are required.');
+    // Prefer explicit source_url; else build from provider+id
+    let source_url = (rawSourceUrl && rawSourceUrl.trim()) || buildSourceUrl(provider, provider_id);
+
+    // Normalize cover field
+    const coverUrl = (cover || cover_url || '').trim() || null;
+
+    // Basic validation
+    if (!title || !author || !genreSlug) {
+      const msg = encodeURIComponent('Title, Author, and Genre/Shelf are required.');
+      return res.redirect(303, '/admin/books?err=' + msg);
+    }
+
+    if (!source_url) {
+      const msg = encodeURIComponent('Provide a Source URL or a Provider+ID.');
       return res.redirect(303, '/admin/books?err=' + msg);
     }
 
     const insertRow = {
-      title: title?.trim(),
-      author: author?.trim() || null,
-      genre_slug: genreSlug?.trim(),
-      cover: cover?.trim() || null,
-      source_url: source_url?.trim() || null,
+      title: title.trim(),
+      author: author.trim(),
+      genre_slug: genreSlug,
+      cover: coverUrl,
+      source_url: source_url,
       provider: (provider?.trim() || null),
       provider_id: (provider_id?.toString().trim() || null),
     };
@@ -130,14 +159,14 @@ router.post('/books', async (req, res) => {
     const { error } = await sb.from('curated_books').insert(insertRow);
     if (error) {
       console.error('[admin] add book failed:', error);
-      const msg = encodeURIComponent(error.message || '1');
+      const msg = encodeURIComponent(error.message || 'Failed to save book.');
       return res.redirect(303, '/admin/books?err=' + msg);
     }
 
     return res.redirect(303, '/admin/books?ok=1');
   } catch (e) {
     console.error('[admin] add book failed:', e);
-    const msg = encodeURIComponent(e.message || '1');
+    const msg = encodeURIComponent(e.message || 'Unexpected error.');
     return res.redirect(303, '/admin/books?err=' + msg);
   }
 });
