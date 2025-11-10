@@ -63,12 +63,15 @@
 
           <div class="row">
             <label class="grow">Genre / Shelf
-              <!-- categories = [{slug,name}] -->
               <select class="select" name="category" required>
-                <option value="">Select a shelf…</option>
-                <% (categories || []).forEach(function(cat){ %>
-                  <option value="<%- cat.slug %>"><%- cat.name %></option>
-                <% }) %>
+                <% if (typeof shelves !== 'undefined' && shelves.length) { %>
+                  <option value="">Select a shelf…</option>
+                  <% shelves.forEach(s => { %>
+                    <option value="<%= s.value %>"><%= s.label %></option>
+                  <% }) %>
+                <% } else { %>
+                  <option disabled selected>No shelves configured</option>
+                <% } %>
               </select>
             </label>
           </div>

@@ -1,6 +1,7 @@
 // routes/admin-books.js
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
+const categories = require('../config/categories');
 
 const router = express.Router();
 
@@ -75,10 +76,17 @@ router.get('/books', async (req, res, next) => {
       });
     }
 
+    // Build shelves dropdown from categories config
+    const shelves = categories.map(slug => ({
+      value: slug,
+      label: slug.charAt(0).toUpperCase() + slug.slice(1)
+    }));
+
     res.render('admin/books', {
       ...messagesFromQuery(req.query),
       genres,
       books,
+      shelves,
       pageTitle: 'Admin • Books',
     });
   } catch (e) {
@@ -93,14 +101,18 @@ router.post('/books', async (req, res) => {
     const {
       title,
       author,
-      genre_slug,   // NOTE: name must be genre_slug in the form
+      category,     // from the form field name="category"
+      genre_slug,   // legacy support
       cover,
       source_url,
       provider,
       provider_id,
     } = req.body;
 
-    if (!title || !genre_slug) {
+    // Accept either category or genre_slug
+    const genreSlug = category || genre_slug;
+
+    if (!title || !genreSlug) {
       const msg = encodeURIComponent('Title and Genre/Shelf are required.');
       return res.redirect(303, '/admin/books?err=' + msg);
     }
@@ -108,7 +120,7 @@ router.post('/books', async (req, res) => {
     const insertRow = {
       title: title?.trim(),
       author: author?.trim() || null,
-      genre_slug: genre_slug?.trim(),
+      genre_slug: genreSlug?.trim(),
       cover: cover?.trim() || null,
       source_url: source_url?.trim() || null,
       provider: (provider?.trim() || null),
