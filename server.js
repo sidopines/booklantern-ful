@@ -164,6 +164,11 @@ app.get('/robots.txt', (_req, res) => {
   res.type('text/plain').send('User-agent: *\nAllow: /\n');
 });
 
+// Serve favicon.ico at root
+app.get('/favicon.ico', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'favicon.ico'));
+});
+
 // ---------- Safe locals for EJS ----------
 const BUILD_ID = Date.now().toString();
 app.use((req, res, next) => {
