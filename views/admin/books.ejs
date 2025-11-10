@@ -78,19 +78,22 @@
 
           <div class="row">
             <label class="grow">Cover URL
-              <input class="input" type="url" name="coverImage" placeholder="https://…/cover.jpg">
+              <input class="input" type="url" name="cover" placeholder="https://…/cover.jpg">
             </label>
           </div>
 
           <div class="row">
             <label class="grow">Source URL (preferred)
-              <input class="input" type="url" name="sourceUrl" placeholder="https://…">
+              <input class="input" type="url" name="source_url" placeholder="https://…">
+              <small style="color:#666;font-size:13px;display:block;margin-top:4px;">
+                Option A: paste full book page URL here. Option B: choose a Provider and enter its ID below.
+              </small>
             </label>
           </div>
 
           <div class="row">
             <label class="grow">OR Provider (e.g. gutenberg)
-              <input class="input" type="text" name="provider" placeholder="gutenberg">
+              <input class="input" type="text" name="provider" placeholder="gutenberg, openlibrary, archive, loc">
             </label>
             <label class="grow">Provider ID
               <input class="input" type="text" name="provider_id" placeholder="1342">
