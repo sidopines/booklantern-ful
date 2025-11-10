@@ -14,11 +14,12 @@
       const email = emailInput.value.trim();
       if(!email) return;
 
-      const redirectUrl = (location.origin === 'http://localhost:10000')
-        ? 'http://localhost:10000/auth/callback'
-        : 'https://booklantern.org/auth/callback';
-
-      const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectUrl } });
+      // Force Supabase to redirect to our callback
+      const origin = window.location.origin;
+      const { error } = await sb.auth.signInWithOtp(
+        { email },
+        { emailRedirectTo: `${origin}/auth/callback` }
+      );
       if(error){ console.error(error); alert('Could not send magic link. Try again.'); return; }
       // Redirect to unified /auth page after sending
       location.href = '/auth?check-email=1';
