@@ -50,7 +50,8 @@ function isPublicPath(req) {
       || req.path.startsWith('/img')
       || req.path.startsWith('/css')
       || req.path.startsWith('/js')
-      || req.path.startsWith('/assets');
+      || req.path.startsWith('/assets')
+      || req.path.startsWith('/api/search'); // Public search API
 }
 // ---------------------------------------------------------------------
 
@@ -117,6 +118,19 @@ function isPublicPath(req) {
   }
 })();
 
+/* -----------------------------------------------------------
+   APP_SIGNING_SECRET check (required for reader tokens)
+----------------------------------------------------------- */
+if (!process.env.APP_SIGNING_SECRET) {
+  console.warn('[APP_SIGNING_SECRET] ⚠️  Missing! Generating temporary secret...');
+  console.warn('[APP_SIGNING_SECRET] Add this to your .env file:');
+  const tempSecret = require('crypto').randomBytes(32).toString('base64url');
+  console.warn(`APP_SIGNING_SECRET=${tempSecret}`);
+  process.env.APP_SIGNING_SECRET = tempSecret;
+} else {
+  console.log('[APP_SIGNING_SECRET] ✓ Configured');
+}
+
 // ---------- Express core ----------
 app.set('trust proxy', true);
 app.set('view engine', 'ejs');
@@ -161,7 +175,12 @@ app.get('/sw.js', (req, res) => {
 
 // Minimal robots.txt
 app.get('/robots.txt', (_req, res) => {
-  res.type('text/plain').send('User-agent: *\nAllow: /\n');
+  res.type('text/plain').send(`User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /proxy
+Disallow: /unified-reader
+`);
 });
 
 // Serve favicon.ico at root
@@ -264,6 +283,15 @@ try {
   console.error('[routes] failed to mount ./routes/watch:', e);
 }
 
+// Mount search router (public federated search API)
+try {
+  const searchRoutes = require('./routes/search');
+  app.use('/', searchRoutes);
+  console.log('[routes] mounted search router at /');
+} catch (e) {
+  console.error('[routes] failed to mount ./routes/search:', e);
+}
+
 const hasSB = Boolean(
   (process.env.SUPABASE_URL || process.env.supabaseUrl) &&
     (process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -280,9 +308,11 @@ if (hasSB) {
     console.error('[routes] failed to mount admin-books/admin-genres:', e);
   }
 
+  // Mount reader routes (unified-reader, proxy/epub, library, reader APIs)
   try {
-    app.use('/reader', require('./routes/reader'));
-    console.log('[routes] mounted reader router at /reader');
+    const readerRoutes = require('./routes/reader');
+    app.use('/', readerRoutes);
+    console.log('[routes] mounted reader router at /');
   } catch (e) {
     console.error('[routes] failed to mount ./routes/reader:', e);
   }
