@@ -1,72 +1,292 @@
-// routes/reader.js — In-site EPUB/PDF reader shell
+// routes/reader.js — Federated public-domain EPUB reader with proxy
 const express = require('express');
-const { createClient } = require('@supabase/supabase-js');
+const axios = require('axios');
+const { ensureSubscriber } = require('../utils/gate');
+const { sign, verify } = require('../utils/signing');
+const supabaseAdmin = require('../supabaseAdmin');
 
 const router = express.Router();
 
-function getSupabaseAnon() {
-  const url =
-    process.env.SUPABASE_URL ||
-    process.env.supabaseUrl ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.PUBLIC_SUPABASE_URL;
-
-  const key =
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_KEY ||
-    process.env.supabaseKey ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
-}
-
-/* GET /reader/:id
-   Renders an internal reader page that loads EPUB.js / PDF.js in your own site.
-   Expects curated_books.file_url (direct epub/pdf) or falls back to source_url.
--------------------------------------------------------------------------- */
-router.get('/:id', async (req, res) => {
-  const sb = getSupabaseAnon();
-  const id = String(req.params.id || '');
-
-  if (!sb) {
-    return res.status(200).render('reader', {
-      error: 'Supabase URL/Key missing on server.',
-      book: { title: 'Unknown', author: '' },
-      epubUrl: null
-    });
-  }
-
+// GET /unified-reader?token=...
+router.get('/unified-reader', ensureSubscriber, (req, res) => {
+  res.set('X-Robots-Tag', 'noindex, nofollow');
+  const { token } = req.query;
+  if (!token) return res.status(400).send('Missing token parameter');
+  
   try {
-    const { data: book, error } = await sb
-      .from('curated_books')
-      .select('id,title,author,cover,source_url,file_url,category')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (error) throw error;
-    if (!book) {
-      return res.status(404).render('reader', {
-        error: 'Book not found.',
-        book: { title: 'Unknown', author: '' },
-        epubUrl: null
-      });
-    }
-
-    const epubUrl = book.file_url || null;
-
+    const payload = verify(token);
+    const readerToken = sign({
+      book_id: payload.book_id,
+      provider: payload.provider,
+      provider_id: payload.provider_id,
+      format: payload.format,
+      direct_url: payload.direct_url,
+    }, 600);
+    
     return res.render('reader', {
-      error: null,
-      book,
-      epubUrl
+      pageTitle: payload.title || 'Reading',
+      book: {
+        title: payload.title || 'Untitled',
+        author: payload.author || 'Unknown',
+        cover_url: payload.cover_url || null,
+        book_id: payload.book_id,
+      },
+      readerToken,
     });
-  } catch (e) {
-    console.error('[reader] load failed:', e);
-    return res.status(500).render('reader', {
-      error: e.message || 'Reader error.',
-      book: { title: 'Unknown', author: '' },
-      epubUrl: null
+  } catch (error) {
+    console.error('[unified-reader] token error:', error.message);
+    return res.status(403).send('Invalid or expired token');
+  }
+});
+
+// GET /proxy/epub?token=...
+router.get('/proxy/epub', ensureSubscriber, async (req, res) => {
+  res.set('X-Robots-Tag', 'noindex, nofollow');
+  const { token } = req.query;
+  if (!token) return res.status(400).send('Missing token parameter');
+  
+  try {
+    const payload = verify(token);
+    const directUrl = payload.direct_url;
+    if (!directUrl) return res.status(404).send('No file URL available');
+    
+    const response = await axios({
+      method: 'GET',
+      url: directUrl,
+      responseType: 'stream',
+      timeout: 30000,
+      headers: { 'User-Agent': 'BookLantern/1.0' },
     });
+    
+    res.set({
+      'Content-Type': response.headers['content-type'] || 'application/epub+zip',
+      'Cache-Control': 'private, max-age=600',
+      'X-Robots-Tag': 'noindex, nofollow',
+    });
+    
+    if (response.headers['content-length']) {
+      res.set('Content-Length', response.headers['content-length']);
+    }
+    
+    response.data.pipe(res);
+  } catch (error) {
+    console.error('[proxy/epub] error:', error.message);
+    if (error.message.includes('Token expired') || error.message.includes('Invalid token')) {
+      return res.status(403).send('Invalid or expired token');
+    }
+    return res.status(500).send('Failed to fetch book');
+  }
+});
+
+// POST /api/library/save
+router.post('/api/library/save', ensureSubscriber, async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).json({ error: 'Database not available' });
+  try {
+    const userId = req.session.user.id;
+    const { book_id, title, author, cover_url, provider, provider_id, format, direct_url } = req.body;
+    if (!book_id || !title) return res.status(400).json({ error: 'Missing required fields' });
+    
+    const { error } = await supabaseAdmin.from('saved_books').upsert({
+      user_id: userId, book_id, title, author: author || 'Unknown', cover_url,
+      provider, provider_id, format: format || 'epub', direct_url,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,book_id' });
+    
+    if (error) throw error;
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[library/save] error:', error);
+    return res.status(500).json({ error: 'Failed to save book' });
+  }
+});
+
+// POST /api/library/remove
+router.post('/api/library/remove', ensureSubscriber, async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).json({ error: 'Database not available' });
+  try {
+    const userId = req.session.user.id;
+    const { book_id } = req.body;
+    if (!book_id) return res.status(400).json({ error: 'Missing book_id' });
+    
+    const { error } = await supabaseAdmin.from('saved_books').delete()
+      .eq('user_id', userId).eq('book_id', book_id);
+    
+    if (error) throw error;
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[library/remove] error:', error);
+    return res.status(500).json({ error: 'Failed to remove book' });
+  }
+});
+
+// POST /api/reader/progress
+router.post('/api/reader/progress', ensureSubscriber, async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).json({ error: 'Database not available' });
+  try {
+    const userId = req.session.user.id;
+    const { book_id, cfi, progress_percent } = req.body;
+    if (!book_id || !cfi) return res.status(400).json({ error: 'Missing required fields' });
+    
+    const { error } = await supabaseAdmin.from('reading_progress').upsert({
+      user_id: userId, book_id, cfi, progress_percent: progress_percent || 0,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,book_id' });
+    
+    if (error) throw error;
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[reader/progress] error:', error);
+    return res.status(500).json({ error: 'Failed to save progress' });
+  }
+});
+
+// GET /api/reader/progress/:book_id
+router.get('/api/reader/progress/:book_id', ensureSubscriber, async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).json({ error: 'Database not available' });
+  try {
+    const userId = req.session.user.id;
+    const { book_id } = req.params;
+    const { data, error } = await supabaseAdmin.from('reading_progress').select('*')
+      .eq('user_id', userId).eq('book_id', book_id).maybeSingle();
+    if (error) throw error;
+    return res.json(data || {});
+  } catch (error) {
+    console.error('[reader/progress] error:', error);
+    return res.status(500).json({ error: 'Failed to get progress' });
+  }
+});
+
+// POST /api/reader/bookmark
+router.post('/api/reader/bookmark', ensureSubscriber, async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).json({ error: 'Database not available' });
+  try {
+    const userId = req.session.user.id;
+    const { book_id, cfi, label } = req.body;
+    if (!book_id || !cfi) return res.status(400).json({ error: 'Missing required fields' });
+    
+    const { data, error } = await supabaseAdmin.from('bookmarks').insert({
+      user_id: userId, book_id, cfi, label: label || 'Bookmark',
+      created_at: new Date().toISOString(),
+    }).select().single();
+    
+    if (error) throw error;
+    return res.json(data);
+  } catch (error) {
+    console.error('[reader/bookmark] error:', error);
+    return res.status(500).json({ error: 'Failed to add bookmark' });
+  }
+});
+
+// GET /api/reader/bookmarks/:book_id
+router.get('/api/reader/bookmarks/:book_id', ensureSubscriber, async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).json({ error: 'Database not available' });
+  try {
+    const userId = req.session.user.id;
+    const { book_id } = req.params;
+    const { data, error } = await supabaseAdmin.from('bookmarks').select('*')
+      .eq('user_id', userId).eq('book_id', book_id).order('created_at', { ascending: false });
+    if (error) throw error;
+    return res.json(data || []);
+  } catch (error) {
+    console.error('[reader/bookmarks] error:', error);
+    return res.status(500).json({ error: 'Failed to get bookmarks' });
+  }
+});
+
+// POST /api/reader/highlight
+router.post('/api/reader/highlight', ensureSubscriber, async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).json({ error: 'Database not available' });
+  try {
+    const userId = req.session.user.id;
+    const { book_id, cfi, text, color } = req.body;
+    if (!book_id || !cfi || !text) return res.status(400).json({ error: 'Missing required fields' });
+    
+    const { data, error } = await supabaseAdmin.from('highlights').insert({
+      user_id: userId, book_id, cfi, text, color: color || 'yellow',
+      created_at: new Date().toISOString(),
+    }).select().single();
+    
+    if (error) throw error;
+    return res.json(data);
+  } catch (error) {
+    console.error('[reader/highlight] error:', error);
+    return res.status(500).json({ error: 'Failed to add highlight' });
+  }
+});
+
+// GET /api/reader/highlights/:book_id
+router.get('/api/reader/highlights/:book_id', ensureSubscriber, async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).json({ error: 'Database not available' });
+  try {
+    const userId = req.session.user.id;
+    const { book_id } = req.params;
+    const { data, error } = await supabaseAdmin.from('highlights').select('*')
+      .eq('user_id', userId).eq('book_id', book_id).order('created_at', { ascending: false });
+    if (error) throw error;
+    return res.json(data || []);
+  } catch (error) {
+    console.error('[reader/highlights] error:', error);
+    return res.status(500).json({ error: 'Failed to get highlights' });
+  }
+});
+
+// POST /api/reader/settings
+router.post('/api/reader/settings', ensureSubscriber, async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).json({ error: 'Database not available' });
+  try {
+    const userId = req.session.user.id;
+    const { font_size, theme, font_family, line_height } = req.body;
+    const { error } = await supabaseAdmin.from('reader_settings').upsert({
+      user_id: userId, font_size, theme, font_family, line_height,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' });
+    if (error) throw error;
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[reader/settings] error:', error);
+    return res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
+
+// GET /api/reader/settings
+router.get('/api/reader/settings', ensureSubscriber, async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).json({ error: 'Database not available' });
+  try {
+    const userId = req.session.user.id;
+    const { data, error } = await supabaseAdmin.from('reader_settings').select('*')
+      .eq('user_id', userId).maybeSingle();
+    if (error) throw error;
+    return res.json(data || {});
+  } catch (error) {
+    console.error('[reader/settings] error:', error);
+    return res.status(500).json({ error: 'Failed to get settings' });
+  }
+});
+
+// GET /library
+router.get('/library', ensureSubscriber, async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.render('library', { pageTitle: 'My Library', books: [], error: 'Database not available' });
+  }
+  try {
+    const userId = req.session.user.id;
+    const { data: books, error } = await supabaseAdmin.from('saved_books').select('*')
+      .eq('user_id', userId).order('updated_at', { ascending: false });
+    if (error) throw error;
+    
+    const booksWithTokens = (books || []).map(book => {
+      const token = sign({
+        book_id: book.book_id, provider: book.provider, provider_id: book.provider_id,
+        format: book.format, direct_url: book.direct_url, title: book.title,
+        author: book.author, cover_url: book.cover_url,
+      }, 3600);
+      return { ...book, token };
+    });
+    
+    return res.render('library', { pageTitle: 'My Library', books: booksWithTokens, error: null });
+  } catch (error) {
+    console.error('[library] error:', error);
+    return res.render('library', { pageTitle: 'My Library', books: [], error: 'Failed to load library' });
   }
 });
 

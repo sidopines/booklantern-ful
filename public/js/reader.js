@@ -1,228 +1,223 @@
-/**
- * public/js/reader.js - Unified Reader Animation Module
- */
-
-window.BLReader = {
-  init(anim) {
-    console.log('[BL] reader init');
-    
-    // Setup neon glass theme
-    this.setupNeonTheme();
-    
-    // Load bookmark assistant
-    this.loadBookmarkAssistant(anim);
-    
-    // Setup loading animation
-    this.setupLoadingAnimation(anim);
-    
-    // Setup GSAP animations
-    anim.tryGSAP(() => {
-      this.setupGSAPAnimations();
+// public/js/reader.js
+(function() {
+  const { token, book } = window.READER_DATA;
+  let rendition, currentCfi;
+  let fontSize = 100;
+  let theme = 'dark';
+  let isSaved = false;
+  let utterance = null;
+  
+  // Initialize EPUB
+  const epubBook = ePub(`/proxy/epub?token=${encodeURIComponent(token)}`);
+  rendition = epubBook.renderTo('viewer', { width: '100%', height: '100%', flow: 'paginated' });
+  
+  // Load saved progress
+  loadProgress();
+  
+  // Load TOC
+  epubBook.loaded.navigation.then(nav => {
+    const toc = nav.toc;
+    const tocEl = document.getElementById('toc');
+    toc.forEach(chapter => {
+      const link = document.createElement('a');
+      link.textContent = chapter.label;
+      link.href = '#';
+      link.onclick = (e) => {
+        e.preventDefault();
+        rendition.display(chapter.href);
+      };
+      tocEl.appendChild(link);
     });
-    
-    // Setup ambient glow
-    anim.tryGSAP(() => {
-      this.setupAmbientGlow();
-    });
-  },
+  });
   
-  loadBookmarkAssistant(anim) {
-    const assistant = document.getElementById('bookmark-assistant');
-    if (!assistant) return;
-    
-    anim.tryLottie('bookmark-assistant', '/public/animations/bookmark.json', {
-      loop: true,
-      autoplay: true
-    });
-  },
+  // Navigation
+  document.getElementById('prev-btn').onclick = () => rendition.prev();
+  document.getElementById('next-btn').onclick = () => rendition.next();
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') rendition.next();
+    if (e.key === 'ArrowLeft') rendition.prev();
+  });
   
-  setupLoadingAnimation(anim) {
-    const loadingStack = document.getElementById('loading-stack');
-    if (!loadingStack) {
-      // Create book stack loader if it doesn't exist
-      this.createBookStackLoader();
-    }
-    
-    // Show loading animation
-    if (loadingStack) {
-      loadingStack.style.display = 'flex';
-    }
-    
-    // Hide loading after content is ready or timeout
-    const hideLoading = () => {
-      if (loadingStack) {
-        loadingStack.style.display = 'none';
-      }
-      const muted = document.querySelector('.muted');
-      if (muted) {
-        muted.style.display = 'none';
-      }
-    };
-    
-    // Listen for reader ready event
-    document.addEventListener('readerReady', hideLoading);
-    
-    // Fallback timeout
-    setTimeout(hideLoading, 60000);
-  },
+  // TOC sidebar
+  document.getElementById('toc-btn').onclick = () => {
+    document.getElementById('sidebar').classList.toggle('hidden');
+  };
+  document.getElementById('sidebar-close').onclick = () => {
+    document.getElementById('sidebar').classList.add('hidden');
+  };
   
-  createBookStackLoader() {
-    const readerContainer = document.querySelector('.reader-container') || document.querySelector('#bookBox');
-    if (!readerContainer) return;
-    
-    const loadingStack = document.createElement('div');
-    loadingStack.id = 'loading-stack';
-    loadingStack.className = 'book-stack-loader';
-    loadingStack.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      z-index: 1000;
-      background: var(--glass-bg);
-      backdrop-filter: blur(20px);
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-xl);
-      padding: 2rem;
-      box-shadow: var(--shadow-glow);
-    `;
-    
-    // Create animated book stack
-    for (let i = 0; i < 5; i++) {
-      const book = document.createElement('div');
-      book.className = 'stack-book';
-      book.style.cssText = `
-        width: 60px;
-        height: 80px;
-        background: var(--gradient-primary);
-        border-radius: 4px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        transform: translateX(${i * 2}px) translateY(${i * -2}px);
-        animation: book-stack-float 2s ease-in-out infinite;
-        animation-delay: ${i * 0.1}s;
-      `;
-      loadingStack.appendChild(book);
-    }
-    
-    // Add loading text
-    const loadingText = document.createElement('div');
-    loadingText.textContent = 'Loading your book...';
-    loadingText.style.cssText = `
-      color: var(--text);
-      font-size: 1.1rem;
-      font-weight: 500;
-      margin-top: 1rem;
-      text-align: center;
-    `;
-    loadingStack.appendChild(loadingText);
-    
-    // Add CSS animation
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes book-stack-float {
-        0%, 100% { transform: translateX(0) translateY(0) rotate(0deg); }
-        50% { transform: translateX(5px) translateY(-5px) rotate(2deg); }
-      }
-    `;
-    document.head.appendChild(style);
-    
-    document.body.appendChild(loadingStack);
-  },
+  // Settings panel
+  document.getElementById('settings-btn').onclick = () => {
+    document.getElementById('settings-panel').classList.toggle('hidden');
+  };
+  document.querySelector('.panel-close').onclick = () => {
+    document.getElementById('settings-panel').classList.add('hidden');
+  };
   
-  setupNeonTheme() {
-    // Add neon glass styling to reader elements
-    const readerContainer = document.querySelector('.reader-container') || document.querySelector('#bookBox');
-    if (readerContainer) {
-      readerContainer.style.cssText += `
-        background: rgba(26, 31, 58, 0.8);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(108, 124, 255, 0.3);
-        box-shadow: 0 0 32px rgba(108, 124, 255, 0.2);
-      `;
-    }
-  },
+  // Font size
+  document.getElementById('font-decrease').onclick = () => {
+    fontSize = Math.max(80, fontSize - 10);
+    updateFontSize();
+  };
+  document.getElementById('font-increase').onclick = () => {
+    fontSize = Math.min(150, fontSize + 10);
+    updateFontSize();
+  };
   
-  setupAmbientGlow() {
-    if (!window.gsap) return;
-    
-    // Create reading lamp ambient glow
-    const glowOverlay = document.createElement('div');
-    glowOverlay.className = 'ambient-glow';
-    glowOverlay.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: radial-gradient(ellipse at center top, 
-        rgba(245, 158, 11, 0.08) 0%, 
-        rgba(99, 102, 241, 0.05) 30%, 
-        transparent 70%);
-      pointer-events: none;
-      z-index: -1;
-    `;
-    document.body.appendChild(glowOverlay);
-    
-    // Gentle breathing glow animation
-    gsap.to(glowOverlay, {
-      opacity: 0.6,
-      duration: 4,
-      repeat: -1,
-      yoyo: true,
-      ease: "sine.inOut"
-    });
-    
-    // Create floating dust particles in reader
-    this.createReaderDustParticles();
-  },
-  
-  createReaderDustParticles() {
-    const readerContainer = document.querySelector('.reader-container') || document.querySelector('#bookBox');
-    if (!readerContainer) return;
-    
-    for (let i = 0; i < 8; i++) {
-      const particle = document.createElement('div');
-      particle.className = 'dust-particle';
-      particle.style.cssText = `
-        position: absolute;
-        width: 2px;
-        height: 2px;
-        background: rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        pointer-events: none;
-        left: ${Math.random() * 100}%;
-        top: ${Math.random() * 100}%;
-        animation: dust-drift 20s infinite linear;
-        animation-delay: ${Math.random() * 5}s;
-      `;
-      readerContainer.appendChild(particle);
-    }
-  },
-  
-  setupGSAPAnimations() {
-    if (!window.gsap) return;
-    
-    // Reader chrome animations
-    gsap.timeline()
-      .from('.reader-header', { opacity: 0, y: -20, duration: 0.8 })
-      .from('.reader-controls', { opacity: 0, y: 20, duration: 0.8 }, '-=0.4')
-      .from('#bookBox', { opacity: 0, scale: 0.95, duration: 1 }, '-=0.6');
-    
-    // Loading stack animation
-    const loadingBooks = document.querySelectorAll('.loading-book');
-    loadingBooks.forEach((book, i) => {
-      gsap.to(book, {
-        y: -10,
-        duration: 0.8,
-        repeat: -1,
-        yoyo: true,
-        delay: i * 0.2,
-        ease: 'power2.inOut'
-      });
-    });
+  function updateFontSize() {
+    rendition.themes.fontSize(`${fontSize}%`);
+    document.getElementById('font-size-display').textContent = `${fontSize}%`;
   }
-};
+  
+  // Theme
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.onclick = () => {
+      theme = btn.dataset.theme;
+      document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      applyTheme();
+    };
+  });
+  
+  function applyTheme() {
+    document.body.className = `theme-${theme}`;
+    const themes = {
+      light: { body: { background: '#fff', color: '#000' } },
+      sepia: { body: { background: '#f4ecd8', color: '#5c4b37' } },
+      dark: { body: { background: '#1a1a1a', color: '#e0e0e0' } }
+    };
+    rendition.themes.register(theme, themes[theme]);
+    rendition.themes.select(theme);
+  }
+  
+  // TTS
+  document.getElementById('listen-btn').onclick = startTTS;
+  document.getElementById('stop-listen-btn').onclick = stopTTS;
+  
+  function startTTS() {
+    if ('speechSynthesis' in window) {
+      rendition.getContents().forEach(contents => {
+        const text = contents.document.body.innerText;
+        utterance = new SpeechSynthesisUtterance(text);
+        speechSynthesis.speak(utterance);
+      });
+      document.getElementById('listen-btn').classList.add('hidden');
+      document.getElementById('stop-listen-btn').classList.remove('hidden');
+    }
+  }
+  
+  function stopTTS() {
+    if (speechSynthesis.speaking) {
+      speechSynthesis.cancel();
+    }
+    document.getElementById('listen-btn').classList.remove('hidden');
+    document.getElementById('stop-listen-btn').classList.add('hidden');
+  }
+  
+  // Save/unsave
+  document.getElementById('save-btn').onclick = saveToLibrary;
+  document.getElementById('unsave-btn').onclick = removeFromLibrary;
+  
+  async function saveToLibrary() {
+    try {
+      const res = await fetch('/api/library/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ book_id: book.book_id, title: book.title, author: book.author, cover_url: book.cover_url })
+      });
+      if (res.ok) {
+        isSaved = true;
+        document.getElementById('save-btn').classList.add('hidden');
+        document.getElementById('unsave-btn').classList.remove('hidden');
+      }
+    } catch (e) {
+      console.error('Save failed:', e);
+    }
+  }
+  
+  async function removeFromLibrary() {
+    try {
+      const res = await fetch('/api/library/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ book_id: book.book_id })
+      });
+      if (res.ok) {
+        isSaved = false;
+        document.getElementById('save-btn').classList.remove('hidden');
+        document.getElementById('unsave-btn').classList.add('hidden');
+      }
+    } catch (e) {
+      console.error('Remove failed:', e);
+    }
+  }
+  
+  // Progress tracking
+  rendition.on('relocated', loc => {
+    currentCfi = loc.start.cfi;
+    const percent = Math.round(epubBook.locations.percentageFromCfi(currentCfi) * 100);
+    document.getElementById('progress-text').textContent = `${percent}%`;
+    saveProgress(currentCfi, percent);
+  });
+  
+  let saveTimeout;
+  function saveProgress(cfi, percent) {
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(async () => {
+      try {
+        await fetch('/api/reader/progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ book_id: book.book_id, cfi, progress_percent: percent })
+        });
+        localStorage.setItem(`progress_${book.book_id}`, JSON.stringify({ cfi, percent }));
+      } catch (e) {
+        console.error('Save progress failed:', e);
+      }
+    }, 2000);
+  }
+  
+  async function loadProgress() {
+    try {
+      const res = await fetch(`/api/reader/progress/${encodeURIComponent(book.book_id)}`);
+      const data = await res.json();
+      if (data.cfi) {
+        rendition.display(data.cfi);
+      } else {
+        const local = localStorage.getItem(`progress_${book.book_id}`);
+        if (local) {
+          const { cfi } = JSON.parse(local);
+          rendition.display(cfi);
+        } else {
+          rendition.display();
+        }
+      }
+    } catch (e) {
+      console.error('Load progress failed:', e);
+      rendition.display();
+    }
+  }
+  
+  // Bookmarks
+  document.getElementById('bookmark-btn').onclick = addBookmark;
+  
+  async function addBookmark() {
+    if (!currentCfi) return;
+    const label = prompt('Bookmark label:', 'Bookmark');
+    if (!label) return;
+    try {
+      await fetch('/api/reader/bookmark', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ book_id: book.book_id, cfi: currentCfi, label })
+      });
+      alert('Bookmark added!');
+    } catch (e) {
+      console.error('Add bookmark failed:', e);
+    }
+  }
+  
+  // Initial setup
+  applyTheme();
+  updateFontSize();
+})();
