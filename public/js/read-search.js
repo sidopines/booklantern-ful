@@ -1,88 +1,77 @@
-// public/js/read-search.js
-(function() {
-  const searchForm = document.querySelector('form[action*="search"]') || document.querySelector('form');
-  const searchInput = searchForm?.querySelector('input[type="search"], input[name="q"]');
-  const resultsContainer = document.getElementById('search-results') || createResultsContainer();
-  
-  function createResultsContainer() {
-    const container = document.createElement('div');
-    container.id = 'search-results';
-    container.style.cssText = 'margin-top: 20px;';
-    if (searchForm) {
-      searchForm.parentNode.insertBefore(container, searchForm.nextSibling);
-    }
-    return container;
-  }
-  
-  if (!searchForm || !searchInput) return;
-  
-  searchForm.addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const query = searchInput.value.trim();
-    if (!query) return;
-    
-    resultsContainer.innerHTML = '<p>Searching...</p>';
-    
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&page=1`);
-      const data = await res.json();
-      
-      if (!data.items || data.items.length === 0) {
-        resultsContainer.innerHTML = '<p>No results found.</p>';
-        return;
-      }
-      
-      renderResults(data.items);
-    } catch (error) {
-      console.error('Search error:', error);
-      resultsContainer.innerHTML = '<p>Search failed. Please try again.</p>';
-    }
-  });
-  
-  function renderResults(items) {
-    const html = items.map(item => `
-      <div class="book-card" style="background: white; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; gap: 15px;">
-        ${item.cover_url ? `<img src="${item.cover_url}" alt="${item.title}" style="width: 100px; height: 150px; object-fit: cover; border-radius: 4px;" onerror="this.style.display='none'" />` : ''}
-        <div style="flex: 1;">
-          <h3 style="margin: 0 0 8px; font-size: 18px;">${item.title}</h3>
-          <p style="margin: 0 0 8px; color: #666;">${item.author}</p>
-          ${item.year ? `<p style="margin: 0 0 8px; font-size: 13px; color: #999;">${item.year}</p>` : ''}
-          <button 
-            class="read-btn" 
-            data-token="${item.token}" 
-            style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;"
-            onmouseover="this.style.background='#0056b3'" 
-            onmouseout="this.style.background='#007bff'">
-            Read
-          </button>
-        </div>
-      </div>
-    `).join('');
-    
-    resultsContainer.innerHTML = html;
-    
-    // Attach click handlers
-    document.querySelectorAll('.read-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const token = this.dataset.token;
-        const url = `/unified-reader?token=${encodeURIComponent(token)}`;
-        
-        // Check if logged in (basic check)
-        fetch('/api/reader/settings')
-          .then(res => {
-            if (res.status === 401 || res.status === 302) {
-              // Not logged in - redirect to login with next param
-              window.location.href = `/login?next=${encodeURIComponent(url)}`;
-            } else {
-              // Logged in - go to reader
-              window.location.href = url;
-            }
-          })
-          .catch(() => {
-            // Assume not logged in on error
-            window.location.href = `/login?next=${encodeURIComponent(url)}`;
-          });
-      });
+document.addEventListener('DOMContentLoaded', () => {
+  // Bind to any form that points at /search and has an input[name="q"]
+  const forms = Array.from(document.querySelectorAll('form[action="/search"]'))
+    .filter(f => f.querySelector('input[name="q"]'));
+
+  if (forms.length === 0) return;
+
+  forms.forEach(form => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const q = (form.querySelector('input[name="q"]')?.value || '').trim();
+      if (!q) return;
+      await runSearch(q);
     });
+  });
+
+  // If the page URL already has ?q=..., auto-run (covers /search?q=foo)
+  const urlQ = new URLSearchParams(location.search).get('q');
+  if (urlQ) runSearch(urlQ);
+});
+
+async function runSearch(q) {
+  // Ensure a results container exists
+  let container = document.getElementById('search-results') || document.getElementById('read-results');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'search-results';
+    const anchor = document.querySelector('h1, main') || document.body;
+    anchor.parentNode.insertBefore(container, anchor.nextSibling);
   }
-})();
+  container.innerHTML = `<p>Searching "${escapeHtml(q)}"…</p>`;
+
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&page=1`, { headers: { 'Accept': 'application/json' }});
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const items = Array.isArray(data.items) ? data.items : [];
+
+    if (items.length === 0) {
+      container.innerHTML = `<p>No results.</p>`;
+      return;
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'cards grid'; // uses your existing card styles
+
+    for (const it of items) {
+      const cover = it.cover_url || '/public/img/placeholder-cover.png';
+      const title = it.title || 'Untitled';
+      const author = it.author || '';
+      const token = it.token;
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <img src="${escapeAttr(cover)}" alt="">
+        <div class="card-body">
+          <div class="title">${escapeHtml(title)}</div>
+          <div class="author">${escapeHtml(author)}</div>
+          <a class="btn" href="/unified-reader?token=${encodeURIComponent(token)}">Read</a>
+        </div>`;
+      grid.appendChild(card);
+    }
+
+    container.innerHTML = '';
+    container.appendChild(grid);
+  } catch (err) {
+    container.innerHTML = `<p>Search failed. Please try again.</p>`;
+    // Optionally log to console for debugging:
+    console.debug('[read-search] error', err);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+}
+function escapeAttr(s){ return String(s).replace(/"/g,'&quot;'); }
