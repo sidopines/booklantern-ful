@@ -636,3 +636,110 @@ _______________________________________________________
 **Status:** Ready for implementation  
 **Estimated Time:** 15 minutes  
 **Risk Level:** Low (conditional provides fallback)
+
+---
+
+## 🔬 Smoke Test Results - November 10, 2025 12:02 UTC
+
+### Code Deployment Status
+
+**Commit:** cb46ed8  
+**Message:** fix(auth): force redirect_to=/auth/callback and hard bridge  
+**Deployed to:** main branch  
+**Timestamp:** November 10, 2025 12:01 UTC
+
+**Changes Applied:**
+- ✅ `auth-send.js` - Updated to use `window.location.origin` for emailRedirectTo
+- ✅ `auth-bridge.js` - Added immediate hash detection on page load
+- ✅ Routes verified - /auth, /login, /register all serve with 200 (no redirects)
+
+---
+
+### Route Status Test
+
+```bash
+=== Route status ===
+/auth           HTTP/2 200 ✅
+/auth/callback  HTTP/2 302 ⚠️ STALE CACHE - NEEDS PURGE
+/login          HTTP/2 200 ✅
+/register       HTTP/2 200 ✅
+```
+
+**Analysis:**
+- ✅ `/auth` returns 200 - serving auth.ejs directly
+- ✅ `/login` returns 200 - serving auth.ejs directly (no redirect)
+- ✅ `/register` returns 200 - serving auth.ejs directly (no redirect)
+- ⚠️ `/auth/callback` returns 302 - **STALE CLOUDFLARE CACHE** (should be 200)
+
+---
+
+### JavaScript Cache Headers
+
+```bash
+=== JS cache headers (ensure fresh) ===
+/public/js/auth-send.js     cache-control: public, max-age=31536000, immutable
+/public/js/auth-bridge.js   cache-control: public, max-age=31536000, immutable
+```
+
+**Analysis:**
+- ⚠️ Both JS files have immutable cache headers (1 year cache)
+- ⚠️ Cloudflare likely serving OLD versions of these files
+- **Action required:** Purge Cloudflare cache for both JS files
+
+---
+
+### 🚨 CRITICAL: Cloudflare Cache Purge Required
+
+**URLs that MUST be purged:**
+
+1. **https://booklantern.org/auth/callback** (CRITICAL - still serving 302)
+2. **https://booklantern.org/public/js/auth-send.js** (updated code)
+3. **https://booklantern.org/public/js/auth-bridge.js** (updated code)
+4. **https://booklantern.org/auth** (preventive)
+5. **https://booklantern.org/login** (preventive)
+6. **https://booklantern.org/register** (preventive)
+
+**How to purge:**
+
+1. Navigate to: https://dash.cloudflare.com
+2. Select **booklantern.org** domain
+3. Click **Caching** → **Configuration**
+4. Click **Custom Purge** → **Purge by URL**
+5. Paste the 6 URLs above (one per line)
+6. Click **Purge**
+
+**Alternative: Development Mode**
+- Caching → Configuration → Toggle **Development Mode** ON
+- Wait 3 hours (or toggle off after testing)
+
+---
+
+### Verification After Cache Purge
+
+Run this command after purging:
+
+```bash
+curl -sI https://booklantern.org/auth/callback | head -1
+```
+
+**Expected:** `HTTP/2 200`  
+**Current:** `HTTP/2 302` (stale cache)
+
+---
+
+### Next Steps
+
+**Immediate (BLOCKING):**
+- [ ] **Purge Cloudflare cache** for 6 URLs listed above
+- [ ] **Verify /auth/callback returns 200** after purge
+- [ ] **Wait 60 seconds** after purge
+
+**After Cache Purge:**
+- [ ] Update Supabase email templates (see steps above)
+- [ ] Send test email and verify href format
+- [ ] Request FRESH magic link in incognito window
+- [ ] Test full authentication flow
+- [ ] Document results below
+
+---
+
