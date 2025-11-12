@@ -16,13 +16,36 @@ const cache = new LRUCache({
 });
 
 /**
+ * Normalize any incoming value to a plain string.
+ * - Arrays → "a, b"
+ * - Objects with "name" → that name
+ * - null/undefined → ""
+ */
+function asText(v) {
+  if (v == null) return '';
+  if (typeof v === 'string') return v;
+  if (Array.isArray(v)) return v.filter(Boolean).map(asText).join(', ');
+  if (typeof v === 'object') {
+    if (v.name && typeof v.name === 'string') return v.name;
+    // Best-effort stringify for odd shapes
+    try { return String(v); } catch { return ''; }
+  }
+  return String(v);
+}
+
+/**
  * Deduplicate books by title + author
  * Prefer EPUB over PDF
  */
 function deduplicate(books) {
   const seen = new Map();
   
-  for (const book of books) {
+  for (const raw of books) {
+    const book = {
+      ...raw,
+      title: asText(raw.title),
+      author: asText(raw.author),
+    };
     const key = `${book.title.toLowerCase().trim()}|${book.author.toLowerCase().trim()}`;
     const existing = seen.get(key);
     
@@ -88,8 +111,8 @@ router.get('/api/search', async (req, res) => {
         provider_id: book.provider_id,
         format: book.format,
         direct_url: book.direct_url,
-        title: book.title,
-        author: book.author,
+        title: asText(book.title),
+        author: asText(book.author),
         cover_url: book.cover_url,
       };
       
@@ -98,8 +121,8 @@ router.get('/api/search', async (req, res) => {
       
       // Return public fields only
       return {
-        title: book.title,
-        author: book.author,
+        title: asText(book.title),
+        author: asText(book.author),
         cover_url: book.cover_url,
         year: book.year,
         language: book.language,
