@@ -1,82 +1,48 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // Bind to any form that points at /search and has an input[name="q"]
-  const forms = Array.from(document.querySelectorAll('form[action="/search"]'))
-    .filter(f => f.querySelector('input[name="q"]'));
-
-  // Check if URL has ?q= parameter and populate input if present
-  const params = new URLSearchParams(location.search);
-  const urlQ = (params.get('q') || '').trim();
+  // Get query from URL
+  const q = new URLSearchParams(location.search).get('q') || '';
+  
+  // Populate input if present
   const input = document.querySelector('input[name="q"]');
-  if (input && urlQ) input.value = urlQ;
-
-  if (forms.length === 0 && !urlQ) return;
-
-  forms.forEach(form => {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const q = (form.querySelector('input[name="q"]')?.value || '').trim();
-      if (!q) return;
-      await runSearch(q);
-    });
-  });
-
-  // Auto-run search if URL has ?q= parameter
-  if (urlQ) runSearch(urlQ);
+  if (input && q) input.value = q;
+  
+  // Ensure results mount exists
+  let mount = document.getElementById('results');
+  if (!mount) {
+    mount = document.createElement('div');
+    mount.id = 'results';
+    mount.className = 'results-grid';
+    const anchor = document.querySelector('.reader-intro') || document.querySelector('main') || document.body;
+    anchor.appendChild(mount);
+  }
+  
+  // Auto-fetch if query present
+  if (q) {
+    fetch(`/api/search?q=${encodeURIComponent(q)}`)
+      .then(r => r.json())
+      .then(({ items = [] }) => {
+        if (!Array.isArray(items) || items.length === 0) {
+          mount.innerHTML = '<p>No results.</p>';
+          return;
+        }
+        mount.innerHTML = items.map(item => {
+          const cover = item.cover_url ? `<img src="${item.cover_url}" alt="">` : '';
+          const title = item.title || 'Untitled';
+          const author = item.author ? `<div class="card-author">${item.author}</div>` : '';
+          const href = `/unified-reader?token=${encodeURIComponent(item.token)}`;
+          return `
+            <a class="book-card" href="${href}">
+              <div class="card-cover">${cover}</div>
+              <div class="card-title">${title}</div>
+              ${author}
+              <div class="card-cta"><span>Read</span></div>
+            </a>
+          `;
+        }).join('');
+      })
+      .catch(err => { 
+        console.error('search render error', err); 
+        mount.innerHTML = '<p>No results.</p>'; 
+      });
+  }
 });
-
-async function runSearch(q) {
-  // Ensure a results container exists
-  let container = document.getElementById('search-results') || document.getElementById('read-results');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'search-results';
-    const anchor = document.querySelector('h1, main') || document.body;
-    anchor.parentNode.insertBefore(container, anchor.nextSibling);
-  }
-  container.innerHTML = `<p>Searching "${escapeHtml(q)}"…</p>`;
-
-  try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&page=1`, { headers: { 'Accept': 'application/json' }});
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const items = Array.isArray(data.items) ? data.items : [];
-
-    if (items.length === 0) {
-      container.innerHTML = `<p>No results.</p>`;
-      return;
-    }
-
-    const grid = document.createElement('div');
-    grid.className = 'cards grid'; // uses your existing card styles
-
-    for (const it of items) {
-      const cover = it.cover_url || '/public/img/placeholder-cover.png';
-      const title = it.title || 'Untitled';
-      const author = it.author || '';
-      const token = it.token;
-
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.innerHTML = `
-        <img src="${escapeAttr(cover)}" alt="">
-        <div class="card-body">
-          <div class="title">${escapeHtml(title)}</div>
-          <div class="author">${escapeHtml(author)}</div>
-          <a class="btn" href="/unified-reader?token=${encodeURIComponent(token)}">Read</a>
-        </div>`;
-      grid.appendChild(card);
-    }
-
-    container.innerHTML = '';
-    container.appendChild(grid);
-  } catch (err) {
-    container.innerHTML = `<p>Search failed. Please try again.</p>`;
-    // Optionally log to console for debugging:
-    console.debug('[read-search] error', err);
-  }
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
-}
-function escapeAttr(s){ return String(s).replace(/"/g,'&quot;'); }
