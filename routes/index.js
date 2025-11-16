@@ -247,12 +247,4 @@ router.get('/contact', (_req, res) => res.render('contact', {}));
 router.get('/privacy', (_req, res) => res.render('privacy', {}));
 router.get('/terms',   (_req, res) => res.render('terms', {}));
 
-// -----------------------------
-// Minimal search (fixes 500: provide `q`)
-// -----------------------------
-router.get('/search', (req, res) => {
-  const q = isStr(req.query.q) ? req.query.q : '';
-  return res.render('search', { q, results: [] });
-});
-
 module.exports = router;
