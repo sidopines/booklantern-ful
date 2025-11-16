@@ -25,19 +25,15 @@
   <main class="reader-shell">
     <h1 class="page-title">Read</h1>
 
+    <div id="results" class="results-grid"></div>
+
     <%
       const providerSafe = typeof provider === 'string' ? provider : '';
       const idSafe = typeof id === 'string' ? id : '';
       const picks = Array.isArray(staffPicks) ? staffPicks : [];
     %>
 
-    <% if (!providerSafe || !idSafe) { %>
-      <p class="muted">
-        Open a book from the homepage or pass parameters like:
-        <code>/read?provider=gutenberg&amp;id=1342</code>.
-      </p>
-      <div class="pane"></div>
-    <% } else { %>
+    <% if (providerSafe && idSafe) { %>
       <div class="row">
         <section class="pane" id="reader"></section>
         <aside class="pane" id="notes"></aside>
@@ -83,6 +79,6 @@
     }
   })();
   </script>
-  <script src="/public/js/read-search.js"></script>
+  <script src="/public/js/read-search.js" defer></script>
 </body>
 </html>
