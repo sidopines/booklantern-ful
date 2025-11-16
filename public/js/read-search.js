@@ -3,7 +3,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const forms = Array.from(document.querySelectorAll('form[action="/search"]'))
     .filter(f => f.querySelector('input[name="q"]'));
 
-  if (forms.length === 0) return;
+  // Check if URL has ?q= parameter and populate input if present
+  const params = new URLSearchParams(location.search);
+  const urlQ = (params.get('q') || '').trim();
+  const input = document.querySelector('input[name="q"]');
+  if (input && urlQ) input.value = urlQ;
+
+  if (forms.length === 0 && !urlQ) return;
 
   forms.forEach(form => {
     form.addEventListener('submit', async (e) => {
@@ -14,8 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // If the page URL already has ?q=..., auto-run (covers /search?q=foo)
-  const urlQ = new URLSearchParams(location.search).get('q');
+  // Auto-run search if URL has ?q= parameter
   if (urlQ) runSearch(urlQ);
 });
 
