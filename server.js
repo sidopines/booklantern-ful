@@ -330,6 +330,12 @@ try {
   console.error('[routes] failed to mount ./routes/admin:', e);
 }
 
+// Redirect /search to /read with query param
+app.get('/search', (req, res) => {
+  const q = req.query.q || '';
+  return res.redirect(302, '/read?q=' + encodeURIComponent(q));
+});
+
 // ---------- Health check ----------
 app.get('/healthz', (_req, res) => res.status(200).send('OK'));
 
