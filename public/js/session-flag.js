@@ -1,31 +1,49 @@
-/* Sets a lightweight cookie the server can read after Supabase login.
-   We do NOT store the Supabase token in a cookie. We just ask the server
-   to set a "bl_sub" boolean based on the token we pass once via Authorization. */
-(async () => {
-  // Load Supabase client if available on pages that include it
-  if (typeof window === 'undefined' || !window.supabase) return;
-
-  async function syncCookieFromSession(session) {
-    try {
-      const token = session?.access_token;
-      if (!token) return;
-      await fetch('/api/auth/session-cookie', {
-        method: 'POST',
-        headers: { 'authorization': `Bearer ${token}` }
-      });
-    } catch (e) {
-      console.warn('session-cookie sync failed', e);
-    }
+/* public/js/session-flag.js */
+(function () {
+  function postCookie(accessToken) {
+    if (!accessToken) return;
+    fetch('/api/auth/session-cookie', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + accessToken },
+      body: JSON.stringify({ t: Date.now() })
+    }).catch(() => {});
   }
 
-  // On page load, if already logged in, sync once
-  try {
-    const { data } = await supabase.auth.getSession();
-    if (data?.session) await syncCookieFromSession(data.session);
-  } catch (_) {}
+  function init(client) {
+    if (!client || !client.auth) return;
+    // fire once on load
+    client.auth.getSession().then(({ data }) => postCookie(data?.session?.access_token));
+    // keep in sync
+    client.auth.onAuthStateChange((_evt, session) => postCookie(session?.access_token));
+  }
 
-  // Also listen for auth state changes (magic-link completes here)
-  supabase.auth.onAuthStateChange(async (_event, session) => {
-    if (session) await syncCookieFromSession(session);
-  });
+  function start() {
+    // keys must be present
+    var url = window.SUPABASE_URL, anon = window.SUPABASE_ANON_KEY;
+    if (!url || !anon) return;
+    // existing client or create one
+    var client = window.supabaseClient ||
+                 (window.supabase && window.supabase.createClient && window.supabase.createClient(url, anon));
+    if (!client) {
+      // load SDK dynamically as a fallback
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+      s.onload = function () {
+        try {
+          window.supabaseClient = window.supabase.createClient(url, anon);
+          init(window.supabaseClient);
+        } catch (_) {}
+      };
+      document.head.appendChild(s);
+      return;
+    }
+    window.supabaseClient = client;
+    init(client);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
 })();
