@@ -5,7 +5,6 @@ const path = require('path');
 const express = require('express');
 const compression = require('compression');
 const morgan = require('morgan');
-const cookieParser = require('cookie-parser');
 const csp = require('./middleware/csp'); // ← ADDED
 
 const app = express();
@@ -152,7 +151,7 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(compression());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-app.use(cookieParser());
+app.use(require('cookie-parser')(process.env.COOKIE_SECRET));
 
 // ---------- Static assets ----------
 app.use(
@@ -344,23 +343,29 @@ app.post('/api/auth/session-cookie', async (req, res) => {
     const hdr = req.get('authorization') || '';
     const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : '';
     if (!token) return res.status(401).end();
+
     const { data, error } = await supabaseAdmin.auth.getUser(token);
     if (error || !data?.user) return res.status(401).end();
 
-    const isSub = !!(data.user.user_metadata && (
-      data.user.user_metadata.is_subscriber === true ||
-      data.user.user_metadata.is_subscriber === 'true'
-    ));
+    const user = data.user;
+    const meta = user.user_metadata || {};
+    let isSub = meta.is_subscriber === true || meta.is_subscriber === 'true';
 
-    // Set a lightweight readable cookie for the server-side gate
+    // Optionally auto-subscribe new users
+    if (!isSub && process.env.AUTO_SUBSCRIBE_NEW_USERS === '1') {
+      const nextMeta = { ...meta, is_subscriber: true };
+      await supabaseAdmin.auth.admin.updateUserById(user.id, { user_metadata: nextMeta });
+      isSub = true;
+    }
+
     res.cookie('bl_sub', isSub ? '1' : '', {
-      httpOnly: false, // readable by client script to clear if needed
+      httpOnly: true,
       sameSite: 'Lax',
       secure: true,
       path: '/',
-      maxAge: isSub ? 60 * 60 * 24 * 30 * 1000 : 0 // 30 days or clear
+      maxAge: isSub ? 1000 * 60 * 60 * 24 * 30 : 0,
+      signed: true
     });
-
     return res.status(204).end();
   } catch (e) {
     console.error('session-cookie error', e);
@@ -370,7 +375,7 @@ app.post('/api/auth/session-cookie', async (req, res) => {
 
 // Logout route
 app.get('/logout', (req, res) => {
-  res.clearCookie('bl_sub', { path: '/' });
+  res.clearCookie('bl_sub', { path: '/', signed: true });
   // Clear session if present
   if (req.session) req.session.destroy(() => {});
   res.redirect('/');
