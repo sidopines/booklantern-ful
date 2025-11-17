@@ -341,45 +341,30 @@ const supabaseAdmin = require('./supabaseAdmin');
 app.post('/api/auth/session-cookie', async (req, res) => {
   try {
     const hdr = req.get('authorization') || '';
-    const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : '';
-    if (!token) return res.status(401).end();
-
+    const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : null;
+    if (!token) return res.status(400).json({ ok:false, error:'missing token' });
     const { data, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !data?.user) return res.status(401).end();
-
-    const user = data.user;
-    const meta = user.user_metadata || {};
-    let isSub = meta.is_subscriber === true || meta.is_subscriber === 'true';
-
-    // Optionally auto-subscribe new users
-    if (!isSub && process.env.AUTO_SUBSCRIBE_NEW_USERS === '1') {
-      const nextMeta = { ...meta, is_subscriber: true };
-      await supabaseAdmin.auth.admin.updateUserById(user.id, { user_metadata: nextMeta });
-      isSub = true;
+    if (error || !data?.user) return res.status(401).json({ ok:false });
+    const isSub =
+      process.env.AUTO_SUBSCRIBE_NEW_USERS === '1'
+        ? true
+        : (data.user.user_metadata && data.user.user_metadata.is_subscriber === true);
+    // optional auto-subscribe write-through when flag is on
+    if (process.env.AUTO_SUBSCRIBE_NEW_USERS === '1' && data.user.user_metadata?.is_subscriber !== true) {
+      await supabaseAdmin.auth.admin.updateUserById(data.user.id, {
+        user_metadata: { ...(data.user.user_metadata||{}), is_subscriber: true }
+      }).catch(()=>{});
     }
-
-    res.cookie('bl_sub', isSub ? '1' : '', {
-      httpOnly: true,
-      sameSite: 'Lax',
-      secure: true,
-      path: '/',
-      maxAge: isSub ? 1000 * 60 * 60 * 24 * 30 : 0,
-      signed: true
+    res.cookie('bl_sub', isSub ? '1' : '0', {
+      httpOnly: true, signed: true, sameSite: 'lax',
+      secure: true, maxAge: 30*24*60*60*1000, path: '/'
     });
-    return res.status(204).end();
-  } catch (e) {
-    console.error('session-cookie error', e);
-    return res.status(500).end();
-  }
+    return res.json({ ok:true, sub:isSub ? 1 : 0 });
+  } catch (e) { return res.status(500).json({ ok:false }); }
 });
 
 // Logout route
-app.get('/logout', (req, res) => {
-  res.clearCookie('bl_sub', { path: '/', signed: true });
-  // Clear session if present
-  if (req.session) req.session.destroy(() => {});
-  res.redirect('/');
-});
+app.get('/logout', (req,res)=>{ res.clearCookie('bl_sub',{ httpOnly:true, signed:true, sameSite:'lax', secure:true, path:'/' }); res.redirect('/'); });
 
 // ---------- Health check ----------
 app.get('/healthz', (_req, res) => res.status(200).send('OK'));
