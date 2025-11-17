@@ -336,6 +336,46 @@ try {
   console.error('[routes] failed to mount ./routes/admin:', e);
 }
 
+// ---------- Session cookie endpoint ----------
+const supabaseAdmin = require('./supabaseAdmin');
+
+app.post('/api/auth/session-cookie', async (req, res) => {
+  try {
+    const hdr = req.get('authorization') || '';
+    const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : '';
+    if (!token) return res.status(401).end();
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !data?.user) return res.status(401).end();
+
+    const isSub = !!(data.user.user_metadata && (
+      data.user.user_metadata.is_subscriber === true ||
+      data.user.user_metadata.is_subscriber === 'true'
+    ));
+
+    // Set a lightweight readable cookie for the server-side gate
+    res.cookie('bl_sub', isSub ? '1' : '', {
+      httpOnly: false, // readable by client script to clear if needed
+      sameSite: 'Lax',
+      secure: true,
+      path: '/',
+      maxAge: isSub ? 60 * 60 * 24 * 30 * 1000 : 0 // 30 days or clear
+    });
+
+    return res.status(204).end();
+  } catch (e) {
+    console.error('session-cookie error', e);
+    return res.status(500).end();
+  }
+});
+
+// Logout route
+app.get('/logout', (req, res) => {
+  res.clearCookie('bl_sub', { path: '/' });
+  // Clear session if present
+  if (req.session) req.session.destroy(() => {});
+  res.redirect('/');
+});
+
 // ---------- Health check ----------
 app.get('/healthz', (_req, res) => res.status(200).send('OK'));
 
