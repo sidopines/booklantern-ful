@@ -1,5 +1,6 @@
 <li class="card book-card" role="listitem" style="width:220px; max-width:240px;">
-  <a class="book-card__thumb" href="<%= b.readUrl %>" aria-label="Read <%= b.title %>" style="display:block; text-decoration:none;">
+  <% const gatedUrl = (typeof loginGate === 'function' && b.readUrl) ? loginGate(b.readUrl) : (b.readUrl || '#'); %>
+  <a class="book-card__thumb" href="<%= gatedUrl %>" aria-label="Read <%= b.title %>" style="display:block; text-decoration:none;">
     <!-- Responsive 2:3 box that scales with the card width -->
     <span
       style="
@@ -34,11 +35,11 @@
 
   <div class="book-card__meta" style="margin-top:10px;">
     <h3 class="book-card__title" style="font-size:14px; line-height:1.25; margin:0 0 4px;">
-      <a href="<%= b.readUrl %>" style="text-decoration:none; color:inherit;"><%= b.title %></a>
+      <a href="<%= gatedUrl %>" style="text-decoration:none; color:inherit;"><%= b.title %></a>
     </h3>
     <% if (b.author) { %>
       <p class="book-card__author" style="margin:0 0 8px; color:#666; font-size:12px;"><%= b.author %></p>
     <% } %>
-    <a class="btn btn-sm" href="<%= b.readUrl %>">Read</a>
+    <a class="btn btn-sm" href="<%= gatedUrl %>">Read</a>
   </div>
 </li>

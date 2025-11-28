@@ -185,44 +185,58 @@
   <main class="page">
     <div id="status" class="muted small">loading…</div>
     <section class="pane">
-      <div id="bookBox">
-        <!-- Loading Animation -->
-        <div class="loading-stack" id="loading-stack">
-          <div class="loading-book"></div>
-          <div class="loading-book"></div>
-          <div class="loading-book"></div>
-        </div>
-        <div class="muted" style="display:flex;align-items:center;justify-content:center;height:100%">Loading…</div>
-      </div>
+      <div id="viewer" style="height: calc(100vh - 140px); width: 100%;"></div>
       <!-- Navigation chevrons -->
       <button class="nav-chevron prev" onclick="navigatePrev()" title="Previous page (←)">‹</button>
       <button class="nav-chevron next" onclick="navigateNext()" title="Next page (→)">›</button>
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
   <script>
     const MODE = <%- JSON.stringify(mode||'') %>;
     const EPUB_URL = <%- JSON.stringify(typeof epubUrl==='string'?epubUrl:'') %>;
     const HTML_URL = <%- JSON.stringify(typeof htmlUrl==='string'?htmlUrl:'') %>;
     const PDF_URL = <%- JSON.stringify(typeof pdfUrl==='string'?pdfUrl:'') %>;
 
-    // Reader animations will be handled by reader.js module
-
-    // Hide loading animation when content loads
-    const hideLoading = () => {
-      const loadingStack = document.getElementById('loading-stack');
-      if (loadingStack) {
-        loadingStack.style.display = 'none';
+    const statusEl = document.getElementById('status');
+    let book, rendition;
+    
+    function setStatus(s){ if (statusEl) statusEl.textContent = s; }
+    
+    // Navigation functions
+    function navigatePrev() {
+      if (rendition && rendition.prev) {
+        rendition.prev();
       }
-    };
+    }
 
-    // Show loading animation
-    const showLoading = () => {
-      const loadingStack = document.getElementById('loading-stack');
-      if (loadingStack) {
-        loadingStack.style.display = 'flex';
+    function navigateNext() {
+      if (rendition && rendition.next) {
+        rendition.next();
       }
-    };
+    }
+    
+    // Initialize EPUB reader
+    (function () {
+      var url = "<%= typeof epubUrl !== 'undefined' && epubUrl ? epubUrl : '' %>";
+      if (!url) { console.error('No epubUrl'); return; }
+      var proxied = '/proxy?u=' + encodeURIComponent(url);
+      try {
+        setStatus('loading…');
+        book = ePub(proxied);
+        rendition = book.renderTo('viewer', { width: '100%', height: '100%' });
+        rendition.display().then(() => {
+          setStatus('ready');
+        }).catch((e) => {
+          console.error('epub render failed', e);
+          setStatus('error');
+        });
+      } catch (e) { 
+        console.error('epub init failed', e); 
+        setStatus('error');
+      }
+    })();
     const GID = <%- JSON.stringify(typeof gid==='string'?gid:'') %>;
     const IA_ID = <%- JSON.stringify(typeof iaId==='string'?iaId:'') %>;
 

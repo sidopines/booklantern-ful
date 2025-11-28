@@ -153,6 +153,16 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(require('cookie-parser')(process.env.COOKIE_SECRET));
 
+// ---------- Subscriber status middleware ----------
+app.use((req, res, next) => {
+  const isSub = (req.user?.is_subscriber === true) || (req.signedCookies?.bl_sub === '1');
+  res.locals.is_subscriber = !!isSub;
+  // For older templates that check `user`, synthesize a minimal user object
+  if (isSub && !res.locals.user) res.locals.user = { is_subscriber: true };
+  res.locals.loginGate = (url) => (isSub ? url : ('/login?next=' + encodeURIComponent(url)));
+  next();
+});
+
 // ---------- Static assets ----------
 app.use(
   '/public',
@@ -229,6 +239,23 @@ app.get('/account', (_req, res) => {
   } catch (e) {
     console.error('[account] render failed:', e);
     return res.status(500).send('Account render error');
+  }
+});
+
+// ---------- EPUB Proxy (CORS workaround) ----------
+const allowedHosts = new Set(['www.gutenberg.org','gutenberg.org','archive.org']);
+app.get('/proxy', async (req, res) => {
+  try {
+    const u = new URL(req.query.u);
+    if (!allowedHosts.has(u.hostname)) return res.status(400).send('host not allowed');
+    const r = await fetch(u.toString(), { redirect: 'follow' });
+    if (!r.ok) return res.status(r.status).send('upstream error');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Cache-Control', 'public, max-age=86400');
+    if (r.headers.get('content-type')) res.type(r.headers.get('content-type'));
+    r.body.pipe(res);
+  } catch (e) {
+    res.status(400).send('bad url');
   }
 });
 

@@ -42,7 +42,9 @@
             <% } %>
             <div class="book-title"><%= book.title %></div>
             <div class="book-author"><%= book.author %></div>
-            <button onclick="window.location.href='/unified-reader?token=<%= encodeURIComponent(book.token) %>'">
+            <% const readerUrl = '/unified-reader?token=' + encodeURIComponent(book.token); %>
+            <% const gatedReaderUrl = (typeof loginGate === 'function') ? loginGate(readerUrl) : readerUrl; %>
+            <button onclick="window.location.href='<%= gatedReaderUrl %>'">
               Read
             </button>
           </div>
