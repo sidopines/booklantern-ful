@@ -253,7 +253,7 @@ try {
 // Redirect /search to /read with query param (BEFORE index routes)
 app.get('/search', (req, res) => {
   const q = (req.query.q || '').trim();
-  return res.redirect(302, '/read?q=' + encodeURIComponent(q));
+  return res.redirect(303, '/read?q=' + encodeURIComponent(q));
 });
 
 try {
