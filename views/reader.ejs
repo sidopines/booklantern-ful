@@ -1,42 +1,25 @@
-<!doctype html><!doctype html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title><%= (book && book.title) ? book.title : 'Reader' %> • Reader</title>
+  <style>
+    html,body { height:100%; margin:0; }
+    #viewer { height: 100vh; }
+    .bar { padding: 10px; display:flex; gap:10px; align-items:center; border-bottom:1px solid #eee; }
+    .bar .title { font-weight:600; }
+  </style>
+</head>
+<body>
+  <% if (typeof epubUrl === 'undefined') { var epubUrl = null; } %>
+  <div class="bar">
+    <span class="title"><%= (book && book.title) || 'Untitled' %></span>
+    <span>by <%= (book && book.author) || 'Unknown' %></span>
+  </div>
 
-<html lang="en"><html>
-
-<head><head>
-
-  <meta charset="utf-8" />  <meta charset="utf-8" />
-
-  <meta name="viewport" content="width=device-width, initial-scale=1" />  <title><%= (book && book.title) ? book.title : 'Reader' %> • Reader</title>
-
-  <meta name="robots" content="noindex, nofollow" />  <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <title><%= book.title %> - Reader</title>  <style>
-
-  <link rel="stylesheet" href="/public/css/reader.css" />    html,body { height:100%; margin:0; }
-
-</head>    #viewer { height: 100vh; }
-
-<body>    .bar { padding: 10px; display:flex; gap:10px; align-items:center; border-bottom:1px solid #eee; }
-
-  <div class="reader-container">    .bar .title { font-weight:600; }
-
-    <header class="reader-header">  </style>
-
-      <div class="header-left"></head>
-
-        <button id="back-btn" onclick="window.location.href='/library'">← Back</button><body>
-
-        <span class="book-title"><%= book.title %></span>  <div class="bar">
-
-      </div>    <span class="title"><%= (book && book.title) || 'Untitled' %></span>
-
-      <div class="header-right">    <span>by <%= (book && book.author) || 'Unknown' %></span>
-
-        <button id="toc-btn" title="Table of Contents">☰</button>  </div>
-
-        <button id="bookmark-btn" title="Bookmark">🔖</button>
-
-        <button id="settings-btn" title="Settings">⚙️</button>  <% if (epubUrl) { %>
+  <% if (typeof epubUrl !== 'undefined' && epubUrl) { %>
 
       </div>    <!-- epub.js in-page reader -->
 
