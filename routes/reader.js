@@ -23,6 +23,14 @@ router.get('/unified-reader', ensureSubscriber, (req, res) => {
       direct_url: payload.direct_url,
     }, 600);
     
+    // Determine epubUrl from payload
+    const epubUrl =
+      payload.direct_url ||
+      payload.epub_url ||
+      (payload.provider === 'gutenberg' && payload.provider_id
+        ? `https://www.gutenberg.org/ebooks/${payload.provider_id}.epub3.images`
+        : null);
+    
     return res.render('reader', {
       pageTitle: payload.title || 'Reading',
       book: {
@@ -31,6 +39,7 @@ router.get('/unified-reader', ensureSubscriber, (req, res) => {
         cover_url: payload.cover_url || null,
         book_id: payload.book_id,
       },
+      epubUrl,
       readerToken,
     });
   } catch (error) {
