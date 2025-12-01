@@ -151,7 +151,7 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(compression());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-app.use(require('cookie-parser')(process.env.COOKIE_SECRET));
+app.use(require('cookie-parser')(process.env.COOKIE_SECRET || 'dev_fallback_cookie_secret'));
 
 // ---------- Subscriber status middleware ----------
 app.use((req, res, next) => {

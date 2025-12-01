@@ -4,63 +4,32 @@ const axios = require('axios');
 const { ensureSubscriber } = require('../utils/gate');
 const { sign, verify } = require('../utils/signing');
 const supabaseAdmin = require('../supabaseAdmin');
+const crypto = require('crypto');
 
 const router = express.Router();
+
+function decodeToken(t) {
+  try { return JSON.parse(Buffer.from(t.split('.')[0] || t, 'base64').toString('utf8')); }
+  catch { try { return JSON.parse(Buffer.from(t, 'base64').toString('utf8')); } catch { return null; } }
+}
 
 // GET /unified-reader?token=...
 router.get('/unified-reader', ensureSubscriber, (req, res) => {
   res.set('X-Robots-Tag', 'noindex, nofollow');
-  const { token } = req.query;
-  if (!token) return res.status(400).send('Missing token parameter');
-  
-  try {
-    const payload = verify(token);
-    const readerToken = sign({
-      book_id: payload.book_id,
-      provider: payload.provider,
-      provider_id: payload.provider_id,
-      format: payload.format,
-      direct_url: payload.direct_url,
-    }, 600);
-    
-    // Determine epubUrl from payload
-    const epubUrl =
-      payload.direct_url ||
-      payload.epub_url ||
-      (payload.provider === 'gutenberg' && payload.provider_id
-        ? `https://www.gutenberg.org/ebooks/${payload.provider_id}.epub3.images`
-        : null);
-    
-    // Derive locals from payload
-    const d = payload?.data || {};
-    const source  = d.provider || d.source || payload.provider || '';
-    const mode    = d.format || payload.format || 'epub';
-    const title   = d.title || payload.title || 'Book';
-    const author  = d.author || payload.author || '';
-    
-    // Set epubUrl in res.locals for template access
-    res.locals.epubUrl = epubUrl;
-    
-    return res.render('unified-reader', {
-      title,
-      author,
-      source,
-      mode,
-      epubUrl,
-      payload,
-      pageTitle: title || 'Reading',
-      book: {
-        title: title || 'Untitled',
-        author: author || 'Unknown',
-        cover_url: payload.cover_url || null,
-        book_id: payload.book_id,
-      },
-      readerToken,
-    });
-  } catch (error) {
-    console.error('[unified-reader] token error:', error.message);
-    return res.status(403).send('Invalid or expired token');
-  }
+  const tok = req.query.token || '';
+  const payload = decodeToken(tok);
+  const data = (payload && payload.data) || {};
+
+  const title = data.title || '';
+  const author = data.author || '';
+  const source = data.provider || data.provid || ''; // tolerate variants
+  const mode = (data.format || '').toLowerCase() === 'epub' ? 'epub' : 'epub'; // default to epub
+  const epubUrl = data.direct_url || data.url || '';
+
+  return res.render('unified-reader', {
+    title, author, source, mode, epubUrl,
+    user: req.user || null
+  });
 });
 
 // GET /proxy/epub?token=...

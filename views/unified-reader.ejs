@@ -1,17 +1,37 @@
 <!-- views/unified-reader.ejs -->
+<% if (typeof title === 'undefined') { var title = ''; } %>
+<% if (typeof author === 'undefined') { var author = ''; } %>
 <% if (typeof source === 'undefined') { var source = ''; } %>
-<% if (typeof mode === 'undefined')   { var mode = 'epub'; } %>
-<% if (typeof epubUrl === 'undefined'){ var epubUrl = null; } %>
+<% if (typeof mode === 'undefined') { var mode = 'epub'; } %>
+<% if (typeof epubUrl === 'undefined') { var epubUrl = ''; } %>
 <!doctype html>
 <html lang="en">
 <head>
   <%- include('./partials/head.ejs', {
-    pageTitle: pageTitle || 'Read • BookLantern',
-    pageDescription: 'Reading ' + (typeof bookTitle !== 'undefined' ? bookTitle : 'book') + ' in BookLantern\'s unified reader'
+    pageTitle: title || 'Read • BookLantern',
+    pageDescription: 'Reading ' + (title || 'book') + ' in BookLantern\'s unified reader'
   }) %>
+  <link rel="preload" href="/public/js/reader.js" as="script"/>
   <link rel="stylesheet" href="/public/css/reader.css">
   <style>
-    body{background:var(--bg);}
+    #viewer { min-height: 80vh; background:#111; color:#ddd; }
+    .reader-bar { display:flex; align-items:center; gap:.75rem; padding:.75rem 0; }
+    .reader-title { font-weight:600; }
+    .reader-back { text-decoration:none; }
+  </style>
+</head>
+<body>
+<div class="reader-bar">
+  <a class="reader-back" href="/read">← Back</a>
+  <div class="reader-title"><%= title || 'Book' %><% if (author) { %> — <%= author %><% } %></div>
+  <div class="reader-source"><%= typeof source !== 'undefined' ? source : '' %></div>
+</div>
+
+<div id="viewer" data-epub="<%= epubUrl %>">loading…</div>
+
+<script defer src="/public/js/reader.js"></script>
+</body>
+</html>
     
     /* Clean reader top bar */
     .reader-topbar{
