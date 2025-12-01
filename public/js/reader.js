@@ -1,32 +1,47 @@
 // public/js/reader.js
 (function () {
-  const el = document.getElementById('viewer');
+  // Support both old #viewer and new #epub-root
+  const el = document.getElementById('epub-root') || document.getElementById('viewer');
   if (!el) return;
   const url = el.getAttribute('data-epub');
-  if (!url) { el.innerText = 'Missing book URL.'; return; }
+  if (!url) { 
+    el.innerHTML = '<div class="reader-error">Missing book URL.</div>';
+    return; 
+  }
 
   function ensureEPub(cb) {
     if (window.ePub) return cb();
     const s = document.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/epubjs@0.3/dist/epub.min.js';
     s.onload = cb;
-    s.onerror = function(){ el.innerText = 'Failed to load reader library.'; };
+    s.onerror = function(){ 
+      el.innerHTML = '<div class="reader-error">Failed to load reader library.</div>';
+    };
     document.head.appendChild(s);
   }
 
-  ensureEPub(function () {
-    try {
-      const book = ePub(url);
-      const rendition = book.renderTo('viewer', { width: '100%', height: '80vh' });
-      rendition.display().catch(function (e) {
-        console.error('[reader] display error', e);
-        el.innerText = 'Failed to display book.';
-      });
-    } catch (e) {
-      console.error('[reader] init failed', e);
-      el.innerText = 'Failed to load book.';
-    }
-  });
+  // Initialize reader function that can be called externally
+  window.initUnifiedReader = function(epubUrl, targetEl) {
+    ensureEPub(function () {
+      try {
+        const book = ePub(epubUrl);
+        const containerId = targetEl.id || 'epub-root';
+        const rendition = book.renderTo(containerId, { width: '100%', height: '80vh' });
+        rendition.display().catch(function (e) {
+          console.error('[reader] display error', e);
+          targetEl.innerHTML = '<div class="reader-error">Failed to display book.</div>';
+        });
+      } catch (e) {
+        console.error('[reader] init failed', e);
+        targetEl.innerHTML = '<div class="reader-error">Failed to load book.</div>';
+      }
+    });
+  };
+
+  // Auto-initialize if URL present
+  if (url) {
+    window.initUnifiedReader(url, el);
+  }
 })();
   
   // Load saved progress

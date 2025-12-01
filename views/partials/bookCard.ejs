@@ -1,5 +1,6 @@
 <li class="card book-card" role="listitem" style="width:220px; max-width:240px;">
-  <% const gatedUrl = (typeof loginGate === 'function' && b.readUrl) ? loginGate(b.readUrl) : (b.readUrl || '#'); %>
+  <% const itemUrl = (typeof b.href === 'string' && b.href) ? b.href : (b.readUrl || b.url || '#'); %>
+  <% const gatedUrl = (typeof loginGate === 'function') ? loginGate(itemUrl) : itemUrl; %>
   <a class="book-card__thumb" href="<%= gatedUrl %>" aria-label="Read <%= b.title %>" style="display:block; text-decoration:none;">
     <!-- Responsive 2:3 box that scales with the card width -->
     <span

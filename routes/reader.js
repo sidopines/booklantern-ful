@@ -1,81 +1,31 @@
 // routes/reader.js — Federated public-domain EPUB reader with proxy
 const express = require('express');
-const axios = require('axios');
 const { ensureSubscriber } = require('../utils/gate');
-const { sign, verify } = require('../utils/signing');
+const { verifyReaderToken } = require('../utils/buildReaderToken');
 const supabaseAdmin = require('../supabaseAdmin');
-const crypto = require('crypto');
 
 const router = express.Router();
 
-function decodeToken(t) {
-  try { return JSON.parse(Buffer.from(t.split('.')[0] || t, 'base64').toString('utf8')); }
-  catch { try { return JSON.parse(Buffer.from(t, 'base64').toString('utf8')); } catch { return null; } }
-}
-
 // GET /unified-reader?token=...
-router.get('/unified-reader', ensureSubscriber, (req, res) => {
-  res.set('X-Robots-Tag', 'noindex, nofollow');
-  const tok = req.query.token || '';
-  const payload = decodeToken(tok) || {};
-  const data = payload.data || {};
-
-  const title   = data.title   || '';
-  const author  = data.author  || '';
-  const source  = data.provider || data.source || '';
-  const format  = (data.format || 'epub').toLowerCase();
-  const direct  = data.direct_url || data.url || '';
-
-  // Use our proxy to avoid CORS/redirect issues
-  const epubUrl = direct ? `/proxy/epub?u=${encodeURIComponent(direct)}` : '';
-
-  // Prefer going back to the last /read?q=... page if referrer matches
-  const ref = req.get('referer') || '';
-  const backHref = (ref.includes('/read?q=')) ? ref : '/read';
-
-  return res.render('unified-reader', {
-    title, author, source, mode: format, epubUrl,
-    backHref,
-    user: req.user || null
-  });
-});
-
-// GET /proxy/epub?token=...
-router.get('/proxy/epub', ensureSubscriber, async (req, res) => {
-  res.set('X-Robots-Tag', 'noindex, nofollow');
-  const { token } = req.query;
-  if (!token) return res.status(400).send('Missing token parameter');
-  
+router.get('/unified-reader', ensureSubscriber, async (req, res) => {
   try {
-    const payload = verify(token);
-    const directUrl = payload.direct_url;
-    if (!directUrl) return res.status(404).send('No file URL available');
-    
-    const response = await axios({
-      method: 'GET',
-      url: directUrl,
-      responseType: 'stream',
-      timeout: 30000,
-      headers: { 'User-Agent': 'BookLantern/1.0' },
+    const token = req.query.token;
+    const data = verifyReaderToken(token);
+    if (!data) return res.status(400).render('error', { message: 'Invalid or expired token.' });
+
+    const epubUrl = data.direct_url ? `/proxy/epub?url=${encodeURIComponent(data.direct_url)}` : null;
+
+    return res.render('unified-reader', {
+      title: data.title || 'Book',
+      author: data.author || '',
+      provider: data.provider || '',
+      cover_url: data.cover_url || '',
+      epubUrl,
+      backHref: data.back || '/read'
     });
-    
-    res.set({
-      'Content-Type': response.headers['content-type'] || 'application/epub+zip',
-      'Cache-Control': 'private, max-age=600',
-      'X-Robots-Tag': 'noindex, nofollow',
-    });
-    
-    if (response.headers['content-length']) {
-      res.set('Content-Length', response.headers['content-length']);
-    }
-    
-    response.data.pipe(res);
-  } catch (error) {
-    console.error('[proxy/epub] error:', error.message);
-    if (error.message.includes('Token expired') || error.message.includes('Invalid token')) {
-      return res.status(403).send('Invalid or expired token');
-    }
-    return res.status(500).send('Failed to fetch book');
+  } catch (e) {
+    console.error('[unified-reader] error', e);
+    return res.status(500).render('error', { message: 'Something went wrong.' });
   }
 });
 

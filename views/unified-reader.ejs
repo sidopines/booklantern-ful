@@ -1,8 +1,7 @@
 <!-- views/unified-reader.ejs -->
 <% if (typeof title === 'undefined') { var title = ''; } %>
 <% if (typeof author === 'undefined') { var author = ''; } %>
-<% if (typeof source === 'undefined') { var source = ''; } %>
-<% if (typeof mode === 'undefined') { var mode = 'epub'; } %>
+<% if (typeof provider === 'undefined') { var provider = ''; } %>
 <% if (typeof epubUrl === 'undefined') { var epubUrl = ''; } %>
 <% if (typeof backHref === 'undefined') { var backHref = '/read'; } %>
 <!doctype html>
@@ -14,22 +13,38 @@
   }) %>
   <link rel="preload" href="/public/js/reader.js" as="script"/>
   <style>
-    #viewer { min-height: 80vh; background:#111; }
-    .reader-bar { display:flex; align-items:center; gap:.75rem; padding:.75rem 0; }
+    #epub-root { min-height: 80vh; background:#111; }
+    .reader-header { display:flex; align-items:center; gap:.75rem; padding:.75rem 0; }
     .reader-title { font-weight:600; }
-    .reader-source { opacity:.7; }
-    .reader-back { text-decoration:none; }
+    .reader-source { opacity:.7; font-size:0.9rem; }
+    .reader-back { text-decoration:none; padding:0.5rem 1rem; background:#333; color:#fff; border-radius:6px; cursor:pointer; border:none; }
+    .reader-back:hover { background:#444; }
+    .reader-error { color:#dc2626; padding:2rem; text-align:center; }
   </style>
 </head>
 <body>
-<div class="reader-bar">
-  <a class="reader-back" href="<%= backHref %>">← Back</a>
-  <div class="reader-title"><%= title || 'Book' %><% if (author) { %> — <%= author %><% } %></div>
-  <div class="reader-source"><%= source %></div>
+<div class="reader-header">
+  <button class="reader-back" onclick="location.href = '<%= backHref || '/read' %>'">← Back</button>
+  <div class="reader-title">
+    <%= (typeof title === 'string' && title) ? title : 'Book' %>
+    <% if (typeof author === 'string' && author) { %> — <%= author %><% } %>
+  </div>
+  <div class="reader-source"><%= (typeof provider === 'string' && provider) ? provider : '' %></div>
 </div>
-
-<div id="viewer" data-epub="<%= epubUrl %>">loading…</div>
-
+<div id="epub-root" data-epub="<%= epubUrl ? epubUrl : '' %>"></div>
+<script>
+(function(){
+  const el = document.getElementById('epub-root');
+  const url = el?.dataset?.epub;
+  if (!url) {
+    console.error('No EPUB URL found');
+    el.innerHTML = '<div class="reader-error">Unable to load this book.</div>';
+    return;
+  }
+  // your existing EPUB initialization (e.g., ePub.js) should be invoked here with `url`
+  window.initUnifiedReader && window.initUnifiedReader(url, el);
+})();
+</script>
 <script defer src="/public/js/reader.js"></script>
 </body>
 </html>
