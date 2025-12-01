@@ -1,4 +1,7 @@
 <!-- views/unified-reader.ejs -->
+<% if (typeof source === 'undefined') { var source = ''; } %>
+<% if (typeof mode === 'undefined')   { var mode = 'epub'; } %>
+<% if (typeof epubUrl === 'undefined'){ var epubUrl = null; } %>
 <!doctype html>
 <html lang="en">
 <head>
@@ -6,6 +9,7 @@
     pageTitle: pageTitle || 'Read • BookLantern',
     pageDescription: 'Reading ' + (typeof bookTitle !== 'undefined' ? bookTitle : 'book') + ' in BookLantern\'s unified reader'
   }) %>
+  <link rel="stylesheet" href="/public/css/reader.css">
   <style>
     body{background:var(--bg);}
     
