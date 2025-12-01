@@ -1,15 +1,30 @@
 // public/js/reader.js
-(function() {
-  const { token, book } = window.READER_DATA;
-  let rendition, currentCfi;
-  let fontSize = 100;
-  let theme = 'dark';
-  let isSaved = false;
-  let utterance = null;
-  
-  // Initialize EPUB
-  const epubBook = ePub(`/proxy/epub?token=${encodeURIComponent(token)}`);
-  rendition = epubBook.renderTo('viewer', { width: '100%', height: '100%', flow: 'paginated' });
+(function () {
+  const el = document.getElementById('viewer');
+  if (!el) return;
+  const url = el.getAttribute('data-epub');
+  if (!url) { console.warn('[reader] no epub url'); return; }
+
+  // Lazy load ePub.js if not present (CDN fallback)
+  function ensureEPub(cb) {
+    if (window.ePub) return cb();
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/epubjs@0.3/dist/epub.min.js';
+    s.onload = cb;
+    document.head.appendChild(s);
+  }
+
+  ensureEPub(function () {
+    try {
+      const book = ePub(url);
+      const rendition = book.renderTo('viewer', { width: '100%', height: '80vh' });
+      rendition.display();
+    } catch (e) {
+      console.error('[reader] failed to init epub', e);
+      el.innerText = 'Failed to load book.';
+    }
+  });
+})();
   
   // Load saved progress
   loadProgress();
