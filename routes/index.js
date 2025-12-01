@@ -53,10 +53,16 @@ function toHomeCard(row, isAuthed) {
   };
 }
 
-/** Build a /read staff-pick card (curated_books ➜ internal reader /reader/:id) */
-function toReaderCard(row, isAuthed) {
-  const directReader = `/reader/${encodeURIComponent(row.id)}`;
-  const readUrl = isAuthed ? directReader : `/login?next=${encodeURIComponent(directReader)}`;
+/** Build a /read staff-pick card (curated_books ➜ unified-reader with token) */
+function toReaderCard(row) {
+  // curated_books already stored in DB with provider/provider_id; we just link to /read
+  const provider = row.provider || null;
+  const pid = row.provider_id || null;
+
+  const readUrl =
+    provider && pid
+      ? `/read?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(pid)}`
+      : '/read';
 
   return {
     id: row.id,
@@ -217,19 +223,18 @@ router.get('/video/:id', async (req, res) => {
 router.get('/read', async (req, res) => {
   const provider = isStr(req.query.provider) ? req.query.provider : '';
   const id = isStr(req.query.id) ? req.query.id : '';
-  const isAuthed = Boolean((req.session && req.session.user) || req.user || req.authUser);
 
   let staffPicks = [];
   if (supabase) {
     try {
-      // Pull recent curated books; feel free to adjust filter/order.
+      // Pull recent curated books; ensure we get provider/provider_id for /read links
       const { data = [] } = await supabase
         .from('curated_books')
-        .select('id,title,author,cover,created_at')
+        .select('id,title,author,cover,provider,provider_id,created_at')
         .order('created_at', { ascending: false })
         .limit(12);
 
-      staffPicks = data.map((r) => toReaderCard(r, isAuthed));
+      staffPicks = data.map((r) => toReaderCard(r));
     } catch (e) {
       console.error('[read] staff picks load failed:', e);
       staffPicks = [];

@@ -3,14 +3,14 @@
   const el = document.getElementById('viewer');
   if (!el) return;
   const url = el.getAttribute('data-epub');
-  if (!url) { console.warn('[reader] no epub url'); return; }
+  if (!url) { el.innerText = 'Missing book URL.'; return; }
 
-  // Lazy load ePub.js if not present (CDN fallback)
   function ensureEPub(cb) {
     if (window.ePub) return cb();
     const s = document.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/epubjs@0.3/dist/epub.min.js';
     s.onload = cb;
+    s.onerror = function(){ el.innerText = 'Failed to load reader library.'; };
     document.head.appendChild(s);
   }
 
@@ -18,9 +18,12 @@
     try {
       const book = ePub(url);
       const rendition = book.renderTo('viewer', { width: '100%', height: '80vh' });
-      rendition.display();
+      rendition.display().catch(function (e) {
+        console.error('[reader] display error', e);
+        el.innerText = 'Failed to display book.';
+      });
     } catch (e) {
-      console.error('[reader] failed to init epub', e);
+      console.error('[reader] init failed', e);
       el.innerText = 'Failed to load book.';
     }
   });
