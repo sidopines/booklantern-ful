@@ -6,7 +6,8 @@ const express = require('express');
 const compression = require('compression');
 const morgan = require('morgan');
 const csp = require('./middleware/csp'); // ← ADDED
-const { fetch } = require('undici');
+const fetch = global.fetch;
+const { Readable } = require('node:stream');
 
 const app = express();
 
@@ -262,9 +263,8 @@ app.get('/proxy/epub', async (req, res) => {
     res.setHeader('cache-control', 'public, max-age=86400');
     res.setHeader('access-control-allow-origin', '*');
 
-    // Stream it
-    for await (const chunk of r.body) res.write(chunk);
-    res.end();
+    // Stream it using Node's Readable.fromWeb
+    return Readable.fromWeb(r.body).pipe(res);
   } catch (e) {
     console.error('[proxy/epub] error', e);
     res.status(502).send('proxy error');
