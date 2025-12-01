@@ -247,27 +247,22 @@ app.get('/account', (_req, res) => {
 // ---------- EPUB Proxy (CORS workaround) ----------
 app.get('/proxy/epub', async (req, res) => {
   try {
-    const raw = req.query.u || '';
-    const url = decodeURIComponent(raw);
-    // Basic allowlist; keep it conservative
-    const allowed = ['archive.org', 'www.archive.org', 'covers.openlibrary.org', 'openlibrary.org', 'www.gutenberg.org', 'gutenberg.org'];
-    const u = new URL(url);
-    if (!allowed.includes(u.hostname)) return res.status(400).send('blocked');
+    const url = req.query.url;
+    if (!url) return res.status(400).json({ error: 'missing url' });
 
-    const r = await fetch(url, { redirect: 'follow' });
-    if (!r.ok) return res.status(r.status).send('fetch failed');
+    const upstream = await fetch(url, { redirect: 'follow' });
+    if (!upstream.ok) return res.status(upstream.status).end();
 
-    // Content type for epubs is commonly application/epub+zip, but we also allow octet-stream
-    const ct = r.headers.get('content-type') || 'application/epub+zip';
-    res.setHeader('content-type', ct);
-    res.setHeader('cache-control', 'public, max-age=86400');
-    res.setHeader('access-control-allow-origin', '*');
+    // pass through essential headers
+    const ct = upstream.headers.get('content-type') || 'application/epub+zip';
+    res.set('Content-Type', ct);
+    const cc = upstream.headers.get('cache-control');
+    if (cc) res.set('Cache-Control', cc);
 
-    // Stream it using Node's Readable.fromWeb
-    return Readable.fromWeb(r.body).pipe(res);
+    return Readable.fromWeb(upstream.body).pipe(res);
   } catch (e) {
     console.error('[proxy/epub] error', e);
-    res.status(502).send('proxy error');
+    return res.status(502).end();
   }
 });
 
