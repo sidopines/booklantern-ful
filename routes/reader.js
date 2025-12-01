@@ -31,18 +31,27 @@ router.get('/unified-reader', ensureSubscriber, (req, res) => {
         ? `https://www.gutenberg.org/ebooks/${payload.provider_id}.epub3.images`
         : null);
     
+    // Derive locals from payload
+    const d = payload?.data || {};
+    const source  = d.provider || d.source || payload.provider || '';
+    const mode    = d.format || payload.format || 'epub';
+    const title   = d.title || payload.title || 'Book';
+    const author  = d.author || payload.author || '';
+    
     // Set epubUrl in res.locals for template access
     res.locals.epubUrl = epubUrl;
     
     return res.render('unified-reader', {
-      pageTitle: payload.title || 'Reading',
-      title: payload.title || 'Untitled',
-      author: payload.author || 'Unknown',
-      mode: 'epub',
+      title,
+      author,
+      source,
+      mode,
       epubUrl,
+      payload,
+      pageTitle: title || 'Reading',
       book: {
-        title: payload.title || 'Untitled',
-        author: payload.author || 'Unknown',
+        title: title || 'Untitled',
+        author: author || 'Unknown',
         cover_url: payload.cover_url || null,
         book_id: payload.book_id,
       },
