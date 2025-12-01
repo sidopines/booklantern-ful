@@ -1,7 +1,7 @@
 // routes/search.js
 const express = require('express');
 const { LRUCache } = require('lru-cache');
-const { sign } = require('../utils/signing');
+const buildReaderToken = require('../helpers/buildReaderToken');
 const gutenberg = require('../lib/sources/gutenberg');
 const openlibrary = require('../lib/sources/openlibrary');
 const archive = require('../lib/sources/archive');
@@ -105,19 +105,16 @@ router.get('/api/search', async (req, res) => {
     
     // Create signed tokens and public response
     const items = uniqueBooks.map(book => {
-      const tokenPayload = {
-        book_id: book.book_id,
+      // Build token using new helper
+      const token = buildReaderToken({
         provider: book.provider,
         provider_id: book.provider_id,
-        format: book.format,
-        direct_url: book.direct_url,
         title: asText(book.title),
         author: asText(book.author),
         cover_url: book.cover_url,
-      };
-      
-      // Sign token with 1 hour TTL
-      const token = sign(tokenPayload, 3600);
+        format: book.format,
+        direct_url: book.direct_url,
+      });
       
       // Return public fields only
       return {

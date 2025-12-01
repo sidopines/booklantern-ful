@@ -4,6 +4,7 @@
 <% if (typeof source === 'undefined') { var source = ''; } %>
 <% if (typeof mode === 'undefined') { var mode = 'epub'; } %>
 <% if (typeof epubUrl === 'undefined') { var epubUrl = ''; } %>
+<% if (typeof backHref === 'undefined') { var backHref = '/read'; } %>
 <!doctype html>
 <html lang="en">
 <head>
@@ -12,19 +13,19 @@
     pageDescription: 'Reading ' + (title || 'book') + ' in BookLantern\'s unified reader'
   }) %>
   <link rel="preload" href="/public/js/reader.js" as="script"/>
-  <link rel="stylesheet" href="/public/css/reader.css">
   <style>
-    #viewer { min-height: 80vh; background:#111; color:#ddd; }
+    #viewer { min-height: 80vh; background:#111; }
     .reader-bar { display:flex; align-items:center; gap:.75rem; padding:.75rem 0; }
     .reader-title { font-weight:600; }
+    .reader-source { opacity:.7; }
     .reader-back { text-decoration:none; }
   </style>
 </head>
 <body>
 <div class="reader-bar">
-  <a class="reader-back" href="/read">← Back</a>
+  <a class="reader-back" href="<%= backHref %>">← Back</a>
   <div class="reader-title"><%= title || 'Book' %><% if (author) { %> — <%= author %><% } %></div>
-  <div class="reader-source"><%= typeof source !== 'undefined' ? source : '' %></div>
+  <div class="reader-source"><%= source %></div>
 </div>
 
 <div id="viewer" data-epub="<%= epubUrl %>">loading…</div>

@@ -6,6 +6,7 @@ const express = require('express');
 const compression = require('compression');
 const morgan = require('morgan');
 const csp = require('./middleware/csp'); // ← ADDED
+const { fetch } = require('undici');
 
 const app = express();
 
@@ -243,19 +244,30 @@ app.get('/account', (_req, res) => {
 });
 
 // ---------- EPUB Proxy (CORS workaround) ----------
-const allowedHosts = new Set(['www.gutenberg.org','gutenberg.org','archive.org']);
-app.get('/proxy', async (req, res) => {
+app.get('/proxy/epub', async (req, res) => {
   try {
-    const u = new URL(req.query.u);
-    if (!allowedHosts.has(u.hostname)) return res.status(400).send('host not allowed');
-    const r = await fetch(u.toString(), { redirect: 'follow' });
-    if (!r.ok) return res.status(r.status).send('upstream error');
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Cache-Control', 'public, max-age=86400');
-    if (r.headers.get('content-type')) res.type(r.headers.get('content-type'));
-    r.body.pipe(res);
+    const raw = req.query.u || '';
+    const url = decodeURIComponent(raw);
+    // Basic allowlist; keep it conservative
+    const allowed = ['archive.org', 'www.archive.org', 'covers.openlibrary.org', 'openlibrary.org', 'www.gutenberg.org', 'gutenberg.org'];
+    const u = new URL(url);
+    if (!allowed.includes(u.hostname)) return res.status(400).send('blocked');
+
+    const r = await fetch(url, { redirect: 'follow' });
+    if (!r.ok) return res.status(r.status).send('fetch failed');
+
+    // Content type for epubs is commonly application/epub+zip, but we also allow octet-stream
+    const ct = r.headers.get('content-type') || 'application/epub+zip';
+    res.setHeader('content-type', ct);
+    res.setHeader('cache-control', 'public, max-age=86400');
+    res.setHeader('access-control-allow-origin', '*');
+
+    // Stream it
+    for await (const chunk of r.body) res.write(chunk);
+    res.end();
   } catch (e) {
-    res.status(400).send('bad url');
+    console.error('[proxy/epub] error', e);
+    res.status(502).send('proxy error');
   }
 });
 

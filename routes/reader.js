@@ -17,17 +17,25 @@ function decodeToken(t) {
 router.get('/unified-reader', ensureSubscriber, (req, res) => {
   res.set('X-Robots-Tag', 'noindex, nofollow');
   const tok = req.query.token || '';
-  const payload = decodeToken(tok);
-  const data = (payload && payload.data) || {};
+  const payload = decodeToken(tok) || {};
+  const data = payload.data || {};
 
-  const title = data.title || '';
-  const author = data.author || '';
-  const source = data.provider || data.provid || ''; // tolerate variants
-  const mode = (data.format || '').toLowerCase() === 'epub' ? 'epub' : 'epub'; // default to epub
-  const epubUrl = data.direct_url || data.url || '';
+  const title   = data.title   || '';
+  const author  = data.author  || '';
+  const source  = data.provider || data.source || '';
+  const format  = (data.format || 'epub').toLowerCase();
+  const direct  = data.direct_url || data.url || '';
+
+  // Use our proxy to avoid CORS/redirect issues
+  const epubUrl = direct ? `/proxy/epub?u=${encodeURIComponent(direct)}` : '';
+
+  // Prefer going back to the last /read?q=... page if referrer matches
+  const ref = req.get('referer') || '';
+  const backHref = (ref.includes('/read?q=')) ? ref : '/read';
 
   return res.render('unified-reader', {
-    title, author, source, mode, epubUrl,
+    title, author, source, mode: format, epubUrl,
+    backHref,
     user: req.user || null
   });
 });
