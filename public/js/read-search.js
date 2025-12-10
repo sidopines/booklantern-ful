@@ -21,7 +21,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const cover = item.cover_url ? `<img src="${item.cover_url}" alt="">` : '';
           const title = item.title || 'Untitled';
           const author = item.author ? `<div class="card-author">${item.author}</div>` : '';
-          const href = `/unified-reader?token=${encodeURIComponent(item.token)}`;
+          // Use href from response, add ref parameter to preserve search context
+          const url = new URL((typeof item.href === 'string') ? item.href : '/unified-reader', window.location.origin);
+          url.searchParams.set('ref', location.pathname + location.search);
+          const href = url.pathname + url.search;
           return `<a class="book-card" href="${href}">
                     <div class="card-cover">${cover}</div>
                     <div class="card-title">${title}</div>

@@ -53,16 +53,13 @@ function toHomeCard(row, isAuthed) {
   };
 }
 
-/** Build a /read staff-pick card (curated_books ➜ unified-reader with token) */
+/** Build a /read staff-pick card (curated_books ➜ /read?q=title+author search) */
 function toReaderCard(row) {
-  // curated_books already stored in DB with provider/provider_id; we just link to /read
-  const provider = row.provider || null;
-  const pid = row.provider_id || null;
-
-  const readUrl =
-    provider && pid
-      ? `/read?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(pid)}`
-      : '/read';
+  // Link to /read with search query for public tokenless resolution
+  const title = row.title || '';
+  const author = row.author || '';
+  const searchQuery = [title, author].filter(Boolean).join(' ');
+  const readUrl = `/read?q=${encodeURIComponent(searchQuery)}`;
 
   return {
     id: row.id,
@@ -70,6 +67,7 @@ function toReaderCard(row) {
     author: row.author,
     cover: row.cover || null,
     cover_image: row.cover || null,
+    href: readUrl,
     readUrl
   };
 }

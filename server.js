@@ -161,7 +161,13 @@ app.use((req, res, next) => {
   res.locals.is_subscriber = !!isSub;
   // For older templates that check `user`, synthesize a minimal user object
   if (isSub && !res.locals.user) res.locals.user = { is_subscriber: true };
-  res.locals.loginGate = (url) => (isSub ? url : ('/login?next=' + encodeURIComponent(url)));
+  // New loginGate: only gate /unified-reader URLs for non-logged-in users
+  res.locals.loginGate = (user, href) => {
+    if (!user && typeof href === 'string' && href.startsWith('/unified-reader')) {
+      return '/login?next=' + encodeURIComponent(href);
+    }
+    return href;
+  };
   next();
 });
 

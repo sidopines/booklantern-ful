@@ -24,7 +24,7 @@
 </head>
 <body>
 <div class="reader-header">
-  <button class="reader-back" onclick="location.href = '<%= backHref || '/read' %>'">← Back</button>
+  <button class="reader-back" onclick="location.href = '<%= (typeof backHref === 'string') ? backHref : '/read' %>'">← Back</button>
   <div class="reader-title">
     <%= (typeof title === 'string' && title) ? title : 'Book' %>
     <% if (typeof author === 'string' && author) { %> — <%= author %><% } %>
