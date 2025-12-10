@@ -163,9 +163,19 @@ app.use((req, res, next) => {
   if (isSub && !res.locals.user) res.locals.user = { is_subscriber: true };
   // New loginGate: only gate /unified-reader URLs for non-logged-in users
   res.locals.loginGate = (user, href) => {
-    if (!user && typeof href === 'string' && href.startsWith('/unified-reader')) {
+    if (!href) return '#';
+
+    // If user is logged in, NEVER gate – just return the target href
+    if (user && (user.id || user._id || user.email)) {
+      return href;
+    }
+
+    // Guests: only gate direct unified-reader links
+    if (href.startsWith('/unified-reader')) {
       return '/login?next=' + encodeURIComponent(href);
     }
+
+    // All other links stay public (e.g. /read, /search, etc.)
     return href;
   };
   next();

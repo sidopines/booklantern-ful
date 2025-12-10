@@ -15,14 +15,24 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
     if (!data) return res.status(400).render('error', { message: 'Invalid or expired token.' });
 
     const epubUrl = data.direct_url ? `/proxy/epub?url=${encodeURIComponent(data.direct_url)}` : null;
+    
+    // Derive mode from format
+    const format = data.format || 'iframe';
+    const mode = format === 'epub' ? 'epub' : 'iframe';
+    const backHref = refParam;
 
     return res.render('unified-reader', {
       title: data.title || 'Book',
       author: data.author || '',
       provider: data.provider || '',
+      provider_id: data.provider_id || '',
       cover_url: data.cover_url || '',
+      format,
+      mode,
+      direct_url: data.direct_url || '',
       epubUrl,
-      backHref: refParam
+      backHref,
+      user: req.user || null
     });
   } catch (e) {
     console.error('[unified-reader] error', e);

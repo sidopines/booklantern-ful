@@ -4,6 +4,16 @@
 <% if (typeof provider === 'undefined') { var provider = ''; } %>
 <% if (typeof epubUrl === 'undefined') { var epubUrl = ''; } %>
 <% if (typeof backHref === 'undefined') { var backHref = '/read'; } %>
+<% 
+  var safeMode;
+  if (typeof mode === 'string') {
+    safeMode = mode;
+  } else if (typeof format === 'string' && format === 'epub') {
+    safeMode = 'epub';
+  } else {
+    safeMode = 'iframe';
+  }
+%>
 <!doctype html>
 <html lang="en">
 <head>
@@ -176,7 +186,7 @@
     body.dark .nav-chevron{background:rgba(55,65,81,0.9);border-color:#4b5563;color:#f9fafb}
     body.dark .nav-chevron:hover{background:rgba(55,65,81,1)}
   </style>
-  <% if (mode === 'epub') { %>
+  <% if (safeMode === 'epub') { %>
   <script src="https://unpkg.com/epubjs@0.3/dist/epub.min.js"></script>
   <% } %>
   
@@ -198,7 +208,7 @@
     <div class="reader-source"><%= source || '' %></div>
 
     <!-- Admin test button -->
-    <% if (typeof user !== 'undefined' && user && user.isAdmin && mode === 'epub') { %>
+    <% if (typeof user !== 'undefined' && user && user.isAdmin && safeMode === 'epub') { %>
       <button class="btn small" onclick="testEpubUrl()" title="Test EPUB URL (Admin only)">🔧 Test</button>
     <% } %>
     

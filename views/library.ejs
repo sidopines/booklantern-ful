@@ -43,7 +43,7 @@
             <div class="book-title"><%= book.title %></div>
             <div class="book-author"><%= book.author %></div>
             <% const readerUrl = '/unified-reader?token=' + encodeURIComponent(book.token); %>
-            <% const gatedReaderUrl = (typeof loginGate === 'function') ? loginGate(readerUrl) : readerUrl; %>
+            <% const gatedReaderUrl = (typeof loginGate === 'function') ? loginGate(user, readerUrl) : readerUrl; %>
             <button onclick="window.location.href='<%= gatedReaderUrl %>'">
               Read
             </button>
