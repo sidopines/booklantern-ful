@@ -103,12 +103,9 @@ router.get('/api/search', async (req, res) => {
     // Deduplicate
     const uniqueBooks = deduplicate(allBooks);
     
-    // Build back URL from current request
-    const back = req.originalUrl;
-    
     // Create signed tokens and public response
     const items = uniqueBooks.map(book => {
-      // Build token using new helper with back URL
+      // Build token (1 hour expiry, no back URL)
       const token = buildReaderToken({
         provider: book.provider,
         provider_id: book.provider_id,
@@ -117,10 +114,10 @@ router.get('/api/search', async (req, res) => {
         title: asText(book.title),
         author: asText(book.author),
         cover_url: book.cover_url,
-        back
+        exp: Math.floor(Date.now() / 1000) + 3600 // 1 hour
       });
       
-      // Return public fields only with href
+      // Return public fields with both token and href
       return {
         title: asText(book.title),
         author: asText(book.author),
@@ -130,6 +127,7 @@ router.get('/api/search', async (req, res) => {
         book_id: book.book_id,
         has_audio: true, // TTS available for all
         format: book.format,
+        token: token,
         href: `/unified-reader?token=${encodeURIComponent(token)}`,
       };
     });

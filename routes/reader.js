@@ -6,10 +6,11 @@ const supabaseAdmin = require('../supabaseAdmin');
 
 const router = express.Router();
 
-// GET /unified-reader?token=...
+// GET /unified-reader?token=...&ref=...
 router.get('/unified-reader', ensureSubscriber, async (req, res) => {
   try {
     const token = req.query.token;
+    const refParam = req.query.ref || '/read';
     const data = verifyReaderToken(token);
     if (!data) return res.status(400).render('error', { message: 'Invalid or expired token.' });
 
@@ -21,7 +22,7 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
       provider: data.provider || '',
       cover_url: data.cover_url || '',
       epubUrl,
-      backHref: data.back || '/read'
+      backHref: refParam
     });
   } catch (e) {
     console.error('[unified-reader] error', e);
