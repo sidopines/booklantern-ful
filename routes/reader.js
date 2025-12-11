@@ -1,10 +1,42 @@
 // routes/reader.js — Federated public-domain EPUB reader with proxy
 const express = require('express');
+const https = require('https');
+const http = require('http');
+const { URL } = require('url');
 const { ensureSubscriber } = require('../utils/gate');
 const { verifyReaderToken } = require('../utils/buildReaderToken');
 const supabaseAdmin = require('../supabaseAdmin');
 
 const router = express.Router();
+
+// Allowed domains for EPUB proxying (security whitelist)
+const ALLOWED_PROXY_DOMAINS = [
+  'www.gutenberg.org',
+  'gutenberg.org',
+  'archive.org',
+  'openlibrary.org',
+  'covers.openlibrary.org',
+  'loc.gov',
+  'tile.loc.gov',
+  'download.loc.gov',
+];
+
+// Check if URL domain is allowed for proxying
+function isAllowedProxyDomain(urlString) {
+  try {
+    const parsed = new URL(urlString);
+    const hostname = parsed.hostname.toLowerCase();
+    
+    return ALLOWED_PROXY_DOMAINS.some(domain => {
+      if (hostname === domain) return true;
+      if (hostname.endsWith('.archive.org')) return true;
+      if (hostname.endsWith('.loc.gov')) return true;
+      return false;
+    });
+  } catch {
+    return false;
+  }
+}
 
 // GET /unified-reader?token=...&ref=...
 router.get('/unified-reader', ensureSubscriber, async (req, res) => {
@@ -19,6 +51,10 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
     const directUrl = data.direct_url || data.directUrl || data.url || '';
     const ref = req.query.ref || data.ref || null;
     
+    // Determine if this is an EPUB file (needs ePub.js rendering, not iframe)
+    const isEpub = (format && format.toLowerCase() === 'epub') ||
+                   (directUrl && directUrl.toLowerCase().includes('.epub'));
+    
     return res.render('unified-reader', {
       title: data.title || 'Book',
       author: data.author || '',
@@ -29,6 +65,7 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
       format,
       mode: format, // for compatibility
       directUrl,
+      isEpub, // Flag to use ePub.js renderer instead of iframe
       backHref: ref || '/read',
       ref,
       user: req.user || null,
@@ -249,6 +286,94 @@ router.get('/library', ensureSubscriber, async (req, res) => {
   } catch (error) {
     console.error('[library] error:', error);
     return res.render('library', { pageTitle: 'My Library', books: [], error: 'Failed to load library' });
+  }
+});
+
+/**
+ * GET /api/proxy/epub?url=<encoded-url>
+ * Proxies EPUB files to avoid CORS issues with ePub.js
+ */
+router.get('/api/proxy/epub', async (req, res) => {
+  const targetUrl = req.query.url;
+  
+  if (!targetUrl) {
+    return res.status(400).json({ error: 'Missing url parameter' });
+  }
+  
+  // Security: only allow whitelisted domains
+  if (!isAllowedProxyDomain(targetUrl)) {
+    console.warn('[proxy] Blocked non-whitelisted domain:', targetUrl);
+    return res.status(403).json({ error: 'Domain not allowed' });
+  }
+  
+  try {
+    const parsed = new URL(targetUrl);
+    const protocol = parsed.protocol === 'https:' ? https : http;
+    
+    const proxyReq = protocol.get(targetUrl, {
+      headers: {
+        'User-Agent': 'BookLantern/1.0 (+https://booklantern.org)',
+        'Accept': 'application/epub+zip, application/octet-stream, */*',
+        'Accept-Encoding': 'identity',
+      },
+      timeout: 30000,
+    }, (proxyRes) => {
+      // Handle redirects
+      if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
+        const redirectUrl = proxyRes.headers.location;
+        
+        // Handle relative redirects
+        let absoluteRedirect = redirectUrl;
+        if (!redirectUrl.startsWith('http')) {
+          absoluteRedirect = new URL(redirectUrl, targetUrl).href;
+        }
+        
+        // Validate redirect URL
+        if (!isAllowedProxyDomain(absoluteRedirect)) {
+          console.warn('[proxy] Redirect to non-whitelisted domain blocked:', absoluteRedirect);
+          return res.status(403).json({ error: 'Redirect domain not allowed' });
+        }
+        
+        // Follow redirect
+        return res.redirect(`/api/proxy/epub?url=${encodeURIComponent(absoluteRedirect)}`);
+      }
+      
+      if (proxyRes.statusCode !== 200) {
+        console.error('[proxy] Upstream error:', proxyRes.statusCode, targetUrl);
+        return res.status(proxyRes.statusCode).json({ error: 'Upstream error' });
+      }
+      
+      // Set CORS headers
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Content-Type', 'application/epub+zip');
+      
+      // Forward content-length if available
+      if (proxyRes.headers['content-length']) {
+        res.setHeader('Content-Length', proxyRes.headers['content-length']);
+      }
+      
+      // Stream the response
+      proxyRes.pipe(res);
+    });
+    
+    proxyReq.on('error', (err) => {
+      console.error('[proxy] Request error:', err.message);
+      if (!res.headersSent) {
+        res.status(502).json({ error: 'Failed to fetch EPUB' });
+      }
+    });
+    
+    proxyReq.on('timeout', () => {
+      console.error('[proxy] Request timeout:', targetUrl);
+      proxyReq.destroy();
+      if (!res.headersSent) {
+        res.status(504).json({ error: 'Request timeout' });
+      }
+    });
+    
+  } catch (err) {
+    console.error('[proxy] Error:', err.message);
+    return res.status(500).json({ error: 'Proxy error' });
   }
 });
 
