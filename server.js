@@ -165,8 +165,8 @@ app.use((req, res, next) => {
   res.locals.loginGate = (user, href) => {
     if (!href) return '#';
 
-    // If user is logged in, NEVER gate – just return the target href
-    if (user && (user.id || user._id || user.email)) {
+    // If user is logged in (has id, email, or is_subscriber), NEVER gate – just return the target href
+    if (user && (user.id || user._id || user.email || user.is_subscriber)) {
       return href;
     }
 

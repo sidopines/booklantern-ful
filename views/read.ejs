@@ -79,6 +79,10 @@
     }
   })();
   </script>
+  <script>
+    // Pass login status to client-side scripts
+    window.__BL_USER_LOGGED_IN__ = <%= (typeof user !== 'undefined' && user && (user.id || user._id || user.email || user.is_subscriber)) ? 'true' : 'false' %>;
+  </script>
   <script src="/public/js/read-search.js" defer></script>
 </body>
 </html>
