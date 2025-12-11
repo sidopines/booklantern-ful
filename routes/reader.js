@@ -8,6 +8,7 @@ const router = express.Router();
 
 // GET /unified-reader?token=...&ref=...
 router.get('/unified-reader', ensureSubscriber, async (req, res) => {
+  console.log('[reader] GET /unified-reader', req.query);
   try {
     const token = req.query.token;
     const data = verifyReaderToken(token);
@@ -32,8 +33,6 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
       ref,
       user: req.user || null,
       buildId: Date.now()
-    });
-      user: req.user || null
     });
   } catch (e) {
     console.error('[unified-reader] error', e);

@@ -3,6 +3,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const box = document.querySelector('input[name="q"]');
   if (box) box.value = q;
   
+  // Check if user is logged in (set by EJS template)
+  const isLoggedIn = window.__BL_USER_LOGGED_IN__ === true;
+  
+  // Client-side login gating helper
+  function loginGate(href) {
+    if (!href) return '#';
+    if (isLoggedIn) return href;
+    // Gate unified-reader links for guests
+    if (href.startsWith('/unified-reader')) {
+      return '/login?next=' + encodeURIComponent(href);
+    }
+    return href;
+  }
+  
   let mount = document.getElementById('results');
   if (!mount) {
     mount = document.createElement('div');
@@ -24,7 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
           // Use href from response, add ref parameter to preserve search context
           const url = new URL((typeof item.href === 'string') ? item.href : '/unified-reader', window.location.origin);
           url.searchParams.set('ref', location.pathname + location.search);
-          const href = url.pathname + url.search;
+          const rawHref = url.pathname + url.search;
+          // Apply login gating
+          const href = loginGate(rawHref);
           return `<a class="book-card" href="${href}">
                     <div class="card-cover">${cover}</div>
                     <div class="card-title">${title}</div>
