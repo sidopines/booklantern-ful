@@ -38,172 +38,12 @@
     .reader-error { color:#dc2626; padding:2rem; text-align:center; }
   </style>
 </head>
-<body>
-<div class="reader-header">
-  <button class="reader-back" onclick="location.href = '<%= (typeof backHref === 'string') ? backHref : '/read' %>'">← Back</button>
-  <div class="reader-title">
-    <%= safeTitle %><% if (safeAuthor) { %> — <%= safeAuthor %><% } %>
-  </div>
-  <div class="reader-source"><%= safeSource %></div>
-</div>
-<div id="epub-root" data-epub="<%= epubUrl ? epubUrl : '' %>"></div>
-<script>
-(function(){
-  const el = document.getElementById('epub-root');
-  const url = el?.dataset?.epub;
-  if (!url) {
-    console.error('No EPUB URL found');
-    el.innerHTML = '<div class="reader-error">Unable to load this book.</div>';
-    return;
-  }
-  // your existing EPUB initialization (e.g., ePub.js) should be invoked here with `url`
-  window.initUnifiedReader && window.initUnifiedReader(url, el);
-})();
-</script>
-<script defer src="/public/js/reader.js"></script>
-</body>
-</html>
-    
-    /* Clean reader top bar */
-    .reader-topbar{
-      position:sticky;top:0;z-index:100;
-      background:white;backdrop-filter:blur(12px);
-      display:flex;gap:var(--space-lg);align-items:center;padding:0 var(--space-lg);
-      border-bottom:1px solid var(--line);height:56px;
-    }
-    
-    .reader-back{
-      display:flex;align-items:center;gap:var(--space-sm);
-      background:none;border:none;color:var(--text);
-      font-weight:var(--font-weight-medium);padding:var(--space-sm) var(--space-md);
-      border-radius:var(--r-sm);cursor:pointer;transition:all var(--transition-fast);
-    }
-    
-    .reader-back:hover{
-      background:var(--card);color:var(--brand);
-    }
-    
-    .reader-title{
-      flex:1;font-weight:var(--font-weight-medium);text-align:center;
-      color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    }
-    
-    .reader-source{
-      background:var(--card);color:var(--muted);
-      padding:var(--space-xs) var(--space-sm);border-radius:var(--r-xs);
-      font-size:0.75rem;font-weight:var(--font-weight-medium);
-    }
-    
-    .page{max-width:1200px;margin:0 auto;padding:.5rem}
-    .pane{min-height:80vh;display:flex;justify-content:center;align-items:flex-start;position:relative}
-    
-    /* Centered reader with neon theme */
-    #bookBox{
-      width:100%;max-width:1200px;height:80vh;
-      border-radius:var(--radius-xl);border:1px solid var(--glass-border);
-      box-shadow:var(--glass-shadow);background:var(--card);
-      padding:0;overflow:hidden;position:relative
-    }
-
-    /* Loading animation */
-    .loading-stack {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 10;
-    }
-
-    .loading-book {
-      width: 40px;
-      height: 60px;
-      background: var(--gradient-primary);
-      border-radius: 4px;
-      margin: 2px;
-      animation: book-rise 1.5s ease-in-out infinite;
-    }
-
-    .loading-book:nth-child(1) { animation-delay: 0s; }
-    .loading-book:nth-child(2) { animation-delay: 0.2s; }
-    .loading-book:nth-child(3) { animation-delay: 0.4s; }
-
-    @keyframes book-rise {
-      0%, 100% { transform: translateY(0); opacity: 0.7; }
-      50% { transform: translateY(-20px); opacity: 1; }
-    }
-
-    /* Tiny assistant animation */
-    .reader-assistant {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      width: 24px;
-      height: 24px;
-      z-index: 5;
-    }
-    
-    /* Navigation chevrons - always visible */
-    .nav-chevron{
-      position:absolute;top:50%;transform:translateY(-50%);
-      z-index:50;background:rgba(255,255,255,0.9);backdrop-filter:blur(8px);
-      border:1px solid #e5e7eb;border-radius:50%;width:48px;height:48px;
-      display:flex;align-items:center;justify-content:center;
-      cursor:pointer;transition:all 0.2s;font-size:18px;font-weight:bold;
-      box-shadow:0 2px 8px rgba(0,0,0,0.1)
-    }
-    .nav-chevron:hover{background:rgba(255,255,255,1);transform:translateY(-50%) scale(1.05)}
-    .nav-chevron.prev{left:-24px}
-    .nav-chevron.next{right:-24px}
-    
-    .muted{color:#777}
-    .btn{padding:.4rem .6rem;border-radius:10px;border:1px solid #e5e7eb;background:#fff;color:#333;font-weight:600;cursor:pointer;transition:all 0.2s}
-    .btn:hover{background:#f8f9fa;border-color:#d1d5db}
-    .btn.primary{background:#4f46e5;color:#fff;border-color:#4f46e5}
-    .btn.primary:hover{background:#4338ca;border-color:#4338ca}
-    .btn.back{background:#dc2626;color:#fff;border-color:#dc2626;font-weight:700}
-    .btn.back:hover{background:#b91c1c;border-color:#b91c1c}
-    .small{font-size:.9rem}
-    .grow{flex:1}
-    .slider{vertical-align:middle}
-    
-    .tts-controls{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
-    .tts-controls label{display:flex;align-items:center;gap:.25rem;color:#666;font-size:.85rem}
-    .tts-controls select{padding:.2rem .4rem;border-radius:6px;border:1px solid #d1d5db;font-size:.85rem}
-    .tts-status{color:#059669;font-size:.8rem;font-weight:600}
-    
-    /* Enhanced error message */
-    .error-message{
-      background:#fef2f2;border:1px solid #fecaca;color:#dc2626;
-      padding:2rem;border-radius:12px;text-align:center;margin:2rem auto;
-      max-width:500px;box-shadow:0 4px 12px rgba(220,38,38,0.1)
-    }
-    .error-message h3{margin:0 0 1rem 0;font-size:1.2rem}
-    .error-message p{margin:0 0 1.5rem 0;color:#7f1d1d}
-    .error-message .btn{margin:0.5rem;display:inline-block}
-    .error-url{background:#fee2e2;padding:0.5rem;border-radius:6px;font-family:monospace;font-size:0.9rem;margin:1rem 0;word-break:break-all}
-    
-    .navigation{display:flex;gap:.5rem;margin-top:1rem}
-    
-    /* Theme support */
-    body.dark{background:#1f2937;color:#f9fafb}
-    body.dark .topbar{background:rgba(31,41,55,0.95);border-bottom-color:#374151}
-    body.dark #bookBox{background:#374151;border-color:#4b5563}
-    body.dark .nav-chevron{background:rgba(55,65,81,0.9);border-color:#4b5563;color:#f9fafb}
-    body.dark .nav-chevron:hover{background:rgba(55,65,81,1)}
-  </style>
-  <% if (safeMode === 'epub') { %>
-  <script src="https://unpkg.com/epubjs@0.3/dist/epub.min.js"></script>
-  <% } %>
-  
-  <!-- Reader Scripts -->
-  <script defer src="/js/reader.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
-</head>
 <body data-page="reader">
   <!-- Tiny Assistant Animation -->
   <div class="reader-assistant" id="reader-assistant" aria-hidden="true"></div>
 
   <header class="reader-topbar">
-    <button class="reader-back" onclick="history.back()" tabindex="0" aria-label="Go back to previous page">
+    <button class="reader-back" onclick="location.href='<%= (typeof backHref === 'string') ? backHref : '/read' %>'" tabindex="0" aria-label="Go back to previous page">
       <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
       </svg>
@@ -250,6 +90,7 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+  <script defer src="/public/js/reader.js<%= buildId ? `?v=${buildId}` : '' %>"></script>
   <script>
     const MODE = <%- JSON.stringify(mode||'') %>;
     const EPUB_URL = <%- JSON.stringify(typeof epubUrl==='string'?epubUrl:'') %>;
