@@ -29,6 +29,7 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
       cover_url: data.cover_url || '',
       format,
       mode,
+      source: data.source || data.provider || '',
       direct_url: data.direct_url || '',
       epubUrl,
       backHref,
