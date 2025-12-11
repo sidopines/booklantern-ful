@@ -1,256 +1,82 @@
-// public/js/reader.js
-(function () {
-  // Support both old #viewer and new #epub-root
-  const el = document.getElementById('epub-root') || document.getElementById('viewer');
-  if (!el) return;
-  const url = el.getAttribute('data-epub');
-  if (!url) { 
-    el.innerHTML = '<div class="reader-error">Missing book URL.</div>';
-    return; 
+// public/js/reader.js - Unified reader JavaScript
+(function() {
+  'use strict';
+
+  // Wait for DOM to be ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
   }
 
-  function ensureEPub(cb) {
-    if (window.ePub) return cb();
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/epubjs@0.3/dist/epub.min.js';
-    s.onload = cb;
-    s.onerror = function(){ 
-      el.innerHTML = '<div class="reader-error">Failed to load reader library.</div>';
-    };
-    document.head.appendChild(s);
+  function init() {
+    // Setup back button enhancement
+    setupBackButton();
+    
+    // Setup keyboard shortcuts for iframe
+    setupKeyboardShortcuts();
   }
 
-  // Initialize reader function that can be called externally
-  window.initUnifiedReader = function(epubUrl, targetEl) {
-    ensureEPub(function () {
-      try {
-        const book = ePub(epubUrl);
-        const containerId = targetEl.id || 'epub-root';
-        const rendition = book.renderTo(containerId, { width: '100%', height: '80vh' });
-        rendition.display().catch(function (e) {
-          console.error('[reader] display error', e);
-          targetEl.innerHTML = '<div class="reader-error">Failed to display book.</div>';
-        });
-      } catch (e) {
-        console.error('[reader] init failed', e);
-        targetEl.innerHTML = '<div class="reader-error">Failed to load book.</div>';
-      }
-    });
-  };
+  /**
+   * Enhance back button to use ref parameter if available
+   */
+  function setupBackButton() {
+    const backButton = document.querySelector('.reader-back');
+    if (!backButton) return;
 
-  // Auto-initialize if URL present
-  if (url) {
-    window.initUnifiedReader(url, el);
-  }
-})();
-  
-  // Load saved progress
-  loadProgress();
-  
-  // Load TOC
-  epubBook.loaded.navigation.then(nav => {
-    const toc = nav.toc;
-    const tocEl = document.getElementById('toc');
-    toc.forEach(chapter => {
-      const link = document.createElement('a');
-      link.textContent = chapter.label;
-      link.href = '#';
-      link.onclick = (e) => {
+    backButton.addEventListener('click', function(e) {
+      const ref = this.getAttribute('data-ref');
+      
+      // If we have a ref parameter, use it
+      if (ref && ref.trim()) {
         e.preventDefault();
-        rendition.display(chapter.href);
-      };
-      tocEl.appendChild(link);
-    });
-  });
-  
-  // Navigation
-  document.getElementById('prev-btn').onclick = () => rendition.prev();
-  document.getElementById('next-btn').onclick = () => rendition.next();
-  document.addEventListener('keydown', e => {
-    if (e.key === 'ArrowRight') rendition.next();
-    if (e.key === 'ArrowLeft') rendition.prev();
-  });
-  
-  // TOC sidebar
-  document.getElementById('toc-btn').onclick = () => {
-    document.getElementById('sidebar').classList.toggle('hidden');
-  };
-  document.getElementById('sidebar-close').onclick = () => {
-    document.getElementById('sidebar').classList.add('hidden');
-  };
-  
-  // Settings panel
-  document.getElementById('settings-btn').onclick = () => {
-    document.getElementById('settings-panel').classList.toggle('hidden');
-  };
-  document.querySelector('.panel-close').onclick = () => {
-    document.getElementById('settings-panel').classList.add('hidden');
-  };
-  
-  // Font size
-  document.getElementById('font-decrease').onclick = () => {
-    fontSize = Math.max(80, fontSize - 10);
-    updateFontSize();
-  };
-  document.getElementById('font-increase').onclick = () => {
-    fontSize = Math.min(150, fontSize + 10);
-    updateFontSize();
-  };
-  
-  function updateFontSize() {
-    rendition.themes.fontSize(`${fontSize}%`);
-    document.getElementById('font-size-display').textContent = `${fontSize}%`;
-  }
-  
-  // Theme
-  document.querySelectorAll('.theme-btn').forEach(btn => {
-    btn.onclick = () => {
-      theme = btn.dataset.theme;
-      document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      applyTheme();
-    };
-  });
-  
-  function applyTheme() {
-    document.body.className = `theme-${theme}`;
-    const themes = {
-      light: { body: { background: '#fff', color: '#000' } },
-      sepia: { body: { background: '#f4ecd8', color: '#5c4b37' } },
-      dark: { body: { background: '#1a1a1a', color: '#e0e0e0' } }
-    };
-    rendition.themes.register(theme, themes[theme]);
-    rendition.themes.select(theme);
-  }
-  
-  // TTS
-  document.getElementById('listen-btn').onclick = startTTS;
-  document.getElementById('stop-listen-btn').onclick = stopTTS;
-  
-  function startTTS() {
-    if ('speechSynthesis' in window) {
-      rendition.getContents().forEach(contents => {
-        const text = contents.document.body.innerText;
-        utterance = new SpeechSynthesisUtterance(text);
-        speechSynthesis.speak(utterance);
-      });
-      document.getElementById('listen-btn').classList.add('hidden');
-      document.getElementById('stop-listen-btn').classList.remove('hidden');
-    }
-  }
-  
-  function stopTTS() {
-    if (speechSynthesis.speaking) {
-      speechSynthesis.cancel();
-    }
-    document.getElementById('listen-btn').classList.remove('hidden');
-    document.getElementById('stop-listen-btn').classList.add('hidden');
-  }
-  
-  // Save/unsave
-  document.getElementById('save-btn').onclick = saveToLibrary;
-  document.getElementById('unsave-btn').onclick = removeFromLibrary;
-  
-  async function saveToLibrary() {
-    try {
-      const res = await fetch('/api/library/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ book_id: book.book_id, title: book.title, author: book.author, cover_url: book.cover_url })
-      });
-      if (res.ok) {
-        isSaved = true;
-        document.getElementById('save-btn').classList.add('hidden');
-        document.getElementById('unsave-btn').classList.remove('hidden');
-      }
-    } catch (e) {
-      console.error('Save failed:', e);
-    }
-  }
-  
-  async function removeFromLibrary() {
-    try {
-      const res = await fetch('/api/library/remove', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ book_id: book.book_id })
-      });
-      if (res.ok) {
-        isSaved = false;
-        document.getElementById('save-btn').classList.remove('hidden');
-        document.getElementById('unsave-btn').classList.add('hidden');
-      }
-    } catch (e) {
-      console.error('Remove failed:', e);
-    }
-  }
-  
-  // Progress tracking
-  rendition.on('relocated', loc => {
-    currentCfi = loc.start.cfi;
-    const percent = Math.round(epubBook.locations.percentageFromCfi(currentCfi) * 100);
-    document.getElementById('progress-text').textContent = `${percent}%`;
-    saveProgress(currentCfi, percent);
-  });
-  
-  let saveTimeout;
-  function saveProgress(cfi, percent) {
-    clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(async () => {
-      try {
-        await fetch('/api/reader/progress', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ book_id: book.book_id, cfi, progress_percent: percent })
-        });
-        localStorage.setItem(`progress_${book.book_id}`, JSON.stringify({ cfi, percent }));
-      } catch (e) {
-        console.error('Save progress failed:', e);
-      }
-    }, 2000);
-  }
-  
-  async function loadProgress() {
-    try {
-      const res = await fetch(`/api/reader/progress/${encodeURIComponent(book.book_id)}`);
-      const data = await res.json();
-      if (data.cfi) {
-        rendition.display(data.cfi);
-      } else {
-        const local = localStorage.getItem(`progress_${book.book_id}`);
-        if (local) {
-          const { cfi } = JSON.parse(local);
-          rendition.display(cfi);
+        
+        // Navigate to the ref URL
+        if (ref.startsWith('/')) {
+          window.location.href = ref;
         } else {
-          rendition.display();
+          // Fallback to history.back() if ref is not a path
+          window.history.back();
         }
       }
-    } catch (e) {
-      console.error('Load progress failed:', e);
-      rendition.display();
+      // Otherwise let the href handle it (no preventDefault)
+    });
+  }
+
+  /**
+   * Setup keyboard shortcuts for better reading experience
+   */
+  function setupKeyboardShortcuts() {
+    document.addEventListener('keydown', function(e) {
+      // Escape key - go back
+      if (e.key === 'Escape') {
+        const backButton = document.querySelector('.reader-back');
+        if (backButton) {
+          backButton.click();
+        }
+      }
+    });
+  }
+
+  /**
+   * Send message to iframe (if needed for future enhancements)
+   */
+  function sendMessageToFrame(message) {
+    const iframe = document.getElementById('reader-frame');
+    if (iframe && iframe.contentWindow) {
+      try {
+        iframe.contentWindow.postMessage(message, '*');
+      } catch (err) {
+        console.warn('Failed to send message to iframe:', err);
+      }
     }
   }
-  
-  // Bookmarks
-  document.getElementById('bookmark-btn').onclick = addBookmark;
-  
-  async function addBookmark() {
-    if (!currentCfi) return;
-    const label = prompt('Bookmark label:', 'Bookmark');
-    if (!label) return;
-    try {
-      await fetch('/api/reader/bookmark', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ book_id: book.book_id, cfi: currentCfi, label })
-      });
-      alert('Bookmark added!');
-    } catch (e) {
-      console.error('Add bookmark failed:', e);
-    }
+
+  // Expose utilities for debugging
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    window.readerDebug = {
+      sendMessageToFrame: sendMessageToFrame
+    };
   }
-  
-  // Initial setup
-  applyTheme();
-  updateFontSize();
+
 })();

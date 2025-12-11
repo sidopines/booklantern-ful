@@ -10,29 +10,29 @@ const router = express.Router();
 router.get('/unified-reader', ensureSubscriber, async (req, res) => {
   try {
     const token = req.query.token;
-    const refParam = req.query.ref || '/read';
     const data = verifyReaderToken(token);
     if (!data) return res.status(400).render('error', { message: 'Invalid or expired token.' });
 
-    const epubUrl = data.direct_url ? `/proxy/epub?url=${encodeURIComponent(data.direct_url)}` : null;
+    // Normalize data from token
+    const format = data.format || data.mode || 'iframe';
+    const directUrl = data.direct_url || data.directUrl || data.url || '';
+    const ref = req.query.ref || data.ref || null;
     
-    // Derive mode from format
-    const format = data.format || 'iframe';
-    const mode = format === 'epub' ? 'epub' : 'iframe';
-    const backHref = refParam;
-
     return res.render('unified-reader', {
       title: data.title || 'Book',
       author: data.author || '',
+      source: data.source || data.provider || '',
       provider: data.provider || '',
       provider_id: data.provider_id || '',
       cover_url: data.cover_url || '',
       format,
-      mode,
-      source: data.source || data.provider || '',
-      direct_url: data.direct_url || '',
-      epubUrl,
-      backHref,
+      mode: format, // for compatibility
+      directUrl,
+      backHref: ref || '/read',
+      ref,
+      user: req.user || null,
+      buildId: Date.now()
+    });
       user: req.user || null
     });
   } catch (e) {
