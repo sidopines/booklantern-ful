@@ -7,6 +7,7 @@
   var safeDirectUrl = (typeof directUrl === 'string' && directUrl) ? directUrl : '';
   var safeBackHref = (typeof backHref === 'string' && backHref) ? backHref : '/read';
   var safeRef = (typeof ref === 'string' && ref) ? ref : '';
+  var useEpubJs = (typeof isEpub === 'boolean') ? isEpub : false;
 %>
 <!doctype html>
 <html lang="en">
@@ -16,8 +17,11 @@
     pageDescription: 'Reading ' + safeTitle + ' in BookLantern\'s unified reader'
   }) %>
   <link rel="stylesheet" href="/public/css/unified-reader.css?v=<%= buildId || Date.now() %>">
+  <% if (useEpubJs) { %>
+  <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+  <% } %>
 </head>
-<body data-page="reader">
+<body data-page="reader" data-epub="<%= useEpubJs %>">
   
   <header class="reader-topbar">
     <a 
@@ -35,13 +39,39 @@
     <div class="reader-title">
       <%= safeTitle %><% if (safeAuthor) { %> — <%= safeAuthor %><% } %>
     </div>
-    <% if (safeSource) { %>
+    <% if (useEpubJs && safeDirectUrl) { %>
+    <div class="reader-nav-buttons">
+      <button id="prev-page" aria-label="Previous page" title="Previous page">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </button>
+      <button id="next-page" aria-label="Next page" title="Next page">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+        </svg>
+      </button>
+    </div>
+    <% } else if (safeSource) { %>
     <div class="reader-source"><%= safeSource %></div>
     <% } %>
   </header>
 
   <main class="reader-main">
-    <% if (safeDirectUrl) { %>
+    <% if (!safeDirectUrl) { %>
+      <div class="reader-error">
+        <p>Unable to load book content.</p>
+        <p>No valid URL provided.</p>
+        <button onclick="window.location.href='<%= safeBackHref %>'">Go Back</button>
+      </div>
+    <% } else if (useEpubJs) { %>
+      <!-- ePub.js will render into this div -->
+      <div id="epub-viewer" data-epub-url="<%= safeDirectUrl %>"></div>
+      <div id="epub-loading" class="epub-loading">
+        <div class="epub-spinner"></div>
+        <p>Loading book...</p>
+      </div>
+    <% } else { %>
       <iframe
         id="reader-frame"
         src="<%= safeDirectUrl %>"
@@ -51,12 +81,6 @@
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
         allow="fullscreen"
       ></iframe>
-    <% } else { %>
-      <div class="reader-error">
-        <p>Unable to load book content.</p>
-        <p>No valid URL provided.</p>
-        <button onclick="window.location.href='<%= safeBackHref %>'">Go Back</button>
-      </div>
     <% } %>
   </main>
 
