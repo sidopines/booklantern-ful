@@ -1,7 +1,5 @@
 // routes/reader.js — Federated public-domain EPUB reader with proxy
 const express = require('express');
-const https = require('https');
-const http = require('http');
 const { URL } = require('url');
 const { ensureSubscriber } = require('../utils/gate');
 const { verifyReaderToken } = require('../utils/buildReaderToken');
@@ -294,6 +292,9 @@ router.get('/library', ensureSubscriber, async (req, res) => {
 /**
  * GET /api/proxy/epub?url=<encoded-url>
  * Proxies EPUB files to avoid CORS issues with ePub.js
+ * - Follows redirects server-side (no 302 to client)
+ * - Streams response to client
+ * - Validates ZIP header (PK signature)
  */
 router.get('/api/proxy/epub', async (req, res) => {
   const targetUrl = req.query.url;
@@ -308,74 +309,84 @@ router.get('/api/proxy/epub', async (req, res) => {
     return res.status(403).json({ error: 'Domain not allowed' });
   }
   
+  console.log('[proxy] Fetching EPUB:', targetUrl);
+  
   try {
-    const parsed = new URL(targetUrl);
-    const protocol = parsed.protocol === 'https:' ? https : http;
+    // Use AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
     
-    const proxyReq = protocol.get(targetUrl, {
+    // Fetch with redirect: "follow" to handle 302s server-side
+    const upstream = await fetch(targetUrl, {
+      method: 'GET',
       headers: {
         'User-Agent': 'BookLantern/1.0 (+https://booklantern.org)',
         'Accept': 'application/epub+zip, application/octet-stream, */*',
-        'Accept-Encoding': 'identity',
       },
-      timeout: 30000,
-    }, (proxyRes) => {
-      // Handle redirects
-      if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
-        const redirectUrl = proxyRes.headers.location;
-        
-        // Handle relative redirects
-        let absoluteRedirect = redirectUrl;
-        if (!redirectUrl.startsWith('http')) {
-          absoluteRedirect = new URL(redirectUrl, targetUrl).href;
-        }
-        
-        // Validate redirect URL
-        if (!isAllowedProxyDomain(absoluteRedirect)) {
-          console.warn('[proxy] Redirect to non-whitelisted domain blocked:', absoluteRedirect);
-          return res.status(403).json({ error: 'Redirect domain not allowed' });
-        }
-        
-        // Follow redirect
-        return res.redirect(`/api/proxy/epub?url=${encodeURIComponent(absoluteRedirect)}`);
-      }
-      
-      if (proxyRes.statusCode !== 200) {
-        console.error('[proxy] Upstream error:', proxyRes.statusCode, targetUrl);
-        return res.status(proxyRes.statusCode).json({ error: 'Upstream error' });
-      }
-      
-      // Set CORS headers
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Content-Type', 'application/epub+zip');
-      
-      // Forward content-length if available
-      if (proxyRes.headers['content-length']) {
-        res.setHeader('Content-Length', proxyRes.headers['content-length']);
-      }
-      
-      // Stream the response
-      proxyRes.pipe(res);
+      redirect: 'follow',
+      signal: controller.signal,
     });
     
-    proxyReq.on('error', (err) => {
-      console.error('[proxy] Request error:', err.message);
-      if (!res.headersSent) {
-        res.status(502).json({ error: 'Failed to fetch EPUB' });
-      }
-    });
+    clearTimeout(timeoutId);
     
-    proxyReq.on('timeout', () => {
-      console.error('[proxy] Request timeout:', targetUrl);
-      proxyReq.destroy();
-      if (!res.headersSent) {
-        res.status(504).json({ error: 'Request timeout' });
-      }
-    });
+    // Check for non-200 response after following redirects
+    if (!upstream.ok) {
+      console.error('[proxy] Upstream error after redirects:', upstream.status, upstream.url);
+      return res.status(502).json({ error: 'Upstream returned ' + upstream.status });
+    }
+    
+    console.log('[proxy] Upstream OK, final URL:', upstream.url, 'Content-Length:', upstream.headers.get('content-length'));
+    
+    // Read first chunk to validate ZIP header (PK signature = 0x50 0x4B)
+    const reader = upstream.body.getReader();
+    const firstChunk = await reader.read();
+    
+    if (firstChunk.done || !firstChunk.value || firstChunk.value.length < 2) {
+      console.error('[proxy] Empty or too small response');
+      return res.status(502).json({ error: 'Empty response from upstream' });
+    }
+    
+    // Validate ZIP/EPUB header (PK = 0x50 0x4B)
+    if (firstChunk.value[0] !== 0x50 || firstChunk.value[1] !== 0x4B) {
+      console.error('[proxy] Invalid EPUB: not a ZIP file (first bytes:', 
+        firstChunk.value[0].toString(16), firstChunk.value[1].toString(16), ')');
+      return res.status(502).json({ error: 'Invalid EPUB file (not a ZIP archive)' });
+    }
+    
+    // Set response headers
+    res.setHeader('Content-Type', 'application/epub+zip');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', 'inline; filename="book.epub"');
+    
+    // Forward content-length if available
+    const contentLength = upstream.headers.get('content-length');
+    if (contentLength) {
+      res.setHeader('Content-Length', contentLength);
+    }
+    
+    // Write validated first chunk
+    res.write(Buffer.from(firstChunk.value));
+    
+    // Stream remaining chunks
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+    
+    res.end();
+    console.log('[proxy] EPUB streamed successfully');
     
   } catch (err) {
-    console.error('[proxy] Error:', err.message);
-    return res.status(500).json({ error: 'Proxy error' });
+    console.error('[proxy] Error:', err.name, err.message);
+    
+    if (!res.headersSent) {
+      if (err.name === 'AbortError') {
+        return res.status(504).json({ error: 'Request timeout (30s)' });
+      }
+      return res.status(502).json({ error: 'Failed to fetch EPUB: ' + err.message });
+    }
   }
 });
 
