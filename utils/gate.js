@@ -3,8 +3,10 @@
 module.exports.ensureSubscriber = function ensureSubscriber(req, res, next) {
   if (process.env.DEV_OPEN_READER === '1') return next();
   
+  // Unified user detection: check ALL possible sources (same order as server.js getAuthUser)
+  const user = req.authUser || req.user || (req.session && req.session.user);
+  
   // Treat any logged-in user as subscriber (no paid tier yet)
-  const user = req.user || (req.session && req.session.user);
   if (user && (user.id || user._id || user.email || user.is_subscriber)) {
     return next();
   }

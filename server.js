@@ -155,27 +155,33 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(require('cookie-parser')(process.env.COOKIE_SECRET || 'dev_fallback_cookie_secret'));
 
-// ---------- Subscriber status middleware ----------
+// ---------- Unified auth detection helper ----------
+function getAuthUser(req) {
+  return req.authUser || req.user || (req.session && req.session.user) || null;
+}
+
+// ---------- Auth user + subscriber status middleware ----------
 app.use((req, res, next) => {
-  const isSub = (req.user?.is_subscriber === true) || (req.signedCookies?.bl_sub === '1');
+  // Unified user detection
+  const user = getAuthUser(req);
+  res.locals.user = user;
+  
+  // Treat ANY logged-in user as authed (id, _id, email, or is_subscriber)
+  res.locals.isAuthed = Boolean(user && (user.id || user._id || user.email || user.is_subscriber));
+  
+  // Legacy is_subscriber check (for backwards compatibility)
+  const isSub = (user?.is_subscriber === true) || (req.signedCookies?.bl_sub === '1');
   res.locals.is_subscriber = !!isSub;
-  // For older templates that check `user`, synthesize a minimal user object
-  if (isSub && !res.locals.user) res.locals.user = { is_subscriber: true };
-  // New loginGate: only gate /unified-reader URLs for non-logged-in users
-  res.locals.loginGate = (user, href) => {
+  
+  // loginGate helper for templates: only gate /unified-reader URLs for non-logged-in users
+  res.locals.loginGate = (u, href) => {
     if (!href) return '#';
-
-    // If user is logged in (has id, email, or is_subscriber), NEVER gate – just return the target href
-    if (user && (user.id || user._id || user.email || user.is_subscriber)) {
-      return href;
-    }
-
+    // If authed (using res.locals.isAuthed which we just set), never gate
+    if (res.locals.isAuthed) return href;
     // Guests: only gate direct unified-reader links
     if (href.startsWith('/unified-reader')) {
       return '/login?next=' + encodeURIComponent(href);
     }
-
-    // All other links stay public (e.g. /read, /search, etc.)
     return href;
   };
   next();
@@ -218,11 +224,15 @@ app.get('/favicon.ico', (_req, res) => {
 // ---------- Safe locals for EJS ----------
 const BUILD_ID = Date.now().toString();
 app.use((req, res, next) => {
-  res.locals.isAuthenticated = Boolean(
-    (req.session && req.session.user) || req.user || req.authUser
-  );
-  res.locals.user =
-    (req.session && req.session.user) || req.user || req.authUser || null;
+  // User and isAuthed are already set by earlier middleware, but ensure they exist
+  if (typeof res.locals.user === 'undefined') {
+    res.locals.user = getAuthUser(req);
+  }
+  if (typeof res.locals.isAuthed === 'undefined') {
+    const u = res.locals.user;
+    res.locals.isAuthed = Boolean(u && (u.id || u._id || u.email || u.is_subscriber));
+  }
+  res.locals.isAuthenticated = res.locals.isAuthed; // alias for templates
 
   res.locals.buildId = BUILD_ID;
   res.locals.pageDescription =

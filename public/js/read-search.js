@@ -3,13 +3,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const box = document.querySelector('input[name="q"]');
   if (box) box.value = q;
   
-  // Check if user is logged in (set by EJS template)
-  const isLoggedIn = window.__BL_USER_LOGGED_IN__ === true;
+  // Check if user is logged in (set by EJS template from res.locals.isAuthed)
+  // Handle both boolean true and string 'true' for robustness
+  const authed = window.__BL_USER_LOGGED_IN__ === true || window.__BL_USER_LOGGED_IN__ === 'true';
+  console.log('[BL] logged in?', window.__BL_USER_LOGGED_IN__, '-> authed:', authed);
   
   // Client-side login gating helper
   function loginGate(href) {
     if (!href) return '#';
-    if (isLoggedIn) return href;
+    if (authed) return href;
     // Gate unified-reader links for guests
     if (href.startsWith('/unified-reader')) {
       return '/login?next=' + encodeURIComponent(href);
