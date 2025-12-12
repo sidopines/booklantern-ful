@@ -2,12 +2,15 @@ require("dotenv").config();
 // server.js — CommonJS, explicit route mounting (final)
 
 const path = require('path');
+const dns = require('dns');
 const express = require('express');
 const compression = require('compression');
 const morgan = require('morgan');
 const csp = require('./middleware/csp'); // ← ADDED
 const fetch = global.fetch;
 const { Readable } = require('node:stream');
+
+dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 
@@ -22,22 +25,6 @@ app.get('/auth/callback', (req,res)=>{
   catch(e){ console.error('callback render error', e); return res.status(200).send('<!doctype html><meta charset="utf-8"><meta http-equiv="Cache-Control" content="no-store"><p>Completing sign-in…</p>'); }
 });
 // <<< Hard-stop
-/* SAFE_REDIRECT_LOGGER */
-app.use((req, res, next) => {
-  const orig = res.redirect.bind(res);
-  res.redirect = (...args) => {
-    try {
-      const status = (args.length === 2) ? args[0] : 302;
-      const url    = (args.length === 2) ? args[1] : args[0];
-      console.error('[REDIRECT]', req.method, req.originalUrl, '->', url, 'status', status);
-      const err = new Error('redirect_trace');
-      if (err && err.stack) console.error(String(err.stack));
-    } catch (_) { /* ignore */ }
-    return orig(...args);
-  };
-  next();
-});
-/* /SAFE_REDIRECT_LOGGER */
 app.use(csp()); // ← ADDED
 
 // ---- Public allowlist for routes that must remain unauthenticated ----
