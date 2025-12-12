@@ -32,6 +32,15 @@ router.get('/auth', (req, res) => {
 });
 
 router.get('/login', (req, res) => {
+  // If already authenticated, redirect away from login page
+  if (res.locals.isAuthed) {
+    const next = req.query.next;
+    // Validate next is a safe relative path
+    if (next && next.startsWith('/') && !next.startsWith('//')) {
+      return res.redirect(302, next);
+    }
+    return res.redirect(302, '/read');
+  }
   res.set(noStoreHeaders());
   return res.status(200).render('auth', authRenderData(req));
 });
