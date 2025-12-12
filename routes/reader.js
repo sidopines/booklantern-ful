@@ -29,8 +29,10 @@ function isAllowedProxyDomain(urlString) {
     
     return ALLOWED_PROXY_DOMAINS.some(domain => {
       if (hostname === domain) return true;
+      // Allow subdomains of certain domains
       if (hostname.endsWith('.archive.org')) return true;
       if (hostname.endsWith('.loc.gov')) return true;
+      if (hostname.endsWith('.gutenberg.org')) return true;
       return false;
     });
   } catch {

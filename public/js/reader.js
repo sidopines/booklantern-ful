@@ -32,7 +32,7 @@
   /**
    * Initialize ePub.js reader
    */
-  function initEpubReader() {
+  async function initEpubReader() {
     const viewer = document.getElementById('epub-viewer');
     const loading = document.getElementById('epub-loading');
     
@@ -62,8 +62,45 @@
       const proxiedUrl = '/api/proxy/epub?url=' + encodeURIComponent(epubUrl);
       console.log('[reader] Using proxied URL:', proxiedUrl);
       
-      // Initialize the book
-      book = ePub(proxiedUrl);
+      // Update loading message
+      updateLoadingMessage('Downloading book...');
+      
+      // Fetch the EPUB as an ArrayBuffer first
+      // This avoids ePub.js trying to make relative path requests like /api/proxy/META-INF/container.xml
+      const response = await fetch(proxiedUrl);
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('[reader] Proxy fetch failed:', response.status, errorText);
+        
+        if (response.status === 403) {
+          showEpubError('This book source is not supported. Please try a different edition.');
+        } else if (response.status === 404) {
+          showEpubError('Book file not found. The source may have moved or been removed.');
+        } else if (response.status === 504) {
+          showEpubError('Download timed out. Please try again later.');
+        } else {
+          showEpubError('Failed to download book. Please try again later.');
+        }
+        return;
+      }
+      
+      // Get the ArrayBuffer
+      updateLoadingMessage('Processing book...');
+      const arrayBuffer = await response.arrayBuffer();
+      
+      if (!arrayBuffer || arrayBuffer.byteLength < 100) {
+        console.error('[reader] EPUB file too small or empty:', arrayBuffer?.byteLength);
+        showEpubError('The book file appears to be empty or corrupted.');
+        return;
+      }
+      
+      console.log('[reader] Downloaded EPUB, size:', arrayBuffer.byteLength, 'bytes');
+      
+      // Initialize the book with the ArrayBuffer
+      // ePub.js can accept an ArrayBuffer directly
+      updateLoadingMessage('Opening book...');
+      book = ePub(arrayBuffer);
       
       // Render the book into the viewer
       rendition = book.renderTo('epub-viewer', {
@@ -73,29 +110,43 @@
         flow: 'paginated'
       });
       
-      // Display the book starting from the first page
-      rendition.display().then(() => {
-        console.log('[reader] EPUB displayed successfully');
-        hideLoading();
-      }).catch(err => {
-        console.error('[reader] Failed to display EPUB:', err);
-        showEpubError('Failed to display book content. The file may be corrupted or unavailable.');
-      });
-      
-      // Setup navigation buttons
+      // Setup navigation buttons early (before display completes)
       setupEpubNavigation();
       
       // Setup keyboard navigation
       setupEpubKeyboard();
       
-      // Handle loading errors
+      // Display the book starting from the first page
+      await rendition.display();
+      console.log('[reader] EPUB displayed successfully');
+      hideLoading();
+      
+      // Handle spine loading errors
       book.loaded.spine.catch(err => {
         console.error('[reader] EPUB spine error:', err);
       });
       
     } catch (err) {
       console.error('[reader] Failed to initialize EPUB:', err);
-      showEpubError('Failed to load book. Please try again later.');
+      
+      // Provide more specific error messages
+      if (err.message && err.message.includes('Invalid')) {
+        showEpubError('This file is not a valid EPUB. It may be corrupted or in a different format.');
+      } else if (err.message && err.message.includes('network')) {
+        showEpubError('Network error while loading book. Please check your connection and try again.');
+      } else {
+        showEpubError('We couldn\'t load this edition inside BookLantern. Please try a different copy.');
+      }
+    }
+  }
+  
+  /**
+   * Update loading message
+   */
+  function updateLoadingMessage(message) {
+    const loadingText = document.querySelector('#epub-loading p');
+    if (loadingText) {
+      loadingText.textContent = message;
     }
   }
   
@@ -176,9 +227,15 @@
     if (viewer) {
       viewer.innerHTML = `
         <div class="reader-error">
-          <p>Unable to load book content.</p>
-          <p>${message}</p>
-          <button onclick="window.history.back()">Go Back</button>
+          <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-bottom: 1rem; opacity: 0.5;">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          <p style="font-weight: 600; margin-bottom: 0.5rem;">Unable to load book</p>
+          <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1.5rem;">${message}</p>
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center;">
+            <button onclick="window.location.reload()" style="background: #4f46e5;">Try Again</button>
+            <button onclick="window.history.back()" style="background: #6b7280;">Go Back</button>
+          </div>
         </div>
       `;
     }
