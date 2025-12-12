@@ -38,6 +38,92 @@ function isAllowedProxyDomain(urlString) {
   }
 }
 
+const PROXY_UA = 'BookLantern/1.0 (+https://booklantern.org; epub-proxy)';
+const PROXY_ACCEPT = 'application/epub+zip,application/octet-stream;q=0.9,*/*;q=0.8';
+const FETCH_TIMEOUT_MS = 45000;
+
+function parseArchiveIdentifier(urlString) {
+  try {
+    const u = new URL(urlString);
+    if (!u.hostname.toLowerCase().includes('archive.org')) return null;
+    const parts = u.pathname.split('/').filter(Boolean);
+    const downloadIdx = parts.indexOf('download');
+    if (downloadIdx === -1 || downloadIdx + 1 >= parts.length) return null;
+    return parts[downloadIdx + 1];
+  } catch (_) {
+    return null;
+  }
+}
+
+function pickBestArchiveEpub(files) {
+  if (!Array.isArray(files)) return null;
+  const candidates = files.filter(f => f?.name && /\.epub$/i.test(f.name));
+  if (!candidates.length) return null;
+  return candidates
+    .map(f => ({ name: f.name, size: Number(f.size) || 0 }))
+    .sort((a, b) => b.size - a.size)
+    [0].name;
+}
+
+function isRetryableNetworkError(err) {
+  return err?.name === 'AbortError' || (err instanceof TypeError && /fetch failed/i.test(err.message));
+}
+
+async function fetchWithTimeout(url, timeoutMs, headers = null) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: headers || {
+        'User-Agent': PROXY_UA,
+        'Accept': PROXY_ACCEPT,
+      },
+      redirect: 'follow',
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+}
+
+async function fetchEpubWithRetry(url) {
+  let lastErr;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await fetchWithTimeout(url, FETCH_TIMEOUT_MS, {
+        'User-Agent': PROXY_UA,
+        'Accept': PROXY_ACCEPT,
+      });
+    } catch (err) {
+      lastErr = err;
+      if (attempt === 0 && isRetryableNetworkError(err)) {
+        console.warn('[proxy] retrying after network error for', url);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
+async function fetchArchiveMetadata(identifier) {
+  const metaUrl = `https://archive.org/metadata/${encodeURIComponent(identifier)}`;
+  const res = await fetchWithTimeout(metaUrl, 20000, {
+    'User-Agent': PROXY_UA,
+    'Accept': 'application/json',
+  });
+  if (!res.ok) return null;
+  try {
+    return await res.json();
+  } catch (_) {
+    return null;
+  }
+}
+
 // GET /unified-reader?token=...&ref=...
 router.get('/unified-reader', ensureSubscriber, async (req, res) => {
   console.log('[reader] GET /unified-reader', req.query);
@@ -309,81 +395,100 @@ router.get('/api/proxy/epub', async (req, res) => {
     return res.status(403).json({ error: 'Domain not allowed' });
   }
   
-  console.log('[proxy] Fetching EPUB:', targetUrl);
-  
+  const archiveId = parseArchiveIdentifier(targetUrl);
+  console.log('[proxy] Fetching EPUB:', targetUrl, archiveId ? `(archive: ${archiveId})` : '');
+
+  async function tryArchiveFallback(reasonLabel) {
+    if (!archiveId) return null;
+    console.warn(`[proxy] attempting archive metadata fallback for ${archiveId} (${reasonLabel})`);
+    const meta = await fetchArchiveMetadata(archiveId);
+    if (!meta || !meta.files) throw new Error('Archive metadata unavailable');
+    const bestName = pickBestArchiveEpub(meta.files);
+    if (!bestName) throw new Error('No EPUB candidate in archive metadata');
+    const fallbackUrl = `https://archive.org/download/${encodeURIComponent(archiveId)}/${encodeURIComponent(bestName)}`;
+    console.log('[proxy] archive fallback candidate:', fallbackUrl);
+    return await fetchEpubWithRetry(fallbackUrl);
+  }
+
+  let upstream;
+  let finalUrl = targetUrl;
+  let lastErr;
+
   try {
-    // Use AbortController for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
-    
-    // Fetch with redirect: "follow" to handle 302s server-side
-    const upstream = await fetch(targetUrl, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'BookLantern/1.0 (+https://booklantern.org)',
-        'Accept': 'application/epub+zip, application/octet-stream, */*',
-      },
-      redirect: 'follow',
-      signal: controller.signal,
-    });
-    
-    clearTimeout(timeoutId);
-    
-    // Check for non-200 response after following redirects
-    if (!upstream.ok) {
-      console.error('[proxy] Upstream error after redirects:', upstream.status, upstream.url);
-      return res.status(502).json({ error: 'Upstream returned ' + upstream.status });
+    upstream = await fetchEpubWithRetry(targetUrl);
+
+    if (upstream && !upstream.ok && archiveId && (upstream.status === 404 || upstream.status === 403)) {
+      upstream.body?.cancel?.();
+      upstream = await tryArchiveFallback(`upstream ${upstream.status}`);
+      finalUrl = upstream?.url || finalUrl;
     }
-    
-    console.log('[proxy] Upstream OK, final URL:', upstream.url, 'Content-Length:', upstream.headers.get('content-length'));
-    
-    // Read first chunk to validate ZIP header (PK signature = 0x50 0x4B)
+  } catch (err) {
+    lastErr = err;
+    if (archiveId && isRetryableNetworkError(err)) {
+      try {
+        upstream = await tryArchiveFallback(err.message || err.name);
+        finalUrl = upstream?.url || finalUrl;
+      } catch (fallbackErr) {
+        lastErr = fallbackErr;
+      }
+    }
+  }
+
+  if (!upstream) {
+    const detail = lastErr?.message || 'No upstream response';
+    console.error('[proxy] Failed to fetch EPUB:', detail);
+    const status = lastErr?.name === 'AbortError' ? 504 : 502;
+    return res.status(status).json({ error: 'Failed to fetch EPUB', detail });
+  }
+
+  if (!upstream.ok) {
+    console.error('[proxy] Upstream error after attempts:', upstream.status, upstream.url);
+    return res.status(upstream.status === 404 ? 404 : 502).json({ error: 'Upstream returned ' + upstream.status });
+  }
+
+  console.log('[proxy] Upstream OK, final URL:', upstream.url || finalUrl, 'Content-Length:', upstream.headers.get('content-length'));
+
+  try {
     const reader = upstream.body.getReader();
     const firstChunk = await reader.read();
-    
+
     if (firstChunk.done || !firstChunk.value || firstChunk.value.length < 2) {
       console.error('[proxy] Empty or too small response');
       return res.status(502).json({ error: 'Empty response from upstream' });
     }
-    
-    // Validate ZIP/EPUB header (PK = 0x50 0x4B)
+
     if (firstChunk.value[0] !== 0x50 || firstChunk.value[1] !== 0x4B) {
       console.error('[proxy] Invalid EPUB: not a ZIP file (first bytes:', 
         firstChunk.value[0].toString(16), firstChunk.value[1].toString(16), ')');
       return res.status(502).json({ error: 'Invalid EPUB file (not a ZIP archive)' });
     }
-    
-    // Set response headers
-    res.setHeader('Content-Type', 'application/epub+zip');
+
+    const ct = upstream.headers.get('content-type') || 'application/epub+zip';
+    res.setHeader('Content-Type', ct);
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Disposition', 'inline; filename="book.epub"');
-    
-    // Forward content-length if available
+
     const contentLength = upstream.headers.get('content-length');
     if (contentLength) {
       res.setHeader('Content-Length', contentLength);
     }
-    
-    // Write validated first chunk
+
     res.write(Buffer.from(firstChunk.value));
-    
-    // Stream remaining chunks
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       res.write(Buffer.from(value));
     }
-    
+
     res.end();
     console.log('[proxy] EPUB streamed successfully');
-    
   } catch (err) {
-    console.error('[proxy] Error:', err.name, err.message);
-    
+    console.error('[proxy] Error while streaming:', err.name, err.message);
     if (!res.headersSent) {
       if (err.name === 'AbortError') {
-        return res.status(504).json({ error: 'Request timeout (30s)' });
+        return res.status(504).json({ error: 'Request timeout (45s)' });
       }
       return res.status(502).json({ error: 'Failed to fetch EPUB: ' + err.message });
     }
