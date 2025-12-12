@@ -79,10 +79,6 @@
     }
   })();
   </script>
-  <script>
-    // Pass login status to client-side scripts (sourced from res.locals.isAuthed set in server.js)
-    window.__BL_USER_LOGGED_IN__ = <%= isAuthed === true %>;
-  </script>
   <script src="/public/js/read-search.js" defer></script>
 </body>
 </html>

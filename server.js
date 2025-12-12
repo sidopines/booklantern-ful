@@ -155,6 +155,23 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(require('cookie-parser')(process.env.COOKIE_SECRET || 'dev_fallback_cookie_secret'));
 
+// ---------- Session middleware ----------
+const session = require('express-session');
+app.use(session({
+  name: 'bl.sid',
+  secret: process.env.SESSION_SECRET || process.env.COOKIE_SECRET || 'dev_fallback_session_secret',
+  resave: false,
+  saveUninitialized: false,
+  proxy: true,
+  cookie: {
+    path: '/',
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+  }
+}));
+
 // ---------- Unified auth detection helper ----------
 function getAuthUser(req) {
   return req.authUser || req.user || (req.session && req.session.user) || null;
@@ -405,26 +422,55 @@ app.post('/api/auth/session-cookie', async (req, res) => {
     if (!token) return res.status(400).json({ ok:false, error:'missing token' });
     const { data, error } = await supabaseAdmin.auth.getUser(token);
     if (error || !data?.user) return res.status(401).json({ ok:false });
+    
+    const user = data.user;
     const isSub =
       process.env.AUTO_SUBSCRIBE_NEW_USERS === '1'
         ? true
-        : (data.user.user_metadata && data.user.user_metadata.is_subscriber === true);
+        : (user.user_metadata && user.user_metadata.is_subscriber === true);
+    
     // optional auto-subscribe write-through when flag is on
-    if (process.env.AUTO_SUBSCRIBE_NEW_USERS === '1' && data.user.user_metadata?.is_subscriber !== true) {
-      await supabaseAdmin.auth.admin.updateUserById(data.user.id, {
-        user_metadata: { ...(data.user.user_metadata||{}), is_subscriber: true }
+    if (process.env.AUTO_SUBSCRIBE_NEW_USERS === '1' && user.user_metadata?.is_subscriber !== true) {
+      await supabaseAdmin.auth.admin.updateUserById(user.id, {
+        user_metadata: { ...(user.user_metadata||{}), is_subscriber: true }
       }).catch(()=>{});
     }
+    
+    // Store user in session so server-side auth detection works
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      is_subscriber: isSub
+    };
+    
+    // Save session and set cookie
+    req.session.save((err) => {
+      if (err) {
+        console.error('[session-cookie] session save error:', err);
+      }
+    });
+    
     res.cookie('bl_sub', isSub ? '1' : '0', {
       httpOnly: true, signed: true, sameSite: 'lax',
-      secure: true, maxAge: 30*24*60*60*1000, path: '/'
+      secure: process.env.NODE_ENV === 'production', maxAge: 30*24*60*60*1000, path: '/'
     });
     return res.json({ ok:true, sub:isSub ? 1 : 0 });
-  } catch (e) { return res.status(500).json({ ok:false }); }
+  } catch (e) { 
+    console.error('[session-cookie] error:', e);
+    return res.status(500).json({ ok:false }); 
+  }
 });
 
 // Logout route
-app.get('/logout', (req,res)=>{ res.clearCookie('bl_sub',{ httpOnly:true, signed:true, sameSite:'lax', secure:true, path:'/' }); res.redirect('/'); });
+app.get('/logout', (req, res) => {
+  // Clear session
+  if (req.session) {
+    req.session.destroy(() => {});
+  }
+  res.clearCookie('bl.sid', { path: '/' });
+  res.clearCookie('bl_sub', { httpOnly: true, signed: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/' });
+  res.redirect('/');
+});
 
 // ---------- Health check ----------
 app.get('/healthz', (_req, res) => res.status(200).send('OK'));
