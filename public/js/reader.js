@@ -65,13 +65,24 @@
       // Update loading message
       updateLoadingMessage('Downloading book...');
       
-      // Fetch the EPUB as an ArrayBuffer first
-      // This avoids ePub.js trying to make relative path requests like /api/proxy/META-INF/container.xml
-      const response = await fetch(proxiedUrl);
+      // Fetch the EPUB as an ArrayBuffer
+      // Include credentials to maintain session for gating
+      const response = await fetch(proxiedUrl, {
+        credentials: 'include'
+      });
+      
+      // Log response details for debugging
+      console.log('[reader] Proxy response:', response.status, response.headers.get('content-type'));
       
       if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        console.error('[reader] Proxy fetch failed:', response.status, errorText);
+        let errorDetail = '';
+        try {
+          const errorJson = await response.json();
+          errorDetail = errorJson.error || '';
+        } catch {
+          errorDetail = await response.text().catch(() => '');
+        }
+        console.error('[reader] Proxy fetch failed:', response.status, errorDetail);
         
         if (response.status === 403) {
           showEpubError('This book source is not supported. Please try a different edition.');
@@ -79,6 +90,8 @@
           showEpubError('Book file not found. The source may have moved or been removed.');
         } else if (response.status === 504) {
           showEpubError('Download timed out. Please try again later.');
+        } else if (response.status === 502) {
+          showEpubError('Could not fetch book from source. ' + (errorDetail || 'Please try again later.'));
         } else {
           showEpubError('Failed to download book. Please try again later.');
         }
