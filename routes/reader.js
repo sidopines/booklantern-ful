@@ -55,14 +55,41 @@ function parseArchiveIdentifier(urlString) {
   }
 }
 
+function isProtectedArchiveFile(f) {
+  const name = (f?.name || '').toLowerCase();
+  const format = (f?.format || '').toLowerCase();
+
+  const nameMatches =
+    name.includes('lcp') ||
+    name.endsWith('_lcp.epub') ||
+    name.includes('drm') ||
+    name.includes('protected') ||
+    name.endsWith('.acsm');
+
+  const formatMatches =
+    format.includes('lcp') ||
+    format.includes('protected') ||
+    format.includes('drm') ||
+    format.includes('adobe') ||
+    format.includes('acsm');
+
+  return nameMatches || formatMatches;
+}
+
 function pickBestArchiveEpub(files) {
   if (!Array.isArray(files)) return null;
   const candidates = files.filter(f => f?.name && /\.epub$/i.test(f.name));
   if (!candidates.length) return null;
-  return candidates
+
+  const sortedBySize = (arr) => arr
     .map(f => ({ name: f.name, size: Number(f.size) || 0 }))
-    .sort((a, b) => b.size - a.size)
-    [0].name;
+    .sort((a, b) => b.size - a.size);
+
+  const nonProtected = sortedBySize(candidates.filter(f => !isProtectedArchiveFile(f)));
+  if (nonProtected.length) return nonProtected[0].name;
+
+  // If only protected EPUBs exist, do not fall back to them
+  return null;
 }
 
 function isRetryableNetworkError(err) {
@@ -404,7 +431,9 @@ router.get('/api/proxy/epub', async (req, res) => {
     const meta = await fetchArchiveMetadata(archiveId);
     if (!meta || !meta.files) throw new Error('Archive metadata unavailable');
     const bestName = pickBestArchiveEpub(meta.files);
-    if (!bestName) throw new Error('No EPUB candidate in archive metadata');
+    if (!bestName) {
+      return { protected: true };
+    }
     const fallbackUrl = `https://archive.org/download/${encodeURIComponent(archiveId)}/${encodeURIComponent(bestName)}`;
     console.log('[proxy] archive fallback candidate:', fallbackUrl);
     return await fetchEpubWithRetry(fallbackUrl);
@@ -419,14 +448,28 @@ router.get('/api/proxy/epub', async (req, res) => {
 
     if (upstream && !upstream.ok && archiveId && (upstream.status === 404 || upstream.status === 403)) {
       upstream.body?.cancel?.();
-      upstream = await tryArchiveFallback(`upstream ${upstream.status}`);
+      const fallbackRes = await tryArchiveFallback(`upstream ${upstream.status}`);
+      if (fallbackRes?.protected) {
+        return res.status(422).json({
+          error: 'EPUB is protected',
+          detail: 'This item appears to be DRM/LCP-protected and cannot be opened in the in-site reader.'
+        });
+      }
+      upstream = fallbackRes;
       finalUrl = upstream?.url || finalUrl;
     }
   } catch (err) {
     lastErr = err;
     if (archiveId && isRetryableNetworkError(err)) {
       try {
-        upstream = await tryArchiveFallback(err.message || err.name);
+        const fallbackRes = await tryArchiveFallback(err.message || err.name);
+        if (fallbackRes?.protected) {
+          return res.status(422).json({
+            error: 'EPUB is protected',
+            detail: 'This item appears to be DRM/LCP-protected and cannot be opened in the in-site reader.'
+          });
+        }
+        upstream = fallbackRes;
         finalUrl = upstream?.url || finalUrl;
       } catch (fallbackErr) {
         lastErr = fallbackErr;
