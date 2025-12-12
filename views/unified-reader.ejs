@@ -18,7 +18,8 @@
   }) %>
   <link rel="stylesheet" href="/public/css/unified-reader.css?v=<%= buildId || Date.now() %>">
   <% if (useEpubJs) { %>
-  <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+  <script defer src="/public/vendor/jszip.min.js?v=<%= buildId || Date.now() %>"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
   <% } %>
 </head>
 <body data-page="reader" data-epub="<%= useEpubJs %>">

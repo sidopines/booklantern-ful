@@ -35,6 +35,9 @@
   async function initEpubReader() {
     const viewer = document.getElementById('epub-viewer');
     const loading = document.getElementById('epub-loading');
+
+    // Log JSZip availability to verify epub.js dependency is present
+    console.log('[reader] JSZip available:', typeof JSZip !== 'undefined');
     
     if (!viewer) {
       console.error('[reader] epub-viewer element not found');
