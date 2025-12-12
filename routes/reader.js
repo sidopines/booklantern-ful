@@ -486,6 +486,9 @@ router.get('/api/proxy/epub', async (req, res) => {
 
   if (!upstream.ok) {
     console.error('[proxy] Upstream error after attempts:', upstream.status, upstream.url);
+    if (upstream.status === 401 || upstream.status === 403) {
+      return res.status(422).json({ error: 'EPUB is protected or restricted (borrow-only)' });
+    }
     return res.status(upstream.status === 404 ? 404 : 502).json({ error: 'Upstream returned ' + upstream.status });
   }
 
