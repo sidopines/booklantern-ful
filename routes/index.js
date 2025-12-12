@@ -29,17 +29,16 @@ function parseYouTube(url) {
   }
 }
 
-/** Build a homepage card object with a gated Read link (provider/provider_id ➜ /read) */
-function toHomeCard(row, isAuthed) {
+/** Build a homepage card object - /read is public, no gating needed here */
+function toHomeCard(row) {
   const provider = row.provider || null;
   const pid = row.provider_id || null;
 
-  const directRead =
+  // /read is public - no login gate here (gate happens at unified-reader level)
+  const readUrl =
     provider && pid
       ? `/read?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(pid)}`
       : '/read';
-
-  const readUrl = isAuthed ? directRead : `/login?next=${encodeURIComponent(directRead)}`;
 
   return {
     id: row.id,
@@ -77,7 +76,6 @@ function toReaderCard(row) {
 // -----------------------------
 router.get('/', async (req, res) => {
   const desiredSlugs = ['trending', 'philosophy', 'history', 'science', 'biographies', 'religion', 'classics'];
-  const isAuthed = Boolean((req.session && req.session.user) || req.user || req.authUser);
 
   let shelvesList = [];
 
@@ -104,7 +102,7 @@ router.get('/', async (req, res) => {
           return {
             key: slug,
             label,
-            items: rows.map((r) => toHomeCard(r, isAuthed))
+            items: rows.map((r) => toHomeCard(r))
           };
         });
 
@@ -112,7 +110,7 @@ router.get('/', async (req, res) => {
         shelvesList = [{
           key: 'featured',
           label: 'Featured',
-          items: data.slice(0, 12).map((r) => toHomeCard(r, isAuthed))
+          items: data.slice(0, 12).map((r) => toHomeCard(r))
         }];
       }
     } catch (e) {
