@@ -95,6 +95,8 @@
           showEpubError('Download timed out. Please try again later.');
         } else if (response.status === 502) {
           showEpubError('Could not fetch book from source. ' + (errorDetail || 'Please try again later.'));
+        } else if (response.status === 422 || response.status === 409) {
+          showEpubError('This book appears to be protected (DRM/LCP) and can’t be opened in the BookLantern reader yet. Please try another edition.');
         } else {
           showEpubError('Failed to download book. Please try again later.');
         }
