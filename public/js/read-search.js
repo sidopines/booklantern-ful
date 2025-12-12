@@ -3,22 +3,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const box = document.querySelector('input[name="q"]');
   if (box) box.value = q;
   
-  // Check if user is logged in (set by EJS template from res.locals.isAuthed)
-  // Handle both boolean true and string 'true' for robustness
-  const authed = window.__BL_USER_LOGGED_IN__ === true || window.__BL_USER_LOGGED_IN__ === 'true';
-  console.log('[BL] logged in?', window.__BL_USER_LOGGED_IN__, '-> authed:', authed);
-  
-  // Client-side login gating helper
-  function loginGate(href) {
-    if (!href) return '#';
-    if (authed) return href;
-    // Gate unified-reader links for guests
-    if (href.startsWith('/unified-reader')) {
-      return '/login?next=' + encodeURIComponent(href);
-    }
-    return href;
-  }
-  
   let mount = document.getElementById('results');
   if (!mount) {
     mount = document.createElement('div');
@@ -37,12 +21,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const cover = item.cover_url ? `<img src="${item.cover_url}" alt="">` : '';
           const title = item.title || 'Untitled';
           const author = item.author ? `<div class="card-author">${item.author}</div>` : '';
-          // Use href from response, add ref parameter to preserve search context
+          // Use href from response directly - server handles auth gating via ensureSubscriber
           const url = new URL((typeof item.href === 'string') ? item.href : '/unified-reader', window.location.origin);
           url.searchParams.set('ref', location.pathname + location.search);
-          const rawHref = url.pathname + url.search;
-          // Apply login gating
-          const href = loginGate(rawHref);
+          const href = url.pathname + url.search;
           return `<a class="book-card" href="${href}">
                     <div class="card-cover">${cover}</div>
                     <div class="card-title">${title}</div>
