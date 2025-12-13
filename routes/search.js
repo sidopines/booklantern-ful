@@ -66,7 +66,7 @@ function deduplicate(books) {
  * GET /api/search?q=&page=1
  * Federated search across all sources
  */
-router.get('/api/search', async (req, res) => {
+router.get('/search', async (req, res) => {
   // Disable caching for search results
   res.set({
     'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
@@ -78,6 +78,7 @@ router.get('/api/search', async (req, res) => {
   try {
     const q = req.query.q || '';
     const page = parseInt(req.query.page) || 1;
+    console.log('[search] hit /api/search', { q, page });
     
     if (!q.trim()) {
       return res.json({ items: [] });

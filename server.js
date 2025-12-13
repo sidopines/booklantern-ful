@@ -355,8 +355,8 @@ try {
 // Mount search router (public federated search API)
 try {
   const searchRoutes = require('./routes/search');
-  app.use('/', searchRoutes);
-  console.log('[routes] mounted search router at /');
+  app.use('/api', searchRoutes);
+  console.log('[routes] mounted search router at /api');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/search:', e);
 }
