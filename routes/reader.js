@@ -403,7 +403,7 @@ router.get('/library', ensureSubscriber, async (req, res) => {
 });
 
 /**
- * GET /api/proxy/epub?url=<encoded-url>
+ * GET /api/proxy/epub?url=<encoded-url> OR ?archive=<identifier>
  * Proxies EPUB files to avoid CORS issues with ePub.js
  * - Follows redirects server-side (no 302 to client)
  * - Streams response to client
@@ -411,19 +411,49 @@ router.get('/library', ensureSubscriber, async (req, res) => {
  */
 router.get('/api/proxy/epub', async (req, res) => {
   const targetUrl = req.query.url;
+  const archiveParam = req.query.archive;
   
-  if (!targetUrl) {
-    return res.status(400).json({ error: 'Missing url parameter' });
+  // Support both ?url= and ?archive= parameters
+  let archiveId = archiveParam;
+  let finalTargetUrl = targetUrl;
+  
+  if (archiveParam) {
+    // Direct archive identifier mode - use metadata to find best EPUB
+    archiveId = archiveParam;
+    console.log('[proxy] Archive mode for identifier:', archiveId);
+    
+    try {
+      const meta = await fetchArchiveMetadata(archiveId);
+      if (!meta || !meta.files) {
+        return res.status(404).json({ error: 'Archive metadata not found' });
+      }
+      
+      const bestName = pickBestArchiveEpub(meta.files);
+      if (!bestName) {
+        return res.status(422).json({ 
+          error: 'EPUB is protected',
+          detail: 'No suitable EPUB file found in archive (all protected or restricted)'
+        });
+      }
+      
+      finalTargetUrl = `https://archive.org/download/${encodeURIComponent(archiveId)}/${encodeURIComponent(bestName)}`;
+      console.log('[proxy] Resolved archive EPUB:', finalTargetUrl);
+    } catch (err) {
+      console.error('[proxy] Archive metadata error:', err);
+      return res.status(502).json({ error: 'Failed to fetch archive metadata' });
+    }
+  } else if (!targetUrl) {
+    return res.status(400).json({ error: 'Missing url or archive parameter' });
+  } else {
+    // URL mode - validate domain
+    if (!isAllowedProxyDomain(targetUrl)) {
+      console.warn('[proxy] Blocked non-whitelisted domain:', targetUrl);
+      return res.status(403).json({ error: 'Domain not allowed' });
+    }
+    archiveId = parseArchiveIdentifier(targetUrl);
   }
   
-  // Security: only allow whitelisted domains
-  if (!isAllowedProxyDomain(targetUrl)) {
-    console.warn('[proxy] Blocked non-whitelisted domain:', targetUrl);
-    return res.status(403).json({ error: 'Domain not allowed' });
-  }
-  
-  const archiveId = parseArchiveIdentifier(targetUrl);
-  console.log('[proxy] Fetching EPUB:', targetUrl, archiveId ? `(archive: ${archiveId})` : '');
+  console.log('[proxy] Fetching EPUB:', finalTargetUrl, archiveId ? `(archive: ${archiveId})` : '');
 
   async function tryArchiveFallback(reasonLabel) {
     if (!archiveId) return null;
@@ -440,11 +470,11 @@ router.get('/api/proxy/epub', async (req, res) => {
   }
 
   let upstream;
-  let finalUrl = targetUrl;
+  let finalUrl = finalTargetUrl;
   let lastErr;
 
   try {
-    upstream = await fetchEpubWithRetry(targetUrl);
+    upstream = await fetchEpubWithRetry(finalTargetUrl);
 
     if (upstream && !upstream.ok && archiveId && (upstream.status === 404 || upstream.status === 403)) {
       upstream.body?.cancel?.();
@@ -503,10 +533,25 @@ router.get('/api/proxy/epub', async (req, res) => {
       return res.status(502).json({ error: 'Empty response from upstream' });
     }
 
+    // Check for HTML response (likely a login/error page)
+    const firstBytes = firstChunk.value.slice(0, 100);
+    const text = Buffer.from(firstBytes).toString('utf-8', 0, Math.min(100, firstBytes.length)).toLowerCase();
+    if (text.includes('<!doctype') || text.includes('<html') || text.includes('<head')) {
+      console.error('[proxy] Got HTML instead of EPUB (likely protected/login required)');
+      return res.status(422).json({ 
+        error: 'Invalid EPUB (likely protected/login/blocked)',
+        detail: 'The server returned an HTML page instead of an EPUB file'
+      });
+    }
+
+    // Validate ZIP/EPUB header (PK = 0x50 0x4B)
     if (firstChunk.value[0] !== 0x50 || firstChunk.value[1] !== 0x4B) {
       console.error('[proxy] Invalid EPUB: not a ZIP file (first bytes:', 
         firstChunk.value[0].toString(16), firstChunk.value[1].toString(16), ')');
-      return res.status(502).json({ error: 'Invalid EPUB file (not a ZIP archive)' });
+      return res.status(422).json({ 
+        error: 'Invalid EPUB (not a ZIP archive)',
+        detail: 'This file is not a valid EPUB format'
+      });
     }
 
     const ct = upstream.headers.get('content-type') || 'application/epub+zip';

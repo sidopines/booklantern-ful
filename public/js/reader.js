@@ -5,6 +5,22 @@
   // State for ePub.js reader
   let book = null;
   let rendition = null;
+  let errorShown = false;
+
+  // Global error handlers to catch any unhandled errors
+  window.addEventListener('error', function(event) {
+    if (!errorShown && event.message && event.message.includes('epub')) {
+      console.error('[reader] Global error:', event.error || event.message);
+      showReaderError('An error occurred while loading the book. It may be corrupted or incompatible.');
+    }
+  });
+
+  window.addEventListener('unhandledrejection', function(event) {
+    if (!errorShown) {
+      console.error('[reader] Unhandled rejection:', event.reason);
+      showReaderError('Failed to process book file. Please try a different edition.');
+    }
+  });
 
   // Wait for DOM to be ready
   if (document.readyState === 'loading') {
@@ -21,8 +37,18 @@
     const isEpubPage = document.body.getAttribute('data-epub') === 'true';
     
     if (isEpubPage) {
-      // Initialize ePub.js renderer
-      initEpubReader();
+      // Initialize ePub.js renderer with global error wrapper
+      try {
+        initEpubReader().catch(err => {
+          console.error('[reader] Init failed:', err);
+          if (!errorShown) {
+            showReaderError('Failed to initialize reader. Please try again.');
+          }
+        });
+      } catch (err) {
+        console.error('[reader] Init error:', err);
+        showReaderError('Failed to initialize reader. Please try again.');
+      }
     } else {
       // Setup keyboard shortcuts for iframe
       setupKeyboardShortcuts();
@@ -62,8 +88,17 @@
     
     try {
       // Proxy the EPUB URL to avoid CORS issues
-      const proxiedUrl = '/api/proxy/epub?url=' + encodeURIComponent(epubUrl);
-      console.log('[reader] Using proxied URL:', proxiedUrl);
+      // Check if this is an archive URL that should use archive parameter
+      let proxiedUrl;
+      const archiveMatch = epubUrl.match(/archive\.org\/download\/([^\/]+)/);
+      if (archiveMatch) {
+        // Use archive parameter for better metadata-based file selection
+        proxiedUrl = '/api/proxy/epub?archive=' + encodeURIComponent(archiveMatch[1]);
+        console.log('[reader] Using archive mode:', proxiedUrl);
+      } else {
+        proxiedUrl = '/api/proxy/epub?url=' + encodeURIComponent(epubUrl);
+        console.log('[reader] Using proxied URL:', proxiedUrl);
+      }
       
       // Update loading message
       updateLoadingMessage('Downloading book...');
@@ -118,15 +153,28 @@
       // Initialize the book with the ArrayBuffer
       // ePub.js can accept an ArrayBuffer directly
       updateLoadingMessage('Opening book...');
-      book = ePub(arrayBuffer);
+      
+      try {
+        book = ePub(arrayBuffer);
+      } catch (err) {
+        console.error('[reader] ePub() constructor failed:', err);
+        showReaderError('Invalid EPUB format. This file cannot be opened in the reader.');
+        return;
+      }
       
       // Render the book into the viewer
-      rendition = book.renderTo('epub-viewer', {
-        width: '100%',
-        height: '100%',
-        spread: 'none',
-        flow: 'paginated'
-      });
+      try {
+        rendition = book.renderTo('epub-viewer', {
+          width: '100%',
+          height: '100%',
+          spread: 'none',
+          flow: 'paginated'
+        });
+      } catch (err) {
+        console.error('[reader] renderTo() failed:', err);
+        showReaderError('Failed to render book. It may be corrupted or in an unsupported format.');
+        return;
+      }
       
       // Setup navigation buttons early (before display completes)
       setupEpubNavigation();
@@ -135,14 +183,25 @@
       setupEpubKeyboard();
       
       // Display the book starting from the first page
-      await rendition.display();
-      console.log('[reader] EPUB displayed successfully');
-      hideLoading();
+      try {
+        await rendition.display();
+        console.log('[reader] EPUB displayed successfully');
+        hideLoading();
+      } catch (err) {
+        console.error('[reader] display() failed:', err);
+        showReaderError('Cannot display this book. It may be protected or corrupted.');
+        return;
+      }
       
       // Handle spine loading errors
-      book.loaded.spine.catch(err => {
-        console.error('[reader] EPUB spine error:', err);
-      });
+      if (book.loaded && book.loaded.spine) {
+        book.loaded.spine.catch(err => {
+          console.error('[reader] EPUB spine error:', err);
+          if (!errorShown) {
+            showReaderError('Book structure is invalid. Please try a different edition.');
+          }
+        });
+      }
       
     } catch (err) {
       console.error('[reader] Failed to initialize EPUB:', err);
@@ -231,6 +290,15 @@
     }
   }
   
+  /**
+   * Show error message (prevents duplicate errors)
+   */
+  function showReaderError(message) {
+    if (errorShown) return;
+    errorShown = true;
+    showEpubError(message);
+  }
+
   /**
    * Show error message
    */

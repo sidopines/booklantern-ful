@@ -67,6 +67,14 @@ function deduplicate(books) {
  * Federated search across all sources
  */
 router.get('/api/search', async (req, res) => {
+  // Disable caching for search results
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    'Surrogate-Control': 'no-store'
+  });
+  
   try {
     const q = req.query.q || '';
     const page = parseInt(req.query.page) || 1;
@@ -75,10 +83,13 @@ router.get('/api/search', async (req, res) => {
       return res.json({ items: [] });
     }
     
-    // Check cache
+    console.log('[search] query="' + q + '" page=' + page);
+    
+    // Check cache (keep internal cache but disable HTTP caching)
     const cacheKey = `${q}:${page}`;
     const cached = cache.get(cacheKey);
     if (cached) {
+      console.log('[search] serving from cache');
       return res.json(cached);
     }
     
@@ -92,16 +103,32 @@ router.get('/api/search', async (req, res) => {
     
     const results = await Promise.allSettled(searches);
     
-    // Collect successful results
+    // Collect successful results with logging
     let allBooks = [];
-    for (const result of results) {
+    const connectorNames = ['gutenberg', 'openlibrary', 'archive', 'loc'];
+    const counts = {};
+    
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      const connectorName = connectorNames[i];
+      
       if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+        counts[connectorName] = result.value.length;
         allBooks = allBooks.concat(result.value);
+      } else if (result.status === 'rejected') {
+        console.error(`[search] ${connectorName} error:`, result.reason?.message || result.reason);
+        counts[connectorName] = 0;
+      } else {
+        counts[connectorName] = 0;
       }
     }
     
+    console.log(`[search] results: gutenberg=${counts.gutenberg || 0} openlibrary=${counts.openlibrary || 0} archive=${counts.archive || 0} loc=${counts.loc || 0} total_before_dedup=${allBooks.length}`);
+    
     // Deduplicate
     const uniqueBooks = deduplicate(allBooks);
+    
+    console.log(`[search] after dedup: ${uniqueBooks.length} unique books`);
     
     // Create signed tokens and public response
     const items = uniqueBooks.map(book => {
@@ -112,11 +139,15 @@ router.get('/api/search', async (req, res) => {
       let href = null;
 
       if (isPublic) {
+        // Use archive_id for archive/openlibrary items to ensure proper metadata fallback
+        const useArchive = book.archive_id && (book.provider === 'archive' || book.provider === 'openlibrary');
+        
         token = buildReaderToken({
           provider: book.provider,
           provider_id: book.provider_id,
           format: book.format || 'epub',
           direct_url: book.direct_url,
+          archive_id: useArchive ? book.archive_id : undefined,
           title: asText(book.title),
           author: asText(book.author),
           cover_url: book.cover_url,
