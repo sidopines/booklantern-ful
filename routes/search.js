@@ -9,10 +9,10 @@ const loc = require('../lib/sources/loc');
 
 const router = express.Router();
 
-// Cache results for 10 minutes
+// Cache is disabled for now to avoid serving stale/blocked items
 const cache = new LRUCache({
-  max: 500,
-  ttl: 1000 * 60 * 10, // 10 minutes
+  max: 0,
+  ttl: 0,
 });
 
 /**
@@ -85,14 +85,6 @@ router.get('/api/search', async (req, res) => {
     
     console.log('[search] query="' + q + '" page=' + page);
     
-    // Check cache (keep internal cache but disable HTTP caching)
-    const cacheKey = `${q}:${page}`;
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      console.log('[search] serving from cache');
-      return res.json(cached);
-    }
-    
     // Parallel search across all sources
     const searches = [
       gutenberg.search(q, page),
@@ -125,8 +117,17 @@ router.get('/api/search', async (req, res) => {
     
     console.log(`[search] results: gutenberg=${counts.gutenberg || 0} openlibrary=${counts.openlibrary || 0} archive=${counts.archive || 0} loc=${counts.loc || 0} total_before_dedup=${allBooks.length}`);
     
+    // Filter out restricted items before deduplication
+    const unrestricted = allBooks.filter(book => {
+      // Prefer explicit flag; fall back to access field
+      if (book.is_restricted === true || book.is_restricted === 'true') return false;
+      if ((book.access || 'public') !== 'public') return false;
+      return true;
+    });
+    console.log(`[search] after filter: ${unrestricted.length} unrestricted books`);
+
     // Deduplicate
-    const uniqueBooks = deduplicate(allBooks);
+    const uniqueBooks = deduplicate(unrestricted);
     
     console.log(`[search] after dedup: ${uniqueBooks.length} unique books`);
     
@@ -139,8 +140,8 @@ router.get('/api/search', async (req, res) => {
       let href = null;
 
       if (isPublic) {
-        // Use archive_id for archive/openlibrary items to ensure proper metadata fallback
-        const useArchive = book.archive_id && (book.provider === 'archive' || book.provider === 'openlibrary');
+        // Use archive_id when provided to ensure metadata-based fetch path
+        const useArchive = Boolean(book.archive_id);
         
         token = buildReaderToken({
           provider: book.provider,
@@ -172,10 +173,6 @@ router.get('/api/search', async (req, res) => {
     });
     
     const response = { items };
-    
-    // Cache the response
-    cache.set(cacheKey, response);
-    
     return res.json(response);
   } catch (error) {
     console.error('[search] error:', error);

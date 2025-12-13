@@ -38,8 +38,8 @@ function isAllowedProxyDomain(urlString) {
   }
 }
 
-const PROXY_UA = 'BookLantern/1.0 (+https://booklantern.org; epub-proxy)';
-const PROXY_ACCEPT = 'application/epub+zip,application/octet-stream;q=0.9,*/*;q=0.8';
+const PROXY_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0 Safari/537.36 BookLantern/1.0';
+const PROXY_ACCEPT = 'application/epub+zip,application/octet-stream;q=0.9,application/xhtml+xml;q=0.8,*/*;q=0.8';
 const FETCH_TIMEOUT_MS = 45000;
 
 function parseArchiveIdentifier(urlString) {
@@ -162,6 +162,7 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
     // Normalize data from token
     const format = data.format || data.mode || 'iframe';
     const directUrl = data.direct_url || data.directUrl || data.url || '';
+    const archiveId = data.archive_id || data.archiveId || null;
     const ref = req.query.ref || data.ref || null;
     
     // Determine if this is an EPUB file (needs ePub.js rendering, not iframe)
@@ -178,6 +179,7 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
       format,
       mode: format, // for compatibility
       directUrl,
+      archiveId,
       isEpub, // Flag to use ePub.js renderer instead of iframe
       backHref: ref || '/read',
       ref,
