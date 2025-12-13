@@ -71,6 +71,7 @@
     }
     
     const epubUrl = viewer.getAttribute('data-epub-url');
+    const archiveId = viewer.getAttribute('data-archive-id');
     if (!epubUrl) {
       console.error('[reader] No EPUB URL provided');
       showEpubError('No book URL provided');
@@ -88,16 +89,21 @@
     
     try {
       // Proxy the EPUB URL to avoid CORS issues
-      // Check if this is an archive URL that should use archive parameter
+      // Prefer explicit archive_id from token; otherwise detect archive URLs
       let proxiedUrl;
-      const archiveMatch = epubUrl.match(/archive\.org\/download\/([^\/]+)/);
-      if (archiveMatch) {
-        // Use archive parameter for better metadata-based file selection
-        proxiedUrl = '/api/proxy/epub?archive=' + encodeURIComponent(archiveMatch[1]);
-        console.log('[reader] Using archive mode:', proxiedUrl);
+      if (archiveId) {
+        proxiedUrl = '/api/proxy/epub?archive=' + encodeURIComponent(archiveId);
+        console.log('[reader] Using archive mode via token archive_id:', proxiedUrl);
       } else {
-        proxiedUrl = '/api/proxy/epub?url=' + encodeURIComponent(epubUrl);
-        console.log('[reader] Using proxied URL:', proxiedUrl);
+        const archiveMatch = epubUrl.match(/archive\.org\/download\/([^\/]+)/);
+        if (archiveMatch) {
+          // Use archive parameter for better metadata-based file selection
+          proxiedUrl = '/api/proxy/epub?archive=' + encodeURIComponent(archiveMatch[1]);
+          console.log('[reader] Using archive mode (URL detection):', proxiedUrl);
+        } else {
+          proxiedUrl = '/api/proxy/epub?url=' + encodeURIComponent(epubUrl);
+          console.log('[reader] Using proxied URL:', proxiedUrl);
+        }
       }
       
       // Update loading message
