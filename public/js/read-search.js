@@ -13,10 +13,21 @@ document.addEventListener('DOMContentLoaded', () => {
   
   if (q) {
     fetch('/api/search?q=' + encodeURIComponent(q))
-      .then(r => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error('Search request failed: ' + r.status);
+        return r.json();
+      })
       .then(data => {
-        const items = Array.isArray(data.items) ? data.items : [];
+        const items = Array.isArray(data.items)
+          ? data.items
+          : Array.isArray(data.results)
+            ? data.results
+            : Array.isArray(data.docs)
+              ? data.docs
+              : [];
+
         if (!items.length) { mount.innerHTML = '<p>No results.</p>'; return; }
+
         mount.innerHTML = items.map(item => {
           const cover = item.cover_url ? `<img src="${item.cover_url}" alt="">` : '';
           const title = item.title || 'Untitled';
@@ -33,6 +44,9 @@ document.addEventListener('DOMContentLoaded', () => {
                   </a>`;
         }).join('');
       })
-      .catch(err => { console.error('search render error', err); mount.innerHTML = '<p>No results.</p>'; });
+      .catch(err => {
+        console.error('search render error', err);
+        mount.innerHTML = '<p>No results.</p>';
+      });
   }
 });
