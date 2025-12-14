@@ -66,7 +66,7 @@ function deduplicate(books) {
  * GET /api/search?q=&page=1
  * Federated search across all sources
  */
-router.get('/search', async (req, res) => {
+async function handleSearch(req, res) {
   // Disable caching for search results
   res.set({
     'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
@@ -177,8 +177,13 @@ router.get('/search', async (req, res) => {
     return res.json(response);
   } catch (error) {
     console.error('[search] error:', error);
-    return res.status(500).json({ error: 'Search failed' });
+    // Always return JSON on error
+    return res.status(500).json({ results: [], error: 'search_failed' });
   }
-});
+}
+
+// Register both root and /search paths to be robust across mounts
+router.get('/', handleSearch);
+router.get('/search', handleSearch);
 
 module.exports = router;

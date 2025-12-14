@@ -352,11 +352,11 @@ try {
   console.error('[routes] failed to mount ./routes/watch:', e);
 }
 
-// Mount search router (public federated search API)
+// Mount search router (public federated search API) explicitly at /api/search
 try {
   const searchRoutes = require('./routes/search');
-  app.use('/api', searchRoutes);
-  console.log('[routes] mounted search router at /api');
+  app.use('/api/search', searchRoutes);
+  console.log('[routes] mounted search router at /api/search');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/search:', e);
 }
