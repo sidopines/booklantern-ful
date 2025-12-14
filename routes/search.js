@@ -9,10 +9,10 @@ const loc = require('../lib/sources/loc');
 
 const router = express.Router();
 
-// Cache is disabled for now to avoid serving stale/blocked items
+// Cache: small TTL to reduce upstream load without serving stale/blocked items for long
 const cache = new LRUCache({
-  max: 0,
-  ttl: 0,
+  max: 500,
+  ttl: 1000 * 60 * 5, // 5 minutes
 });
 
 /**
