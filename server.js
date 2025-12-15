@@ -265,7 +265,7 @@ function meta(req, title, desc = 'Free books & educational videos.') {
   Register + Account
   (legacy /register handler removed; handled by routes/loginShim.js)
 ============================================================ */
-app.get('/account', (_req, res) => {
+app.get('/account', require('./utils/gate').ensureSubscriber, (_req, res) => {
   try {
     return res.render('account');
   } catch (e) {
