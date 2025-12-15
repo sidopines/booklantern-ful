@@ -3,6 +3,7 @@ const express = require('express');
 const { LRUCache } = require('lru-cache');
 const { ensureSubscriberApi } = require('../utils/gate');
 const { buildReaderToken } = require('../utils/buildReaderToken');
+const { filterRestrictedArchiveItems } = require('../lib/checkArchiveAccess');
 const gutenberg = require('../lib/sources/gutenberg');
 const openlibrary = require('../lib/sources/openlibrary');
 const archive = require('../lib/sources/archive');
@@ -126,15 +127,20 @@ async function handleSearch(req, res) {
       if ((book.access || 'public') !== 'public') return false;
       return true;
     });
-    console.log(`[search] after filter: ${unrestricted.length} unrestricted books`);
+    console.log(`[search] after metadata filter: ${unrestricted.length} unrestricted books`);
 
     // Deduplicate
     const uniqueBooks = deduplicate(unrestricted);
     
     console.log(`[search] after dedup: ${uniqueBooks.length} unique books`);
     
+    // HEAD-check archive.org URLs to filter out borrow-only items that slipped through
+    const verified = await filterRestrictedArchiveItems(uniqueBooks, 10);
+    
+    console.log(`[search] after HEAD check: ${verified.length} verified accessible`);
+    
     // Create signed tokens and public response
-    const items = uniqueBooks.map(book => {
+    const items = verified.map(book => {
       const access = book.access || 'public';
       const isPublic = access === 'public';
 
