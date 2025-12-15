@@ -1,17 +1,15 @@
 // utils/gate.js
-// Ensure user is logged in (treat ANY logged-in user as subscriber until paid tier exists)
+// Ensure user is logged in via validated session (set by /api/auth/session-cookie after Supabase verify)
 function isLoggedIn(req) {
-  const user = req.authUser || req.user || (req.session && req.session.user);
-  if (user && (user.id || user._id || user.email || user.is_subscriber)) return true;
-
-  const signed = req.signedCookies && req.signedCookies.bl_sub === '1';
-  const raw = req.cookies && (req.cookies.bl_sub === '1' || (req.cookies.bl_sub || '').startsWith('s:1') || (req.cookies.bl_sub || '').startsWith('s%3A1'));
-  return signed || raw;
+  // Only trust req.session.user.id which is set after Supabase token validation
+  const user = req.session && req.session.user;
+  return Boolean(user && user.id);
 }
 
 module.exports.ensureSubscriber = function ensureSubscriber(req, res, next) {
   if (process.env.DEV_OPEN_READER === '1') return next();
   if (isLoggedIn(req)) return next();
+  console.log('[auth] blocked', req.originalUrl);
   const nextUrl = encodeURIComponent(req.originalUrl || '/');
   return res.redirect(302, '/auth?next=' + nextUrl);
 };
@@ -19,6 +17,7 @@ module.exports.ensureSubscriber = function ensureSubscriber(req, res, next) {
 module.exports.ensureSubscriberApi = function ensureSubscriberApi(req, res, next) {
   if (process.env.DEV_OPEN_READER === '1') return next();
   if (isLoggedIn(req)) return next();
+  console.log('[auth] blocked', req.originalUrl);
   const nextUrl = req.originalUrl || '/read';
   return res.status(401).json({ error: 'auth_required', next: '/auth?next=' + encodeURIComponent(nextUrl) });
 };
