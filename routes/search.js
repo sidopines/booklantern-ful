@@ -134,8 +134,8 @@ async function handleSearch(req, res) {
     
     console.log(`[search] after dedup: ${uniqueBooks.length} unique books`);
     
-    // HEAD-check archive.org URLs to filter out borrow-only items that slipped through
-    const verified = await filterRestrictedArchiveItems(uniqueBooks, 10);
+    // HEAD-check first 15 archive.org URLs to filter out borrow-only items
+    const verified = await filterRestrictedArchiveItems(uniqueBooks, 15);
     
     console.log(`[search] after HEAD check: ${verified.length} verified accessible`);
     
