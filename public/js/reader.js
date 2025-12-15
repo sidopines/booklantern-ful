@@ -9,9 +9,20 @@
   let loadTimeoutId = null;
   let currentFontSize = 100; // percentage
   let bookKey = null; // for localStorage persistence
+  let currentDirectUrl = ''; // stored for error handlers
 
   // Timeout for book loading (15 seconds)
   const LOAD_TIMEOUT_MS = 15000;
+
+  /**
+   * Clear the load timeout watchdog safely
+   */
+  function clearLoadTimeout() {
+    if (loadTimeoutId) {
+      clearTimeout(loadTimeoutId);
+      loadTimeoutId = null;
+    }
+  }
 
   // Default theme CSS to inject into EPUB for proper rendering
   const DEFAULT_READER_THEME = {
@@ -81,11 +92,16 @@
     }
   };
 
-  // Global error handlers to catch any unhandled errors
+  // Global error handlers to catch any unhandled errors from epub.js
   window.addEventListener('error', function(event) {
-    if (!errorShown && event.message && (event.message.includes('epub') || event.message.includes('indexOf'))) {
-      console.error('[reader] Global error:', event.error || event.message);
-      showReaderError('An error occurred while loading the book. It may be corrupted or incompatible.');
+    if (!errorShown) {
+      const msg = event.message || '';
+      // Catch epub.js crashes (indexOf, undefined property access, etc.)
+      if (msg.includes('epub') || msg.includes('indexOf') || msg.includes('undefined') || msg.includes('null')) {
+        console.error('[reader] Global error caught:', event.error || msg);
+        clearLoadTimeout();
+        showEpubError('This book has an unsupported format. It may be corrupted or incompatible.', currentDirectUrl);
+      }
     }
   });
 
@@ -93,11 +109,12 @@
     if (!errorShown) {
       const reason = event.reason?.message || String(event.reason);
       console.error('[reader] Unhandled rejection:', reason);
+      clearLoadTimeout();
       // Catch common epub.js errors
-      if (reason.includes('indexOf') || reason.includes('undefined') || reason.includes('null')) {
-        showReaderError('This book has an unsupported structure. Please try a different edition.');
+      if (reason.includes('indexOf') || reason.includes('undefined') || reason.includes('null') || reason.includes('Cannot read')) {
+        showEpubError('This book has an unsupported structure. Please try a different edition.', currentDirectUrl);
       } else {
-        showReaderError('Failed to process book file. Please try a different edition.');
+        showEpubError('Failed to process book file. Please try a different edition.', currentDirectUrl);
       }
     }
   });
@@ -206,25 +223,40 @@
   }
 
   /**
+   * Apply current font size to rendition
+   */
+  function applyFontSize() {
+    if (rendition) {
+      try {
+        rendition.themes.fontSize(currentFontSize + '%');
+        console.log('[reader] font size ->', currentFontSize + '%');
+      } catch (err) {
+        console.warn('[reader] Failed to apply font size:', err);
+      }
+    }
+  }
+
+  /**
    * Change font size
    */
   function changeFontSize(delta) {
     currentFontSize = Math.max(70, Math.min(150, currentFontSize + delta));
     
-    if (rendition) {
-      rendition.themes.fontSize(currentFontSize + '%');
-    }
+    // Apply to rendition
+    applyFontSize();
     
-    // Update display
+    // Update display if element exists
     const fontDisplay = document.getElementById('font-size-display');
     if (fontDisplay) {
       fontDisplay.textContent = currentFontSize + '%';
     }
     
-    // Save preference
+    // Save preference to localStorage
     try {
       localStorage.setItem('bl-reader-fontsize', currentFontSize);
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[reader] Could not save font size:', e);
+    }
   }
 
   /**
@@ -286,6 +318,9 @@
     const archiveId = viewer.getAttribute('data-archive-id');
     const directUrl = viewer.getAttribute('data-direct-url') || '';
     
+    // Store directUrl globally for error handlers
+    currentDirectUrl = directUrl;
+    
     if (!epubUrl) {
       console.error('[reader] No EPUB URL provided');
       showEpubError('No book URL provided', directUrl);
@@ -321,6 +356,7 @@
     loadTimeoutId = setTimeout(function() {
       if (!errorShown) {
         console.error('[reader] Load timeout exceeded');
+        clearLoadTimeout();
         showEpubError('Book is taking too long to load. It may be too large or corrupted.', directUrl);
       }
     }, LOAD_TIMEOUT_MS);
@@ -375,7 +411,10 @@
         } else if (response.status === 502) {
           showEpubError('Could not fetch book from source. ' + (errorDetail || 'Please try again later.'));
         } else if (response.status === 422 || response.status === 409) {
-          showEpubError('This book appears to be protected (DRM/LCP) and cannot be opened in the BookLantern reader yet. Please try another edition.');
+          // Protected/borrow-only - ALWAYS show Open Source Link
+          clearLoadTimeout();
+          showEpubError('This book requires borrowing from the source library. Use the link below to borrow it directly.', directUrl);
+          return;
         } else if (response.status === 401) {
           showEpubError('Please log in to read books.');
         } else {
@@ -396,6 +435,17 @@
       
       console.log('[reader] Downloaded EPUB, size:', arrayBuffer.byteLength, 'bytes');
       
+      // Validate ZIP signature (EPUB must be a ZIP file starting with 'PK')
+      const header = new Uint8Array(arrayBuffer.slice(0, 4));
+      const isZip = header[0] === 0x50 && header[1] === 0x4B; // 'PK'
+      if (!isZip) {
+        console.error('[reader] File is not a valid ZIP/EPUB (header:', header, ')');
+        clearLoadTimeout();
+        showEpubError('This file is not a valid EPUB. It may be an HTML page or different format.', directUrl);
+        return;
+      }
+      console.log('[reader] ZIP signature validated');
+      
       // Initialize the book with the ArrayBuffer
       // ePub.js can accept an ArrayBuffer directly
       updateLoadingMessage('Opening book...');
@@ -403,7 +453,7 @@
       try {
         book = ePub(arrayBuffer);
       } catch (err) {
-        clearTimeout(loadTimeoutId);
+        clearLoadTimeout();
         console.error('[reader] ePub() constructor failed:', err);
         showEpubError('Invalid EPUB format. This file cannot be opened in the reader.', directUrl);
         return;
@@ -420,7 +470,7 @@
           allowScriptedContent: false
         });
       } catch (err) {
-        clearTimeout(loadTimeoutId);
+        clearLoadTimeout();
         console.error('[reader] renderTo() failed:', err);
         showEpubError('Failed to render book. It may be corrupted or in an unsupported format.', directUrl);
         return;
@@ -431,7 +481,7 @@
         rendition.themes.register('default', DEFAULT_READER_THEME);
         rendition.themes.select('default');
         rendition.themes.fontSize(currentFontSize + '%');
-        console.log('[reader] Default theme applied');
+        console.log('[reader] Default theme applied with font size:', currentFontSize + '%');
       } catch (err) {
         console.warn('[reader] Theme registration failed:', err);
       }
@@ -442,11 +492,18 @@
       // Setup keyboard navigation
       setupEpubKeyboard();
       
-      // Track location changes for persistence
+      // Track location changes for persistence and re-apply font size
       rendition.on('relocated', function(location) {
         if (location && location.start && location.start.cfi) {
           saveLocation(location.start.cfi);
         }
+        // Re-apply font size on navigation
+        applyFontSize();
+      });
+      
+      // Re-apply font size when content is rendered
+      rendition.on('rendered', function() {
+        applyFontSize();
       });
       
       // Display the book - try to restore saved location
@@ -460,43 +517,73 @@
         }
         
         // Clear timeout on success
-        clearTimeout(loadTimeoutId);
+        clearLoadTimeout();
         console.log('[reader] EPUB displayed successfully');
         hideLoading();
         
-        // Populate TOC
-        populateTOC();
+        // NOW load TOC/navigation AFTER successful display
+        // This prevents crashes from malformed EPUBs
+        loadNavigationSafely();
         
       } catch (err) {
-        clearTimeout(loadTimeoutId);
+        clearLoadTimeout();
         console.error('[reader] display() failed:', err);
         showEpubError('Cannot display this book. It may be protected or corrupted.', directUrl);
         return;
       }
       
-      // Handle spine loading errors
-      if (book.loaded && book.loaded.spine) {
-        book.loaded.spine.catch(err => {
-          clearTimeout(loadTimeoutId);
-          console.error('[reader] EPUB spine error:', err);
-          if (!errorShown) {
-            showEpubError('Book structure is invalid. Please try a different edition.', directUrl);
-          }
-        });
-      }
-      
     } catch (err) {
-      clearTimeout(loadTimeoutId);
+      clearLoadTimeout();
       console.error('[reader] Failed to initialize EPUB:', err);
       
       // Provide more specific error messages
-      if (err.message && err.message.includes('Invalid')) {
+      const errMsg = err.message || String(err);
+      if (errMsg.includes('Invalid') || errMsg.includes('indexOf') || errMsg.includes('undefined')) {
         showEpubError('This file is not a valid EPUB. It may be corrupted or in a different format.', directUrl);
-      } else if (err.message && err.message.includes('network')) {
+      } else if (errMsg.includes('network')) {
         showEpubError('Network error while loading book. Please check your connection and try again.', directUrl);
       } else {
-        showEpubError('We couldn\'t load this edition inside BookLantern. Please try a different copy.', directUrl);
+        showEpubError('Could not load this edition inside BookLantern. Please try a different copy.', directUrl);
       }
+    }
+  }
+  
+  /**
+   * Load navigation/TOC safely AFTER display succeeds
+   * This prevents crashes from malformed EPUBs
+   */
+  function loadNavigationSafely() {
+    if (!book) return;
+    
+    // Wrap book.ready in try/catch
+    if (book.ready) {
+      book.ready.then(function() {
+        console.log('[reader] book.ready resolved');
+      }).catch(function(err) {
+        console.warn('[reader] book.ready error (non-fatal):', err);
+      });
+    }
+    
+    // Wrap book.loaded.navigation
+    if (book.loaded && book.loaded.navigation) {
+      book.loaded.navigation.then(function() {
+        console.log('[reader] Navigation loaded');
+        populateTOC();
+      }).catch(function(err) {
+        console.warn('[reader] Navigation load error (non-fatal):', err);
+        // Still try to populate TOC with whatever we have
+        populateTOC();
+      });
+    } else {
+      // No navigation promise, try to populate directly
+      populateTOC();
+    }
+    
+    // Wrap book.loaded.spine
+    if (book.loaded && book.loaded.spine) {
+      book.loaded.spine.catch(function(err) {
+        console.warn('[reader] Spine error (non-fatal):', err);
+      });
     }
   }
   
@@ -575,11 +662,13 @@
   
   /**
    * Show error message (prevents duplicate errors)
+   * Uses global currentDirectUrl for source link
    */
   function showReaderError(message) {
     if (errorShown) return;
     errorShown = true;
-    showEpubError(message);
+    clearLoadTimeout();
+    showEpubError(message, currentDirectUrl);
   }
 
   /**
