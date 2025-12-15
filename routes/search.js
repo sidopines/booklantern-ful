@@ -189,11 +189,8 @@ async function handleSearch(req, res) {
   }
 }
 
-// Require subscriber for all search endpoints
-router.use(ensureSubscriberApi);
-
-// Register both root and /search paths to be robust across mounts
-router.get('/', handleSearch);
-router.get('/search', handleSearch);
+// Gate each route explicitly to guarantee auth check
+router.get('/', ensureSubscriberApi, handleSearch);
+router.get('/search', ensureSubscriberApi, handleSearch);
 
 module.exports = router;
