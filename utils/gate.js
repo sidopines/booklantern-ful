@@ -6,6 +6,8 @@ function isLoggedIn(req) {
   return Boolean(user && user.id);
 }
 
+module.exports.isLoggedIn = isLoggedIn;
+
 module.exports.ensureSubscriber = function ensureSubscriber(req, res, next) {
   if (process.env.DEV_OPEN_READER === '1') return next();
   if (isLoggedIn(req)) return next();
