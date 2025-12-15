@@ -316,7 +316,8 @@ try {
 // }
 
 // Redirect /search to /read with query param (BEFORE index routes)
-app.get('/search', (req, res) => {
+// Gate it since /read requires auth
+app.get('/search', require('./utils/gate').ensureSubscriber, (req, res) => {
   const q = (req.query.q || '').trim();
   return res.redirect(303, '/read?q=' + encodeURIComponent(q));
 });
@@ -353,11 +354,13 @@ try {
   console.error('[routes] failed to mount ./routes/watch:', e);
 }
 
-// Mount search router (public federated search API) explicitly at /api/search
+// Mount search router at /api/search - requires subscriber auth
+// Apply ensureSubscriberApi at mount level for defense-in-depth
 try {
   const searchRoutes = require('./routes/search');
-  app.use('/api/search', searchRoutes);
-  console.log('[routes] mounted search router at /api/search');
+  const { ensureSubscriberApi } = require('./utils/gate');
+  app.use('/api/search', ensureSubscriberApi, searchRoutes);
+  console.log('[routes] mounted search router at /api/search (gated)');
 } catch (e) {
   console.error('[routes] failed to mount ./routes/search:', e);
 }
