@@ -38,8 +38,8 @@ function isPublicPath(req) {
       || req.path.startsWith('/img')
       || req.path.startsWith('/css')
       || req.path.startsWith('/js')
-      || req.path.startsWith('/assets')
-      || req.path.startsWith('/api/search'); // Public search API
+      || req.path.startsWith('/assets');
+  // NOTE: /api/search is NOT public - requires subscriber auth
 }
 // ---------------------------------------------------------------------
 
@@ -275,7 +275,8 @@ app.get('/account', require('./utils/gate').ensureSubscriber, (_req, res) => {
 });
 
 // ---------- EPUB Proxy (CORS workaround) ----------
-app.get('/proxy/epub', async (req, res) => {
+const { ensureSubscriberApi: proxyEpubGate } = require('./utils/gate');
+app.get('/proxy/epub', proxyEpubGate, async (req, res) => {
   try {
     const url = req.query.url;
     if (!url) return res.status(400).json({ error: 'missing url' });
