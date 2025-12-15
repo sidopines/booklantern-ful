@@ -36,12 +36,30 @@
       <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
       </svg>
-      Back
+      <span>Back</span>
     </a>
+    
+    <% if (useEpubJs) { %>
+    <!-- TOC Toggle Button -->
+    <button id="toc-toggle" class="toc-toggle" aria-label="Toggle table of contents" title="Table of Contents">
+      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/>
+      </svg>
+    </button>
+    <% } %>
+    
     <div class="reader-title">
       <%= safeTitle %><% if (safeAuthor) { %> — <%= safeAuthor %><% } %>
     </div>
+    
     <% if (useEpubJs && safeDirectUrl) { %>
+    <!-- Font size controls -->
+    <div class="reader-font-controls">
+      <button id="font-decrease" aria-label="Decrease font size" title="Smaller text">A-</button>
+      <button id="font-increase" aria-label="Increase font size" title="Larger text">A+</button>
+    </div>
+    
+    <!-- Navigation buttons -->
     <div class="reader-nav-buttons">
       <button id="prev-page" aria-label="Previous page" title="Previous page">
         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -58,6 +76,20 @@
     <div class="reader-source"><%= safeSource %></div>
     <% } %>
   </header>
+  
+  <% if (useEpubJs) { %>
+  <!-- TOC Panel (slide-in from left) -->
+  <div id="toc-overlay" class="toc-overlay"></div>
+  <aside id="toc-panel" class="toc-panel" aria-label="Table of Contents">
+    <div class="toc-header">
+      <h3>Contents</h3>
+      <button id="toc-close" class="toc-close" aria-label="Close table of contents">&times;</button>
+    </div>
+    <ul id="toc-list" class="toc-list">
+      <li class="toc-empty">Loading contents...</li>
+    </ul>
+  </aside>
+  <% } %>
 
   <main class="reader-main">
     <% if (!safeDirectUrl) { %>
@@ -68,7 +100,7 @@
       </div>
     <% } else if (useEpubJs) { %>
       <!-- ePub.js will render into this div -->
-      <div id="epub-viewer" data-epub-url="<%= safeDirectUrl %>" data-archive-id="<%= safeArchiveId %>"></div>
+      <div id="epub-viewer" data-epub-url="<%= safeDirectUrl %>" data-archive-id="<%= safeArchiveId %>" data-direct-url="<%= safeDirectUrl %>"></div>
       <div id="epub-loading" class="epub-loading">
         <div class="epub-spinner"></div>
         <p>Loading book...</p>

@@ -1,26 +1,29 @@
 /* Unified Reader Styles */
 
-/* Reader layout */
+/* Reader layout - use 100svh for better mobile support */
 body[data-page="reader"] {
   margin: 0;
   padding: 0;
   background: #f5f5f5;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  height: 100svh;
+  overflow: hidden;
 }
 
-/* Top navigation bar */
+/* Top navigation bar - sticky toolbar */
 .reader-topbar {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: white;
+  background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(12px);
   display: flex;
-  gap: 1rem;
+  gap: 0.75rem;
   align-items: center;
-  padding: 0.75rem 1.5rem;
+  padding: 0.5rem 1rem;
   border-bottom: 1px solid #e5e7eb;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
 }
 
 .reader-back {
@@ -31,12 +34,13 @@ body[data-page="reader"] {
   border: none;
   color: #374151;
   font-weight: 500;
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 0.75rem;
   border-radius: 0.375rem;
   cursor: pointer;
   transition: all 0.2s;
   text-decoration: none;
   font-size: 14px;
+  flex-shrink: 0;
 }
 
 .reader-back:hover {
@@ -52,7 +56,8 @@ body[data-page="reader"] {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 16px;
+  font-size: 15px;
+  min-width: 0;
 }
 
 .reader-source {
@@ -62,14 +67,189 @@ body[data-page="reader"] {
   border-radius: 0.25rem;
   font-size: 0.75rem;
   font-weight: 500;
+  flex-shrink: 0;
 }
 
-/* Main content area */
+/* Font size controls */
+.reader-font-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.reader-font-controls button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  color: #374151;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.reader-font-controls button:hover {
+  background: #e5e7eb;
+  color: #4f46e5;
+}
+
+.reader-font-controls button:active {
+  transform: scale(0.95);
+}
+
+/* TOC toggle button */
+.toc-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  color: #374151;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.toc-toggle:hover {
+  background: #e5e7eb;
+  color: #4f46e5;
+}
+
+/* TOC Panel */
+.toc-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 300px;
+  max-width: 85vw;
+  height: 100svh;
+  background: white;
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+  z-index: 200;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.toc-panel.open {
+  transform: translateX(0);
+}
+
+.toc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.toc-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.toc-close {
+  background: none;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  color: #6b7280;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.toc-close:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.toc-item {
+  padding: 0;
+}
+
+.toc-item a {
+  display: block;
+  padding: 0.75rem 1rem;
+  color: #374151;
+  text-decoration: none;
+  font-size: 14px;
+  transition: all 0.2s;
+  border-left: 3px solid transparent;
+}
+
+.toc-item a:hover {
+  background: #f3f4f6;
+  color: #4f46e5;
+  border-left-color: #4f46e5;
+}
+
+.toc-item.toc-nested a {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.toc-empty {
+  padding: 1rem;
+  color: #9ca3af;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* TOC overlay for mobile */
+.toc-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 199;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s;
+}
+
+.toc-overlay.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Main content area - fills remaining viewport */
 .reader-main {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 60px);
+  flex: 1;
+  min-height: 0;
+  height: calc(100svh - 52px);
   background: #ffffff;
+  position: relative;
 }
 
 .bookBox,
@@ -116,24 +296,130 @@ body[data-page="reader"] {
   background: #4338ca;
 }
 
+/* Enhanced error panel for EPUB */
+.reader-error-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 2rem;
+  text-align: center;
+  color: #374151;
+}
+
+.reader-error-panel svg {
+  margin-bottom: 1rem;
+  opacity: 0.5;
+  color: #dc2626;
+}
+
+.reader-error-panel h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.reader-error-panel .error-message {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 0 0 1.5rem 0;
+  max-width: 400px;
+  line-height: 1.5;
+}
+
+.reader-error-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.reader-error-btn {
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.reader-error-btn.primary-btn {
+  background: #4f46e5;
+  color: white;
+}
+
+.reader-error-btn.primary-btn:hover {
+  background: #4338ca;
+}
+
+.reader-error-btn.secondary-btn {
+  background: #6b7280;
+  color: white;
+}
+
+.reader-error-btn.secondary-btn:hover {
+  background: #4b5563;
+}
+
+.reader-error-btn.source-btn {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+}
+
+.reader-error-btn.source-btn:hover {
+  background: #e5e7eb;
+  color: #4f46e5;
+}
+
 /* Utility classes */
 .hidden {
   display: none !important;
 }
 
-/* Responsive */
+/* Responsive - Mobile */
 @media (max-width: 768px) {
   .reader-topbar {
-    padding: 0.5rem 1rem;
+    padding: 0.5rem 0.75rem;
     gap: 0.5rem;
   }
   
   .reader-title {
-    font-size: 14px;
+    font-size: 13px;
   }
   
   .reader-source {
     display: none;
+  }
+  
+  .reader-back span {
+    display: none;
+  }
+  
+  .reader-main {
+    height: calc(100svh - 48px);
+  }
+  
+  .toc-panel {
+    width: 85vw;
+  }
+}
+
+/* Responsive - Tablet */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .reader-topbar {
+    padding: 0.5rem 1rem;
+  }
+  
+  .toc-panel {
+    width: 320px;
   }
 }
 
