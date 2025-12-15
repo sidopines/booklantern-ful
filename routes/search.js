@@ -1,6 +1,7 @@
 // routes/search.js
 const express = require('express');
 const { LRUCache } = require('lru-cache');
+const { ensureSubscriberApi } = require('../utils/gate');
 const { buildReaderToken } = require('../utils/buildReaderToken');
 const gutenberg = require('../lib/sources/gutenberg');
 const openlibrary = require('../lib/sources/openlibrary');
@@ -181,6 +182,9 @@ async function handleSearch(req, res) {
     return res.status(500).json({ results: [], error: 'search_failed' });
   }
 }
+
+// Require subscriber for all search endpoints
+router.use(ensureSubscriberApi);
 
 // Register both root and /search paths to be robust across mounts
 router.get('/', handleSearch);

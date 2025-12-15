@@ -14,6 +14,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (q) {
     fetch('/api/search?q=' + encodeURIComponent(q))
       .then(async (r) => {
+        if (r.status === 401) {
+          const next = '/read?q=' + encodeURIComponent(q);
+          window.location.href = '/auth?next=' + encodeURIComponent(next);
+          return Promise.reject(new Error('auth_required'));
+        }
         if (!r.ok) throw new Error('Search request failed: ' + r.status);
         return r.json();
       })
