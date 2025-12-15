@@ -11,13 +11,13 @@ module.exports.ensureSubscriber = function ensureSubscriber(req, res, next) {
   if (isLoggedIn(req)) return next();
   console.log('[auth] blocked', req.originalUrl);
   const nextUrl = encodeURIComponent(req.originalUrl || '/');
-  return res.redirect(302, '/auth?next=' + nextUrl);
+  return res.redirect(302, '/login?next=' + nextUrl);
 };
 
 module.exports.ensureSubscriberApi = function ensureSubscriberApi(req, res, next) {
   if (process.env.DEV_OPEN_READER === '1') return next();
   if (isLoggedIn(req)) return next();
-  console.log('[auth] blocked', req.originalUrl);
+  console.log('[auth] blocked API', req.originalUrl);
   const nextUrl = req.originalUrl || '/read';
-  return res.status(401).json({ error: 'auth_required', next: '/auth?next=' + encodeURIComponent(nextUrl) });
+  return res.status(401).json({ error: 'auth_required', next: '/login?next=' + encodeURIComponent(nextUrl) });
 };
