@@ -213,10 +213,8 @@ router.get('/video/:id', async (req, res) => {
 });
 
 // -----------------------------
-// Read (reader shell) — show reader pane if params, plus Staff picks grid
-// Only the Read buttons are gated; no global redirects.
-// -----------------------------
-router.get('/read', async (req, res) => {
+// Read (reader shell) — require subscriber
+router.get('/read', require('../utils/gate').ensureSubscriber, async (req, res) => {
   const provider = isStr(req.query.provider) ? req.query.provider : '';
   const id = isStr(req.query.id) ? req.query.id : '';
 

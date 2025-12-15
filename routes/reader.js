@@ -1,7 +1,7 @@
 // routes/reader.js — Federated public-domain EPUB reader with proxy
 const express = require('express');
 const { URL } = require('url');
-const { ensureSubscriber } = require('../utils/gate');
+const { ensureSubscriber, ensureSubscriberApi } = require('../utils/gate');
 const { verifyReaderToken } = require('../utils/buildReaderToken');
 const supabaseAdmin = require('../supabaseAdmin');
 
@@ -411,7 +411,7 @@ router.get('/library', ensureSubscriber, async (req, res) => {
  * - Streams response to client
  * - Validates ZIP header (PK signature)
  */
-router.get('/api/proxy/epub', async (req, res) => {
+router.get('/api/proxy/epub', ensureSubscriberApi, async (req, res) => {
   const targetUrl = req.query.url;
   const archiveParam = req.query.archive;
   
