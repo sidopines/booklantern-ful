@@ -10,6 +10,7 @@
   let currentFontSize = 100; // percentage
   let bookKey = null; // for localStorage persistence
   let currentDirectUrl = ''; // stored for error handlers
+  let currentEpubObjectUrl = null; // Blob URL for EPUB
 
   // Timeout for book loading (15 seconds)
   const LOAD_TIMEOUT_MS = 15000;
@@ -23,6 +24,24 @@
       loadTimeoutId = null;
     }
   }
+
+  /**
+   * Cleanup the EPUB Blob URL to free memory
+   */
+  function cleanupObjectUrl() {
+    if (currentEpubObjectUrl) {
+      try {
+        URL.revokeObjectURL(currentEpubObjectUrl);
+        console.log('[reader] Revoked EPUB Blob URL');
+      } catch (e) {
+        // ignore
+      }
+      currentEpubObjectUrl = null;
+    }
+  }
+
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', cleanupObjectUrl);
 
   // Default theme CSS to inject into EPUB for proper rendering
   const DEFAULT_READER_THEME = {
@@ -92,32 +111,36 @@
     }
   };
 
-  // Global error handlers to catch any unhandled errors from epub.js
-  window.addEventListener('error', function(event) {
+  // Global error handlers - use direct assignment to ensure we catch ALL errors
+  // This prevents "timeout after crash" by catching epub.js errors immediately
+  window.onerror = function(message, source, lineno, colno, error) {
     if (!errorShown) {
-      const msg = event.message || '';
-      // Catch epub.js crashes (indexOf, undefined property access, etc.)
-      if (msg.includes('epub') || msg.includes('indexOf') || msg.includes('undefined') || msg.includes('null')) {
-        console.error('[reader] Global error caught:', event.error || msg);
+      const msg = String(message || '');
+      console.error('[reader] window.onerror:', msg, source, lineno);
+      // Catch any error during EPUB loading
+      if (msg.includes('indexOf') || msg.includes('undefined') || msg.includes('null') || 
+          msg.includes('Cannot read') || msg.includes('epub') || source?.includes('epub')) {
         clearLoadTimeout();
-        showEpubError('This book has an unsupported format. It may be corrupted or incompatible.', currentDirectUrl);
+        cleanupObjectUrl();
+        showEpubError("This book can't be opened in the reader. Try another edition.", currentDirectUrl);
       }
     }
-  });
+    return true; // Prevent duplicate console spam
+  };
 
-  window.addEventListener('unhandledrejection', function(event) {
+  window.onunhandledrejection = function(event) {
     if (!errorShown) {
-      const reason = event.reason?.message || String(event.reason);
-      console.error('[reader] Unhandled rejection:', reason);
+      const reason = event.reason?.message || String(event.reason || '');
+      console.error('[reader] window.onunhandledrejection:', reason);
       clearLoadTimeout();
-      // Catch common epub.js errors
+      cleanupObjectUrl();
       if (reason.includes('indexOf') || reason.includes('undefined') || reason.includes('null') || reason.includes('Cannot read')) {
-        showEpubError('This book has an unsupported structure. Please try a different edition.', currentDirectUrl);
+        showEpubError("This book can't be opened in the reader. Try another edition.", currentDirectUrl);
       } else {
         showEpubError('Failed to process book file. Please try a different edition.', currentDirectUrl);
       }
     }
-  });
+  };
 
   // Wait for DOM to be ready
   if (document.readyState === 'loading') {
@@ -223,16 +246,24 @@
   }
 
   /**
-   * Apply current font size to rendition
+   * Apply current font size to rendition using inline styles
+   * (Avoids epub.js themes which use blob: stylesheets blocked by CSP)
    */
   function applyFontSize() {
-    if (rendition) {
-      try {
-        rendition.themes.fontSize(currentFontSize + '%');
-        console.log('[reader] font size ->', currentFontSize + '%');
-      } catch (err) {
-        console.warn('[reader] Failed to apply font size:', err);
-      }
+    if (!rendition) return;
+    try {
+      var contents = rendition.getContents();
+      contents.forEach(function(c) {
+        if (c && c.document) {
+          c.document.documentElement.style.fontSize = currentFontSize + '%';
+          if (c.document.body) {
+            c.document.body.style.fontSize = currentFontSize + '%';
+          }
+        }
+      });
+      console.log('[reader] font size ->', currentFontSize + '%');
+    } catch (err) {
+      console.warn('[reader] Failed to apply font size:', err);
     }
   }
 
@@ -357,6 +388,7 @@
       if (!errorShown) {
         console.error('[reader] Load timeout exceeded');
         clearLoadTimeout();
+        cleanupObjectUrl();
         showEpubError('Book is taking too long to load. It may be too large or corrupted.', directUrl);
       }
     }, LOAD_TIMEOUT_MS);
@@ -446,14 +478,19 @@
       }
       console.log('[reader] ZIP signature validated');
       
-      // Initialize the book with the ArrayBuffer
-      // ePub.js can accept an ArrayBuffer directly
+      // Create Blob URL for better compatibility (especially Archive.org EPUBs)
       updateLoadingMessage('Opening book...');
       
       try {
-        book = ePub(arrayBuffer);
+        var epubBlob = new Blob([arrayBuffer], { type: 'application/epub+zip' });
+        currentEpubObjectUrl = URL.createObjectURL(epubBlob);
+        console.log('[reader] Created EPUB Blob URL');
+        
+        // Open epub.js with Blob URL (more compatible than ArrayBuffer)
+        book = ePub(currentEpubObjectUrl);
       } catch (err) {
         clearLoadTimeout();
+        cleanupObjectUrl();
         console.error('[reader] ePub() constructor failed:', err);
         showEpubError('Invalid EPUB format. This file cannot be opened in the reader.', directUrl);
         return;
@@ -471,20 +508,42 @@
         });
       } catch (err) {
         clearLoadTimeout();
+        cleanupObjectUrl();
         console.error('[reader] renderTo() failed:', err);
         showEpubError('Failed to render book. It may be corrupted or in an unsupported format.', directUrl);
         return;
       }
       
-      // Register and apply default theme for proper typography
-      try {
-        rendition.themes.register('default', DEFAULT_READER_THEME);
-        rendition.themes.select('default');
-        rendition.themes.fontSize(currentFontSize + '%');
-        console.log('[reader] Default theme applied with font size:', currentFontSize + '%');
-      } catch (err) {
-        console.warn('[reader] Theme registration failed:', err);
-      }
+      // Use content hooks to inject styles inline (avoids CSP blob: stylesheet issues)
+      rendition.hooks.content.register(function(contents) {
+        try {
+          // Add error handlers inside the EPUB iframe
+          contents.window.addEventListener('error', function(e) {
+            console.error('[reader] iframe error:', e.message);
+            clearLoadTimeout();
+            cleanupObjectUrl();
+            showEpubError("This book can't be opened in the reader. Try another edition.", currentDirectUrl);
+          });
+          contents.window.addEventListener('unhandledrejection', function(e) {
+            console.error('[reader] iframe rejection:', e.reason);
+            clearLoadTimeout();
+            cleanupObjectUrl();
+            showEpubError("This book can't be opened in the reader. Try another edition.", currentDirectUrl);
+          });
+          
+          // Inject default theme styles inline
+          contents.addStylesheetRules(DEFAULT_READER_THEME);
+          
+          // Apply font size inline
+          contents.document.documentElement.style.fontSize = currentFontSize + '%';
+          if (contents.document.body) {
+            contents.document.body.style.fontSize = currentFontSize + '%';
+          }
+          console.log('[reader] Content hook: styles applied, font size:', currentFontSize + '%');
+        } catch (err) {
+          console.warn('[reader] Content hook error:', err);
+        }
+      });
       
       // Setup navigation buttons early (before display completes)
       setupEpubNavigation();
@@ -501,7 +560,7 @@
         applyFontSize();
       });
       
-      // Re-apply font size when content is rendered
+      // Re-apply font size when new content is rendered
       rendition.on('rendered', function() {
         applyFontSize();
       });
@@ -527,6 +586,7 @@
         
       } catch (err) {
         clearLoadTimeout();
+        cleanupObjectUrl();
         console.error('[reader] display() failed:', err);
         showEpubError('Cannot display this book. It may be protected or corrupted.', directUrl);
         return;
@@ -534,6 +594,7 @@
       
     } catch (err) {
       clearLoadTimeout();
+      cleanupObjectUrl();
       console.error('[reader] Failed to initialize EPUB:', err);
       
       // Provide more specific error messages
@@ -668,6 +729,7 @@
     if (errorShown) return;
     errorShown = true;
     clearLoadTimeout();
+    cleanupObjectUrl();
     showEpubError(message, currentDirectUrl);
   }
 
