@@ -10,7 +10,6 @@
   let currentFontSize = 100; // percentage
   let bookKey = null; // for localStorage persistence
   let currentDirectUrl = ''; // stored for error handlers
-  let currentEpubObjectUrl = null; // Blob URL for EPUB
 
   // Timeout for book loading (15 seconds)
   const LOAD_TIMEOUT_MS = 15000;
@@ -24,24 +23,6 @@
       loadTimeoutId = null;
     }
   }
-
-  /**
-   * Cleanup the EPUB Blob URL to free memory
-   */
-  function cleanupObjectUrl() {
-    if (currentEpubObjectUrl) {
-      try {
-        URL.revokeObjectURL(currentEpubObjectUrl);
-        console.log('[reader] Revoked EPUB Blob URL');
-      } catch (e) {
-        // ignore
-      }
-      currentEpubObjectUrl = null;
-    }
-  }
-
-  // Cleanup on page unload
-  window.addEventListener('beforeunload', cleanupObjectUrl);
 
   // Default theme CSS to inject into EPUB for proper rendering
   const DEFAULT_READER_THEME = {
@@ -121,7 +102,6 @@
       if (msg.includes('indexOf') || msg.includes('undefined') || msg.includes('null') || 
           msg.includes('Cannot read') || msg.includes('epub') || source?.includes('epub')) {
         clearLoadTimeout();
-        cleanupObjectUrl();
         showEpubError("This book can't be opened in the reader. Try another edition.", currentDirectUrl);
       }
     }
@@ -133,7 +113,6 @@
       const reason = event.reason?.message || String(event.reason || '');
       console.error('[reader] window.onunhandledrejection:', reason);
       clearLoadTimeout();
-      cleanupObjectUrl();
       if (reason.includes('indexOf') || reason.includes('undefined') || reason.includes('null') || reason.includes('Cannot read')) {
         showEpubError("This book can't be opened in the reader. Try another edition.", currentDirectUrl);
       } else {
@@ -388,7 +367,6 @@
       if (!errorShown) {
         console.error('[reader] Load timeout exceeded');
         clearLoadTimeout();
-        cleanupObjectUrl();
         showEpubError('Book is taking too long to load. It may be too large or corrupted.', directUrl);
       }
     }, LOAD_TIMEOUT_MS);
@@ -478,41 +456,85 @@
       }
       console.log('[reader] ZIP signature validated');
       
-      // Validate EPUB structure: must contain META-INF/container.xml
+      // Validate EPUB structure: must contain META-INF/container.xml and valid OPF
       updateLoadingMessage('Validating EPUB structure...');
       try {
         var zip = await JSZip.loadAsync(arrayBuffer);
-        var containerXml = zip.file('META-INF/container.xml');
-        if (!containerXml) {
+        
+        // Find META-INF/container.xml case-insensitively
+        var containerXmlFile = null;
+        var containerXmlKey = null;
+        for (var key in zip.files) {
+          if (key.toLowerCase() === 'meta-inf/container.xml') {
+            containerXmlFile = zip.file(key);
+            containerXmlKey = key;
+            break;
+          }
+        }
+        
+        if (!containerXmlFile) {
           console.error('[reader] Missing META-INF/container.xml - not a valid EPUB');
           clearLoadTimeout();
-          cleanupObjectUrl();
           showEpubError('This file is not a valid EPUB (missing container.xml). Try another edition.', directUrl);
           return;
         }
-        console.log('[reader] container.xml found, EPUB structure valid');
+        console.log('[reader] container.xml found at:', containerXmlKey);
+        
+        // Parse container.xml to find the rootfile path
+        var containerContent = await containerXmlFile.async('string');
+        var opfPath = null;
+        try {
+          var containerParser = new DOMParser();
+          var containerDoc = containerParser.parseFromString(containerContent, 'application/xml');
+          var rootfile = containerDoc.querySelector('rootfile');
+          if (rootfile && rootfile.getAttribute('full-path')) {
+            opfPath = rootfile.getAttribute('full-path');
+          }
+        } catch (parseErr) {
+          console.warn('[reader] Could not parse container.xml:', parseErr);
+        }
+        
+        if (!opfPath) {
+          console.error('[reader] Could not extract rootfile path from container.xml');
+          clearLoadTimeout();
+          showEpubError('Invalid EPUB structure (no rootfile in container.xml). Try another edition.', directUrl);
+          return;
+        }
+        console.log('[reader] OPF path from container.xml:', opfPath);
+        
+        // Verify the OPF file exists in the zip (case-insensitive)
+        var opfExists = false;
+        for (var key in zip.files) {
+          if (key.toLowerCase() === opfPath.toLowerCase()) {
+            opfExists = true;
+            console.log('[reader] OPF file found at:', key);
+            break;
+          }
+        }
+        
+        if (!opfExists) {
+          console.error('[reader] OPF file not found in ZIP:', opfPath);
+          clearLoadTimeout();
+          showEpubError('Invalid EPUB structure (OPF file not found). Try another edition.', directUrl);
+          return;
+        }
+        
+        console.log('[reader] EPUB structure validated successfully');
       } catch (zipErr) {
         console.error('[reader] JSZip validation failed:', zipErr);
         clearLoadTimeout();
-        cleanupObjectUrl();
         showEpubError('Failed to validate EPUB structure. The file may be corrupted.', directUrl);
         return;
       }
       
-      // Create Blob URL for better compatibility (especially Archive.org EPUBs)
+      // Open EPUB via ArrayBuffer
       updateLoadingMessage('Opening book...');
       
       try {
-        var epubBlob = new Blob([arrayBuffer], { type: 'application/epub+zip' });
-        currentEpubObjectUrl = URL.createObjectURL(epubBlob);
-        console.log('[reader] Created EPUB Blob URL');
-        
-        // Open epub.js with Blob URL, forcing archived (zipped) mode
-        // Without openAs: 'epub', epub.js treats blob as unpacked and 404s on /META-INF/container.xml
-        book = ePub(currentEpubObjectUrl, { openAs: 'epub' });
+        // Open epub.js with ArrayBuffer directly
+        book = ePub(arrayBuffer);
       } catch (err) {
         clearLoadTimeout();
-        cleanupObjectUrl();
         console.error('[reader] ePub() constructor failed:', err);
         showEpubError('Invalid EPUB format. This file cannot be opened in the reader.', directUrl);
         return;
@@ -530,7 +552,6 @@
         });
       } catch (err) {
         clearLoadTimeout();
-        cleanupObjectUrl();
         console.error('[reader] renderTo() failed:', err);
         showEpubError('Failed to render book. It may be corrupted or in an unsupported format.', directUrl);
         return;
@@ -543,13 +564,11 @@
           contents.window.addEventListener('error', function(e) {
             console.error('[reader] iframe error:', e.message);
             clearLoadTimeout();
-            cleanupObjectUrl();
             showEpubError("This book can't be opened in the reader. Try another edition.", currentDirectUrl);
           });
           contents.window.addEventListener('unhandledrejection', function(e) {
             console.error('[reader] iframe rejection:', e.reason);
             clearLoadTimeout();
-            cleanupObjectUrl();
             showEpubError("This book can't be opened in the reader. Try another edition.", currentDirectUrl);
           });
           
@@ -608,7 +627,6 @@
         
       } catch (err) {
         clearLoadTimeout();
-        cleanupObjectUrl();
         console.error('[reader] display() failed:', err);
         showEpubError('Cannot display this book. It may be protected or corrupted.', directUrl);
         return;
@@ -616,7 +634,6 @@
       
     } catch (err) {
       clearLoadTimeout();
-      cleanupObjectUrl();
       console.error('[reader] Failed to initialize EPUB:', err);
       
       // Provide more specific error messages
@@ -751,7 +768,6 @@
     if (errorShown) return;
     errorShown = true;
     clearLoadTimeout();
-    cleanupObjectUrl();
     showEpubError(message, currentDirectUrl);
   }
 
