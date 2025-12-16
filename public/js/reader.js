@@ -478,6 +478,27 @@
       }
       console.log('[reader] ZIP signature validated');
       
+      // Validate EPUB structure: must contain META-INF/container.xml
+      updateLoadingMessage('Validating EPUB structure...');
+      try {
+        var zip = await JSZip.loadAsync(arrayBuffer);
+        var containerXml = zip.file('META-INF/container.xml');
+        if (!containerXml) {
+          console.error('[reader] Missing META-INF/container.xml - not a valid EPUB');
+          clearLoadTimeout();
+          cleanupObjectUrl();
+          showEpubError('This file is not a valid EPUB (missing container.xml). Try another edition.', directUrl);
+          return;
+        }
+        console.log('[reader] container.xml found, EPUB structure valid');
+      } catch (zipErr) {
+        console.error('[reader] JSZip validation failed:', zipErr);
+        clearLoadTimeout();
+        cleanupObjectUrl();
+        showEpubError('Failed to validate EPUB structure. The file may be corrupted.', directUrl);
+        return;
+      }
+      
       // Create Blob URL for better compatibility (especially Archive.org EPUBs)
       updateLoadingMessage('Opening book...');
       
@@ -486,8 +507,9 @@
         currentEpubObjectUrl = URL.createObjectURL(epubBlob);
         console.log('[reader] Created EPUB Blob URL');
         
-        // Open epub.js with Blob URL (more compatible than ArrayBuffer)
-        book = ePub(currentEpubObjectUrl);
+        // Open epub.js with Blob URL, forcing archived (zipped) mode
+        // Without openAs: 'epub', epub.js treats blob as unpacked and 404s on /META-INF/container.xml
+        book = ePub(currentEpubObjectUrl, { openAs: 'epub' });
       } catch (err) {
         clearLoadTimeout();
         cleanupObjectUrl();
