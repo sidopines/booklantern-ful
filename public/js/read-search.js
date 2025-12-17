@@ -37,7 +37,26 @@ document.addEventListener('DOMContentLoaded', () => {
           const cover = item.cover_url ? `<img src="${item.cover_url}" alt="">` : '';
           const title = item.title || 'Untitled';
           const author = item.author ? `<div class="card-author">${item.author}</div>` : '';
-          // Use href from response directly - server handles auth gating via ensureSubscriber
+          
+          // Check if this item can be read in-app or is external-only
+          const isExternalOnly = item.external_only || !item.href;
+          const sourceUrl = item.source_url || '';
+          
+          if (isExternalOnly && sourceUrl) {
+            // External-only: link to source with badge
+            const formatBadge = item.format && item.format !== 'epub' 
+              ? `<span class="format-badge">${item.format.toUpperCase()}</span>` 
+              : '';
+            return `<a class="book-card external" href="${sourceUrl}" target="_blank" rel="noopener">
+                      ${formatBadge}
+                      <div class="card-cover">${cover}</div>
+                      <div class="card-title">${title}</div>
+                      ${author}
+                      <div class="card-cta"><span>View Source ↗</span></div>
+                    </a>`;
+          }
+          
+          // Regular in-app reading
           const url = new URL((typeof item.href === 'string') ? item.href : '/unified-reader', window.location.origin);
           url.searchParams.set('ref', location.pathname + location.search);
           const href = url.pathname + url.search;

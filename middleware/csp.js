@@ -35,6 +35,8 @@ module.exports = function csp() {
         // Supabase, Google APIs, YouTube, etc.
         "connect-src": [
           "'self'",
+          "blob:",
+          "https:",
           "https://*.supabase.co",
           "https://*.supabase.in",
           "https://esm.sh",
@@ -43,17 +45,17 @@ module.exports = function csp() {
           "https://www.googleapis.com"
         ],
 
-        // Inline styles used by EJS/Tailwind.
-        "style-src": ["'self'", "'unsafe-inline'"],
+        // Inline styles + blob: for epub.js stylesheets
+        "style-src": ["'self'", "'unsafe-inline'", "blob:"],
 
-        // Fonts (if any)
-        "font-src": ["'self'", "data:", "https://fonts.gstatic.com"],
+        // Fonts: allow data:, blob:, and https: for EPUB embedded fonts
+        "font-src": ["'self'", "data:", "blob:", "https:", "https://fonts.gstatic.com"],
 
         // Media (future: audio/video covers)
         "media-src": ["*", "data:", "blob:"],
 
-        // Optional: allow data URLs for favicons if needed
-        // "worker-src": ["'self'", "blob:"]
+        // Workers for epub.js
+        "worker-src": ["'self'", "blob:"]
       }
     },
     crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
