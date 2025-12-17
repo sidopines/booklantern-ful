@@ -36,8 +36,19 @@ function asText(v) {
 }
 
 /**
+ * Provider priority for deduplication (lower = preferred)
+ */
+const PROVIDER_PRIORITY = {
+  gutenberg: 1,
+  openlibrary: 2,
+  loc: 3,
+  archive: 4,
+  unknown: 99,
+};
+
+/**
  * Deduplicate books by title + author
- * Prefer EPUB over PDF
+ * Prefer: EPUB > PDF, and by provider priority: gutenberg > openlibrary > loc > archive
  */
 function deduplicate(books) {
   const seen = new Map();
@@ -54,8 +65,19 @@ function deduplicate(books) {
     if (!existing) {
       seen.set(key, book);
     } else {
-      // Prefer EPUB over PDF
-      if (book.format === 'epub' && existing.format === 'pdf') {
+      // Priority: EPUB over PDF, then by provider priority
+      const existingIsEpub = existing.format === 'epub';
+      const bookIsEpub = book.format === 'epub';
+      const existingPriority = PROVIDER_PRIORITY[existing.provider] || 99;
+      const bookPriority = PROVIDER_PRIORITY[book.provider] || 99;
+      
+      // Prefer EPUB format first
+      if (bookIsEpub && !existingIsEpub) {
+        seen.set(key, book);
+      } else if (existingIsEpub && !bookIsEpub) {
+        // Keep existing
+      } else if (bookPriority < existingPriority) {
+        // Same format, prefer by provider priority
         seen.set(key, book);
       }
     }
@@ -90,23 +112,46 @@ function buildSourceUrl(book) {
 
 /**
  * Normalize a book object to consistent schema
+ * @returns {Object} Normalized book with external_only flag and reason
  */
 function normalizeBook(book) {
+  const format = book.format || 'unknown';
+  const directUrl = book.direct_url || null;
+  const access = book.access || 'open';
+  const isRestricted = book.is_restricted === true || book.is_restricted === 'true';
+  
+  // Determine if this item can only be viewed externally
+  let externalOnly = false;
+  let reason = null;
+  
+  if (isRestricted || access === 'restricted' || access === 'borrow') {
+    externalOnly = true;
+    reason = 'borrow_required';
+  } else if (!directUrl) {
+    externalOnly = true;
+    reason = 'no_direct_url';
+  } else if (format !== 'epub') {
+    externalOnly = true;
+    reason = 'no_epub';
+  }
+  
   return {
     provider: book.provider || 'unknown',
     provider_id: book.provider_id || '',
     title: asText(book.title),
     author: asText(book.author),
     cover_url: book.cover_url || null,
-    format: book.format || 'epub',
+    format: format,
     source_url: buildSourceUrl(book),
-    direct_url: book.direct_url || null,
+    direct_url: directUrl,
     archive_id: book.archive_id || null,
     year: book.year || null,
     language: book.language || 'en',
     book_id: book.book_id || `${book.provider}:${book.provider_id}`,
-    access: book.access || 'open',
-    is_restricted: book.is_restricted || false,
+    access: access,
+    is_restricted: isRestricted,
+    external_only: externalOnly,
+    reason: reason,
   };
 }
 
@@ -166,42 +211,37 @@ async function handleSearch(req, res) {
     
     console.log(`[search] results: gutenberg=${counts.gutenberg || 0} openlibrary=${counts.openlibrary || 0} archive=${counts.archive || 0} loc=${counts.loc || 0} total_before_dedup=${allBooks.length}`);
     
-    // Normalize all books to consistent schema
+    // Normalize all books to consistent schema (includes external_only + reason flags)
     const normalizedBooks = allBooks.map(normalizeBook);
     
-    // Filter out restricted items before deduplication
-    const unrestricted = normalizedBooks.filter(book => {
-      // Prefer explicit flag; fall back to access field
-      if (book.is_restricted === true || book.is_restricted === 'true') return false;
-      const access = book.access || 'open';
-      if (access === 'restricted') return false;
-      if (access === 'borrow') return false; // For now, only show open access
-      return true;
-    });
-    console.log(`[search] after metadata filter: ${unrestricted.length} unrestricted books`);
-
-    // Deduplicate
-    const uniqueBooks = deduplicate(unrestricted);
+    // NOTE: We no longer filter out restricted items here - instead we mark them as external_only
+    // and show them in results with "Open Source Link" option
+    // This ensures OL/LOC results always appear even if they require borrowing
+    
+    // Deduplicate (preserves provider priority: gutenberg > openlibrary > loc > archive)
+    const uniqueBooks = deduplicate(normalizedBooks);
     
     console.log(`[search] after dedup: ${uniqueBooks.length} unique books`);
     
-    // HEAD-check first 15 archive.org URLs to filter out borrow-only items
+    // HEAD-check first 15 archive.org URLs to verify accessibility
+    // This marks items as external_only if they return 401/403
     const verified = await filterRestrictedArchiveItems(uniqueBooks, 15);
     
-    console.log(`[search] after HEAD check: ${verified.length} verified accessible`);
+    console.log(`[search] after HEAD check: ${verified.length} items (some may be external-only)`);
     
     // Create signed tokens and public response
     const items = verified.map(book => {
-      const access = book.access || 'open';
-      const isPublic = access === 'open' || access === 'public';
       const hasDirectUrl = Boolean(book.direct_url);
       const isEpub = book.format === 'epub';
+      // Use the pre-computed external_only flag from normalizeBook
+      // Also mark as external if HEAD check failed
+      const externalOnly = book.external_only || book.head_check_failed || !hasDirectUrl || !isEpub;
 
       let token = null;
       let href = null;
 
-      // Only create reader token if we have a direct URL and it's an EPUB
-      if (isPublic && hasDirectUrl && isEpub) {
+      // Only create reader token if we can actually render it
+      if (!externalOnly && hasDirectUrl && isEpub) {
         // Use archive_id when provided to ensure metadata-based fetch path
         const useArchive = Boolean(book.archive_id);
         
@@ -221,6 +261,7 @@ async function handleSearch(req, res) {
       }
       
       return {
+        provider: book.provider,
         title: asText(book.title),
         author: asText(book.author),
         cover_url: book.cover_url,
@@ -229,13 +270,14 @@ async function handleSearch(req, res) {
         book_id: book.book_id,
         has_audio: true, // TTS available for all
         format: book.format,
-        access,
+        access: book.access,
         source_url: book.source_url,
         direct_url: book.direct_url,
         token,
         href,
-        // Flag if this item can't be read in-app
-        external_only: !hasDirectUrl || !isEpub,
+        // External-only flag and reason for UI display
+        external_only: externalOnly,
+        reason: externalOnly ? (book.reason || (book.head_check_failed ? 'borrow_required' : 'no_epub')) : null,
       };
     });
     

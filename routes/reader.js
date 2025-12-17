@@ -163,6 +163,7 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
     const format = data.format || data.mode || 'iframe';
     const directUrl = data.direct_url || data.directUrl || data.url || '';
     const archiveId = data.archive_id || data.archiveId || null;
+    const sourceUrl = data.source_url || data.sourceUrl || '';
     const ref = req.query.ref || data.ref || null;
     
     // Determine if this is an EPUB file (needs ePub.js rendering, not iframe)
@@ -179,6 +180,7 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
       format,
       mode: format, // for compatibility
       directUrl,
+      sourceUrl, // For "Open Source Link" on error
       archiveId,
       isEpub, // Flag to use ePub.js renderer instead of iframe
       backHref: ref || '/read',
@@ -483,8 +485,9 @@ router.get('/api/proxy/epub', ensureSubscriberApi, async (req, res) => {
       const fallbackRes = await tryArchiveFallback(`upstream ${upstream.status}`);
       if (fallbackRes?.protected) {
         return res.status(422).json({
-          error: 'EPUB is protected',
-          detail: 'This item appears to be DRM/LCP-protected and cannot be opened in the in-site reader.'
+          error: 'borrow_required',
+          detail: 'This book is DRM-protected and requires borrowing from the source library',
+          source_url: `https://archive.org/details/${archiveId}`
         });
       }
       upstream = fallbackRes;
@@ -497,8 +500,9 @@ router.get('/api/proxy/epub', ensureSubscriberApi, async (req, res) => {
         const fallbackRes = await tryArchiveFallback(err.message || err.name);
         if (fallbackRes?.protected) {
           return res.status(422).json({
-            error: 'EPUB is protected',
-            detail: 'This item appears to be DRM/LCP-protected and cannot be opened in the in-site reader.'
+            error: 'borrow_required',
+            detail: 'This book is DRM-protected and requires borrowing from the source library',
+            source_url: `https://archive.org/details/${archiveId}`
           });
         }
         upstream = fallbackRes;
@@ -518,10 +522,22 @@ router.get('/api/proxy/epub', ensureSubscriberApi, async (req, res) => {
 
   if (!upstream.ok) {
     console.error('[proxy] Upstream error after attempts:', upstream.status, upstream.url);
+    // Build source URL for error response
+    const sourceUrl = archiveId 
+      ? `https://archive.org/details/${archiveId}`
+      : (finalUrl.includes('archive.org') ? finalUrl.replace('/download/', '/details/').replace(/\/[^/]+\.epub.*$/, '') : finalUrl);
+    
     if (upstream.status === 401 || upstream.status === 403) {
-      return res.status(422).json({ error: 'EPUB is protected or restricted (borrow-only)' });
+      return res.status(422).json({ 
+        error: 'borrow_required',
+        detail: 'This book requires borrowing from the source library',
+        source_url: sourceUrl
+      });
     }
-    return res.status(upstream.status === 404 ? 404 : 502).json({ error: 'Upstream returned ' + upstream.status });
+    return res.status(upstream.status === 404 ? 404 : 502).json({ 
+      error: 'Upstream returned ' + upstream.status,
+      source_url: sourceUrl
+    });
   }
 
   console.log('[proxy] Upstream OK, final URL:', upstream.url || finalUrl, 'Content-Length:', upstream.headers.get('content-length'));
@@ -540,9 +556,13 @@ router.get('/api/proxy/epub', ensureSubscriberApi, async (req, res) => {
     const text = Buffer.from(firstBytes).toString('utf-8', 0, Math.min(100, firstBytes.length)).toLowerCase();
     if (text.includes('<!doctype') || text.includes('<html') || text.includes('<head')) {
       console.error('[proxy] Got HTML instead of EPUB (likely protected/login required)');
+      const sourceUrl = archiveId 
+        ? `https://archive.org/details/${archiveId}`
+        : (finalUrl.includes('archive.org') ? finalUrl.replace('/download/', '/details/').replace(/\/[^/]+\.epub.*$/, '') : finalUrl);
       return res.status(422).json({ 
-        error: 'Invalid EPUB (likely protected/login/blocked)',
-        detail: 'The server returned an HTML page instead of an EPUB file'
+        error: 'borrow_required',
+        detail: 'This book requires borrowing or login at the source',
+        source_url: sourceUrl
       });
     }
 
@@ -565,6 +585,8 @@ router.get('/api/proxy/epub', ensureSubscriberApi, async (req, res) => {
     const contentLength = upstream.headers.get('content-length');
     if (contentLength) {
       res.setHeader('Content-Length', contentLength);
+      // Also set X-Book-Bytes for client-side size-aware timeout
+      res.setHeader('X-Book-Bytes', contentLength);
     }
 
     res.write(Buffer.from(firstChunk.value));

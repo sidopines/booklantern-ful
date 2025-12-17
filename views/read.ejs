@@ -19,7 +19,7 @@
     .carousel { display:grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap:14px; } /* reuse card styling */
     
     /* External-only badge for non-EPUB items */
-    .book-card.external { position: relative; }
+    .book-card.external { position: relative; cursor: pointer; }
     .book-card .format-badge {
       position: absolute;
       top: 6px;
@@ -32,6 +32,28 @@
       font-weight: 600;
       z-index: 1;
     }
+    .book-card .format-badge.borrow {
+      background: #b45309;
+    }
+    
+    /* Provider badge */
+    .book-card .provider-badge {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      background: rgba(255,255,255,0.9);
+      color: #333;
+      font-size: 9px;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-weight: 500;
+      text-transform: uppercase;
+      z-index: 1;
+    }
+    .provider-gutenberg { background: #e0f2e9; color: #0f5132; }
+    .provider-openlibrary { background: #f0f4ff; color: #3b5998; }
+    .provider-archive { background: #fff3e0; color: #b8580a; }
+    .provider-loc { background: #ffe4e4; color: #b12a2a; }
   </style>
 </head>
 <body>

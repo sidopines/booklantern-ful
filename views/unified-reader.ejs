@@ -5,6 +5,7 @@
   var safeAuthor = (typeof author === 'string' && author) ? author : '';
   var safeSource = (typeof source === 'string' && source) ? source : '';
   var safeDirectUrl = (typeof directUrl === 'string' && directUrl) ? directUrl : '';
+  var safeSourceUrl = (typeof sourceUrl === 'string' && sourceUrl) ? sourceUrl : safeDirectUrl;
   var safeBackHref = (typeof backHref === 'string' && backHref) ? backHref : '/read';
   var safeRef = (typeof ref === 'string' && ref) ? ref : '';
   var safeArchiveId = (typeof archiveId === 'string' && archiveId) ? archiveId : '';
@@ -100,7 +101,7 @@
       </div>
     <% } else if (useEpubJs) { %>
       <!-- ePub.js will render into this div -->
-      <div id="epub-viewer" data-epub-url="<%= safeDirectUrl %>" data-archive-id="<%= safeArchiveId %>" data-direct-url="<%= safeDirectUrl %>"></div>
+      <div id="epub-viewer" data-epub-url="<%= safeDirectUrl %>" data-archive-id="<%= safeArchiveId %>" data-direct-url="<%= safeDirectUrl %>" data-source-url="<%= safeSourceUrl %>"></div>
       <div id="epub-loading" class="epub-loading">
         <div class="epub-spinner"></div>
         <p>Loading book...</p>
