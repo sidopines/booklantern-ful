@@ -10,9 +10,29 @@
   let currentFontSize = 100; // percentage
   let bookKey = null; // for localStorage persistence
   let currentDirectUrl = ''; // stored for error handlers
+  let currentSourceUrl = ''; // stored for source link fallback
+  let bookSizeBytes = 0; // stored for timeout calculation
 
-  // Timeout for book loading (45 seconds - increased for large EPUBs)
-  const LOAD_TIMEOUT_MS = 45000;
+  // Base timeout for book loading (45 seconds minimum)
+  const BASE_TIMEOUT_MS = 45000;
+  // Additional timeout per MB (0.6 seconds per MB)
+  const TIMEOUT_PER_MB_MS = 600;
+  // Maximum timeout cap (4 minutes)
+  const MAX_TIMEOUT_MS = 240000;
+  // Size threshold for "very large" warning (80MB)
+  const LARGE_BOOK_THRESHOLD = 80 * 1024 * 1024;
+
+  /**
+   * Calculate dynamic timeout based on book size
+   * @param {number} sizeBytes - Book size in bytes
+   * @returns {number} Timeout in milliseconds
+   */
+  function calculateTimeout(sizeBytes) {
+    if (!sizeBytes || sizeBytes < 1) return BASE_TIMEOUT_MS;
+    const sizeMB = sizeBytes / 1e6;
+    const dynamicTimeout = BASE_TIMEOUT_MS + (sizeMB * TIMEOUT_PER_MB_MS);
+    return Math.min(dynamicTimeout, MAX_TIMEOUT_MS);
+  }
 
   /**
    * Clear the load timeout watchdog safely
@@ -110,7 +130,7 @@
       if (msg.includes('indexOf') || msg.includes('undefined') || msg.includes('null') || 
           msg.includes('Cannot read') || msg.includes('epub') || (source && source.includes('epub'))) {
         clearLoadTimeout();
-        showEpubError("This book can't be opened in the reader. Try another edition.", currentDirectUrl);
+        showEpubError("This book can't be opened in the reader. Try another edition.", currentSourceUrl);
       }
     }
     return true; // Prevent duplicate console spam
@@ -128,9 +148,9 @@
       });
       clearLoadTimeout();
       if (reason.includes('indexOf') || reason.includes('undefined') || reason.includes('null') || reason.includes('Cannot read')) {
-        showEpubError("This book can't be opened in the reader. Try another edition.", currentDirectUrl);
+        showEpubError("This book can't be opened in the reader. Try another edition.", currentSourceUrl);
       } else {
-        showEpubError('Failed to process book file. Please try a different edition.', currentDirectUrl);
+        showEpubError('Failed to process book file. Please try a different edition.', currentSourceUrl);
       }
     }
   };
@@ -341,13 +361,15 @@
     const epubUrl = viewer.getAttribute('data-epub-url');
     const archiveId = viewer.getAttribute('data-archive-id');
     const directUrl = viewer.getAttribute('data-direct-url') || '';
+    const sourceUrl = viewer.getAttribute('data-source-url') || directUrl;
     
-    // Store directUrl globally for error handlers
+    // Store URLs globally for error handlers
     currentDirectUrl = directUrl;
+    currentSourceUrl = sourceUrl;
     
     if (!epubUrl) {
       console.error('[reader] No EPUB URL provided');
-      showEpubError('No book URL provided', directUrl);
+      showEpubError('No book URL provided', sourceUrl);
       return;
     }
     
@@ -372,18 +394,19 @@
     // Check if ePub.js is loaded
     if (typeof ePub === 'undefined') {
       console.error('[reader] ePub.js library not loaded');
-      showEpubError('Reader library failed to load. Please refresh the page.', directUrl);
+      showEpubError('Reader library failed to load. Please refresh the page.', sourceUrl);
       return;
     }
     
-    // Start timeout watchdog
+    // Initial timeout (will be updated after we get Content-Length)
+    let currentTimeout = BASE_TIMEOUT_MS;
     loadTimeoutId = setTimeout(function() {
       if (!errorShown) {
-        console.error('[reader] Load timeout exceeded');
+        console.error('[reader] Load timeout exceeded after', currentTimeout, 'ms');
         clearLoadTimeout();
-        showEpubError('Book is taking too long to load. It may be too large or corrupted.', directUrl);
+        showEpubError('Book is taking too long to load. It may be too large or corrupted.', sourceUrl);
       }
-    }, LOAD_TIMEOUT_MS);
+    }, currentTimeout);
     
     try {
       // Proxy the EPUB URL to avoid CORS issues
@@ -405,6 +428,7 @@
       }
       
       // Update loading message
+      console.log('[reader] Download started');
       updateLoadingMessage('Downloading book...');
       
       // Fetch the EPUB as an ArrayBuffer
@@ -413,47 +437,81 @@
         credentials: 'include'
       });
       
+      // Read Content-Length to adjust timeout and detect large books
+      const contentLength = response.headers.get('content-length') || response.headers.get('x-book-bytes');
+      bookSizeBytes = contentLength ? parseInt(contentLength, 10) : 0;
+      
       // Log response details for debugging
-      console.log('[reader] Proxy response:', response.status, response.headers.get('content-type'));
+      console.log('[reader] Proxy response:', response.status, 'Content-Type:', response.headers.get('content-type'), 'Size:', bookSizeBytes, 'bytes');
+      
+      // Adjust timeout based on book size
+      if (bookSizeBytes > 0) {
+        clearLoadTimeout();
+        currentTimeout = calculateTimeout(bookSizeBytes);
+        console.log('[reader] Adjusted timeout:', Math.round(currentTimeout/1000), 'seconds for', Math.round(bookSizeBytes/1e6), 'MB');
+        loadTimeoutId = setTimeout(function() {
+          if (!errorShown) {
+            console.error('[reader] Load timeout exceeded after', currentTimeout, 'ms');
+            clearLoadTimeout();
+            showEpubError('Book is taking too long to load. It may be too large or corrupted.', sourceUrl);
+          }
+        }, currentTimeout);
+        
+        // Show warning for very large books
+        if (bookSizeBytes > LARGE_BOOK_THRESHOLD) {
+          const sizeMB = Math.round(bookSizeBytes / 1e6);
+          console.warn('[reader] Very large book detected:', sizeMB, 'MB');
+          updateLoadingMessage(`Downloading large book (${sizeMB} MB)... This may take a while.`);
+          showLargeBookWarning(sizeMB, sourceUrl);
+        }
+      }
       
       if (!response.ok) {
         let errorDetail = '';
+        let errorJson = null;
         try {
-          const errorJson = await response.json();
+          errorJson = await response.json();
           errorDetail = errorJson.error || '';
         } catch {
           errorDetail = await response.text().catch(() => '');
         }
         console.error('[reader] Proxy fetch failed:', response.status, errorDetail);
         
+        // Use source_url from error response if available
+        const errorSourceUrl = errorJson?.source_url || sourceUrl;
+        
         if (response.status === 403) {
-          showEpubError('This book source is not supported. Please try a different edition.');
+          showEpubError('This book source is not supported. Please try a different edition.', errorSourceUrl);
         } else if (response.status === 404) {
-          showEpubError('Book file not found. The source may have moved or been removed.');
+          showEpubError('Book file not found. The source may have moved or been removed.', errorSourceUrl);
         } else if (response.status === 504) {
-          showEpubError('Download timed out. Please try again later.');
+          showEpubError('Download timed out. Please try again later.', errorSourceUrl);
         } else if (response.status === 502) {
-          showEpubError('Could not fetch book from source. ' + (errorDetail || 'Please try again later.'));
+          showEpubError('Could not fetch book from source. ' + (errorDetail || 'Please try again later.'), errorSourceUrl);
         } else if (response.status === 422 || response.status === 409) {
           // Protected/borrow-only - ALWAYS show Open Source Link
           clearLoadTimeout();
-          showEpubError('This book requires borrowing from the source library. Use the link below to borrow it directly.', directUrl);
+          const borrowMsg = errorDetail === 'borrow_required' 
+            ? 'This book requires borrowing from the source library.'
+            : 'This book is protected or restricted. Use the link below to access it directly.';
+          showEpubError(borrowMsg, errorSourceUrl);
           return;
         } else if (response.status === 401) {
-          showEpubError('Please log in to read books.');
+          showEpubError('Please log in to read books.', errorSourceUrl);
         } else {
-          showEpubError('Failed to download book. Please try again later.');
+          showEpubError('Failed to download book. Please try again later.', errorSourceUrl);
         }
         return;
       }
       
       // Get the ArrayBuffer
+      console.log('[reader] Download complete, processing...');
       updateLoadingMessage('Processing book...');
       const arrayBuffer = await response.arrayBuffer();
       
       if (!arrayBuffer || arrayBuffer.byteLength < 100) {
         console.error('[reader] EPUB file too small or empty:', arrayBuffer?.byteLength);
-        showEpubError('The book file appears to be empty or corrupted.');
+        showEpubError('The book file appears to be empty or corrupted.', sourceUrl);
         return;
       }
       
@@ -465,12 +523,13 @@
       if (!isZip) {
         console.error('[reader] File is not a valid ZIP/EPUB (header:', header, ')');
         clearLoadTimeout();
-        showEpubError('This file is not a valid EPUB. It may be an HTML page or different format.', directUrl);
+        showEpubError('This file is not a valid EPUB. It may be an HTML page or different format.', sourceUrl);
         return;
       }
       console.log('[reader] ZIP signature validated');
       
       // Validate EPUB structure: must contain META-INF/container.xml and valid OPF
+      console.log('[reader] Unzip started');
       updateLoadingMessage('Validating EPUB structure...');
       try {
         var zip = await JSZip.loadAsync(arrayBuffer);
@@ -489,7 +548,7 @@
         if (!containerXmlFile) {
           console.error('[reader] Missing META-INF/container.xml - not a valid EPUB');
           clearLoadTimeout();
-          showEpubError('This file is not a valid EPUB (missing container.xml). Try another edition.', directUrl);
+          showEpubError('This file is not a valid EPUB (missing container.xml). Try another edition.', sourceUrl);
           return;
         }
         console.log('[reader] container.xml found at:', containerXmlKey);
@@ -511,7 +570,7 @@
         if (!opfPath) {
           console.error('[reader] Could not extract rootfile path from container.xml');
           clearLoadTimeout();
-          showEpubError('Invalid EPUB structure (no rootfile in container.xml). Try another edition.', directUrl);
+          showEpubError('Invalid EPUB structure (no rootfile in container.xml). Try another edition.', sourceUrl);
           return;
         }
         console.log('[reader] OPF path from container.xml:', opfPath);
@@ -529,7 +588,7 @@
         if (!opfExists) {
           console.error('[reader] OPF file not found in ZIP:', opfPath);
           clearLoadTimeout();
-          showEpubError('Invalid EPUB structure (OPF file not found). Try another edition.', directUrl);
+          showEpubError('Invalid EPUB structure (OPF file not found). Try another edition.', sourceUrl);
           return;
         }
         
@@ -537,7 +596,7 @@
       } catch (zipErr) {
         console.error('[reader] JSZip validation failed:', zipErr);
         clearLoadTimeout();
-        showEpubError('Failed to validate EPUB structure. The file may be corrupted.', directUrl);
+        showEpubError('Failed to validate EPUB structure. The file may be corrupted.', sourceUrl);
         return;
       }
       
@@ -550,7 +609,7 @@
       } catch (err) {
         clearLoadTimeout();
         console.error('[reader] ePub() constructor failed:', err);
-        showEpubError('Invalid EPUB format. This file cannot be opened in the reader.', directUrl);
+        showEpubError('Invalid EPUB format. This file cannot be opened in the reader.', sourceUrl);
         return;
       }
       
@@ -567,7 +626,7 @@
       } catch (err) {
         clearLoadTimeout();
         console.error('[reader] renderTo() failed:', err);
-        showEpubError('Failed to render book. It may be corrupted or in an unsupported format.', directUrl);
+        showEpubError('Failed to render book. It may be corrupted or in an unsupported format.', sourceUrl);
         return;
       }
       
@@ -578,12 +637,12 @@
           contents.window.addEventListener('error', function(e) {
             console.error('[reader] iframe error:', e.message);
             clearLoadTimeout();
-            showEpubError("This book can't be opened in the reader. Try another edition.", currentDirectUrl);
+            showEpubError("This book can't be opened in the reader. Try another edition.", currentSourceUrl);
           });
           contents.window.addEventListener('unhandledrejection', function(e) {
             console.error('[reader] iframe rejection:', e.reason);
             clearLoadTimeout();
-            showEpubError("This book can't be opened in the reader. Try another edition.", currentDirectUrl);
+            showEpubError("This book can't be opened in the reader. Try another edition.", currentSourceUrl);
           });
           
           // Inject default theme styles inline
@@ -639,10 +698,12 @@
         // This prevents crashes from malformed EPUBs
         loadNavigationSafely();
         
+        console.log('[reader] First page displayed successfully');
+        
       } catch (err) {
         clearLoadTimeout();
         console.error('[reader] display() failed:', err);
-        showEpubError('Cannot display this book. It may be protected or corrupted.', directUrl);
+        showEpubError('Cannot display this book. It may be protected or corrupted.', sourceUrl);
         return;
       }
       
@@ -653,11 +714,11 @@
       // Provide more specific error messages
       const errMsg = err.message || String(err);
       if (errMsg.includes('Invalid') || errMsg.includes('indexOf') || errMsg.includes('undefined')) {
-        showEpubError('This file is not a valid EPUB. It may be corrupted or in a different format.', directUrl);
+        showEpubError('This file is not a valid EPUB. It may be corrupted or in a different format.', sourceUrl);
       } else if (errMsg.includes('network')) {
-        showEpubError('Network error while loading book. Please check your connection and try again.', directUrl);
+        showEpubError('Network error while loading book. Please check your connection and try again.', sourceUrl);
       } else {
-        showEpubError('Could not load this edition inside BookLantern. Please try a different copy.', directUrl);
+        showEpubError('Could not load this edition inside BookLantern. Please try a different copy.', sourceUrl);
       }
     }
   }
@@ -776,13 +837,37 @@
   
   /**
    * Show error message (prevents duplicate errors)
-   * Uses global currentDirectUrl for source link
+   * Uses global currentSourceUrl for source link
    */
   function showReaderError(message) {
     if (errorShown) return;
     errorShown = true;
     clearLoadTimeout();
-    showEpubError(message, currentDirectUrl);
+    showEpubError(message, currentSourceUrl);
+  }
+
+  /**
+   * Show warning banner for very large books (doesn't block loading)
+   * @param {number} sizeMB - Book size in megabytes
+   * @param {string} sourceUrl - URL to the original source
+   */
+  function showLargeBookWarning(sizeMB, sourceUrl) {
+    const loading = document.getElementById('epub-loading');
+    if (!loading) return;
+    
+    // Check if warning already shown
+    if (loading.querySelector('.large-book-warning')) return;
+    
+    const warning = document.createElement('div');
+    warning.className = 'large-book-warning';
+    warning.innerHTML = `
+      <p style="color: #b45309; font-size: 14px; margin-top: 16px; padding: 12px; background: #fef3c7; border-radius: 8px;">
+        <strong>⚠️ Large book (${sizeMB} MB)</strong><br>
+        This book is very large and may not load in-browser. If it fails, you can 
+        <a href="${sourceUrl || '#'}" target="_blank" rel="noopener" style="color: #4f46e5;">open it at the source</a>.
+      </p>
+    `;
+    loading.appendChild(warning);
   }
 
   /**
