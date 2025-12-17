@@ -124,7 +124,9 @@ async function handleSearch(req, res) {
     const unrestricted = allBooks.filter(book => {
       // Prefer explicit flag; fall back to access field
       if (book.is_restricted === true || book.is_restricted === 'true') return false;
-      if ((book.access || 'public') !== 'public') return false;
+      const access = book.access || 'open';
+      if (access === 'restricted') return false;
+      if (access === 'borrow') return false; // For now, only show open access
       return true;
     });
     console.log(`[search] after metadata filter: ${unrestricted.length} unrestricted books`);
@@ -141,8 +143,8 @@ async function handleSearch(req, res) {
     
     // Create signed tokens and public response
     const items = verified.map(book => {
-      const access = book.access || 'public';
-      const isPublic = access === 'public';
+      const access = book.access || 'open';
+      const isPublic = access === 'open' || access === 'public';
 
       let token = null;
       let href = null;
@@ -185,7 +187,7 @@ async function handleSearch(req, res) {
   } catch (error) {
     console.error('[search] error:', error);
     // Always return JSON on error
-    return res.status(500).json({ results: [], error: 'search_failed' });
+    return res.status(500).json({ items: [], error: 'search_failed' });
   }
 }
 

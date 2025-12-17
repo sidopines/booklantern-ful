@@ -51,7 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
       })
       .catch(err => {
         console.error('search render error', err);
-        mount.innerHTML = '<p>No results.</p>';
+        if (err.message !== 'auth_required') {
+          mount.innerHTML = '<p>No results.</p>';
+        }
       });
   }
 });
