@@ -11,8 +11,8 @@
   let bookKey = null; // for localStorage persistence
   let currentDirectUrl = ''; // stored for error handlers
 
-  // Timeout for book loading (15 seconds)
-  const LOAD_TIMEOUT_MS = 15000;
+  // Timeout for book loading (45 seconds - increased for large EPUBs)
+  const LOAD_TIMEOUT_MS = 45000;
 
   /**
    * Clear the load timeout watchdog safely
@@ -97,10 +97,18 @@
   window.onerror = function(message, source, lineno, colno, error) {
     if (!errorShown) {
       const msg = String(message || '');
-      console.error('[reader] window.onerror:', msg, source, lineno);
+      // Log full error details including stack trace
+      console.error('[reader] window.onerror:', {
+        message: msg,
+        source: source || '(unknown source)',
+        line: lineno,
+        column: colno,
+        stack: error?.stack || '(no stack)',
+        error: error
+      });
       // Catch any error during EPUB loading
       if (msg.includes('indexOf') || msg.includes('undefined') || msg.includes('null') || 
-          msg.includes('Cannot read') || msg.includes('epub') || source?.includes('epub')) {
+          msg.includes('Cannot read') || msg.includes('epub') || (source && source.includes('epub'))) {
         clearLoadTimeout();
         showEpubError("This book can't be opened in the reader. Try another edition.", currentDirectUrl);
       }
@@ -111,7 +119,13 @@
   window.onunhandledrejection = function(event) {
     if (!errorShown) {
       const reason = event.reason?.message || String(event.reason || '');
-      console.error('[reader] window.onunhandledrejection:', reason);
+      // Log full rejection details including stack trace
+      console.error('[reader] window.onunhandledrejection:', {
+        reason: reason,
+        stack: event.reason?.stack || '(no stack)',
+        promise: event.promise,
+        error: event.reason
+      });
       clearLoadTimeout();
       if (reason.includes('indexOf') || reason.includes('undefined') || reason.includes('null') || reason.includes('Cannot read')) {
         showEpubError("This book can't be opened in the reader. Try another edition.", currentDirectUrl);

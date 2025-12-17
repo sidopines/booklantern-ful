@@ -65,6 +65,52 @@ function deduplicate(books) {
 }
 
 /**
+ * Build source URL for a book (for "Open Source Link" fallback)
+ */
+function buildSourceUrl(book) {
+  if (book.source_url) return book.source_url;
+  
+  // Build source URL based on provider
+  switch (book.provider) {
+    case 'gutenberg':
+      return `https://www.gutenberg.org/ebooks/${book.provider_id}`;
+    case 'openlibrary':
+      if (book.archive_id) {
+        return `https://archive.org/details/${book.archive_id}`;
+      }
+      return `https://openlibrary.org/works/${book.provider_id}`;
+    case 'archive':
+      return `https://archive.org/details/${book.archive_id || book.provider_id}`;
+    case 'loc':
+      return `https://www.loc.gov/item/${book.provider_id}/`;
+    default:
+      return book.direct_url || '';
+  }
+}
+
+/**
+ * Normalize a book object to consistent schema
+ */
+function normalizeBook(book) {
+  return {
+    provider: book.provider || 'unknown',
+    provider_id: book.provider_id || '',
+    title: asText(book.title),
+    author: asText(book.author),
+    cover_url: book.cover_url || null,
+    format: book.format || 'epub',
+    source_url: buildSourceUrl(book),
+    direct_url: book.direct_url || null,
+    archive_id: book.archive_id || null,
+    year: book.year || null,
+    language: book.language || 'en',
+    book_id: book.book_id || `${book.provider}:${book.provider_id}`,
+    access: book.access || 'open',
+    is_restricted: book.is_restricted || false,
+  };
+}
+
+/**
  * GET /api/search?q=&page=1
  * Federated search across all sources
  */
@@ -120,8 +166,11 @@ async function handleSearch(req, res) {
     
     console.log(`[search] results: gutenberg=${counts.gutenberg || 0} openlibrary=${counts.openlibrary || 0} archive=${counts.archive || 0} loc=${counts.loc || 0} total_before_dedup=${allBooks.length}`);
     
+    // Normalize all books to consistent schema
+    const normalizedBooks = allBooks.map(normalizeBook);
+    
     // Filter out restricted items before deduplication
-    const unrestricted = allBooks.filter(book => {
+    const unrestricted = normalizedBooks.filter(book => {
       // Prefer explicit flag; fall back to access field
       if (book.is_restricted === true || book.is_restricted === 'true') return false;
       const access = book.access || 'open';
@@ -145,11 +194,14 @@ async function handleSearch(req, res) {
     const items = verified.map(book => {
       const access = book.access || 'open';
       const isPublic = access === 'open' || access === 'public';
+      const hasDirectUrl = Boolean(book.direct_url);
+      const isEpub = book.format === 'epub';
 
       let token = null;
       let href = null;
 
-      if (isPublic) {
+      // Only create reader token if we have a direct URL and it's an EPUB
+      if (isPublic && hasDirectUrl && isEpub) {
         // Use archive_id when provided to ensure metadata-based fetch path
         const useArchive = Boolean(book.archive_id);
         
@@ -162,6 +214,7 @@ async function handleSearch(req, res) {
           title: asText(book.title),
           author: asText(book.author),
           cover_url: book.cover_url,
+          source_url: book.source_url,
           exp: Math.floor(Date.now() / 1000) + 3600 // 1 hour
         });
         href = `/unified-reader?token=${encodeURIComponent(token)}`;
@@ -177,8 +230,12 @@ async function handleSearch(req, res) {
         has_audio: true, // TTS available for all
         format: book.format,
         access,
+        source_url: book.source_url,
+        direct_url: book.direct_url,
         token,
         href,
+        // Flag if this item can't be read in-app
+        external_only: !hasDirectUrl || !isEpub,
       };
     });
     
