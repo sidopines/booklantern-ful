@@ -21,6 +21,18 @@
   const MAX_TIMEOUT_MS = 240000;
   // Size threshold for "very large" warning (80MB)
   const LARGE_BOOK_THRESHOLD = 80 * 1024 * 1024;
+  // Display timeout for rendition.display() Promise.race (10 seconds)
+  const DISPLAY_TIMEOUT_MS = 10000;
+  // Content render verification timeout (8 seconds after display resolves)
+  const CONTENT_VERIFY_TIMEOUT_MS = 8000;
+
+  /**
+   * Timestamped log helper for debugging EPUB loading stages
+   */
+  function tsLog(...args) {
+    const ts = new Date().toISOString().slice(11, 23);
+    console.log(`[reader ${ts}]`, ...args);
+  }
 
   /**
    * Calculate dynamic timeout based on book size
@@ -265,7 +277,7 @@
           }
         }
       });
-      console.log('[reader] font size ->', currentFontSize + '%');
+      tsLog('font size ->', currentFontSize + '%');
     } catch (err) {
       console.warn('[reader] Failed to apply font size:', err);
     }
@@ -342,7 +354,7 @@
     const loading = document.getElementById('epub-loading');
 
     // Log JSZip availability to verify epub.js dependency is present
-    console.log('[reader] JSZip available:', typeof JSZip !== 'undefined');
+    tsLog('JSZip available:', typeof JSZip !== 'undefined');
     
     if (!viewer) {
       console.error('[reader] epub-viewer element not found');
@@ -366,7 +378,7 @@
     
     // Generate stable book key for persistence
     bookKey = generateBookKey(epubUrl, archiveId);
-    console.log('[reader] Book key:', bookKey);
+    tsLog('Book key:', bookKey);
     
     // Restore saved font size
     try {
@@ -380,7 +392,9 @@
       }
     } catch (e) {}
     
-    console.log('[reader] Loading EPUB from:', epubUrl);
+    tsLog('Loading EPUB from:', epubUrl);
+    tsLog('Archive ID:', archiveId || '(none)');
+    tsLog('Source URL:', sourceUrl);
     
     // Check if ePub.js is loaded
     if (typeof ePub === 'undefined') {
@@ -405,21 +419,21 @@
       let proxiedUrl;
       if (archiveId) {
         proxiedUrl = '/api/proxy/epub?archive=' + encodeURIComponent(archiveId);
-        console.log('[reader] Using archive mode via token archive_id:', proxiedUrl);
+        tsLog('Using archive mode via token archive_id:', proxiedUrl);
       } else {
         const archiveMatch = epubUrl.match(/archive\.org\/download\/([^\/]+)/);
         if (archiveMatch) {
           // Use archive parameter for better metadata-based file selection
           proxiedUrl = '/api/proxy/epub?archive=' + encodeURIComponent(archiveMatch[1]);
-          console.log('[reader] Using archive mode (URL detection):', proxiedUrl);
+          tsLog('Using archive mode (URL detection):', proxiedUrl);
         } else {
           proxiedUrl = '/api/proxy/epub?url=' + encodeURIComponent(epubUrl);
-          console.log('[reader] Using proxied URL:', proxiedUrl);
+          tsLog('Using proxied URL:', proxiedUrl);
         }
       }
       
       // Update loading message
-      console.log('[reader] Download started');
+      tsLog('Download started');
       updateLoadingMessage('Downloading book...');
       
       // Fetch the EPUB as an ArrayBuffer
@@ -433,16 +447,17 @@
       bookSizeBytes = contentLength ? parseInt(contentLength, 10) : 0;
       
       // Log response details for debugging
-      console.log('[reader] Proxy response:', response.status, 'Content-Type:', response.headers.get('content-type'), 'Size:', bookSizeBytes, 'bytes');
+      tsLog('Proxy response:', response.status, 'Content-Type:', response.headers.get('content-type'), 'Size:', bookSizeBytes, 'bytes');
+      tsLog('Download finished');
       
       // Adjust timeout based on book size
       if (bookSizeBytes > 0) {
         clearLoadTimeout();
         currentTimeout = calculateTimeout(bookSizeBytes);
-        console.log('[reader] Adjusted timeout:', Math.round(currentTimeout/1000), 'seconds for', Math.round(bookSizeBytes/1e6), 'MB');
+        tsLog('Adjusted timeout:', Math.round(currentTimeout/1000), 'seconds for', Math.round(bookSizeBytes/1e6), 'MB');
         loadTimeoutId = setTimeout(function() {
           if (!errorShown) {
-            console.error('[reader] Load timeout exceeded after', currentTimeout, 'ms');
+            tsLog('ERROR: Load timeout exceeded after', currentTimeout, 'ms');
             clearLoadTimeout();
             showEpubError('Book is taking too long to load. It may be too large or corrupted.', sourceUrl);
           }
@@ -451,7 +466,7 @@
         // Show warning for very large books
         if (bookSizeBytes > LARGE_BOOK_THRESHOLD) {
           const sizeMB = Math.round(bookSizeBytes / 1e6);
-          console.warn('[reader] Very large book detected:', sizeMB, 'MB');
+          tsLog('WARNING: Very large book detected:', sizeMB, 'MB');
           updateLoadingMessage(`Downloading large book (${sizeMB} MB)... This may take a while.`);
           showLargeBookWarning(sizeMB, sourceUrl);
         }
@@ -496,31 +511,31 @@
       }
       
       // Get the ArrayBuffer
-      console.log('[reader] Download complete, processing...');
+      tsLog('Processing ArrayBuffer...');
       updateLoadingMessage('Processing book...');
       const arrayBuffer = await response.arrayBuffer();
       
       if (!arrayBuffer || arrayBuffer.byteLength < 100) {
-        console.error('[reader] EPUB file too small or empty:', arrayBuffer?.byteLength);
+        tsLog('ERROR: EPUB file too small or empty:', arrayBuffer?.byteLength);
         showEpubError('The book file appears to be empty or corrupted.', sourceUrl);
         return;
       }
       
-      console.log('[reader] Downloaded EPUB, size:', arrayBuffer.byteLength, 'bytes');
+      tsLog('Downloaded EPUB, size:', arrayBuffer.byteLength, 'bytes');
       
       // Validate ZIP signature (EPUB must be a ZIP file starting with 'PK')
       const header = new Uint8Array(arrayBuffer.slice(0, 4));
       const isZip = header[0] === 0x50 && header[1] === 0x4B; // 'PK'
       if (!isZip) {
-        console.error('[reader] File is not a valid ZIP/EPUB (header:', header, ')');
+        tsLog('ERROR: File is not a valid ZIP/EPUB (header:', header, ')');
         clearLoadTimeout();
         showEpubError('This file is not a valid EPUB. It may be an HTML page or different format.', sourceUrl);
         return;
       }
-      console.log('[reader] ZIP signature validated');
+      tsLog('ZIP signature validated');
       
       // Validate EPUB structure: must contain META-INF/container.xml and valid OPF
-      console.log('[reader] Unzip started');
+      tsLog('Unzip started');
       updateLoadingMessage('Validating EPUB structure...');
       try {
         var zip = await JSZip.loadAsync(arrayBuffer);
@@ -537,12 +552,12 @@
         }
         
         if (!containerXmlFile) {
-          console.error('[reader] Missing META-INF/container.xml - not a valid EPUB');
+          tsLog('ERROR: Missing META-INF/container.xml - not a valid EPUB');
           clearLoadTimeout();
           showEpubError('This file is not a valid EPUB (missing container.xml). Try another edition.', sourceUrl);
           return;
         }
-        console.log('[reader] container.xml found at:', containerXmlKey);
+        tsLog('container.xml found at:', containerXmlKey);
         
         // Parse container.xml to find the rootfile path
         var containerContent = await containerXmlFile.async('string');
@@ -555,57 +570,82 @@
             opfPath = rootfile.getAttribute('full-path');
           }
         } catch (parseErr) {
-          console.warn('[reader] Could not parse container.xml:', parseErr);
+          tsLog('WARN: Could not parse container.xml:', parseErr);
         }
         
         if (!opfPath) {
-          console.error('[reader] Could not extract rootfile path from container.xml');
+          tsLog('ERROR: Could not extract rootfile path from container.xml');
           clearLoadTimeout();
           showEpubError('Invalid EPUB structure (no rootfile in container.xml). Try another edition.', sourceUrl);
           return;
         }
-        console.log('[reader] OPF path from container.xml:', opfPath);
+        tsLog('OPF path from container.xml:', opfPath);
         
         // Verify the OPF file exists in the zip (case-insensitive)
         var opfExists = false;
         for (var key in zip.files) {
           if (key.toLowerCase() === opfPath.toLowerCase()) {
             opfExists = true;
-            console.log('[reader] OPF file found at:', key);
+            tsLog('OPF file found at:', key);
             break;
           }
         }
         
         if (!opfExists) {
-          console.error('[reader] OPF file not found in ZIP:', opfPath);
+          tsLog('ERROR: OPF file not found in ZIP:', opfPath);
           clearLoadTimeout();
           showEpubError('Invalid EPUB structure (OPF file not found). Try another edition.', sourceUrl);
           return;
         }
         
-        console.log('[reader] EPUB structure validated successfully');
+        tsLog('EPUB structure validated successfully');
       } catch (zipErr) {
-        console.error('[reader] JSZip validation failed:', zipErr);
+        tsLog('ERROR: JSZip validation failed:', zipErr);
         clearLoadTimeout();
         showEpubError('Failed to validate EPUB structure. The file may be corrupted.', sourceUrl);
         return;
       }
       
       // Open EPUB via ArrayBuffer
+      tsLog('book load started');
       updateLoadingMessage('Opening book...');
       
       try {
         // Open epub.js with ArrayBuffer directly
         book = ePub(arrayBuffer);
+        tsLog('ePub() constructor succeeded');
       } catch (err) {
         clearLoadTimeout();
-        console.error('[reader] ePub() constructor failed:', err);
+        tsLog('ERROR: ePub() constructor failed:', err);
         showEpubError('Invalid EPUB format. This file cannot be opened in the reader.', sourceUrl);
         return;
       }
       
+      // Wait for book.ready to get spine info before display
+      tsLog('Waiting for book.ready...');
+      try {
+        await book.ready;
+        tsLog('book.ready resolved');
+        
+        // Log spine info for debugging
+        if (book.spine && book.spine.length) {
+          tsLog('Spine length:', book.spine.length);
+          const spinePreview = [];
+          for (let i = 0; i < Math.min(3, book.spine.length); i++) {
+            const item = book.spine.get(i);
+            if (item) spinePreview.push(item.href || '(no href)');
+          }
+          tsLog('First 3 spine hrefs:', spinePreview.join(', '));
+        } else {
+          tsLog('WARNING: No spine items found');
+        }
+      } catch (readyErr) {
+        tsLog('WARNING: book.ready failed (continuing):', readyErr.message);
+      }
+      
       // Render the book into the viewer
       // Use scrolled-doc flow for better mobile experience
+      tsLog('rendition creation started');
       try {
         rendition = book.renderTo('epub-viewer', {
           width: '100%',
@@ -614,31 +654,36 @@
           flow: 'scrolled-doc',
           allowScriptedContent: false
         });
+        tsLog('rendition created successfully');
       } catch (err) {
         clearLoadTimeout();
-        console.error('[reader] renderTo() failed:', err);
+        tsLog('ERROR: renderTo() failed:', err);
         showEpubError('Failed to render book. It may be corrupted or in an unsupported format.', sourceUrl);
         return;
       }
       
       // Use content hooks to inject styles inline (avoids CSP blob: stylesheet issues)
-      // Problem C fix: Track when first content actually renders (not just display() resolves)
+      // Track when first content actually renders (not just display() resolves)
       let firstContentRendered = false;
+      let relocatedFired = false;
+      let currentSpineHref = null; // Track which spine item we're attempting
       
       rendition.hooks.content.register(function(contents) {
         try {
+          tsLog('content hook fired');
+          
           // Add error handlers inside the EPUB iframe
           contents.window.addEventListener('error', function(e) {
-            console.error('[reader] iframe error:', e.message);
-            console.error('[reader] iframe error stack:', e.error?.stack || '(no stack)');
+            tsLog('iframe error:', e.message);
+            tsLog('iframe error stack:', e.error?.stack || '(no stack)');
             if (!firstContentRendered) {
               clearLoadTimeout();
               showEpubError("This book can't be opened in the reader. Try another edition.", currentSourceUrl);
             }
           });
           contents.window.addEventListener('unhandledrejection', function(e) {
-            console.error('[reader] iframe rejection:', e.reason);
-            console.error('[reader] iframe rejection stack:', e.reason?.stack || '(no stack)');
+            tsLog('iframe rejection:', e.reason);
+            tsLog('iframe rejection stack:', e.reason?.stack || '(no stack)');
             if (!firstContentRendered) {
               clearLoadTimeout();
               showEpubError("This book can't be opened in the reader. Try another edition.", currentSourceUrl);
@@ -653,17 +698,17 @@
           if (contents.document.body) {
             contents.document.body.style.fontSize = currentFontSize + '%';
           }
-          console.log('[reader] Content hook: styles applied, font size:', currentFontSize + '%');
+          tsLog('Content hook: styles applied, font size:', currentFontSize + '%');
           
-          // Problem C fix: Clear timeout HERE when content actually renders successfully
+          // Clear timeout when content actually renders successfully
           if (!firstContentRendered) {
             firstContentRendered = true;
             clearLoadTimeout();
-            console.log('[reader] First spine content rendered successfully - timeout cleared');
+            tsLog('First spine content rendered successfully - timeout cleared');
             hideLoading();
           }
         } catch (err) {
-          console.warn('[reader] Content hook error:', err);
+          tsLog('WARN: Content hook error:', err);
         }
       });
       
@@ -675,6 +720,8 @@
       
       // Track location changes for persistence and re-apply font size
       rendition.on('relocated', function(location) {
+        relocatedFired = true;
+        tsLog('relocated event fired');
         if (location && location.start && location.start.cfi) {
           saveLocation(location.start.cfi);
         }
@@ -684,32 +731,43 @@
       
       // Re-apply font size when new content is rendered
       rendition.on('rendered', function() {
+        tsLog('rendered event fired');
         applyFontSize();
       });
       
       // Display the book - try to restore saved location
-      // Problem C fix: Don't clear timeout here - wait for content hook to confirm actual render
+      // Use Promise.race with timeout for robust display handling
+      tsLog('rendition.display() starting');
       try {
         const savedLocation = getSavedLocation();
         
-        // Problem C fix: Add fallback - try multiple spine items if first fails
+        // Helper: display with Promise.race timeout
+        async function displayWithTimeout(location, timeoutMs) {
+          currentSpineHref = location || '(start)';
+          tsLog('rendition.display() attempt at:', currentSpineHref);
+          
+          const displayPromise = location ? rendition.display(location) : rendition.display();
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('DISPLAY_TIMEOUT')), timeoutMs);
+          });
+          
+          return Promise.race([displayPromise, timeoutPromise]);
+        }
+        
+        // Helper: try display with fallbacks
         let displayError = null;
         let displayAttempts = 0;
-        const maxAttempts = 3;
+        const maxAttempts = 4; // Try up to 4 spine items
         
         async function tryDisplay(location) {
           displayAttempts++;
           try {
-            if (location) {
-              console.log('[reader] Attempting display at:', location);
-              await rendition.display(location);
-            } else {
-              console.log('[reader] Attempting display at start');
-              await rendition.display();
-            }
+            await displayWithTimeout(location, DISPLAY_TIMEOUT_MS);
+            tsLog('rendition.display() resolved for:', location || '(start)');
             return true;
           } catch (err) {
-            console.warn('[reader] Display attempt', displayAttempts, 'failed:', err.message);
+            const isTimeout = err.message === 'DISPLAY_TIMEOUT';
+            tsLog('Display attempt', displayAttempts, isTimeout ? 'TIMEOUT' : 'FAILED:', err.message);
             displayError = err;
             return false;
           }
@@ -719,7 +777,7 @@
         if (savedLocation) {
           const success = await tryDisplay(savedLocation);
           if (!success) {
-            console.log('[reader] Saved location failed, trying start of book');
+            tsLog('Saved location failed, trying start of book');
           }
         }
         
@@ -730,9 +788,9 @@
           if (!success && book.spine && book.spine.length > 1) {
             // Try next spine items as fallback
             for (let i = 1; i < Math.min(maxAttempts, book.spine.length); i++) {
-              console.log('[reader] Trying spine item', i, 'as fallback');
               const spineItem = book.spine.get(i);
               if (spineItem && spineItem.href) {
+                tsLog('Trying fallback spine item', i, ':', spineItem.href);
                 displayError = null;
                 const fallbackSuccess = await tryDisplay(spineItem.href);
                 if (fallbackSuccess) break;
@@ -741,45 +799,71 @@
           }
         }
         
-        // If all attempts failed, show error
+        // If all attempts failed, show detailed error
         if (displayError) {
           clearLoadTimeout();
-          console.error('[reader] All display attempts failed');
-          showEpubError('Cannot display this book. It may be protected or corrupted.', sourceUrl);
+          const isTimeout = displayError.message === 'DISPLAY_TIMEOUT';
+          tsLog('ERROR: All display attempts failed. Last error:', displayError.message);
+          const provider = archiveId ? 'archive' : 'unknown';
+          const errMsg = isTimeout
+            ? `Unable to load book (${provider}): rendering timed out at "${currentSpineHref}". This book may have complex formatting.`
+            : `Cannot display this book (${provider}). It may be protected or corrupted.`;
+          showEpubError(errMsg, sourceUrl);
           return;
         }
         
         // Note: timeout is cleared in content hook when first content actually renders
-        console.log('[reader] display() promise resolved - waiting for content render');
+        tsLog('display() promise resolved - waiting for content render');
         
-        // Problem C fix: Safety fallback - if content hook doesn't fire within 10s after display,
-        // assume rendering succeeded (some EPUBs may not trigger content hooks properly)
+        // Verify content actually rendered - check for iframe with content
+        // Use MutationObserver + polling as fallback verification
         setTimeout(function() {
           if (!firstContentRendered && !errorShown) {
-            console.log('[reader] Content hook safety timeout - assuming render success');
-            firstContentRendered = true;
-            clearLoadTimeout();
-            hideLoading();
+            // Check if there's actually an iframe with content
+            const viewer = document.getElementById('epub-viewer');
+            const iframe = viewer ? viewer.querySelector('iframe') : null;
+            const hasContent = iframe && iframe.contentDocument && 
+                              iframe.contentDocument.body && 
+                              iframe.contentDocument.body.innerHTML.length > 50;
+            
+            if (hasContent || relocatedFired) {
+              tsLog('Content verification: iframe has content or relocated fired - success');
+              firstContentRendered = true;
+              clearLoadTimeout();
+              hideLoading();
+            } else {
+              tsLog('WARNING: Content verification timeout - no iframe content detected');
+              // Give it one more chance with longer wait
+              setTimeout(function() {
+                if (!firstContentRendered && !errorShown) {
+                  tsLog('Final content check failed - showing timeout error');
+                  clearLoadTimeout();
+                  const provider = archiveId ? 'archive' : 'unknown';
+                  showEpubError(`Unable to load book (${provider}): content failed to render at "${currentSpineHref}".`, sourceUrl);
+                }
+              }, CONTENT_VERIFY_TIMEOUT_MS);
+            }
           }
-        }, 10000);
+        }, 3000); // Initial check after 3s
         
         // NOW load TOC/navigation AFTER successful display
         // This prevents crashes from malformed EPUBs
         loadNavigationSafely();
         
-        console.log('[reader] First page display initiated');
+        tsLog('First page display initiated');
         
       } catch (err) {
         clearLoadTimeout();
-        console.error('[reader] display() failed:', err);
-        console.error('[reader] display() stack:', err?.stack || '(no stack)');
-        showEpubError('Cannot display this book. It may be protected or corrupted.', sourceUrl);
+        tsLog('ERROR: display() outer catch:', err);
+        tsLog('ERROR: display() stack:', err?.stack || '(no stack)');
+        const provider = archiveId ? 'archive' : 'unknown';
+        showEpubError(`Cannot display this book (${provider}). It may be protected or corrupted.`, sourceUrl);
         return;
       }
       
     } catch (err) {
       clearLoadTimeout();
-      console.error('[reader] Failed to initialize EPUB:', err);
+      tsLog('ERROR: Failed to initialize EPUB:', err);
       
       // Provide more specific error messages
       const errMsg = err.message || String(err);
@@ -800,22 +884,22 @@
   function loadNavigationSafely() {
     if (!book) return;
     
-    // Wrap book.ready in try/catch
+    // Wrap book.ready in try/catch (may already be resolved from earlier)
     if (book.ready) {
       book.ready.then(function() {
-        console.log('[reader] book.ready resolved');
+        tsLog('book.ready resolved (in loadNavigationSafely)');
       }).catch(function(err) {
-        console.warn('[reader] book.ready error (non-fatal):', err);
+        tsLog('WARN: book.ready error (non-fatal):', err);
       });
     }
     
     // Wrap book.loaded.navigation
     if (book.loaded && book.loaded.navigation) {
       book.loaded.navigation.then(function() {
-        console.log('[reader] Navigation loaded');
+        tsLog('Navigation loaded');
         populateTOC();
       }).catch(function(err) {
-        console.warn('[reader] Navigation load error (non-fatal):', err);
+        tsLog('WARN: Navigation load error (non-fatal):', err);
         // Still try to populate TOC with whatever we have
         populateTOC();
       });
@@ -827,7 +911,7 @@
     // Wrap book.loaded.spine
     if (book.loaded && book.loaded.spine) {
       book.loaded.spine.catch(function(err) {
-        console.warn('[reader] Spine error (non-fatal):', err);
+        tsLog('WARN: Spine error (non-fatal):', err);
       });
     }
   }
@@ -1027,7 +1111,7 @@
       }
       
       renderTocItems(toc, 0);
-      console.log('[reader] TOC populated with', toc.length, 'items');
+      tsLog('TOC populated with', toc.length, 'items');
       
     } catch (err) {
       console.warn('[reader] Failed to populate TOC:', err);
