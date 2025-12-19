@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     (document.querySelector('.reader-intro') || document.querySelector('main') || document.body).appendChild(mount);
   }
   
-  // Create toast container for external-only modal
+  // Create toast container for unavailable items - NO mention of borrow/restricted
   let toastContainer = document.getElementById('external-toast');
   if (!toastContainer) {
     toastContainer = document.createElement('div');
@@ -20,8 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toastContainer.innerHTML = `
       <div class="toast-content">
         <button class="toast-close" aria-label="Close">&times;</button>
-        <h4>Not available to read on BookLantern yet</h4>
-        <p class="toast-reason"></p>
+        <h4>This title can't be opened on BookLantern right now</h4>
         <p class="toast-suggestion">Try searching for a different edition of this book.</p>
         <button class="toast-close-btn">OK</button>
       </div>
@@ -83,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       .toast-close:hover { color: #000; }
       .toast-content h4 {
-        margin: 0 0 8px;
+        margin: 0 0 12px;
         font-size: 18px;
         color: #1a1a1a;
       }
@@ -91,15 +90,6 @@ document.addEventListener('DOMContentLoaded', () => {
         margin: 8px 0;
         font-size: 14px;
         color: #666;
-      }
-      .toast-reason {
-        background: #f5f5f5;
-        padding: 8px 12px;
-        border-radius: 6px;
-        font-size: 13px !important;
-      }
-      .toast-source-link {
-        display: none; /* No longer used - we don't send users to external sites */
       }
       .toast-suggestion {
         font-style: italic;
@@ -117,31 +107,30 @@ document.addEventListener('DOMContentLoaded', () => {
         cursor: pointer;
       }
       .toast-close-btn:hover { background: #4338ca; }
+      
+      /* Unavailable card styling - subtle, not attention-grabbing */
+      .book-card.unavailable {
+        opacity: 0.6;
+        cursor: default;
+        pointer-events: none;
+      }
+      .book-card.unavailable .card-cta {
+        color: #9ca3af;
+        font-size: 12px;
+      }
+      .format-badge.unavailable-badge {
+        background: #e5e7eb;
+        color: #6b7280;
+        font-size: 10px;
+        padding: 2px 6px;
+      }
     `;
     document.head.appendChild(style);
   }
   
-  // Helper to show external-only toast (no longer shows external links to regular users)
-  function showExternalToast(item) {
+  // Helper to show unavailable toast - NO mention of borrow/restricted
+  function showUnavailableToast() {
     const toast = document.getElementById('external-toast');
-    const reasonEl = toast.querySelector('.toast-reason');
-    const linkEl = toast.querySelector('.toast-source-link');
-    
-    // Set reason message based on reason code
-    let reasonText = 'This book is not available in a format we can display on BookLantern yet.';
-    if (item.reason === 'borrow_required') {
-      reasonText = 'This book requires borrowing and is not available to read on BookLantern yet.';
-    } else if (item.reason === 'no_direct_url') {
-      reasonText = 'No direct download link is available for this book.';
-    } else if (item.reason === 'no_epub') {
-      reasonText = `This book is only available as ${(item.format || 'unknown').toUpperCase()}, which is not yet supported on BookLantern.`;
-    }
-    
-    reasonEl.textContent = reasonText;
-    
-    // Hide the source link - we no longer send users to external sites
-    linkEl.style.display = 'none';
-    
     toast.classList.remove('hidden');
   }
   
@@ -179,33 +168,30 @@ document.addEventListener('DOMContentLoaded', () => {
           const hasValidHref = item.href && typeof item.href === 'string' && item.href.includes('token=');
           const isReadable = item.readable === true && hasValidToken && hasValidHref;
           const isExternalOnly = item.external_only || !isReadable;
-          const sourceUrl = item.source_url || '';
           
-          // Show format badge for non-EPUB items
+          // Show format badge for non-EPUB items (PDF, etc)
           const formatBadge = (item.format && item.format !== 'epub')
             ? `<span class="format-badge">${item.format.toUpperCase()}</span>`
             : '';
           
           if (isExternalOnly) {
-            // Not available to read on BookLantern - show "Not available" state
-            const reasonBadge = (item.reason === 'borrow_required' || item.head_check_failed)
-              ? '<span class="format-badge borrow">BORROW</span>'
-              : formatBadge;
-            return `<div class="book-card external" data-item-idx="${idx}">
-                      ${reasonBadge}
+            // NOT available to read on BookLantern
+            // NO "Borrow" button - just show as unavailable with NO clickable action
+            return `<div class="book-card unavailable" data-item-idx="${idx}">
+                      <span class="format-badge unavailable-badge">Unavailable</span>
                       ${provider}
                       <div class="card-cover">${cover}</div>
                       <div class="card-title">${title}</div>
                       ${author}
-                      <div class="card-cta"><span>Not available yet</span></div>
                     </div>`;
           }
           
-          // Readable on BookLantern
+          // Readable on BookLantern - show "Read" button
           const url = new URL(item.href, window.location.origin);
           url.searchParams.set('ref', location.pathname + location.search);
           const href = url.pathname + url.search;
           return `<a class="book-card" href="${href}">
+                    ${formatBadge}
                     ${provider}
                     <div class="card-cover">${cover}</div>
                     <div class="card-title">${title}</div>
@@ -214,14 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
                   </a>`;
         }).join('');
         
-        // Add click handlers for external-only cards
-        mount.querySelectorAll('.book-card.external').forEach(card => {
-          card.addEventListener('click', () => {
-            const idx = parseInt(card.dataset.itemIdx, 10);
-            const item = items[idx];
-            if (item) showExternalToast(item);
-          });
-        });
+        // Note: Unavailable cards have pointer-events: none, so no click handler needed
       })
       .catch(err => {
         console.error('search render error', err);

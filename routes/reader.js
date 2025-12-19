@@ -17,6 +17,13 @@ const ALLOWED_PROXY_DOMAINS = [
   'loc.gov',
   'tile.loc.gov',
   'download.loc.gov',
+  // OAPEN / DOAB (open access books)
+  'library.oapen.org',
+  'oapen.org',
+  // OpenStax (open textbooks)
+  'openstax.org',
+  'assets.openstax.org',
+  'd3bxy9euw4e147.cloudfront.net', // OpenStax CDN
 ];
 
 // Check if URL domain is allowed for proxying
@@ -31,6 +38,9 @@ function isAllowedProxyDomain(urlString) {
       if (hostname.endsWith('.archive.org')) return true;
       if (hostname.endsWith('.loc.gov')) return true;
       if (hostname.endsWith('.gutenberg.org')) return true;
+      if (hostname.endsWith('.oapen.org')) return true;
+      if (hostname.endsWith('.openstax.org')) return true;
+      if (hostname.endsWith('.cloudfront.net')) return true; // OpenStax CDN
       return false;
     });
   } catch {
