@@ -25,10 +25,19 @@
   const DISPLAY_TIMEOUT_MS = 10000;
   // Content render verification timeout (8 seconds after display resolves)
   const CONTENT_VERIFY_TIMEOUT_MS = 8000;
-  // Maximum spine item attempts before failing (Task 5 requirement: 5 attempts)
-  const MAX_SPINE_ATTEMPTS = 5;
+  // Maximum spine item attempts before failing (increased from 5 to 10)
+  const MAX_SPINE_ATTEMPTS = 10;
   // Track failed spine hrefs for logging
   const failedSpineItems = [];
+  // Non-content spine items to skip (nav, toc, cover, etc)
+  const NON_CONTENT_PATTERNS = [
+    /nav/i, /toc/i, /table.?of.?contents/i,
+    /cover/i, /title/i, /titlepage/i,
+    /notice/i, /copyright/i, /colophon/i,
+    /frontmatter/i, /front.?matter/i,
+    /dedication/i, /epigraph/i, /preface/i,
+    /acknowledgment/i, /about/i
+  ];
 
   /**
    * Timestamped log helper for debugging EPUB loading stages
@@ -36,6 +45,52 @@
   function tsLog(...args) {
     const ts = new Date().toISOString().slice(11, 23);
     console.log(`[reader ${ts}]`, ...args);
+  }
+
+  /**
+   * Check if a spine item href is likely actual content (not nav/toc/cover)
+   * @param {string} href - The spine item href
+   * @returns {boolean} true if likely content
+   */
+  function isLikelyContent(href) {
+    if (!href) return false;
+    const hrefLower = href.toLowerCase();
+    return !NON_CONTENT_PATTERNS.some(pattern => pattern.test(hrefLower));
+  }
+
+  /**
+   * Get prioritized list of spine items to try
+   * Filters out non-content items and prioritizes linear="yes" items
+   * @param {Object} spine - epub.js spine object
+   * @returns {Array} Ordered list of spine items to try
+   */
+  function getPrioritizedSpineItems(spine) {
+    if (!spine || !spine.length) return [];
+    
+    const candidates = [];
+    const nonContentItems = [];
+    
+    for (let i = 0; i < spine.length; i++) {
+      const item = spine.get(i);
+      if (!item || !item.href) continue;
+      
+      const isContent = isLikelyContent(item.href);
+      const isLinear = item.linear !== 'no';
+      
+      if (isContent && isLinear) {
+        candidates.push({ item, index: i, priority: 0 });
+      } else if (isContent) {
+        candidates.push({ item, index: i, priority: 1 });
+      } else {
+        nonContentItems.push({ item, index: i, priority: 2 });
+      }
+    }
+    
+    // Sort by priority, then by index
+    candidates.sort((a, b) => a.priority - b.priority || a.index - b.index);
+    
+    // Add non-content items at the end as fallback
+    return [...candidates, ...nonContentItems].slice(0, MAX_SPINE_ATTEMPTS);
   }
 
   /**
@@ -601,12 +656,16 @@
         } else if (response.status === 502) {
           showEpubError('Could not fetch book from source. ' + (errorDetail || 'Please try again later.'), errorSourceUrl);
         } else if (response.status === 422 || response.status === 409) {
-          // Protected/borrow-only - ALWAYS show Open Source Link
+          // Protected/borrow-only - Show clean message without mentioning borrow/restricted
           clearLoadTimeout();
-          const borrowMsg = errorDetail === 'borrow_required' 
-            ? 'This book requires borrowing from the source library.'
-            : 'This book is protected or restricted. Use the link below to access it directly.';
-          showEpubError(borrowMsg, errorSourceUrl);
+          // For subscribers: neutral message. For admins: show diagnostic info
+          const isAdmin = document.body.getAttribute('data-is-admin') === 'true';
+          const showDiagnostics = document.body.getAttribute('data-show-source-links') === 'true';
+          if (isAdmin || showDiagnostics) {
+            showEpubError("This title can't be opened on BookLantern right now. (Diagnostic: " + errorDetail + ")", errorSourceUrl);
+          } else {
+            showEpubError("This title can't be opened on BookLantern right now.", errorSourceUrl);
+          }
           return;
         } else if (response.status === 401) {
           showEpubError('Please log in to read books.', errorSourceUrl);
@@ -860,10 +919,10 @@
           return Promise.race([displayPromise, timeoutPromise]);
         }
         
-        // Helper: try display with fallbacks - improved with proper logging per Task 5
+        // Helper: try display with fallbacks - improved with better spine selection
         let displayError = null;
         let displayAttempts = 0;
-        const maxAttempts = MAX_SPINE_ATTEMPTS; // Try up to 5 spine items
+        const maxAttempts = MAX_SPINE_ATTEMPTS;
         
         async function tryDisplay(location) {
           displayAttempts++;
@@ -889,25 +948,40 @@
         if (savedLocation) {
           const success = await tryDisplay(savedLocation);
           if (!success) {
-            tsLog('Saved location failed, trying start of book');
+            tsLog('Saved location failed, trying prioritized spine items');
           }
         }
         
-        // If no saved location or it failed, try start
+        // If no saved location or it failed, try prioritized spine items
         if (!savedLocation || displayError) {
           displayError = null;
-          const success = await tryDisplay(null);
+          
+          // Try start first
+          let success = await tryDisplay(null);
+          
           if (!success && book.spine && book.spine.length > 1) {
-            // Try next spine items as fallback
-            for (let i = 1; i < Math.min(maxAttempts, book.spine.length); i++) {
-              const spineItem = book.spine.get(i);
-              if (spineItem && spineItem.href) {
-                tsLog('Trying fallback spine item', i, ':', spineItem.href);
-                displayError = null;
-                const fallbackSuccess = await tryDisplay(spineItem.href);
-                if (fallbackSuccess) break;
-              }
+            // Get prioritized spine items (filters out nav/toc/cover)
+            const prioritizedItems = getPrioritizedSpineItems(book.spine);
+            tsLog('Prioritized spine candidates:', prioritizedItems.map(p => p.item.href).join(', '));
+            
+            // Try each prioritized spine item
+            for (const candidate of prioritizedItems) {
+              if (displayAttempts >= maxAttempts) break;
+              
+              tsLog('Trying prioritized spine item:', candidate.item.href, '(index:', candidate.index, ')');
+              displayError = null;
+              success = await tryDisplay(candidate.item.href);
+              if (success) break;
             }
+          }
+        }
+        
+        // If all EPUB attempts failed, try PDF fallback for Archive items
+        if (displayError && archiveId) {
+          tsLog('All EPUB attempts failed, checking for PDF fallback');
+          const pdfFallbackSuccess = await tryPdfFallback(archiveId, sourceUrl);
+          if (pdfFallbackSuccess) {
+            return; // PDF fallback succeeded
           }
         }
         
@@ -918,7 +992,7 @@
           tsLog('ERROR: All display attempts failed. Last error:', displayError.message);
           const provider = archiveId ? 'archive' : 'unknown';
           const errMsg = isTimeout
-            ? `Unable to load book (${provider}): rendering timed out at "${currentSpineHref}". This book may have complex formatting.`
+            ? `Unable to load book (${provider}): rendering timed out. This book may have complex formatting.`
             : `Cannot display this book (${provider}). It may be protected or corrupted.`;
           showEpubError(errMsg, sourceUrl);
           return;
@@ -1183,6 +1257,92 @@
     }
     
     errorShown = true;
+  }
+
+  /**
+   * Try to fall back to PDF when EPUB fails (for Archive items)
+   * @param {string} archiveId - Archive.org identifier
+   * @param {string} sourceUrl - Source URL for error fallback
+   * @returns {Promise<boolean>} true if PDF fallback succeeded
+   */
+  async function tryPdfFallback(archiveId, sourceUrl) {
+    if (!archiveId) return false;
+    
+    tsLog('Attempting PDF fallback for archive:', archiveId);
+    updateLoadingMessage('EPUB failed, trying PDF...');
+    
+    try {
+      // Check if PDF proxy returns OK
+      const pdfProxyUrl = `/api/proxy/pdf?archive=${encodeURIComponent(archiveId)}`;
+      const headResponse = await fetch(pdfProxyUrl, { method: 'HEAD' });
+      
+      if (!headResponse.ok) {
+        tsLog('PDF fallback HEAD check failed:', headResponse.status);
+        return false;
+      }
+      
+      tsLog('PDF available, switching to PDF viewer');
+      
+      // Hide EPUB viewer, show PDF in iframe
+      const viewer = document.getElementById('epub-viewer');
+      const loading = document.getElementById('epub-loading');
+      
+      if (loading) {
+        loading.style.display = 'none';
+      }
+      
+      if (viewer) {
+        // Replace viewer content with PDF iframe
+        viewer.innerHTML = `
+          <div class="pdf-fallback-container">
+            <div class="pdf-fallback-notice">
+              <span>📄 Showing PDF version (EPUB was unavailable)</span>
+            </div>
+            <iframe 
+              class="pdf-fallback-frame" 
+              src="${pdfProxyUrl}" 
+              title="PDF Viewer"
+              loading="lazy"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+              allow="fullscreen"
+            ></iframe>
+          </div>
+        `;
+        
+        // Add styles for PDF fallback
+        const style = document.createElement('style');
+        style.textContent = `
+          .pdf-fallback-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+          }
+          .pdf-fallback-notice {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 8px 16px;
+            font-size: 13px;
+            text-align: center;
+            flex-shrink: 0;
+          }
+          .pdf-fallback-frame {
+            flex: 1;
+            width: 100%;
+            border: none;
+            background: #f5f5f5;
+          }
+        `;
+        document.head.appendChild(style);
+      }
+      
+      clearLoadTimeout();
+      errorShown = true; // Prevent further error displays
+      return true;
+    } catch (err) {
+      tsLog('PDF fallback error:', err.message);
+      return false;
+    }
   }
 
   /**

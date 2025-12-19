@@ -18,6 +18,14 @@ const ALLOWED_DOMAINS = [
   'tile.loc.gov',
   'download.loc.gov',
   'www.loc.gov',
+  // OAPEN / DOAB (open access books)
+  'library.oapen.org',
+  'oapen.org',
+  'doabooks.org',
+  // OpenStax (open textbooks)
+  'openstax.org',
+  'assets.openstax.org',
+  'd3bxy9euw4e147.cloudfront.net', // OpenStax CDN
 ];
 
 // PDF-specific allowed domains for LoC and other sources
@@ -27,6 +35,13 @@ const PDF_ALLOWED_DOMAINS = [
   'download.loc.gov',
   'www.loc.gov',
   'cdn.loc.gov',
+  // OAPEN PDFs
+  'library.oapen.org',
+  'oapen.org',
+  // OpenStax PDFs
+  'openstax.org',
+  'assets.openstax.org',
+  'd3bxy9euw4e147.cloudfront.net',
 ];
 
 // Check if URL domain is allowed
@@ -35,12 +50,15 @@ function isAllowedDomain(urlString, allowedList = ALLOWED_DOMAINS) {
     const parsed = new URL(urlString);
     const hostname = parsed.hostname.toLowerCase();
     
-    // Check exact match or if it's an archive.org CDN subdomain
+    // Check exact match or if it's a known CDN subdomain
     return allowedList.some(domain => {
       if (hostname === domain) return true;
       if (hostname.endsWith('.archive.org')) return true;
       if (hostname.endsWith('.loc.gov')) return true;
       if (hostname.endsWith('.gutenberg.org')) return true;
+      if (hostname.endsWith('.oapen.org')) return true;
+      if (hostname.endsWith('.openstax.org')) return true;
+      if (hostname.endsWith('.cloudfront.net')) return true; // OpenStax CDN
       return false;
     });
   } catch {

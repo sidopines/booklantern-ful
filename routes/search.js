@@ -3,11 +3,13 @@ const express = require('express');
 const { LRUCache } = require('lru-cache');
 const { ensureSubscriberApi } = require('../utils/gate');
 const { buildReaderToken } = require('../utils/buildReaderToken');
-const { filterRestrictedArchiveItems } = require('../lib/checkArchiveAccess');
+const { batchCheckReadability } = require('../lib/archiveMetadata');
 const gutenberg = require('../lib/sources/gutenberg');
 const openlibrary = require('../lib/sources/openlibrary');
 const archive = require('../lib/sources/archive');
 const loc = require('../lib/sources/loc');
+const oapen = require('../lib/sources/oapen');
+const openstax = require('../lib/sources/openstax');
 
 const router = express.Router();
 
@@ -37,12 +39,15 @@ function asText(v) {
 
 /**
  * Provider priority for deduplication (lower = preferred)
+ * Gutenberg is most reliable, then OAPEN/OpenStax (always open), then OL/LoC, archive last
  */
 const PROVIDER_PRIORITY = {
   gutenberg: 1,
-  openlibrary: 2,
-  loc: 3,
-  archive: 4,
+  oapen: 2,
+  openstax: 2,
+  openlibrary: 3,
+  loc: 4,
+  archive: 5,
   unknown: 99,
 };
 
@@ -201,19 +206,21 @@ async function handleSearch(req, res) {
     
     console.log('[search] query="' + q + '" page=' + page);
     
-    // Parallel search across all sources
+    // Parallel search across all sources (including new OAPEN and OpenStax)
     const searches = [
       gutenberg.search(q, page),
       openlibrary.search(q, page),
       archive.search(q, page),
       loc.search(q, page),
+      oapen.search(q, page),
+      openstax.search(q, page),
     ];
     
     const results = await Promise.allSettled(searches);
     
     // Collect successful results with logging
     let allBooks = [];
-    const connectorNames = ['gutenberg', 'openlibrary', 'archive', 'loc'];
+    const connectorNames = ['gutenberg', 'openlibrary', 'archive', 'loc', 'oapen', 'openstax'];
     const counts = {};
     
     for (let i = 0; i < results.length; i++) {
@@ -231,42 +238,69 @@ async function handleSearch(req, res) {
       }
     }
     
-    console.log(`[search] results: gutenberg=${counts.gutenberg || 0} openlibrary=${counts.openlibrary || 0} archive=${counts.archive || 0} loc=${counts.loc || 0} total_before_dedup=${allBooks.length}`);
+    console.log(`[search] results: gutenberg=${counts.gutenberg || 0} openlibrary=${counts.openlibrary || 0} archive=${counts.archive || 0} loc=${counts.loc || 0} oapen=${counts.oapen || 0} openstax=${counts.openstax || 0} total_before_dedup=${allBooks.length}`);
     
     // Normalize all books to consistent schema (includes external_only + reason flags)
     const normalizedBooks = allBooks.map(normalizeBook);
     
     // NOTE: We no longer filter out restricted items here - instead we mark them as external_only
-    // and show them in results with "Open Source Link" option
+    // and show them in results with "Unavailable" label (no "Borrow" action)
     // This ensures OL/LOC results always appear even if they require borrowing
     
-    // Deduplicate (preserves provider priority: gutenberg > openlibrary > loc > archive)
+    // Deduplicate (preserves provider priority: gutenberg > oapen/openstax > openlibrary > loc > archive)
     const uniqueBooks = deduplicate(normalizedBooks);
     
     console.log(`[search] after dedup: ${uniqueBooks.length} unique books`);
     
-    // HEAD-check first 15 archive.org URLs to verify accessibility
-    // This marks items as external_only if they return 401/403
-    const verified = await filterRestrictedArchiveItems(uniqueBooks, 15);
+    // Check readability for Archive.org items using metadata + probing
+    // This determines readable=true/false/maybe for each IA item
+    const withReadability = await batchCheckReadability(uniqueBooks, 20);
     
-    console.log(`[search] after HEAD check: ${verified.length} items (some may be external-only)`);
+    console.log(`[search] after readability check: ${withReadability.length} items`);
+    
+    // Sort by readability: true > maybe > false
+    // This ensures "working" items appear first
+    withReadability.sort((a, b) => {
+      const order = { 'true': 0, 'maybe': 1, 'false': 2 };
+      const aOrder = order[a.readable] ?? 1;
+      const bOrder = order[b.readable] ?? 1;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      // Within same readability, preserve provider priority
+      const aPriority = PROVIDER_PRIORITY[a.provider] || 99;
+      const bPriority = PROVIDER_PRIORITY[b.provider] || 99;
+      return aPriority - bPriority;
+    });
+    
+    // Count readability stats for logging
+    const readableTrue = withReadability.filter(b => b.readable === 'true').length;
+    const readableMaybe = withReadability.filter(b => b.readable === 'maybe').length;
+    const readableFalse = withReadability.filter(b => b.readable === 'false').length;
+    console.log(`[search] readability sort: readable_true=${readableTrue} readable_maybe=${readableMaybe} readable_false=${readableFalse}`);
     
     // Create signed tokens and public response
-    const items = verified.map(book => {
-      const hasDirectUrl = Boolean(book.direct_url);
+    const items = withReadability.map(book => {
+      const hasDirectUrl = Boolean(book.direct_url || book.directUrl);
+      const actualDirectUrl = book.directUrl || book.direct_url;
       const isEpub = book.format === 'epub';
       const isPdf = book.format === 'pdf';
       const hasArchiveId = Boolean(book.archive_id);
       
-      // Determine readability:
-      // - EPUB with direct URL and not external-only
-      // - PDF with direct URL (LoC or archive) and not external-only
-      // - OpenLibrary items with archive_id (can proxy via archive)
-      const isReadable = !book.external_only && hasDirectUrl && (isEpub || isPdf || (book.provider === 'openlibrary' && hasArchiveId));
+      // Determine final readability from probing results
+      // readable='true' means we verified open download
+      // readable='false' means borrow-only or no usable file
+      // readable='maybe' means unverified
+      const isReadableTrue = book.readable === 'true';
+      const isReadableFalse = book.readable === 'false';
+      const isReadableMaybe = book.readable === 'maybe';
       
-      // Use the pre-computed external_only flag from normalizeBook
-      // Also mark as external if HEAD check failed
-      const externalOnly = book.external_only || book.head_check_failed || !hasDirectUrl || (!isEpub && !isPdf && !(book.provider === 'openlibrary' && hasArchiveId));
+      // For non-IA items (gutenberg, oapen, openstax), assume readable if they have direct URL
+      const nonIaReadable = !hasArchiveId && hasDirectUrl && (isEpub || isPdf) && !book.external_only;
+      
+      // Final readable flag: true if verified OR non-IA with direct URL
+      const isReadable = isReadableTrue || nonIaReadable;
+      
+      // External-only (no on-site reading): false readability OR no direct URL
+      const externalOnly = isReadableFalse || (!isReadable && !isReadableMaybe);
 
       let token = null;
       let href = null;
@@ -276,19 +310,36 @@ async function handleSearch(req, res) {
         // Use archive_id when provided to ensure metadata-based fetch path
         const useArchive = Boolean(book.archive_id);
         
+        // Determine format - prefer PDF for items marked preferPdf
+        const tokenFormat = book.preferPdf ? 'pdf' : (book.format || 'epub');
+        
         token = buildReaderToken({
           provider: book.provider,
           provider_id: book.provider_id,
-          format: book.format || (useArchive ? 'epub' : 'epub'), // Default to epub for archive items
-          direct_url: book.direct_url,
+          format: tokenFormat,
+          direct_url: actualDirectUrl,
           archive_id: useArchive ? book.archive_id : undefined,
           title: asText(book.title),
           author: asText(book.author),
           cover_url: book.cover_url,
           source_url: book.source_url,
+          // Include PDF fallback info for archive items
+          best_pdf: book.bestPdf ? book.bestPdf.name : undefined,
           exp: Math.floor(Date.now() / 1000) + 3600 // 1 hour
         });
         href = `/unified-reader?token=${encodeURIComponent(token)}`;
+      }
+      
+      // Determine reason for non-readable items
+      let reason = null;
+      if (externalOnly || !isReadable) {
+        if (isReadableFalse) {
+          reason = book.reason || 'borrow_required';
+        } else if (!hasDirectUrl) {
+          reason = 'no_direct_url';
+        } else {
+          reason = 'no_epub';
+        }
       }
       
       return {
@@ -303,13 +354,15 @@ async function handleSearch(req, res) {
         format: book.format,
         access: book.access,
         source_url: book.source_url,
-        direct_url: book.direct_url,
+        direct_url: actualDirectUrl,
         token,
         href,
-        readable: isReadable && !externalOnly, // New flag for UI clarity
+        readable: isReadable, // Boolean for UI
         // External-only flag and reason for UI display
         external_only: externalOnly,
-        reason: externalOnly ? (book.reason || (book.head_check_failed ? 'borrow_required' : 'no_epub')) : null,
+        reason: reason,
+        // Pass readable status for sorting/debugging
+        readable_status: book.readable,
       };
     });
     
