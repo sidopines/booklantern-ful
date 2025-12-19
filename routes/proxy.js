@@ -1,4 +1,4 @@
-// routes/proxy.js - CORS proxy for EPUB files
+// routes/proxy.js - CORS proxy for EPUB and PDF files
 const express = require('express');
 const https = require('https');
 const http = require('http');
@@ -6,7 +6,7 @@ const { URL } = require('url');
 
 const router = express.Router();
 
-// Allowed domains for EPUB proxying (security whitelist)
+// Allowed domains for EPUB/PDF proxying (security whitelist)
 const ALLOWED_DOMAINS = [
   'www.gutenberg.org',
   'gutenberg.org',
@@ -17,16 +17,26 @@ const ALLOWED_DOMAINS = [
   'loc.gov',
   'tile.loc.gov',
   'download.loc.gov',
+  'www.loc.gov',
+];
+
+// PDF-specific allowed domains for LoC and other sources
+const PDF_ALLOWED_DOMAINS = [
+  ...ALLOWED_DOMAINS,
+  'tile.loc.gov',
+  'download.loc.gov',
+  'www.loc.gov',
+  'cdn.loc.gov',
 ];
 
 // Check if URL domain is allowed
-function isAllowedDomain(urlString) {
+function isAllowedDomain(urlString, allowedList = ALLOWED_DOMAINS) {
   try {
     const parsed = new URL(urlString);
     const hostname = parsed.hostname.toLowerCase();
     
     // Check exact match or if it's an archive.org CDN subdomain
-    return ALLOWED_DOMAINS.some(domain => {
+    return allowedList.some(domain => {
       if (hostname === domain) return true;
       if (hostname.endsWith('.archive.org')) return true;
       if (hostname.endsWith('.loc.gov')) return true;
@@ -36,6 +46,55 @@ function isAllowedDomain(urlString) {
   } catch {
     return false;
   }
+}
+
+const PROXY_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0 Safari/537.36 BookLantern/1.0';
+const FETCH_TIMEOUT_MS = 60000; // 60s for larger PDFs
+
+/**
+ * Fetch archive metadata to find best PDF file
+ */
+async function fetchArchiveMetadata(identifier, timeout = 20000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  try {
+    const metaUrl = `https://archive.org/metadata/${encodeURIComponent(identifier)}`;
+    const res = await fetch(metaUrl, {
+      headers: { 'User-Agent': PROXY_UA, 'Accept': 'application/json' },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    clearTimeout(timeoutId);
+    return null;
+  }
+}
+
+/**
+ * Pick best PDF file from archive metadata
+ */
+function pickBestArchivePdf(files) {
+  if (!Array.isArray(files)) return null;
+  
+  const pdfCandidates = files
+    .filter(f => {
+      if (!f?.name) return false;
+      const name = f.name.toLowerCase();
+      const format = (f.format || '').toLowerCase();
+      return format.includes('text pdf') || format === 'pdf' || name.endsWith('.pdf');
+    })
+    .map(f => ({ name: f.name, size: Number(f.size) || 0 }))
+    .sort((a, b) => a.size - b.size); // Prefer smaller PDFs
+  
+  if (!pdfCandidates.length) return null;
+  
+  // Return smallest PDF under 200MB, or just smallest
+  const maxPdfBytes = (parseInt(process.env.MAX_PDF_MB) || 200) * 1024 * 1024;
+  const suitable = pdfCandidates.find(p => p.size <= maxPdfBytes);
+  return suitable ? suitable.name : pdfCandidates[0].name;
 }
 
 /**
@@ -121,3 +180,133 @@ router.get('/api/proxy/epub', async (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * GET /api/proxy/pdf?archive=<identifier> OR ?url=<encoded-url>
+ * Proxies PDF files for on-site viewing
+ * - archive param: resolves best PDF from archive.org metadata
+ * - url param: direct URL proxy (allowlist validated)
+ * Supports Range requests for better PDF viewer compatibility
+ */
+router.get('/api/proxy/pdf', async (req, res) => {
+  const archiveParam = req.query.archive;
+  const urlParam = req.query.url;
+  
+  let targetUrl = null;
+  let archiveId = archiveParam;
+  
+  if (archiveParam) {
+    // Archive mode: resolve best PDF from metadata
+    console.log('[pdf-proxy] Archive mode for:', archiveParam);
+    
+    try {
+      const meta = await fetchArchiveMetadata(archiveParam);
+      if (!meta || !meta.files) {
+        return res.status(404).json({ error: 'Archive metadata not found' });
+      }
+      
+      const bestPdf = pickBestArchivePdf(meta.files);
+      if (!bestPdf) {
+        return res.status(404).json({ error: 'No PDF file found in archive' });
+      }
+      
+      targetUrl = `https://archive.org/download/${encodeURIComponent(archiveParam)}/${encodeURIComponent(bestPdf)}`;
+      console.log('[pdf-proxy] Resolved PDF:', targetUrl);
+    } catch (err) {
+      console.error('[pdf-proxy] Metadata error:', err);
+      return res.status(502).json({ error: 'Failed to fetch archive metadata' });
+    }
+  } else if (urlParam) {
+    // URL mode: validate domain and proxy
+    if (!isAllowedDomain(urlParam, PDF_ALLOWED_DOMAINS)) {
+      console.warn('[pdf-proxy] Blocked non-whitelisted domain:', urlParam);
+      return res.status(403).json({ error: 'Domain not allowed' });
+    }
+    targetUrl = urlParam;
+    console.log('[pdf-proxy] URL mode:', targetUrl);
+  } else {
+    return res.status(400).json({ error: 'Missing archive or url parameter' });
+  }
+  
+  try {
+    const parsed = new URL(targetUrl);
+    const protocol = parsed.protocol === 'https:' ? https : http;
+    
+    // Check for Range header for partial content requests
+    const rangeHeader = req.headers.range;
+    const headers = {
+      'User-Agent': PROXY_UA,
+      'Accept': 'application/pdf, */*',
+    };
+    if (rangeHeader) {
+      headers['Range'] = rangeHeader;
+    }
+    
+    const proxyReq = protocol.get(targetUrl, {
+      headers,
+      timeout: FETCH_TIMEOUT_MS,
+    }, (proxyRes) => {
+      // Handle redirects
+      if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
+        const redirectUrl = proxyRes.headers.location;
+        
+        if (!isAllowedDomain(redirectUrl, PDF_ALLOWED_DOMAINS)) {
+          console.warn('[pdf-proxy] Redirect to blocked domain:', redirectUrl);
+          return res.status(403).json({ error: 'Redirect domain not allowed' });
+        }
+        
+        // Follow redirect
+        return res.redirect(`/api/proxy/pdf?url=${encodeURIComponent(redirectUrl)}`);
+      }
+      
+      // Accept 200 OK or 206 Partial Content
+      if (proxyRes.statusCode !== 200 && proxyRes.statusCode !== 206) {
+        console.error('[pdf-proxy] Upstream error:', proxyRes.statusCode, targetUrl);
+        return res.status(proxyRes.statusCode).json({ error: 'Upstream error' });
+      }
+      
+      // Set response headers
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache PDFs for 1 hour
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      
+      // Forward relevant headers
+      if (proxyRes.headers['content-length']) {
+        res.setHeader('Content-Length', proxyRes.headers['content-length']);
+      }
+      if (proxyRes.headers['content-range']) {
+        res.setHeader('Content-Range', proxyRes.headers['content-range']);
+      }
+      if (proxyRes.headers['accept-ranges']) {
+        res.setHeader('Accept-Ranges', proxyRes.headers['accept-ranges']);
+      } else {
+        res.setHeader('Accept-Ranges', 'bytes');
+      }
+      
+      // Set status code (200 or 206)
+      res.status(proxyRes.statusCode);
+      
+      // Stream the response
+      proxyRes.pipe(res);
+    });
+    
+    proxyReq.on('error', (err) => {
+      console.error('[pdf-proxy] Request error:', err.message);
+      if (!res.headersSent) {
+        res.status(502).json({ error: 'Failed to fetch PDF' });
+      }
+    });
+    
+    proxyReq.on('timeout', () => {
+      console.error('[pdf-proxy] Request timeout:', targetUrl);
+      proxyReq.destroy();
+      if (!res.headersSent) {
+        res.status(504).json({ error: 'Request timeout' });
+      }
+    });
+    
+  } catch (err) {
+    console.error('[pdf-proxy] Error:', err.message);
+    return res.status(500).json({ error: 'Proxy error' });
+  }
+});

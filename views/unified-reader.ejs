@@ -10,6 +10,11 @@
   var safeRef = (typeof ref === 'string' && ref) ? ref : '';
   var safeArchiveId = (typeof archiveId === 'string' && archiveId) ? archiveId : '';
   var useEpubJs = (typeof isEpub === 'boolean') ? isEpub : false;
+  var usePdfViewer = (typeof isPdf === 'boolean') ? isPdf : false;
+  var safeFormat = (typeof format === 'string') ? format : 'epub';
+  var safeFileSize = (typeof fileSize === 'number') ? fileSize : 0;
+  var isTooLarge = (typeof tooLarge === 'boolean') ? tooLarge : false;
+  var safeAvailableFiles = (typeof availableFiles === 'object' && availableFiles) ? JSON.stringify(availableFiles) : 'null';
 %>
 <!doctype html>
 <html lang="en">
@@ -24,7 +29,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
   <% } %>
 </head>
-<body data-page="reader" data-epub="<%= useEpubJs %>">
+<body data-page="reader" data-epub="<%= useEpubJs %>" data-pdf="<%= usePdfViewer %>" data-format="<%= safeFormat %>" data-is-admin="<%= (user && user.isAdmin) ? 'true' : 'false' %>" data-show-source-links="<%= process.env.SHOW_SOURCE_LINKS === 'true' ? 'true' : 'false' %>" data-max-epub-mb="<%= process.env.MAX_EPUB_MB || 50 %>" data-max-pdf-mb="<%= process.env.MAX_PDF_MB || 200 %>" data-file-size="<%= safeFileSize %>" data-too-large="<%= isTooLarge %>" data-available-files="<%= safeAvailableFiles %>" data-archive-id="<%= safeArchiveId %>">
   
   <header class="reader-topbar">
     <a 
@@ -93,11 +98,35 @@
   <% } %>
 
   <main class="reader-main">
-    <% if (!safeDirectUrl) { %>
+    <% if (!safeDirectUrl && !safeArchiveId) { %>
       <div class="reader-error">
         <p>Unable to load book content.</p>
         <p>No valid URL provided.</p>
         <button onclick="window.location.href='<%= safeBackHref %>'">Go Back</button>
+      </div>
+    <% } else if (usePdfViewer) { %>
+      <!-- PDF viewer via iframe -->
+      <div id="pdf-viewer-container" class="pdf-viewer-container">
+        <% 
+          // Build PDF proxy URL
+          var pdfProxyUrl = safeArchiveId 
+            ? '/api/proxy/pdf?archive=' + encodeURIComponent(safeArchiveId)
+            : '/api/proxy/pdf?url=' + encodeURIComponent(safeDirectUrl);
+        %>
+        <iframe
+          id="pdf-frame"
+          class="pdf-frame"
+          src="<%= pdfProxyUrl %>"
+          title="<%= safeTitle %>"
+          loading="lazy"
+          referrerpolicy="no-referrer"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          allow="fullscreen"
+        ></iframe>
+        <div id="pdf-loading" class="pdf-loading">
+          <div class="pdf-spinner"></div>
+          <p>Loading PDF...</p>
+        </div>
       </div>
     <% } else if (useEpubJs) { %>
       <!-- ePub.js will render into this div -->
@@ -106,6 +135,17 @@
         <div class="epub-spinner"></div>
         <p>Loading book...</p>
       </div>
+      <% if (isTooLarge) { %>
+      <!-- Edition picker for large books -->
+      <div id="edition-picker" class="edition-picker" style="display: none;">
+        <div class="edition-picker-content">
+          <h3>This EPUB is very large</h3>
+          <p>The EPUB file is too large to reliably load in the browser. Choose an option:</p>
+          <div id="edition-picker-options" class="edition-picker-options"></div>
+          <button id="try-anyway-btn" class="edition-picker-btn secondary">Try Loading EPUB Anyway</button>
+        </div>
+      </div>
+      <% } %>
     <% } else { %>
       <iframe
         id="reader-frame"
