@@ -155,16 +155,19 @@ document.addEventListener('DOMContentLoaded', () => {
           const author = item.author ? `<div class="card-author">${item.author}</div>` : '';
           const provider = item.provider ? `<span class="provider-badge provider-${item.provider}">${item.provider}</span>` : '';
           
-          // Check if this item can be read in-app or is external-only
-          const isExternalOnly = item.external_only || !item.href;
+          // Problem A fix: NEVER navigate to unified-reader without a valid token
+          // Check if this item can be read in-app: must have token AND href AND not be external-only
+          const hasValidToken = item.token && typeof item.token === 'string' && item.token.length > 10;
+          const hasValidHref = item.href && typeof item.href === 'string' && item.href.includes('token=');
+          const isExternalOnly = item.external_only || item.head_check_failed || item.reason === 'borrow_required' || !hasValidToken || !hasValidHref;
           const sourceUrl = item.source_url || '';
           
           if (isExternalOnly) {
-            // External-only: show card that opens toast on click
+            // External-only: show card that opens toast on click (never navigates to unified-reader)
             const formatBadge = item.format && item.format !== 'epub' 
               ? `<span class="format-badge">${item.format.toUpperCase()}</span>` 
               : '';
-            const reasonBadge = item.reason === 'borrow_required' 
+            const reasonBadge = (item.reason === 'borrow_required' || item.head_check_failed)
               ? '<span class="format-badge borrow">BORROW</span>'
               : formatBadge;
             return `<div class="book-card external" data-item-idx="${idx}">
@@ -177,8 +180,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>`;
           }
           
-          // Regular in-app reading
-          const url = new URL((typeof item.href === 'string') ? item.href : '/unified-reader', window.location.origin);
+          // Regular in-app reading - only if we have a valid token in href
+          const url = new URL(item.href, window.location.origin);
           url.searchParams.set('ref', location.pathname + location.search);
           const href = url.pathname + url.search;
           return `<a class="book-card" href="${href}">
