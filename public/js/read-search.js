@@ -20,10 +20,10 @@ document.addEventListener('DOMContentLoaded', () => {
     toastContainer.innerHTML = `
       <div class="toast-content">
         <button class="toast-close" aria-label="Close">&times;</button>
-        <h4>This book can't be opened inside BookLantern</h4>
+        <h4>Not available to read on BookLantern yet</h4>
         <p class="toast-reason"></p>
-        <p>You can view it on the original source:</p>
-        <a href="#" class="toast-source-link" target="_blank" rel="noopener">Open Source Link ↗</a>
+        <p class="toast-suggestion">Try searching for a different edition of this book.</p>
+        <button class="toast-close-btn">OK</button>
       </div>
     `;
     document.body.appendChild(toastContainer);
@@ -32,6 +32,14 @@ document.addEventListener('DOMContentLoaded', () => {
     toastContainer.querySelector('.toast-close').addEventListener('click', () => {
       toastContainer.classList.add('hidden');
     });
+    
+    // OK button handler
+    const closeBtn = toastContainer.querySelector('.toast-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        toastContainer.classList.add('hidden');
+      });
+    }
     
     // Click outside to close
     toastContainer.addEventListener('click', (e) => {
@@ -91,38 +99,48 @@ document.addEventListener('DOMContentLoaded', () => {
         font-size: 13px !important;
       }
       .toast-source-link {
+        display: none; /* No longer used - we don't send users to external sites */
+      }
+      .toast-suggestion {
+        font-style: italic;
+        color: #888;
+      }
+      .toast-close-btn {
         display: inline-block;
         margin-top: 12px;
-        padding: 10px 20px;
+        padding: 10px 24px;
         background: #4f46e5;
-        color: #fff !important;
-        text-decoration: none;
+        color: #fff;
+        border: none;
         border-radius: 8px;
         font-weight: 500;
+        cursor: pointer;
       }
-      .toast-source-link:hover { background: #4338ca; }
+      .toast-close-btn:hover { background: #4338ca; }
     `;
     document.head.appendChild(style);
   }
   
-  // Helper to show external-only toast
+  // Helper to show external-only toast (no longer shows external links to regular users)
   function showExternalToast(item) {
     const toast = document.getElementById('external-toast');
     const reasonEl = toast.querySelector('.toast-reason');
     const linkEl = toast.querySelector('.toast-source-link');
     
     // Set reason message based on reason code
-    let reasonText = 'This book is not available in a format we can display.';
+    let reasonText = 'This book is not available in a format we can display on BookLantern yet.';
     if (item.reason === 'borrow_required') {
-      reasonText = 'This book requires borrowing from the source library.';
+      reasonText = 'This book requires borrowing and is not available to read on BookLantern yet.';
     } else if (item.reason === 'no_direct_url') {
       reasonText = 'No direct download link is available for this book.';
     } else if (item.reason === 'no_epub') {
-      reasonText = `This book is only available as ${(item.format || 'unknown').toUpperCase()}, which we cannot display.`;
+      reasonText = `This book is only available as ${(item.format || 'unknown').toUpperCase()}, which is not yet supported on BookLantern.`;
     }
     
     reasonEl.textContent = reasonText;
-    linkEl.href = item.source_url || '#';
+    
+    // Hide the source link - we no longer send users to external sites
+    linkEl.style.display = 'none';
     
     toast.classList.remove('hidden');
   }
@@ -155,18 +173,21 @@ document.addEventListener('DOMContentLoaded', () => {
           const author = item.author ? `<div class="card-author">${item.author}</div>` : '';
           const provider = item.provider ? `<span class="provider-badge provider-${item.provider}">${item.provider}</span>` : '';
           
-          // Problem A fix: NEVER navigate to unified-reader without a valid token
-          // Check if this item can be read in-app: must have token AND href AND not be external-only
+          // Check if this item can be read on BookLantern
+          // readable flag indicates the server determined this can be opened
           const hasValidToken = item.token && typeof item.token === 'string' && item.token.length > 10;
           const hasValidHref = item.href && typeof item.href === 'string' && item.href.includes('token=');
-          const isExternalOnly = item.external_only || item.head_check_failed || item.reason === 'borrow_required' || !hasValidToken || !hasValidHref;
+          const isReadable = item.readable === true && hasValidToken && hasValidHref;
+          const isExternalOnly = item.external_only || !isReadable;
           const sourceUrl = item.source_url || '';
           
+          // Show format badge for non-EPUB items
+          const formatBadge = (item.format && item.format !== 'epub')
+            ? `<span class="format-badge">${item.format.toUpperCase()}</span>`
+            : '';
+          
           if (isExternalOnly) {
-            // External-only: show card that opens toast on click (never navigates to unified-reader)
-            const formatBadge = item.format && item.format !== 'epub' 
-              ? `<span class="format-badge">${item.format.toUpperCase()}</span>` 
-              : '';
+            // Not available to read on BookLantern - show "Not available" state
             const reasonBadge = (item.reason === 'borrow_required' || item.head_check_failed)
               ? '<span class="format-badge borrow">BORROW</span>'
               : formatBadge;
@@ -176,11 +197,11 @@ document.addEventListener('DOMContentLoaded', () => {
                       <div class="card-cover">${cover}</div>
                       <div class="card-title">${title}</div>
                       ${author}
-                      <div class="card-cta"><span>View Source ↗</span></div>
+                      <div class="card-cta"><span>Not available yet</span></div>
                     </div>`;
           }
           
-          // Regular in-app reading - only if we have a valid token in href
+          // Readable on BookLantern
           const url = new URL(item.href, window.location.origin);
           url.searchParams.set('ref', location.pathname + location.search);
           const href = url.pathname + url.search;

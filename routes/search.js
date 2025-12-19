@@ -113,12 +113,18 @@ function buildSourceUrl(book) {
 /**
  * Normalize a book object to consistent schema
  * @returns {Object} Normalized book with external_only flag and reason
+ * 
+ * Task 6: Make OpenLibrary + LoC results appear with proper readable flags:
+ * - OpenLibrary: readable=true only when ocaid/ia identifier exists
+ * - LoC: readable=true when direct PDF download exists
  */
 function normalizeBook(book) {
   const format = book.format || 'unknown';
   const directUrl = book.direct_url || null;
   const access = book.access || 'open';
   const isRestricted = book.is_restricted === true || book.is_restricted === 'true';
+  const provider = book.provider || 'unknown';
+  const archiveId = book.archive_id || null;
   
   // Determine if this item can only be viewed externally
   let externalOnly = false;
@@ -130,13 +136,29 @@ function normalizeBook(book) {
   } else if (!directUrl) {
     externalOnly = true;
     reason = 'no_direct_url';
-  } else if (format !== 'epub') {
+  } else if (provider === 'openlibrary') {
+    // OpenLibrary: readable only when archive_id (ia/ocaid) exists
+    if (!archiveId) {
+      externalOnly = true;
+      reason = 'no_archive_id';
+    }
+    // With archive_id, we can use archive proxy - mark as EPUB
+  } else if (provider === 'loc') {
+    // LoC: readable when we have a direct URL (PDF or EPUB)
+    if (format === 'pdf') {
+      // PDF is readable via our proxy
+      externalOnly = false;
+    } else if (format !== 'epub') {
+      externalOnly = true;
+      reason = 'no_epub';
+    }
+  } else if (format !== 'epub' && format !== 'pdf') {
     externalOnly = true;
     reason = 'no_epub';
   }
   
   return {
-    provider: book.provider || 'unknown',
+    provider: provider,
     provider_id: book.provider_id || '',
     title: asText(book.title),
     author: asText(book.author),
@@ -144,10 +166,10 @@ function normalizeBook(book) {
     format: format,
     source_url: buildSourceUrl(book),
     direct_url: directUrl,
-    archive_id: book.archive_id || null,
+    archive_id: archiveId,
     year: book.year || null,
     language: book.language || 'en',
-    book_id: book.book_id || `${book.provider}:${book.provider_id}`,
+    book_id: book.book_id || `${provider}:${book.provider_id}`,
     access: access,
     is_restricted: isRestricted,
     external_only: externalOnly,
@@ -233,22 +255,31 @@ async function handleSearch(req, res) {
     const items = verified.map(book => {
       const hasDirectUrl = Boolean(book.direct_url);
       const isEpub = book.format === 'epub';
+      const isPdf = book.format === 'pdf';
+      const hasArchiveId = Boolean(book.archive_id);
+      
+      // Determine readability:
+      // - EPUB with direct URL and not external-only
+      // - PDF with direct URL (LoC or archive) and not external-only
+      // - OpenLibrary items with archive_id (can proxy via archive)
+      const isReadable = !book.external_only && hasDirectUrl && (isEpub || isPdf || (book.provider === 'openlibrary' && hasArchiveId));
+      
       // Use the pre-computed external_only flag from normalizeBook
       // Also mark as external if HEAD check failed
-      const externalOnly = book.external_only || book.head_check_failed || !hasDirectUrl || !isEpub;
+      const externalOnly = book.external_only || book.head_check_failed || !hasDirectUrl || (!isEpub && !isPdf && !(book.provider === 'openlibrary' && hasArchiveId));
 
       let token = null;
       let href = null;
 
       // Only create reader token if we can actually render it
-      if (!externalOnly && hasDirectUrl && isEpub) {
+      if (isReadable && !externalOnly) {
         // Use archive_id when provided to ensure metadata-based fetch path
         const useArchive = Boolean(book.archive_id);
         
         token = buildReaderToken({
           provider: book.provider,
           provider_id: book.provider_id,
-          format: book.format || 'epub',
+          format: book.format || (useArchive ? 'epub' : 'epub'), // Default to epub for archive items
           direct_url: book.direct_url,
           archive_id: useArchive ? book.archive_id : undefined,
           title: asText(book.title),
@@ -275,6 +306,7 @@ async function handleSearch(req, res) {
         direct_url: book.direct_url,
         token,
         href,
+        readable: isReadable && !externalOnly, // New flag for UI clarity
         // External-only flag and reason for UI display
         external_only: externalOnly,
         reason: externalOnly ? (book.reason || (book.head_check_failed ? 'borrow_required' : 'no_epub')) : null,

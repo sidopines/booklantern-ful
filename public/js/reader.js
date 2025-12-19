@@ -25,6 +25,10 @@
   const DISPLAY_TIMEOUT_MS = 10000;
   // Content render verification timeout (8 seconds after display resolves)
   const CONTENT_VERIFY_TIMEOUT_MS = 8000;
+  // Maximum spine item attempts before failing (Task 5 requirement: 5 attempts)
+  const MAX_SPINE_ATTEMPTS = 5;
+  // Track failed spine hrefs for logging
+  const failedSpineItems = [];
 
   /**
    * Timestamped log helper for debugging EPUB loading stages
@@ -171,26 +175,128 @@
     
     // Check if this is an EPUB reader page
     const isEpubPage = document.body.getAttribute('data-epub') === 'true';
+    const isPdfPage = document.body.getAttribute('data-pdf') === 'true';
     
-    if (isEpubPage) {
-      // Setup toolbar controls
-      setupToolbarControls();
+    if (isPdfPage) {
+      // Setup PDF viewer handling
+      initPdfViewer();
+    } else if (isEpubPage) {
+      // Check if this is a "too large" book that should show edition picker
+      const isTooLarge = document.body.getAttribute('data-too-large') === 'true';
+      const availableFiles = document.body.getAttribute('data-available-files');
       
-      // Initialize ePub.js renderer with global error wrapper
-      try {
-        initEpubReader().catch(err => {
-          console.error('[reader] Init failed:', err);
-          if (!errorShown) {
-            showReaderError('Failed to initialize reader. Please try again.');
-          }
-        });
-      } catch (err) {
-        console.error('[reader] Init error:', err);
-        showReaderError('Failed to initialize reader. Please try again.');
+      if (isTooLarge && availableFiles && availableFiles !== 'null') {
+        // Show edition picker instead of auto-loading
+        showEditionPicker(JSON.parse(availableFiles));
+      } else {
+        // Setup toolbar controls
+        setupToolbarControls();
+        
+        // Initialize ePub.js renderer with global error wrapper
+        try {
+          initEpubReader().catch(err => {
+            console.error('[reader] Init failed:', err);
+            if (!errorShown) {
+              showReaderError('Failed to initialize reader. Please try again.');
+            }
+          });
+        } catch (err) {
+          console.error('[reader] Init error:', err);
+          showReaderError('Failed to initialize reader. Please try again.');
+        }
       }
     } else {
       // Setup keyboard shortcuts for iframe
       setupKeyboardShortcuts();
+    }
+  }
+
+  /**
+   * Initialize PDF viewer
+   */
+  function initPdfViewer() {
+    const pdfFrame = document.getElementById('pdf-frame');
+    const pdfLoading = document.getElementById('pdf-loading');
+    
+    if (!pdfFrame) return;
+    
+    // Hide loading when iframe loads
+    pdfFrame.addEventListener('load', function() {
+      if (pdfLoading) {
+        pdfLoading.style.display = 'none';
+      }
+      tsLog('PDF loaded in iframe');
+    });
+    
+    // Handle errors
+    pdfFrame.addEventListener('error', function() {
+      if (pdfLoading) {
+        pdfLoading.innerHTML = `
+          <div class="pdf-error">
+            <p>Failed to load PDF. Please try again.</p>
+            <button onclick="window.location.reload()">Retry</button>
+          </div>
+        `;
+      }
+    });
+  }
+
+  /**
+   * Show edition picker for large books
+   */
+  function showEditionPicker(availableFiles) {
+    const loading = document.getElementById('epub-loading');
+    const picker = document.getElementById('edition-picker');
+    const optionsContainer = document.getElementById('edition-picker-options');
+    
+    if (loading) loading.style.display = 'none';
+    if (!picker || !optionsContainer) {
+      // No edition picker in DOM, try loading anyway
+      setupToolbarControls();
+      initEpubReader();
+      return;
+    }
+    
+    const archiveId = document.body.getAttribute('data-archive-id');
+    
+    // Build options from available files
+    let optionsHtml = '';
+    
+    // Check for PDFs first (preferred for large books)
+    if (availableFiles.pdfs && availableFiles.pdfs.length > 0) {
+      const pdf = availableFiles.pdfs[0];
+      const sizeMB = Math.round(pdf.size / 1e6);
+      optionsHtml += `
+        <button class="edition-picker-btn primary" onclick="window.location.href='/api/proxy/pdf?archive=${encodeURIComponent(archiveId)}'">
+          Open as PDF (${sizeMB} MB) - Recommended
+        </button>
+      `;
+    }
+    
+    // Show EPUB options
+    if (availableFiles.epubs && availableFiles.epubs.length > 0) {
+      availableFiles.epubs.slice(0, 3).forEach((epub, i) => {
+        const sizeMB = Math.round(epub.size / 1e6);
+        optionsHtml += `
+          <div class="edition-option">
+            <span>${epub.name} (${sizeMB} MB)</span>
+          </div>
+        `;
+      });
+    }
+    
+    optionsContainer.innerHTML = optionsHtml;
+    picker.style.display = 'flex';
+    
+    // Setup "Try Anyway" button
+    const tryAnywayBtn = document.getElementById('try-anyway-btn');
+    if (tryAnywayBtn) {
+      tryAnywayBtn.addEventListener('click', function() {
+        picker.style.display = 'none';
+        if (loading) loading.style.display = 'flex';
+        setupToolbarControls();
+        initEpubReader();
+      });
     }
   }
 
@@ -754,20 +860,26 @@
           return Promise.race([displayPromise, timeoutPromise]);
         }
         
-        // Helper: try display with fallbacks
+        // Helper: try display with fallbacks - improved with proper logging per Task 5
         let displayError = null;
         let displayAttempts = 0;
-        const maxAttempts = 4; // Try up to 4 spine items
+        const maxAttempts = MAX_SPINE_ATTEMPTS; // Try up to 5 spine items
         
         async function tryDisplay(location) {
           displayAttempts++;
           try {
             await displayWithTimeout(location, DISPLAY_TIMEOUT_MS);
-            tsLog('rendition.display() resolved for:', location || '(start)');
+            tsLog('rendition.display() SUCCEEDED for:', location || '(start)');
+            // Log which items failed before success
+            if (failedSpineItems.length > 0) {
+              tsLog('Previously failed spine items:', failedSpineItems.join(', '));
+            }
             return true;
           } catch (err) {
             const isTimeout = err.message === 'DISPLAY_TIMEOUT';
-            tsLog('Display attempt', displayAttempts, isTimeout ? 'TIMEOUT' : 'FAILED:', err.message);
+            const failedHref = location || 'spine_start';
+            failedSpineItems.push(failedHref);
+            tsLog(`Display attempt ${displayAttempts} ${isTimeout ? 'TIMEOUT' : 'FAILED'} at "${failedHref}":`, err.message);
             displayError = err;
             return false;
           }
@@ -1012,13 +1124,19 @@
     // Check if warning already shown
     if (loading.querySelector('.large-book-warning')) return;
     
+    // Only show source link to admins
+    const isAdmin = document.body.getAttribute('data-is-admin') === 'true';
+    const showSourceLinks = document.body.getAttribute('data-show-source-links') === 'true';
+    const sourceLink = (sourceUrl && (isAdmin || showSourceLinks)) 
+      ? ` You can also <a href="${sourceUrl}" target="_blank" rel="noopener" style="color: #4f46e5;">view at source</a>.`
+      : '';
+    
     const warning = document.createElement('div');
     warning.className = 'large-book-warning';
     warning.innerHTML = `
       <p style="color: #b45309; font-size: 14px; margin-top: 16px; padding: 12px; background: #fef3c7; border-radius: 8px;">
         <strong>⚠️ Large book (${sizeMB} MB)</strong><br>
-        This book is very large and may not load in-browser. If it fails, you can 
-        <a href="${sourceUrl || '#'}" target="_blank" rel="noopener" style="color: #4f46e5;">open it at the source</a>.
+        This book is very large and may take a while to load.${sourceLink}
       </p>
     `;
     loading.appendChild(warning);
@@ -1037,9 +1155,13 @@
       loading.style.display = 'none';
     }
     
-    // Build source link button if we have a URL
+    // Only show source link to admins or when SHOW_SOURCE_LINKS env is set
+    const isAdmin = document.body.getAttribute('data-is-admin') === 'true';
+    const showSourceLinks = document.body.getAttribute('data-show-source-links') === 'true';
+    
+    // Build source link button only for admins or when explicitly enabled
     let sourceButton = '';
-    if (sourceUrl) {
+    if (sourceUrl && (isAdmin || showSourceLinks)) {
       sourceButton = `<a href="${sourceUrl}" target="_blank" rel="noopener" class="reader-error-btn source-btn">Open Source Link</a>`;
     }
     
