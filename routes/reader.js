@@ -156,8 +156,26 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
   console.log('[reader] GET /unified-reader', req.query);
   try {
     const token = req.query.token;
+    
+    // Problem B: Return proper status codes for missing/invalid tokens
+    if (!token) {
+      console.warn('[reader] Missing token in unified-reader request');
+      return res.status(400).render('error', { 
+        statusCode: 400,
+        message: 'Missing token. Please select a book from the search results.',
+        pageTitle: 'Missing Token'
+      });
+    }
+    
     const data = verifyReaderToken(token);
-    if (!data) return res.status(400).render('error', { message: 'Invalid or expired token.' });
+    if (!data) {
+      console.warn('[reader] Invalid or expired token');
+      return res.status(401).render('error', { 
+        statusCode: 401,
+        message: 'Invalid or expired token. Please try selecting the book again.',
+        pageTitle: 'Invalid Token'
+      });
+    }
 
     // Normalize data from token
     const format = data.format || data.mode || 'iframe';

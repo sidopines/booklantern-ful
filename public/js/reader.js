@@ -117,15 +117,10 @@
   window.onerror = function(message, source, lineno, colno, error) {
     if (!errorShown) {
       const msg = String(message || '');
-      // Log full error details including stack trace
-      console.error('[reader] window.onerror:', {
-        message: msg,
-        source: source || '(unknown source)',
-        line: lineno,
-        column: colno,
-        stack: error?.stack || '(no stack)',
-        error: error
-      });
+      // Log full error details including stack trace for debugging (Problem C improvement)
+      console.error('[reader] window.onerror:', msg);
+      console.error('[reader] window.onerror stack:', error?.stack || '(no stack)');
+      console.error('[reader] window.onerror source:', source, 'line:', lineno, 'col:', colno);
       // Catch any error during EPUB loading
       if (msg.includes('indexOf') || msg.includes('undefined') || msg.includes('null') || 
           msg.includes('Cannot read') || msg.includes('epub') || (source && source.includes('epub'))) {
@@ -139,13 +134,9 @@
   window.onunhandledrejection = function(event) {
     if (!errorShown) {
       const reason = event.reason?.message || String(event.reason || '');
-      // Log full rejection details including stack trace
-      console.error('[reader] window.onunhandledrejection:', {
-        reason: reason,
-        stack: event.reason?.stack || '(no stack)',
-        promise: event.promise,
-        error: event.reason
-      });
+      // Log full rejection details including stack trace for debugging (Problem C improvement)
+      console.error('[reader] unhandledrejection:', reason);
+      console.error('[reader] unhandledrejection stack:', event.reason?.stack || '(no stack)');
       clearLoadTimeout();
       if (reason.includes('indexOf') || reason.includes('undefined') || reason.includes('null') || reason.includes('Cannot read')) {
         showEpubError("This book can't be opened in the reader. Try another edition.", currentSourceUrl);
@@ -631,18 +622,27 @@
       }
       
       // Use content hooks to inject styles inline (avoids CSP blob: stylesheet issues)
+      // Problem C fix: Track when first content actually renders (not just display() resolves)
+      let firstContentRendered = false;
+      
       rendition.hooks.content.register(function(contents) {
         try {
           // Add error handlers inside the EPUB iframe
           contents.window.addEventListener('error', function(e) {
             console.error('[reader] iframe error:', e.message);
-            clearLoadTimeout();
-            showEpubError("This book can't be opened in the reader. Try another edition.", currentSourceUrl);
+            console.error('[reader] iframe error stack:', e.error?.stack || '(no stack)');
+            if (!firstContentRendered) {
+              clearLoadTimeout();
+              showEpubError("This book can't be opened in the reader. Try another edition.", currentSourceUrl);
+            }
           });
           contents.window.addEventListener('unhandledrejection', function(e) {
             console.error('[reader] iframe rejection:', e.reason);
-            clearLoadTimeout();
-            showEpubError("This book can't be opened in the reader. Try another edition.", currentSourceUrl);
+            console.error('[reader] iframe rejection stack:', e.reason?.stack || '(no stack)');
+            if (!firstContentRendered) {
+              clearLoadTimeout();
+              showEpubError("This book can't be opened in the reader. Try another edition.", currentSourceUrl);
+            }
           });
           
           // Inject default theme styles inline
@@ -654,6 +654,14 @@
             contents.document.body.style.fontSize = currentFontSize + '%';
           }
           console.log('[reader] Content hook: styles applied, font size:', currentFontSize + '%');
+          
+          // Problem C fix: Clear timeout HERE when content actually renders successfully
+          if (!firstContentRendered) {
+            firstContentRendered = true;
+            clearLoadTimeout();
+            console.log('[reader] First spine content rendered successfully - timeout cleared');
+            hideLoading();
+          }
         } catch (err) {
           console.warn('[reader] Content hook error:', err);
         }
@@ -680,29 +688,91 @@
       });
       
       // Display the book - try to restore saved location
+      // Problem C fix: Don't clear timeout here - wait for content hook to confirm actual render
       try {
         const savedLocation = getSavedLocation();
-        if (savedLocation) {
-          console.log('[reader] Restoring saved location:', savedLocation);
-          await rendition.display(savedLocation);
-        } else {
-          await rendition.display();
+        
+        // Problem C fix: Add fallback - try multiple spine items if first fails
+        let displayError = null;
+        let displayAttempts = 0;
+        const maxAttempts = 3;
+        
+        async function tryDisplay(location) {
+          displayAttempts++;
+          try {
+            if (location) {
+              console.log('[reader] Attempting display at:', location);
+              await rendition.display(location);
+            } else {
+              console.log('[reader] Attempting display at start');
+              await rendition.display();
+            }
+            return true;
+          } catch (err) {
+            console.warn('[reader] Display attempt', displayAttempts, 'failed:', err.message);
+            displayError = err;
+            return false;
+          }
         }
         
-        // Clear timeout on success
-        clearLoadTimeout();
-        console.log('[reader] EPUB displayed successfully');
-        hideLoading();
+        // Try saved location first
+        if (savedLocation) {
+          const success = await tryDisplay(savedLocation);
+          if (!success) {
+            console.log('[reader] Saved location failed, trying start of book');
+          }
+        }
+        
+        // If no saved location or it failed, try start
+        if (!savedLocation || displayError) {
+          displayError = null;
+          const success = await tryDisplay(null);
+          if (!success && book.spine && book.spine.length > 1) {
+            // Try next spine items as fallback
+            for (let i = 1; i < Math.min(maxAttempts, book.spine.length); i++) {
+              console.log('[reader] Trying spine item', i, 'as fallback');
+              const spineItem = book.spine.get(i);
+              if (spineItem && spineItem.href) {
+                displayError = null;
+                const fallbackSuccess = await tryDisplay(spineItem.href);
+                if (fallbackSuccess) break;
+              }
+            }
+          }
+        }
+        
+        // If all attempts failed, show error
+        if (displayError) {
+          clearLoadTimeout();
+          console.error('[reader] All display attempts failed');
+          showEpubError('Cannot display this book. It may be protected or corrupted.', sourceUrl);
+          return;
+        }
+        
+        // Note: timeout is cleared in content hook when first content actually renders
+        console.log('[reader] display() promise resolved - waiting for content render');
+        
+        // Problem C fix: Safety fallback - if content hook doesn't fire within 10s after display,
+        // assume rendering succeeded (some EPUBs may not trigger content hooks properly)
+        setTimeout(function() {
+          if (!firstContentRendered && !errorShown) {
+            console.log('[reader] Content hook safety timeout - assuming render success');
+            firstContentRendered = true;
+            clearLoadTimeout();
+            hideLoading();
+          }
+        }, 10000);
         
         // NOW load TOC/navigation AFTER successful display
         // This prevents crashes from malformed EPUBs
         loadNavigationSafely();
         
-        console.log('[reader] First page displayed successfully');
+        console.log('[reader] First page display initiated');
         
       } catch (err) {
         clearLoadTimeout();
         console.error('[reader] display() failed:', err);
+        console.error('[reader] display() stack:', err?.stack || '(no stack)');
         showEpubError('Cannot display this book. It may be protected or corrupted.', sourceUrl);
         return;
       }
