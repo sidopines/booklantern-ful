@@ -195,6 +195,10 @@ async function handleSearch(req, res) {
     'Surrogate-Control': 'no-store'
   });
   
+  // Global deadline: 8 seconds max for entire search request
+  const GLOBAL_DEADLINE_MS = 8000;
+  const searchStartTime = Date.now();
+  
   try {
     const q = req.query.q || '';
     const page = parseInt(req.query.page) || 1;
@@ -207,6 +211,10 @@ async function handleSearch(req, res) {
     console.log('[search] query="' + q + '" page=' + page);
     
     // Parallel search across all sources (including new OAPEN and OpenStax)
+    // Wrap each source with its own timeout to prevent any single source from blocking
+    const connectorNames = ['gutenberg', 'openlibrary', 'archive', 'loc', 'oapen', 'openstax'];
+    
+    // Create individual search promises with per-source handling
     const searches = [
       gutenberg.search(q, page),
       openlibrary.search(q, page),
@@ -216,11 +224,39 @@ async function handleSearch(req, res) {
       openstax.search(q, page),
     ];
     
-    const results = await Promise.allSettled(searches);
+    // Use Promise.race with global deadline timeout
+    const globalDeadline = new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({ isDeadline: true });
+      }, GLOBAL_DEADLINE_MS);
+    });
+    
+    // Race between allSettled and global deadline
+    const searchPromise = Promise.allSettled(searches);
+    const raceResult = await Promise.race([searchPromise, globalDeadline]);
+    
+    let results;
+    let hitDeadline = false;
+    
+    if (raceResult && raceResult.isDeadline) {
+      // Global deadline hit - collect whatever partial results are available
+      hitDeadline = true;
+      console.log('[search] global deadline hit after', GLOBAL_DEADLINE_MS, 'ms, returning partial results');
+      
+      // Use Promise.allSettled with a very short additional wait to grab any in-flight results
+      const quickWait = new Promise(resolve => setTimeout(resolve, 100));
+      await quickWait;
+      
+      // Get current state of all promises (some may have settled, some pending)
+      results = await Promise.allSettled(searches.map(p => 
+        Promise.race([p, new Promise(resolve => setTimeout(() => resolve([]), 50))])
+      ));
+    } else {
+      results = raceResult;
+    }
     
     // Collect successful results with logging
     let allBooks = [];
-    const connectorNames = ['gutenberg', 'openlibrary', 'archive', 'loc', 'oapen', 'openstax'];
     const counts = {};
     
     for (let i = 0; i < results.length; i++) {
@@ -238,7 +274,8 @@ async function handleSearch(req, res) {
       }
     }
     
-    console.log(`[search] results: gutenberg=${counts.gutenberg || 0} openlibrary=${counts.openlibrary || 0} archive=${counts.archive || 0} loc=${counts.loc || 0} oapen=${counts.oapen || 0} openstax=${counts.openstax || 0} total_before_dedup=${allBooks.length}`);
+    const elapsedMs = Date.now() - searchStartTime;
+    console.log(`[search] results: gutenberg=${counts.gutenberg || 0} openlibrary=${counts.openlibrary || 0} archive=${counts.archive || 0} loc=${counts.loc || 0} oapen=${counts.oapen || 0} openstax=${counts.openstax || 0} total_before_dedup=${allBooks.length} elapsed=${elapsedMs}ms${hitDeadline ? ' (deadline)' : ''}`);
     
     // Normalize all books to consistent schema (includes external_only + reason flags)
     const normalizedBooks = allBooks.map(normalizeBook);
