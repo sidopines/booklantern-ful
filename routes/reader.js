@@ -90,6 +90,47 @@ function isProtectedArchiveFile(f) {
 const MAX_EPUB_MB = parseInt(process.env.MAX_EPUB_MB) || 50;
 const MAX_PDF_MB = parseInt(process.env.MAX_PDF_MB) || 200;
 
+// Extensions and formats to NEVER consider as EPUB (avoid "repub" matching)
+const EPUB_EXCLUDE_EXTS = /\.(log|txt|xml|json|md|opf|ncx|html|htm|xhtml|css|js|jpg|jpeg|png|gif|svg|mp3|m4a|wav|ogg)$/i;
+
+/**
+ * Check if a file is a valid EPUB candidate by strict format/extension matching.
+ * NEVER matches filenames containing "repub" as epub.
+ */
+function isValidEpubFile(f) {
+  if (!f?.name) return false;
+  const name = f.name;
+  const format = (f.format || '').toLowerCase().trim();
+  
+  // Explicitly exclude files that end with non-epub extensions
+  if (EPUB_EXCLUDE_EXTS.test(name)) return false;
+  
+  // Check format metadata first (Archive.org provides "EPUB", "EPUB 3", etc.)
+  // Must be exact match or start with "epub" (e.g., "epub", "epub 3")
+  // Do NOT match "repub" or other substrings
+  const formatIsEpub = format === 'epub' || format.startsWith('epub ') || format === 'epub3';
+  if (formatIsEpub) return true;
+  
+  // Fallback: check if filename ends with .epub or .epub3 (case-insensitive)
+  return /\.epub3?$/i.test(name);
+}
+
+/**
+ * Check if a file is a valid PDF candidate by strict format/extension matching.
+ */
+function isValidPdfFile(f) {
+  if (!f?.name) return false;
+  const name = f.name;
+  const format = (f.format || '').toLowerCase().trim();
+  
+  // Check format metadata ("Text PDF", "PDF", etc.)
+  const formatIsPdf = format === 'pdf' || format.includes('text pdf') || format === 'image container pdf';
+  if (formatIsPdf) return true;
+  
+  // Fallback: check if filename ends with .pdf (case-insensitive)
+  return /\.pdf$/i.test(name);
+}
+
 /**
  * Pick the best readable file from Archive.org metadata files array.
  * Priority: 
@@ -101,7 +142,7 @@ const MAX_PDF_MB = parseInt(process.env.MAX_PDF_MB) || 200;
 function pickBestArchiveFile(files) {
   if (!Array.isArray(files)) return null;
   
-  // Build candidate lists
+  // Build candidate lists with STRICT matching
   const epubCandidates = [];
   const pdfCandidates = [];
   
@@ -111,14 +152,13 @@ function pickBestArchiveFile(files) {
     
     const name = f.name;
     const size = Number(f.size) || 0;
-    const format = (f.format || '').toLowerCase();
     
-    // EPUB candidates: format includes "epub" or name ends with .epub
-    if (format.includes('epub') || /\.epub$/i.test(name)) {
+    // EPUB candidates: strict format/extension check (never matches "repub")
+    if (isValidEpubFile(f)) {
       epubCandidates.push({ name, format: 'epub', size });
     }
-    // PDF candidates: format includes "text pdf" or name ends with .pdf
-    else if (format.includes('text pdf') || format === 'pdf' || /\.pdf$/i.test(name)) {
+    // PDF candidates: strict format/extension check
+    else if (isValidPdfFile(f)) {
       pdfCandidates.push({ name, format: 'pdf', size });
     }
   }
@@ -156,7 +196,8 @@ function pickBestArchiveFile(files) {
   return null;
 }
 
-// Legacy function for backward compatibility
+// Legacy function for backward compatibility - returns EPUB name or null
+// For structured error info, use pickBestArchiveFile directly
 function pickBestArchiveEpub(files) {
   const result = pickBestArchiveFile(files);
   if (!result) return null;
@@ -259,6 +300,7 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
     const fileSize = data.file_size || 0;
     const tooLarge = data.too_large === true;
     const availableFiles = data.available_files || null;
+    const bestPdf = data.best_pdf || null; // PDF fallback filename for archive items
     
     // Determine if this is an EPUB file (needs ePub.js rendering, not iframe)
     // PDF files use iframe with our PDF proxy
@@ -283,6 +325,7 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
       fileSize,
       tooLarge,
       availableFiles,
+      bestPdf, // PDF fallback filename for archive items
       backHref: ref || '/read',
       ref,
       user: req.user || null,
@@ -534,9 +577,14 @@ router.get('/api/proxy/epub', ensureSubscriberApi, async (req, res) => {
       
       const bestName = pickBestArchiveEpub(meta.files);
       if (!bestName) {
+        // Check if there's a PDF fallback available
+        const bestFile = pickBestArchiveFile(meta.files);
+        const hasPdfFallback = bestFile && bestFile.format === 'pdf';
         return res.status(422).json({ 
-          error: 'EPUB is protected',
-          detail: 'No suitable EPUB file found in archive (all protected or restricted)'
+          error: 'no_epub_available',
+          detail: 'No valid EPUB file found in this archive item',
+          has_pdf_fallback: hasPdfFallback,
+          best_pdf: hasPdfFallback ? bestFile.name : undefined
         });
       }
       
@@ -711,51 +759,74 @@ router.get('/api/proxy/epub', ensureSubscriberApi, async (req, res) => {
 });
 
 /**
- * GET /api/proxy/pdf?archive=<identifier> OR ?url=<encoded-url>
+ * GET /api/proxy/pdf?archive=<identifier>&file=<filename> OR ?url=<encoded-url>
  * Proxies PDF files for on-site viewing
+ * - archive param: Archive.org identifier
+ * - file param (optional): Specific PDF filename to use (must end with .pdf)
+ * - url param: Direct URL proxy (allowlist validated)
  * Supports Range requests for better compatibility
  */
 router.get('/api/proxy/pdf', ensureSubscriberApi, async (req, res) => {
   const archiveParam = req.query.archive;
+  const fileParam = req.query.file;
   const urlParam = req.query.url;
   
   let targetUrl = null;
   let archiveId = archiveParam;
   
   if (archiveParam) {
-    // Archive mode: resolve best PDF from metadata
-    console.log('[pdf-proxy] Archive mode for:', archiveParam);
+    // Archive mode
+    console.log('[pdf-proxy] Archive mode for:', archiveParam, 'file:', fileParam || '(auto-select)');
     
-    try {
-      const meta = await fetchArchiveMetadata(archiveParam);
-      if (!meta || !meta.files) {
-        return res.status(404).json({ error: 'Archive metadata not found' });
+    // If file param provided, validate and use it directly
+    if (fileParam) {
+      // Validate the file ends with .pdf (case-insensitive)
+      if (!/\.pdf$/i.test(fileParam)) {
+        return res.status(400).json({ 
+          error: 'Invalid file parameter',
+          detail: 'File must end with .pdf'
+        });
       }
       
-      // Find best PDF file
-      const pdfCandidates = meta.files
-        .filter(f => {
-          if (!f?.name) return false;
-          const name = f.name.toLowerCase();
-          const format = (f.format || '').toLowerCase();
-          return format.includes('text pdf') || format === 'pdf' || name.endsWith('.pdf');
-        })
-        .map(f => ({ name: f.name, size: Number(f.size) || 0 }))
-        .sort((a, b) => a.size - b.size);
-      
-      if (!pdfCandidates.length) {
-        return res.status(404).json({ error: 'No PDF file found in archive' });
+      targetUrl = `https://archive.org/download/${encodeURIComponent(archiveParam)}/${encodeURIComponent(fileParam)}`;
+      console.log('[pdf-proxy] Using specified PDF file:', targetUrl);
+    } else {
+      // Auto-select best PDF from metadata
+      try {
+        const meta = await fetchArchiveMetadata(archiveParam);
+        if (!meta || !meta.files) {
+          return res.status(404).json({ error: 'Archive metadata not found' });
+        }
+        
+        // Find best PDF file using strict validation
+        const pdfCandidates = meta.files
+          .filter(f => isValidPdfFile(f))
+          .map(f => ({ 
+            name: f.name, 
+            size: Number(f.size) || 0,
+            isTextPdf: (f.format || '').toLowerCase().includes('text pdf')
+          }))
+          // Sort: Text PDF first, then by size
+          .sort((a, b) => {
+            if (a.isTextPdf && !b.isTextPdf) return -1;
+            if (!a.isTextPdf && b.isTextPdf) return 1;
+            return a.size - b.size;
+          });
+        
+        if (!pdfCandidates.length) {
+          return res.status(404).json({ error: 'No PDF file found in archive' });
+        }
+        
+        const maxPdfBytes = MAX_PDF_MB * 1024 * 1024;
+        const suitable = pdfCandidates.find(p => p.size <= maxPdfBytes);
+        const bestPdf = suitable ? suitable.name : pdfCandidates[0].name;
+        
+        targetUrl = `https://archive.org/download/${encodeURIComponent(archiveParam)}/${encodeURIComponent(bestPdf)}`;
+        console.log('[pdf-proxy] Auto-selected PDF:', targetUrl);
+      } catch (err) {
+        console.error('[pdf-proxy] Metadata error:', err);
+        return res.status(502).json({ error: 'Failed to fetch archive metadata' });
       }
-      
-      const maxPdfBytes = MAX_PDF_MB * 1024 * 1024;
-      const suitable = pdfCandidates.find(p => p.size <= maxPdfBytes);
-      const bestPdf = suitable ? suitable.name : pdfCandidates[0].name;
-      
-      targetUrl = `https://archive.org/download/${encodeURIComponent(archiveParam)}/${encodeURIComponent(bestPdf)}`;
-      console.log('[pdf-proxy] Resolved PDF:', targetUrl);
-    } catch (err) {
-      console.error('[pdf-proxy] Metadata error:', err);
-      return res.status(502).json({ error: 'Failed to fetch archive metadata' });
     }
   } else if (urlParam) {
     // URL mode: validate domain and proxy
