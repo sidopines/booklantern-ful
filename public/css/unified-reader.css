@@ -642,3 +642,172 @@ body[data-page="reader"] {
 .edition-picker-btn.secondary:hover {
   background: #e5e7eb;
 }
+
+/* PDF Fallback styling */
+.pdf-fallback {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  padding: 2rem;
+  text-align: center;
+}
+
+.pdf-fallback p {
+  color: #6b7280;
+  margin: 0 0 1rem 0;
+  font-size: 14px;
+}
+
+.pdf-open-btn {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: #4f46e5;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.pdf-open-btn:hover {
+  background: #4338ca;
+}
+
+/* ========================================
+   EPUB Reader Content Improvements
+   Better typography and layout for reading
+   ======================================== */
+
+/* Force better rendering inside epub-viewer */
+#epub-viewer {
+  background: #fafafa;
+}
+
+/* Constrain epub content width for readability */
+#epub-viewer iframe {
+  background: #fff;
+}
+
+/* Epub.js applies these via registerThemes, but we add fallback */
+#epub-viewer .epub-container {
+  max-width: 720px !important;
+  margin: 0 auto !important;
+  padding: 24px 20px !important;
+}
+
+/* Dark mode support for reader */
+@media (prefers-color-scheme: dark) {
+  body[data-page="reader"] {
+    background: #1a1a1a;
+  }
+  
+  .reader-topbar {
+    background: rgba(30, 30, 30, 0.98);
+    border-bottom-color: #333;
+  }
+  
+  .reader-topbar,
+  .reader-back,
+  .reader-title {
+    color: #e5e5e5;
+  }
+  
+  .reader-back:hover {
+    background: #333;
+    color: #818cf8;
+  }
+  
+  .reader-font-controls button,
+  .toc-toggle,
+  .reader-nav-buttons button {
+    background: #333;
+    border-color: #444;
+    color: #e5e5e5;
+  }
+  
+  .reader-font-controls button:hover,
+  .toc-toggle:hover,
+  .reader-nav-buttons button:hover {
+    background: #444;
+    color: #818cf8;
+  }
+  
+  .toc-panel {
+    background: #1e1e1e;
+  }
+  
+  .toc-header {
+    border-bottom-color: #333;
+  }
+  
+  .toc-header h3 {
+    color: #e5e5e5;
+  }
+  
+  .toc-item a {
+    color: #d1d5db;
+  }
+  
+  .toc-item a:hover {
+    background: #333;
+    color: #818cf8;
+  }
+  
+  .reader-main {
+    background: #252525;
+  }
+  
+  #epub-viewer {
+    background: #252525;
+  }
+  
+  .epub-loading,
+  .pdf-loading,
+  .pdf-fallback {
+    background: #1e1e1e;
+    color: #e5e5e5;
+  }
+  
+  .epub-loading p,
+  .pdf-loading p,
+  .pdf-fallback p {
+    color: #9ca3af;
+  }
+  
+  .epub-spinner,
+  .pdf-spinner {
+    border-color: #444;
+    border-top-color: #818cf8;
+  }
+}
+
+/* Explicit dark mode class (for JS toggle) */
+body[data-page="reader"].dark-mode {
+  background: #1a1a1a;
+}
+
+body[data-page="reader"].dark-mode .reader-topbar {
+  background: rgba(30, 30, 30, 0.98);
+  border-bottom-color: #333;
+}
+
+body[data-page="reader"].dark-mode .reader-topbar,
+body[data-page="reader"].dark-mode .reader-back,
+body[data-page="reader"].dark-mode .reader-title {
+  color: #e5e5e5;
+}
+
+body[data-page="reader"].dark-mode .reader-main {
+  background: #252525;
+}
+
+body[data-page="reader"].dark-mode #epub-viewer {
+  background: #252525;
+}

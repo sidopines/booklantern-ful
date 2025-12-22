@@ -204,7 +204,7 @@ module.exports = router;
  * Proxies PDF files for on-site viewing
  * - archive param: resolves best PDF from archive.org metadata
  * - url param: direct URL proxy (allowlist validated)
- * Supports Range requests for better PDF viewer compatibility
+ * Supports Range requests for better PDF viewer compatibility (Chrome requires this)
  */
 router.get('/api/proxy/pdf', async (req, res) => {
   const archiveParam = req.query.archive;
@@ -215,7 +215,7 @@ router.get('/api/proxy/pdf', async (req, res) => {
   
   if (archiveParam) {
     // Archive mode: resolve best PDF from metadata
-    console.log('[pdf-proxy] Archive mode for:', archiveParam);
+    console.log('[pdf] Archive mode for:', archiveParam);
     
     try {
       const meta = await fetchArchiveMetadata(archiveParam);
@@ -229,19 +229,19 @@ router.get('/api/proxy/pdf', async (req, res) => {
       }
       
       targetUrl = `https://archive.org/download/${encodeURIComponent(archiveParam)}/${encodeURIComponent(bestPdf)}`;
-      console.log('[pdf-proxy] Resolved PDF:', targetUrl);
+      console.log('[pdf] Resolved PDF:', targetUrl);
     } catch (err) {
-      console.error('[pdf-proxy] Metadata error:', err);
+      console.error('[pdf] Metadata error:', err);
       return res.status(502).json({ error: 'Failed to fetch archive metadata' });
     }
   } else if (urlParam) {
     // URL mode: validate domain and proxy
     if (!isAllowedDomain(urlParam, PDF_ALLOWED_DOMAINS)) {
-      console.warn('[pdf-proxy] Blocked non-whitelisted domain:', urlParam);
+      console.warn('[pdf] Blocked non-whitelisted domain:', urlParam);
       return res.status(403).json({ error: 'Domain not allowed' });
     }
     targetUrl = urlParam;
-    console.log('[pdf-proxy] URL mode:', targetUrl);
+    console.log('[pdf] URL mode:', targetUrl);
   } else {
     return res.status(400).json({ error: 'Missing archive or url parameter' });
   }
@@ -255,9 +255,12 @@ router.get('/api/proxy/pdf', async (req, res) => {
     const headers = {
       'User-Agent': PROXY_UA,
       'Accept': 'application/pdf, */*',
+      'Accept-Encoding': 'identity', // Don't compress - needed for Range to work
     };
+    
     if (rangeHeader) {
       headers['Range'] = rangeHeader;
+      console.log('[pdf] Range request:', rangeHeader);
     }
     
     const proxyReq = protocol.get(targetUrl, {
@@ -269,54 +272,63 @@ router.get('/api/proxy/pdf', async (req, res) => {
         const redirectUrl = proxyRes.headers.location;
         
         if (!isAllowedDomain(redirectUrl, PDF_ALLOWED_DOMAINS)) {
-          console.warn('[pdf-proxy] Redirect to blocked domain:', redirectUrl);
+          console.warn('[pdf] Redirect to blocked domain:', redirectUrl);
           return res.status(403).json({ error: 'Redirect domain not allowed' });
         }
         
-        // Follow redirect
-        return res.redirect(`/api/proxy/pdf?url=${encodeURIComponent(redirectUrl)}`);
+        // Follow redirect - preserve range param if present
+        const redirectProxy = `/api/proxy/pdf?url=${encodeURIComponent(redirectUrl)}`;
+        console.log('[pdf] Following redirect to:', redirectUrl);
+        return res.redirect(redirectProxy);
       }
       
       // Accept 200 OK or 206 Partial Content
       if (proxyRes.statusCode !== 200 && proxyRes.statusCode !== 206) {
-        console.error('[pdf-proxy] Upstream error:', proxyRes.statusCode, targetUrl);
+        console.error('[pdf] Upstream error:', proxyRes.statusCode, targetUrl);
         return res.status(proxyRes.statusCode).json({ error: 'Upstream error' });
       }
       
-      // Set response headers
+      const upstreamContentLength = proxyRes.headers['content-length'];
+      console.log('[pdf] Upstream status:', proxyRes.statusCode, 'content-length:', upstreamContentLength || 'chunked');
+      
+      // Set response headers - force correct content type
       res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="document.pdf"');
       res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache PDFs for 1 hour
       res.setHeader('X-Content-Type-Options', 'nosniff');
       
-      // Forward relevant headers
-      if (proxyRes.headers['content-length']) {
-        res.setHeader('Content-Length', proxyRes.headers['content-length']);
-      }
-      if (proxyRes.headers['content-range']) {
-        res.setHeader('Content-Range', proxyRes.headers['content-range']);
-      }
-      if (proxyRes.headers['accept-ranges']) {
-        res.setHeader('Accept-Ranges', proxyRes.headers['accept-ranges']);
-      } else {
-        res.setHeader('Accept-Ranges', 'bytes');
+      // Always advertise Range support
+      res.setHeader('Accept-Ranges', 'bytes');
+      
+      // Forward relevant headers from upstream
+      if (upstreamContentLength) {
+        res.setHeader('Content-Length', upstreamContentLength);
       }
       
-      // Set status code (200 or 206)
-      res.status(proxyRes.statusCode);
+      // Handle 206 Partial Content responses
+      if (proxyRes.statusCode === 206) {
+        if (proxyRes.headers['content-range']) {
+          res.setHeader('Content-Range', proxyRes.headers['content-range']);
+          console.log('[pdf] Content-Range:', proxyRes.headers['content-range']);
+        }
+        res.status(206);
+      } else {
+        res.status(200);
+      }
       
       // Stream the response
       proxyRes.pipe(res);
     });
     
     proxyReq.on('error', (err) => {
-      console.error('[pdf-proxy] Request error:', err.message);
+      console.error('[pdf] Request error:', err.message);
       if (!res.headersSent) {
         res.status(502).json({ error: 'Failed to fetch PDF' });
       }
     });
     
     proxyReq.on('timeout', () => {
-      console.error('[pdf-proxy] Request timeout:', targetUrl);
+      console.error('[pdf] Request timeout:', targetUrl);
       proxyReq.destroy();
       if (!res.headersSent) {
         res.status(504).json({ error: 'Request timeout' });
@@ -324,7 +336,7 @@ router.get('/api/proxy/pdf', async (req, res) => {
     });
     
   } catch (err) {
-    console.error('[pdf-proxy] Error:', err.message);
+    console.error('[pdf] Error:', err.message);
     return res.status(500).json({ error: 'Proxy error' });
   }
 });

@@ -267,32 +267,48 @@
   }
 
   /**
-   * Initialize PDF viewer
+   * Initialize PDF viewer with timeout fallback
    */
   function initPdfViewer() {
     const pdfFrame = document.getElementById('pdf-frame');
     const pdfLoading = document.getElementById('pdf-loading');
+    const pdfFallback = document.getElementById('pdf-fallback');
     
     if (!pdfFrame) return;
     
+    let loadTimeout = null;
+    let loaded = false;
+    
+    // Set a timeout for PDF loading (15 seconds)
+    loadTimeout = setTimeout(function() {
+      if (!loaded) {
+        tsLog('PDF load timeout - showing fallback');
+        if (pdfLoading) pdfLoading.style.display = 'none';
+        if (pdfFallback) pdfFallback.style.display = 'flex';
+      }
+    }, 15000);
+    
     // Hide loading when iframe loads
     pdfFrame.addEventListener('load', function() {
-      if (pdfLoading) {
-        pdfLoading.style.display = 'none';
-      }
-      tsLog('PDF loaded in iframe');
+      loaded = true;
+      if (loadTimeout) clearTimeout(loadTimeout);
+      
+      // Give a short delay to check if content actually rendered
+      setTimeout(function() {
+        if (pdfLoading) {
+          pdfLoading.style.display = 'none';
+        }
+        tsLog('PDF loaded in iframe');
+      }, 500);
     });
     
     // Handle errors
     pdfFrame.addEventListener('error', function() {
-      if (pdfLoading) {
-        pdfLoading.innerHTML = `
-          <div class="pdf-error">
-            <p>Failed to load PDF. Please try again.</p>
-            <button onclick="window.location.reload()">Retry</button>
-          </div>
-        `;
-      }
+      loaded = true;
+      if (loadTimeout) clearTimeout(loadTimeout);
+      tsLog('PDF iframe error');
+      if (pdfLoading) pdfLoading.style.display = 'none';
+      if (pdfFallback) pdfFallback.style.display = 'flex';
     });
   }
 

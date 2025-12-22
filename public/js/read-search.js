@@ -156,18 +156,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!items.length) { mount.innerHTML = '<p>No results.</p>'; return; }
 
+        // Debug: log provider counts
+        if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+          const providerCounts = {};
+          items.forEach(i => { providerCounts[i.provider || 'unknown'] = (providerCounts[i.provider || 'unknown'] || 0) + 1; });
+          console.log('[read-search] provider counts:', providerCounts);
+        }
+        
         mount.innerHTML = items.map((item, idx) => {
-          const cover = item.cover_url ? `<img src="${item.cover_url}" alt="">` : '';
+          // Use placeholder cover if missing
+          const cover = item.cover_url 
+            ? `<img src="${item.cover_url}" alt="" onerror="this.style.display='none'">` 
+            : '<div class="card-cover-placeholder"><svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg></div>';
           const title = item.title || 'Untitled';
           const author = item.author ? `<div class="card-author">${item.author}</div>` : '';
           const provider = item.provider ? `<span class="provider-badge provider-${item.provider}">${item.provider}</span>` : '';
           
           // Check if this item can be read on BookLantern
-          // readable flag indicates the server determined this can be opened
+          // readable flag can be boolean true or string 'true' depending on source
           const hasValidToken = item.token && typeof item.token === 'string' && item.token.length > 10;
           const hasValidHref = item.href && typeof item.href === 'string' && item.href.includes('token=');
-          const isReadable = item.readable === true && hasValidToken && hasValidHref;
-          const isExternalOnly = item.external_only || !isReadable;
+          // Handle both boolean and string 'true' for readable flag
+          const readableFlag = item.readable === true || item.readable === 'true';
+          const isReadable = readableFlag && hasValidToken && hasValidHref;
+          const isExternalOnly = item.external_only === true || !isReadable;
           
           // Show format badge for non-EPUB items (PDF, etc)
           const formatBadge = (item.format && item.format !== 'epub')
