@@ -50,6 +50,68 @@
   }
 
   /**
+   * Check if a token is an Archive.org token
+   * @param {Object} t - Token object with provider info
+   * @returns {boolean} true if this is an Archive.org token
+   */
+  function isArchiveToken(t) {
+    return t && t.provider === 'archive' && (t.archive_id || t.archiveId);
+  }
+
+  /**
+   * Get Archive ID from token (handles both snake_case and camelCase)
+   * @param {Object} t - Token object
+   * @returns {string} Archive ID or empty string
+   */
+  function getArchiveId(t) {
+    return (t && (t.archive_id || t.archiveId)) || '';
+  }
+
+  /**
+   * Get the EPUB render URL for a token (uses same-origin proxy for Archive)
+   * @param {Object} token - Token object with provider and URL info
+   * @returns {string} URL to use for EPUB rendering
+   */
+  function getEpubRenderUrl(token) {
+    if (isArchiveToken(token)) {
+      const url = '/api/proxy/epub?archive=' + encodeURIComponent(getArchiveId(token));
+      console.log('[reader] render url selected', { mode: 'epub', provider: token.provider, url: url });
+      return url;
+    }
+    // Non-archive: use existing proxy with url param if available
+    if (token && token.direct_url) {
+      const url = '/api/proxy/epub?url=' + encodeURIComponent(token.direct_url);
+      console.log('[reader] render url selected', { mode: 'epub', provider: token.provider || 'other', url: url });
+      return url;
+    }
+    return '';
+  }
+
+  /**
+   * Get the PDF render URL for a token (uses same-origin proxy for Archive)
+   * @param {Object} token - Token object with provider and URL info
+   * @returns {string} URL to use for PDF rendering
+   */
+  function getPdfRenderUrl(token) {
+    if (isArchiveToken(token)) {
+      const url = '/api/proxy/pdf?archive=' + encodeURIComponent(getArchiveId(token));
+      console.log('[reader] render url selected', { mode: 'pdf', provider: token.provider, url: url });
+      return url;
+    }
+    // Non-archive: return direct_url if it's a PDF, otherwise proxy it
+    if (token && token.direct_url) {
+      if (token.direct_url.toLowerCase().endsWith('.pdf')) {
+        console.log('[reader] render url selected', { mode: 'pdf', provider: token.provider || 'other', url: token.direct_url });
+        return token.direct_url;
+      }
+      const url = '/api/proxy/pdf?url=' + encodeURIComponent(token.direct_url);
+      console.log('[reader] render url selected', { mode: 'pdf', provider: token.provider || 'other', url: url });
+      return url;
+    }
+    return '';
+  }
+
+  /**
    * Check if a spine item href is likely actual content (not nav/toc/cover)
    * @param {string} href - The spine item href
    * @returns {boolean} true if likely content
@@ -609,23 +671,33 @@
     }, currentTimeout);
     
     try {
-      // Proxy the EPUB URL to avoid CORS issues
-      // Prefer explicit archive_id from token; otherwise detect archive URLs
-      let proxiedUrl;
-      if (archiveId) {
-        proxiedUrl = '/api/proxy/epub?archive=' + encodeURIComponent(archiveId);
-        tsLog('Using archive mode via token archive_id:', proxiedUrl);
-      } else {
+      // Build token-like object from data attributes for helper functions
+      const token = {
+        provider: archiveId ? 'archive' : 'other',
+        archive_id: archiveId,
+        direct_url: epubUrl
+      };
+      
+      // Use helper function to get proxied URL (never embeds archive.org directly)
+      let proxiedUrl = getEpubRenderUrl(token);
+      
+      // Fallback: detect archive URLs from epubUrl if no archiveId
+      if (!proxiedUrl && !archiveId) {
         const archiveMatch = epubUrl.match(/archive\.org\/download\/([^\/]+)/);
         if (archiveMatch) {
-          // Use archive parameter for better metadata-based file selection
-          proxiedUrl = '/api/proxy/epub?archive=' + encodeURIComponent(archiveMatch[1]);
-          tsLog('Using archive mode (URL detection):', proxiedUrl);
-        } else {
-          proxiedUrl = '/api/proxy/epub?url=' + encodeURIComponent(epubUrl);
-          tsLog('Using proxied URL:', proxiedUrl);
+          token.provider = 'archive';
+          token.archive_id = archiveMatch[1];
+          proxiedUrl = getEpubRenderUrl(token);
+          tsLog('Detected archive from URL, using:', proxiedUrl);
         }
       }
+      
+      if (!proxiedUrl) {
+        proxiedUrl = '/api/proxy/epub?url=' + encodeURIComponent(epubUrl);
+        console.log('[reader] render url selected', { mode: 'epub', provider: 'fallback', url: proxiedUrl });
+      }
+      
+      tsLog('EPUB proxy URL:', proxiedUrl);
       
       // Update loading message
       tsLog('Download started');
@@ -1255,6 +1327,41 @@
   }
 
   /**
+   * Show calm banner when PDF proxy fails
+   * Used when both EPUB and PDF fallback fail
+   */
+  function showPdfProxyError() {
+    const viewer = document.getElementById('epub-viewer');
+    const loading = document.getElementById('epub-loading');
+    
+    if (loading) {
+      loading.style.display = 'none';
+    }
+    
+    if (viewer) {
+      viewer.innerHTML = `
+        <div class="reader-error-panel" style="text-align: center; padding: 40px 20px;">
+          <svg width="48" height="48" fill="none" stroke="#6b7280" viewBox="0 0 24 24" style="margin: 0 auto 16px;">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+          </svg>
+          <p style="color: #4b5563; font-size: 16px; margin: 0 0 20px 0;">This edition couldn't be rendered. Please try another edition.</p>
+          <button data-action="back" class="reader-error-btn secondary-btn" style="padding: 10px 24px; border-radius: 6px; border: 1px solid #d1d5db; background: #fff; cursor: pointer;">Go Back</button>
+        </div>
+      `;
+      
+      // Setup button click handler (CSP-safe)
+      const backBtn = viewer.querySelector('[data-action="back"]');
+      if (backBtn) {
+        backBtn.addEventListener('click', function() {
+          window.history.back();
+        });
+      }
+    }
+    
+    errorShown = true;
+  }
+
+  /**
    * Show error message for EPUB loading failures
    * @param {string} message - Error message to display
    * @param {string} sourceUrl - Optional URL to the original source
@@ -1317,12 +1424,27 @@
     // Don't update message here - caller should do it for proper UX flow
     
     try {
+      // Build token for helper function
+      const token = {
+        provider: 'archive',
+        archive_id: archiveId
+      };
+      
+      // Use helper to get PDF proxy URL (never embeds archive.org directly)
+      const pdfProxyUrl = getPdfRenderUrl(token);
+      
+      if (!pdfProxyUrl) {
+        tsLog('PDF fallback: could not build proxy URL');
+        return false;
+      }
+      
       // Check if PDF proxy returns OK
-      const pdfProxyUrl = `/api/proxy/pdf?archive=${encodeURIComponent(archiveId)}`;
       const headResponse = await fetch(pdfProxyUrl, { method: 'HEAD' });
       
       if (!headResponse.ok) {
         tsLog('PDF fallback HEAD check failed:', headResponse.status);
+        // Show calm banner for PDF proxy failure
+        showPdfProxyError();
         return false;
       }
       
