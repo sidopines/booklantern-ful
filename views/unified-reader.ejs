@@ -105,7 +105,7 @@
         <button onclick="window.location.href='<%= safeBackHref %>'">Go Back</button>
       </div>
     <% } else if (usePdfViewer) { %>
-      <!-- PDF viewer via iframe -->
+      <!-- PDF viewer via iframe - no sandbox to allow Chrome PDF plugin -->
       <div id="pdf-viewer-container" class="pdf-viewer-container">
         <% 
           // Build PDF proxy URL
@@ -118,14 +118,18 @@
           class="pdf-frame"
           src="<%= pdfProxyUrl %>"
           title="<%= safeTitle %>"
-          loading="lazy"
+          loading="eager"
           referrerpolicy="no-referrer"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           allow="fullscreen"
         ></iframe>
         <div id="pdf-loading" class="pdf-loading">
           <div class="pdf-spinner"></div>
           <p>Loading PDF...</p>
+        </div>
+        <!-- Fallback embed for browsers that don't render PDF in iframe -->
+        <div id="pdf-fallback" class="pdf-fallback" style="display:none;">
+          <p>PDF viewer failed to load.</p>
+          <a href="<%= pdfProxyUrl %>" target="_blank" class="pdf-open-btn">Open PDF in new tab</a>
         </div>
       </div>
     <% } else if (useEpubJs) { %>
