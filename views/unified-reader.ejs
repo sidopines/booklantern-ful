@@ -9,6 +9,7 @@
   var safeBackHref = (typeof backHref === 'string' && backHref) ? backHref : '/read';
   var safeRef = (typeof ref === 'string' && ref) ? ref : '';
   var safeArchiveId = (typeof archiveId === 'string' && archiveId) ? archiveId : '';
+  var safeBestPdf = (typeof bestPdf === 'string' && bestPdf) ? bestPdf : '';
   var useEpubJs = (typeof isEpub === 'boolean') ? isEpub : false;
   var usePdfViewer = (typeof isPdf === 'boolean') ? isPdf : false;
   var safeFormat = (typeof format === 'string') ? format : 'epub';
@@ -29,7 +30,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
   <% } %>
 </head>
-<body data-page="reader" data-epub="<%= useEpubJs %>" data-pdf="<%= usePdfViewer %>" data-format="<%= safeFormat %>" data-is-admin="<%= (user && user.isAdmin) ? 'true' : 'false' %>" data-show-source-links="<%= process.env.SHOW_SOURCE_LINKS === 'true' ? 'true' : 'false' %>" data-max-epub-mb="<%= process.env.MAX_EPUB_MB || 50 %>" data-max-pdf-mb="<%= process.env.MAX_PDF_MB || 200 %>" data-file-size="<%= safeFileSize %>" data-too-large="<%= isTooLarge %>" data-available-files="<%= safeAvailableFiles %>" data-archive-id="<%= safeArchiveId %>">
+<body data-page="reader" data-epub="<%= useEpubJs %>" data-pdf="<%= usePdfViewer %>" data-format="<%= safeFormat %>" data-is-admin="<%= (user && user.isAdmin) ? 'true' : 'false' %>" data-show-source-links="<%= process.env.SHOW_SOURCE_LINKS === 'true' ? 'true' : 'false' %>" data-max-epub-mb="<%= process.env.MAX_EPUB_MB || 50 %>" data-max-pdf-mb="<%= process.env.MAX_PDF_MB || 200 %>" data-file-size="<%= safeFileSize %>" data-too-large="<%= isTooLarge %>" data-available-files="<%= safeAvailableFiles %>" data-archive-id="<%= safeArchiveId %>" data-best-pdf="<%= safeBestPdf %>">
   
   <header class="reader-topbar">
     <a 
@@ -134,7 +135,7 @@
       </div>
     <% } else if (useEpubJs) { %>
       <!-- ePub.js will render into this div -->
-      <div id="epub-viewer" data-epub-url="<%= safeDirectUrl %>" data-archive-id="<%= safeArchiveId %>" data-direct-url="<%= safeDirectUrl %>" data-source-url="<%= safeSourceUrl %>"></div>
+      <div id="epub-viewer" data-epub-url="<%= safeDirectUrl %>" data-archive-id="<%= safeArchiveId %>" data-direct-url="<%= safeDirectUrl %>" data-source-url="<%= safeSourceUrl %>" data-best-pdf="<%= safeBestPdf %>"></div>
       <div id="epub-loading" class="epub-loading">
         <div class="epub-spinner"></div>
         <p>Loading book...</p>

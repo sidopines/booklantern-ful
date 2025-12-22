@@ -90,12 +90,17 @@
   /**
    * Get the PDF render URL for a token (uses same-origin proxy for Archive)
    * @param {Object} token - Token object with provider and URL info
+   * @param {string} [bestPdfFile] - Optional: specific PDF filename for archive items
    * @returns {string} URL to use for PDF rendering
    */
-  function getPdfRenderUrl(token) {
+  function getPdfRenderUrl(token, bestPdfFile) {
     if (isArchiveToken(token)) {
-      const url = '/api/proxy/pdf?archive=' + encodeURIComponent(getArchiveId(token));
-      console.log('[reader] render url selected', { mode: 'pdf', provider: token.provider, url: url });
+      let url = '/api/proxy/pdf?archive=' + encodeURIComponent(getArchiveId(token));
+      // If a specific PDF file is provided, use it for deterministic selection
+      if (bestPdfFile) {
+        url += '&file=' + encodeURIComponent(bestPdfFile);
+      }
+      console.log('[reader] render url selected', { mode: 'pdf', provider: token.provider, url: url, bestPdf: bestPdfFile || '(auto)' });
       return url;
     }
     // Non-archive: return direct_url if it's a PDF, otherwise proxy it
@@ -617,10 +622,14 @@
     const archiveId = viewer.getAttribute('data-archive-id');
     const directUrl = viewer.getAttribute('data-direct-url') || '';
     const sourceUrl = viewer.getAttribute('data-source-url') || directUrl;
+    const bestPdf = viewer.getAttribute('data-best-pdf') || '';
     
     // Store URLs globally for error handlers
     currentDirectUrl = directUrl;
     currentSourceUrl = sourceUrl;
+    
+    // Store bestPdf globally for fallback
+    var currentBestPdf = bestPdf;
     
     if (!epubUrl) {
       console.error('[reader] No EPUB URL provided');
@@ -631,6 +640,7 @@
     // Generate stable book key for persistence
     bookKey = generateBookKey(epubUrl, archiveId);
     tsLog('Book key:', bookKey);
+    tsLog('Best PDF:', bestPdf || '(none)');
     
     // Restore saved font size
     try {
@@ -663,7 +673,7 @@
         clearLoadTimeout();
         // Try PDF fallback for Archive items before showing error
         if (archiveId) {
-          tryPdfFallbackWithMessage(archiveId, sourceUrl);
+          tryPdfFallbackWithMessage(archiveId, sourceUrl, currentBestPdf);
         } else {
           showEpubError("This edition couldn't be rendered. Please try another edition.", sourceUrl);
         }
@@ -728,7 +738,7 @@
             clearLoadTimeout();
             // Try PDF fallback for Archive items before showing error
             if (archiveId) {
-              tryPdfFallbackWithMessage(archiveId, sourceUrl);
+              tryPdfFallbackWithMessage(archiveId, sourceUrl, currentBestPdf);
             } else {
               showEpubError("This edition couldn't be rendered. Please try another edition.", sourceUrl);
             }
@@ -766,9 +776,20 @@
         } else if (response.status === 502) {
           showEpubError('Could not fetch book from source. ' + (errorDetail || 'Please try again later.'), errorSourceUrl);
         } else if (response.status === 422 || response.status === 409) {
-          // Protected/borrow-only - Show clean message without mentioning borrow/restricted
+          // Handle no_epub_available: try PDF fallback if available
           clearLoadTimeout();
-          // For subscribers: neutral message. For admins: show diagnostic info
+          
+          if (errorJson && (errorJson.error === 'no_epub_available' || errorJson.error === 'Invalid EPUB (not a ZIP archive)')) {
+            // Server says no valid EPUB - try PDF fallback
+            const fallbackPdf = errorJson.best_pdf || currentBestPdf;
+            if (archiveId && (fallbackPdf || errorJson.has_pdf_fallback)) {
+              tsLog('No valid EPUB, trying PDF fallback');
+              tryPdfFallbackWithMessage(archiveId, errorSourceUrl, fallbackPdf);
+              return;
+            }
+          }
+          
+          // No fallback available - show clean error
           const isAdmin = document.body.getAttribute('data-is-admin') === 'true';
           const showDiagnostics = document.body.getAttribute('data-show-source-links') === 'true';
           if (isAdmin || showDiagnostics) {
@@ -1132,7 +1153,7 @@
                   clearLoadTimeout();
                   // Try PDF fallback for Archive items before showing error
                   if (archiveId) {
-                    tryPdfFallbackWithMessage(archiveId, sourceUrl);
+                    tryPdfFallbackWithMessage(archiveId, sourceUrl, currentBestPdf);
                   } else {
                     showEpubError("This edition couldn't be rendered. Please try another edition.", sourceUrl);
                   }
@@ -1415,12 +1436,13 @@
    * Try to fall back to PDF when EPUB fails (for Archive items)
    * @param {string} archiveId - Archive.org identifier
    * @param {string} sourceUrl - Source URL for error fallback
+   * @param {string} [bestPdfFile] - Optional: specific PDF filename to use
    * @returns {Promise<boolean>} true if PDF fallback succeeded
    */
-  async function tryPdfFallback(archiveId, sourceUrl) {
+  async function tryPdfFallback(archiveId, sourceUrl, bestPdfFile) {
     if (!archiveId) return false;
     
-    tsLog('Attempting PDF fallback for archive:', archiveId);
+    tsLog('Attempting PDF fallback for archive:', archiveId, 'bestPdf:', bestPdfFile || '(auto)');
     // Don't update message here - caller should do it for proper UX flow
     
     try {
@@ -1430,8 +1452,8 @@
         archive_id: archiveId
       };
       
-      // Use helper to get PDF proxy URL (never embeds archive.org directly)
-      const pdfProxyUrl = getPdfRenderUrl(token);
+      // Use helper to get PDF proxy URL with bestPdf if available (deterministic selection)
+      const pdfProxyUrl = getPdfRenderUrl(token, bestPdfFile);
       
       if (!pdfProxyUrl) {
         tsLog('PDF fallback: could not build proxy URL');
@@ -1517,17 +1539,18 @@
    * Shows "Preparing book..." initially, then "Switching to PDF version..." on fallback
    * @param {string} archiveId - Archive.org identifier
    * @param {string} sourceUrl - Source URL for final error fallback
+   * @param {string} [bestPdfFile] - Optional: specific PDF filename to use
    */
-  async function tryPdfFallbackWithMessage(archiveId, sourceUrl) {
+  async function tryPdfFallbackWithMessage(archiveId, sourceUrl, bestPdfFile) {
     if (!archiveId) {
       showEpubError("This edition couldn't be rendered. Please try another edition.", sourceUrl);
       return;
     }
     
-    tsLog('Auto-fallback: attempting PDF for archive:', archiveId);
+    tsLog('Auto-fallback: attempting PDF for archive:', archiveId, 'bestPdf:', bestPdfFile || '(auto)');
     updateLoadingMessage('Switching to PDF version...');
     
-    const success = await tryPdfFallback(archiveId, sourceUrl);
+    const success = await tryPdfFallback(archiveId, sourceUrl, bestPdfFile);
     if (!success) {
       showEpubError("This edition couldn't be rendered. Please try another edition.", sourceUrl);
     }
