@@ -25,6 +25,8 @@
   const DISPLAY_TIMEOUT_MS = 10000;
   // Content render verification timeout (8 seconds after display resolves)
   const CONTENT_VERIFY_TIMEOUT_MS = 8000;
+  // PDF auto-fallback timeout (5 seconds) - switch to PDF if EPUB render fails
+  const PDF_FALLBACK_TIMEOUT_MS = 5000;
   // Maximum spine item attempts before failing (increased from 5 to 10)
   const MAX_SPINE_ATTEMPTS = 10;
   // Track failed spine hrefs for logging
@@ -337,8 +339,9 @@
     if (availableFiles.pdfs && availableFiles.pdfs.length > 0) {
       const pdf = availableFiles.pdfs[0];
       const sizeMB = Math.round(pdf.size / 1e6);
+      // Use data attribute instead of inline onclick (CSP-safe)
       optionsHtml += `
-        <button class="edition-picker-btn primary" onclick="window.location.href='/api/proxy/pdf?archive=${encodeURIComponent(archiveId)}'">
+        <button class="edition-picker-btn primary" data-pdf-archive="${archiveId}">
           Open as PDF (${sizeMB} MB) - Recommended
         </button>
       `;
@@ -358,6 +361,16 @@
     
     optionsContainer.innerHTML = optionsHtml;
     picker.style.display = 'flex';
+    
+    // Setup PDF button click handler (CSP-safe, no inline onclick)
+    optionsContainer.querySelectorAll('[data-pdf-archive]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var archive = this.getAttribute('data-pdf-archive');
+        if (archive) {
+          window.location.href = '/api/proxy/pdf?archive=' + encodeURIComponent(archive);
+        }
+      });
+    });
     
     // Setup "Try Anyway" button
     const tryAnywayBtn = document.getElementById('try-anyway-btn');
@@ -586,7 +599,12 @@
       if (!errorShown) {
         console.error('[reader] Load timeout exceeded after', currentTimeout, 'ms');
         clearLoadTimeout();
-        showEpubError('Book is taking too long to load. It may be too large or corrupted.', sourceUrl);
+        // Try PDF fallback for Archive items before showing error
+        if (archiveId) {
+          tryPdfFallbackWithMessage(archiveId, sourceUrl);
+        } else {
+          showEpubError("This edition couldn't be rendered. Please try another edition.", sourceUrl);
+        }
       }
     }, currentTimeout);
     
@@ -636,16 +654,20 @@
           if (!errorShown) {
             tsLog('ERROR: Load timeout exceeded after', currentTimeout, 'ms');
             clearLoadTimeout();
-            showEpubError('Book is taking too long to load. It may be too large or corrupted.', sourceUrl);
+            // Try PDF fallback for Archive items before showing error
+            if (archiveId) {
+              tryPdfFallbackWithMessage(archiveId, sourceUrl);
+            } else {
+              showEpubError("This edition couldn't be rendered. Please try another edition.", sourceUrl);
+            }
           }
         }, currentTimeout);
         
-        // Show warning for very large books
+        // Show calmer message for very large books (no scary warning)
         if (bookSizeBytes > LARGE_BOOK_THRESHOLD) {
           const sizeMB = Math.round(bookSizeBytes / 1e6);
-          tsLog('WARNING: Very large book detected:', sizeMB, 'MB');
-          updateLoadingMessage(`Downloading large book (${sizeMB} MB)... This may take a while.`);
-          showLargeBookWarning(sizeMB, sourceUrl);
+          tsLog('Large book detected:', sizeMB, 'MB');
+          updateLoadingMessage('Preparing book...');
         }
       }
       
@@ -995,22 +1017,18 @@
         // If all EPUB attempts failed, try PDF fallback for Archive items
         if (displayError && archiveId) {
           tsLog('All EPUB attempts failed, checking for PDF fallback');
+          updateLoadingMessage('Switching to PDF version...');
           const pdfFallbackSuccess = await tryPdfFallback(archiveId, sourceUrl);
           if (pdfFallbackSuccess) {
             return; // PDF fallback succeeded
           }
         }
         
-        // If all attempts failed, show detailed error
+        // If all attempts failed, show calm error message
         if (displayError) {
           clearLoadTimeout();
-          const isTimeout = displayError.message === 'DISPLAY_TIMEOUT';
           tsLog('ERROR: All display attempts failed. Last error:', displayError.message);
-          const provider = archiveId ? 'archive' : 'unknown';
-          const errMsg = isTimeout
-            ? `Unable to load book (${provider}): rendering timed out. This book may have complex formatting.`
-            : `Cannot display this book (${provider}). It may be protected or corrupted.`;
-          showEpubError(errMsg, sourceUrl);
+          showEpubError("This edition couldn't be rendered. Please try another edition.", sourceUrl);
           return;
         }
         
@@ -1038,10 +1056,14 @@
               // Give it one more chance with longer wait
               setTimeout(function() {
                 if (!firstContentRendered && !errorShown) {
-                  tsLog('Final content check failed - showing timeout error');
+                  tsLog('Final content check failed - trying PDF fallback');
                   clearLoadTimeout();
-                  const provider = archiveId ? 'archive' : 'unknown';
-                  showEpubError(`Unable to load book (${provider}): content failed to render at "${currentSpineHref}".`, sourceUrl);
+                  // Try PDF fallback for Archive items before showing error
+                  if (archiveId) {
+                    tryPdfFallbackWithMessage(archiveId, sourceUrl);
+                  } else {
+                    showEpubError("This edition couldn't be rendered. Please try another edition.", sourceUrl);
+                  }
                 }
               }, CONTENT_VERIFY_TIMEOUT_MS);
             }
@@ -1264,12 +1286,19 @@
           <h3>Unable to load book</h3>
           <p class="error-message">${message}</p>
           <div class="reader-error-actions">
-            <button onclick="window.location.reload()" class="reader-error-btn primary-btn">Try Again</button>
-            <button onclick="window.history.back()" class="reader-error-btn secondary-btn">Go Back</button>
+            <button data-action="reload" class="reader-error-btn primary-btn">Try Again</button>
+            <button data-action="back" class="reader-error-btn secondary-btn">Go Back</button>
             ${sourceButton}
           </div>
         </div>
       `;
+      // Setup button click handlers (CSP-safe, no inline onclick)
+      viewer.querySelector('[data-action="reload"]').addEventListener('click', function() {
+        window.location.reload();
+      });
+      viewer.querySelector('[data-action="back"]').addEventListener('click', function() {
+        window.history.back();
+      });
     }
     
     errorShown = true;
@@ -1285,7 +1314,7 @@
     if (!archiveId) return false;
     
     tsLog('Attempting PDF fallback for archive:', archiveId);
-    updateLoadingMessage('EPUB failed, trying PDF...');
+    // Don't update message here - caller should do it for proper UX flow
     
     try {
       // Check if PDF proxy returns OK
@@ -1308,11 +1337,11 @@
       }
       
       if (viewer) {
-        // Replace viewer content with PDF iframe
+        // Replace viewer content with PDF iframe - calmer messaging
         viewer.innerHTML = `
           <div class="pdf-fallback-container">
             <div class="pdf-fallback-notice">
-              <span>📄 Showing PDF version (EPUB was unavailable)</span>
+              <span>📄 Showing PDF version</span>
             </div>
             <iframe 
               class="pdf-fallback-frame" 
@@ -1335,8 +1364,8 @@
             width: 100%;
           }
           .pdf-fallback-notice {
-            background: #fef3c7;
-            color: #92400e;
+            background: #e0f2fe;
+            color: #0369a1;
             padding: 8px 16px;
             font-size: 13px;
             text-align: center;
@@ -1358,6 +1387,27 @@
     } catch (err) {
       tsLog('PDF fallback error:', err.message);
       return false;
+    }
+  }
+
+  /**
+   * Try PDF fallback with progressive calmer messaging
+   * Shows "Preparing book..." initially, then "Switching to PDF version..." on fallback
+   * @param {string} archiveId - Archive.org identifier
+   * @param {string} sourceUrl - Source URL for final error fallback
+   */
+  async function tryPdfFallbackWithMessage(archiveId, sourceUrl) {
+    if (!archiveId) {
+      showEpubError("This edition couldn't be rendered. Please try another edition.", sourceUrl);
+      return;
+    }
+    
+    tsLog('Auto-fallback: attempting PDF for archive:', archiveId);
+    updateLoadingMessage('Switching to PDF version...');
+    
+    const success = await tryPdfFallback(archiveId, sourceUrl);
+    if (!success) {
+      showEpubError("This edition couldn't be rendered. Please try another edition.", sourceUrl);
     }
   }
 

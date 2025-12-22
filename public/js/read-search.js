@@ -124,6 +124,14 @@ document.addEventListener('DOMContentLoaded', () => {
         font-size: 10px;
         padding: 2px 6px;
       }
+      /* Clickable book cards (readable) */
+      .book-card.readable-card {
+        cursor: pointer;
+      }
+      .book-card.readable-card:focus {
+        outline: 2px solid #4f46e5;
+        outline-offset: 2px;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -132,6 +140,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function showUnavailableToast() {
     const toast = document.getElementById('external-toast');
     toast.classList.remove('hidden');
+  }
+
+  // Handle image error without inline onerror (CSP-safe)
+  function handleImageError(img) {
+    img.style.display = 'none';
   }
   
   if (q) {
@@ -173,9 +186,9 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('[read-search] readable counts:', readableCounts);
         
         mount.innerHTML = items.map((item, idx) => {
-          // Use placeholder cover if missing
+          // Use placeholder cover if missing - NO inline onerror (CSP-safe)
           const cover = item.cover_url 
-            ? `<img src="${item.cover_url}" alt="" onerror="this.style.display='none'">` 
+            ? `<img src="${item.cover_url}" alt="" data-cover-img="true">` 
             : '<div class="card-cover-placeholder"><svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg></div>';
           const title = item.title || 'Untitled';
           const author = item.author ? `<div class="card-author">${item.author}</div>` : '';
@@ -198,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (isExternalOnly) {
             // NOT available to read on BookLantern
             // NO "Borrow" button - just show as unavailable with NO clickable action
-            return `<div class="book-card unavailable" data-item-idx="${idx}">
+            return `<div class="book-card unavailable" data-item-idx="${idx}" data-disabled="true">
                       <span class="format-badge unavailable-badge">Unavailable</span>
                       ${provider}
                       <div class="card-cover">${cover}</div>
@@ -207,21 +220,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>`;
           }
           
-          // Readable on BookLantern - show "Read" button
+          // Readable on BookLantern - use data attributes instead of href (CSP-safe)
           const url = new URL(item.href, window.location.origin);
           url.searchParams.set('ref', location.pathname + location.search);
           const href = url.pathname + url.search;
-          return `<a class="book-card" href="${href}">
+          // Use div with data attributes instead of <a> with inline handlers
+          return `<div class="book-card readable-card" tabindex="0" role="button" 
+                       data-href="${href}" 
+                       data-token="${item.token || ''}" 
+                       data-provider="${item.provider || ''}">
                     ${formatBadge}
                     ${provider}
                     <div class="card-cover">${cover}</div>
                     <div class="card-title">${title}</div>
                     ${author}
                     <div class="card-cta"><span>Read</span></div>
-                  </a>`;
+                  </div>`;
         }).join('');
         
-        // Note: Unavailable cards have pointer-events: none, so no click handler needed
+        // Delegated click handler for results container (CSP-safe, no inline handlers)
+        mount.addEventListener('click', handleCardClick);
+        mount.addEventListener('keydown', handleCardKeydown);
+        
+        // Add error handlers for cover images (CSP-safe, no inline onerror)
+        mount.querySelectorAll('img[data-cover-img]').forEach(img => {
+          img.addEventListener('error', () => handleImageError(img));
+        });
       })
       .catch(err => {
         console.error('search render error', err);
@@ -229,5 +253,44 @@ document.addEventListener('DOMContentLoaded', () => {
           mount.innerHTML = '<p>No results.</p>';
         }
       });
+  }
+  
+  // Delegated click handler for book cards (CSP-safe)
+  function handleCardClick(e) {
+    const card = e.target.closest('.book-card');
+    if (!card) return;
+    
+    // Ignore disabled/unavailable cards
+    if (card.dataset.disabled === 'true' || card.classList.contains('unavailable')) {
+      return;
+    }
+    
+    // Navigate to reader if href exists
+    const href = card.dataset.href;
+    if (href) {
+      window.location.href = href;
+    }
+  }
+  
+  // Keyboard handler for book cards (CSP-safe)
+  function handleCardKeydown(e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    
+    const card = e.target.closest('.book-card');
+    if (!card) return;
+    
+    // Ignore disabled/unavailable cards
+    if (card.dataset.disabled === 'true' || card.classList.contains('unavailable')) {
+      return;
+    }
+    
+    // Prevent default space scroll behavior
+    e.preventDefault();
+    
+    // Navigate to reader if href exists
+    const href = card.dataset.href;
+    if (href) {
+      window.location.href = href;
+    }
   }
 });
