@@ -156,12 +156,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!items.length) { mount.innerHTML = '<p>No results.</p>'; return; }
 
-        // Debug: log provider counts
-        if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-          const providerCounts = {};
-          items.forEach(i => { providerCounts[i.provider || 'unknown'] = (providerCounts[i.provider || 'unknown'] || 0) + 1; });
-          console.log('[read-search] provider counts:', providerCounts);
-        }
+        // Debug: log provider counts and readable status
+        const providerCounts = {};
+        const readableCounts = { readable: 0, maybe: 0, unavailable: 0 };
+        items.forEach(i => { 
+          providerCounts[i.provider || 'unknown'] = (providerCounts[i.provider || 'unknown'] || 0) + 1;
+          if (i.readable === true || i.readable === 'true') {
+            readableCounts.readable++;
+          } else if (i.readable_status === 'maybe' || i.external_only === false) {
+            readableCounts.maybe++;
+          } else {
+            readableCounts.unavailable++;
+          }
+        });
+        console.log('[read-search] provider counts:', providerCounts);
+        console.log('[read-search] readable counts:', readableCounts);
         
         mount.innerHTML = items.map((item, idx) => {
           // Use placeholder cover if missing
