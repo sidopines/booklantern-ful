@@ -867,11 +867,16 @@ router.get('/api/proxy/pdf', ensureSubscriberApi, async (req, res) => {
       return res.status(response.status).json({ error: 'Upstream error' });
     }
     
-    // Set response headers
+    // Set response headers for embeddable inline viewing
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Accept-Ranges', 'bytes');
+    
+    // CRITICAL: Content-Disposition: inline allows embedding in iframe/object
+    // Without this, Chrome may treat it as a download and block embedded viewing
+    const safeFilename = (fileParam || 'document').replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.pdf$/i, '') + '.pdf';
+    res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
     
     // Forward relevant headers
     const contentLength = response.headers.get('content-length');
