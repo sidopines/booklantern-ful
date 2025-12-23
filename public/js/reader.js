@@ -301,6 +301,31 @@
     const isEpubPage = document.body.getAttribute('data-epub') === 'true';
     const isPdfPage = document.body.getAttribute('data-pdf') === 'true';
     
+    // Check for Archive/OpenLibrary items with best_pdf - start directly in PDF mode
+    // This avoids unnecessary EPUB proxy prefetch when we know PDF is preferred
+    const archiveId = document.body.getAttribute('data-archive-id');
+    const bestPdf = document.body.getAttribute('data-best-pdf');
+    const dataFormat = (document.body.getAttribute('data-format') || '').toLowerCase();
+    
+    // If this is an Archive item with best_pdf AND format is not explicitly 'epub',
+    // switch directly to PDF mode to avoid Chrome blocking issues
+    // Only do this when isEpubPage is true but format is not explicitly 'epub'
+    // (This means we're falling back to EPUB because no PDF mode was requested)
+    const shouldUsePdfDirectly = archiveId && bestPdf && isEpubPage && !isPdfPage &&
+                                  dataFormat !== 'epub'; // Don't override explicit EPUB request
+    
+    if (shouldUsePdfDirectly) {
+      tsLog('Archive item with best_pdf detected, starting directly in PDF mode');
+      tsLog('Archive ID:', archiveId, 'Best PDF:', bestPdf, 'Format:', dataFormat || '(default)');
+      
+      // Show calm loading message
+      updateLoadingMessage('Preparing book...');
+      
+      // Start PDF viewer directly
+      startPdfViewerDirectly(archiveId, bestPdf);
+      return;
+    }
+    
     if (isPdfPage) {
       // Setup PDF viewer handling
       initPdfViewer();
@@ -333,6 +358,79 @@
       // Setup keyboard shortcuts for iframe
       setupKeyboardShortcuts();
     }
+  }
+  
+  /**
+   * Start PDF viewer directly for Archive items with known best_pdf
+   * This bypasses EPUB loading entirely when we know PDF is the best option
+   * @param {string} archiveId - Archive.org identifier
+   * @param {string} bestPdfFile - The best PDF filename for this archive
+   */
+  function startPdfViewerDirectly(archiveId, bestPdfFile) {
+    const viewer = document.getElementById('epub-viewer');
+    const loading = document.getElementById('epub-loading');
+    
+    if (!viewer) {
+      console.error('[reader] epub-viewer element not found for PDF direct start');
+      return;
+    }
+    
+    // Build the PDF proxy URL with deterministic file selection
+    const pdfProxyUrl = '/api/proxy/pdf?archive=' + encodeURIComponent(archiveId) + 
+                        '&file=' + encodeURIComponent(bestPdfFile);
+    
+    tsLog('Starting PDF viewer directly with URL:', pdfProxyUrl);
+    
+    // Hide loading indicator
+    if (loading) {
+      loading.style.display = 'none';
+    }
+    
+    // Inject PDF viewer into the epub-viewer container
+    viewer.innerHTML = `
+      <div class="pdf-fallback-container" style="height: 100%; display: flex; flex-direction: column;">
+        <div class="pdf-fallback-notice" style="background: #e0f2fe; color: #0369a1; padding: 8px 16px; font-size: 13px; text-align: center; flex-shrink: 0;">
+          <span>📄 PDF viewer</span>
+        </div>
+        <iframe 
+          id="direct-pdf-frame"
+          class="pdf-fallback-frame" 
+          src="${pdfProxyUrl}" 
+          title="PDF Viewer"
+          loading="eager"
+          style="flex: 1; width: 100%; border: none; background: #f5f5f5;"
+          allow="fullscreen"
+        ></iframe>
+      </div>
+    `;
+    
+    // Setup load/error handlers for the PDF iframe
+    const pdfFrame = document.getElementById('direct-pdf-frame');
+    if (pdfFrame) {
+      let loaded = false;
+      const loadTimeout = setTimeout(function() {
+        if (!loaded && !errorShown) {
+          tsLog('Direct PDF load timeout');
+          showPdfProxyError();
+        }
+      }, 20000); // 20 second timeout
+      
+      pdfFrame.addEventListener('load', function() {
+        loaded = true;
+        clearTimeout(loadTimeout);
+        tsLog('Direct PDF loaded successfully');
+      });
+      
+      pdfFrame.addEventListener('error', function() {
+        loaded = true;
+        clearTimeout(loadTimeout);
+        tsLog('Direct PDF iframe error');
+        showPdfProxyError();
+      });
+    }
+    
+    // Mark as handled to prevent other error handlers
+    errorShown = true;
   }
 
   /**
