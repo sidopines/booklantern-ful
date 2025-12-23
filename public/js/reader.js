@@ -307,12 +307,13 @@
     const bestPdf = document.body.getAttribute('data-best-pdf');
     const dataFormat = (document.body.getAttribute('data-format') || '').toLowerCase();
     
-    // If this is an Archive item with best_pdf AND format is not explicitly 'epub',
-    // switch directly to PDF mode to avoid Chrome blocking issues
-    // Only do this when isEpubPage is true but format is not explicitly 'epub'
-    // (This means we're falling back to EPUB because no PDF mode was requested)
-    const shouldUsePdfDirectly = archiveId && bestPdf && isEpubPage && !isPdfPage &&
-                                  dataFormat !== 'epub'; // Don't override explicit EPUB request
+    // Check URL params for explicit mode request
+    const urlParams = new URLSearchParams(window.location.search);
+    const explicitEpub = urlParams.get('mode') === 'epub';
+    
+    // If this is an Archive item with best_pdf, prefer PDF mode by default
+    // Unless user explicitly requested EPUB mode via ?mode=epub
+    const shouldUsePdfDirectly = archiveId && bestPdf && isEpubPage && !isPdfPage && !explicitEpub;
     
     if (shouldUsePdfDirectly) {
       tsLog('Archive item with best_pdf detected, starting directly in PDF mode');
@@ -321,8 +322,8 @@
       // Show calm loading message
       updateLoadingMessage('Preparing book...');
       
-      // Start PDF viewer directly
-      startPdfViewerDirectly(archiveId, bestPdf);
+      // Start PDF viewer directly with "Try EPUB" option
+      startPdfViewerDirectly(archiveId, bestPdf, true);
       return;
     }
     
@@ -365,8 +366,10 @@
    * This bypasses EPUB loading entirely when we know PDF is the best option
    * @param {string} archiveId - Archive.org identifier
    * @param {string} bestPdfFile - The best PDF filename for this archive
+   * @param {boolean} [showEpubOption=false] - Whether to show "Try EPUB instead" option
+   * @param {string} [bannerMessage=''] - Optional custom banner message
    */
-  function startPdfViewerDirectly(archiveId, bestPdfFile) {
+  function startPdfViewerDirectly(archiveId, bestPdfFile, showEpubOption, bannerMessage) {
     const viewer = document.getElementById('epub-viewer');
     const loading = document.getElementById('epub-loading');
     
@@ -386,11 +389,19 @@
       loading.style.display = 'none';
     }
     
+    // Build "Try EPUB instead" button if requested
+    const epubButton = showEpubOption 
+      ? `<button id="try-epub-btn" style="margin-left: 12px; padding: 4px 10px; font-size: 12px; background: transparent; border: 1px solid #0369a1; color: #0369a1; border-radius: 4px; cursor: pointer;">Try EPUB instead</button>`
+      : '';
+    
+    // Use custom banner message or default
+    const noticeText = bannerMessage || 'Preparing book…';
+    
     // Inject PDF viewer into the epub-viewer container
     viewer.innerHTML = `
       <div class="pdf-fallback-container" style="height: 100%; display: flex; flex-direction: column;">
         <div class="pdf-fallback-notice" style="background: #e0f2fe; color: #0369a1; padding: 8px 16px; font-size: 13px; text-align: center; flex-shrink: 0;">
-          <span>📄 PDF viewer</span>
+          <span>📄 ${noticeText}</span>${epubButton}
         </div>
         <iframe 
           id="direct-pdf-frame"
@@ -403,6 +414,17 @@
         ></iframe>
       </div>
     `;
+    
+    // Setup "Try EPUB instead" click handler if present
+    const tryEpubBtn = document.getElementById('try-epub-btn');
+    if (tryEpubBtn) {
+      tryEpubBtn.addEventListener('click', function() {
+        // Reload page with mode=epub to force EPUB view
+        const url = new URL(window.location.href);
+        url.searchParams.set('mode', 'epub');
+        window.location.href = url.toString();
+      });
+    }
     
     // Setup load/error handlers for the PDF iframe
     const pdfFrame = document.getElementById('direct-pdf-frame');
@@ -1579,11 +1601,14 @@
       }
       
       if (viewer) {
+        // Build "Try EPUB instead" button for manual switching
+        const epubButton = `<button id="try-epub-btn" style="margin-left: 12px; padding: 4px 10px; font-size: 12px; background: transparent; border: 1px solid #0369a1; color: #0369a1; border-radius: 4px; cursor: pointer;">Try EPUB instead</button>`;
+        
         // Replace viewer content with PDF iframe - calmer messaging
         viewer.innerHTML = `
           <div class="pdf-fallback-container">
             <div class="pdf-fallback-notice">
-              <span>📄 Showing PDF version</span>
+              <span>📄 Showing PDF version</span>${epubButton}
             </div>
             <iframe 
               class="pdf-fallback-frame" 
@@ -1595,6 +1620,17 @@
             ></iframe>
           </div>
         `;
+        
+        // Setup "Try EPUB instead" click handler
+        const tryEpubBtn = document.getElementById('try-epub-btn');
+        if (tryEpubBtn) {
+          tryEpubBtn.addEventListener('click', function() {
+            // Reload page with mode=epub to force EPUB view
+            const url = new URL(window.location.href);
+            url.searchParams.set('mode', 'epub');
+            window.location.href = url.toString();
+          });
+        }
         
         // Add styles for PDF fallback
         const style = document.createElement('style');
@@ -1704,9 +1740,68 @@
       renderTocItems(toc, 0);
       tsLog('TOC populated with', toc.length, 'items');
       
+      // TASK B: Check if EPUB looks like placeholder (only notice/cover entries)
+      checkForPlaceholderEpub(toc);
+      
     } catch (err) {
       console.warn('[reader] Failed to populate TOC:', err);
       tocList.innerHTML = '<li class="toc-empty">Could not load table of contents</li>';
+    }
+  }
+
+  /**
+   * Check if EPUB TOC indicates a placeholder/incomplete book
+   * If TOC has <=1 entry and it's just "notice" or "cover", switch to PDF
+   * @param {Array} toc - The table of contents array
+   */
+  function checkForPlaceholderEpub(toc) {
+    if (!toc || toc.length > 1) return; // More than 1 item = probably real content
+    
+    // Get best_pdf and archive_id from page data
+    const archiveId = document.body.getAttribute('data-archive-id') || 
+                      document.getElementById('epub-viewer')?.getAttribute('data-archive-id');
+    const bestPdf = document.body.getAttribute('data-best-pdf') || 
+                    document.getElementById('epub-viewer')?.getAttribute('data-best-pdf');
+    
+    if (!archiveId || !bestPdf) {
+      tsLog('Placeholder check: no archive/bestPdf available for fallback');
+      return;
+    }
+    
+    // Check if the only TOC entry is a placeholder
+    const placeholderPatterns = /^(notice|cover|title|copyright|colophon)$/i;
+    
+    let isPlaceholder = false;
+    if (toc.length === 0) {
+      isPlaceholder = true;
+      tsLog('Placeholder check: TOC is empty');
+    } else if (toc.length === 1) {
+      const label = (toc[0].label || '').trim().toLowerCase();
+      if (placeholderPatterns.test(label) || label.includes('notice') || label.includes('cover')) {
+        isPlaceholder = true;
+        tsLog('Placeholder check: single TOC entry is placeholder:', label);
+      }
+    }
+    
+    if (isPlaceholder) {
+      tsLog('EPUB appears to be placeholder-only, switching to PDF');
+      
+      // Show message and switch to PDF
+      const viewer = document.getElementById('epub-viewer');
+      if (viewer) {
+        // Clear the EPUB rendition
+        if (rendition) {
+          try { rendition.destroy(); } catch (e) {}
+          rendition = null;
+        }
+        if (book) {
+          try { book.destroy(); } catch (e) {}
+          book = null;
+        }
+        
+        // Start PDF viewer with message
+        startPdfViewerDirectly(archiveId, bestPdf, true, 'This EPUB looks incomplete — showing PDF version');
+      }
     }
   }
 
