@@ -186,47 +186,58 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('[read-search] readable counts:', readableCounts);
         
         mount.innerHTML = items.map((item, idx) => {
-          // Use placeholder cover if missing - NO inline onerror (CSP-safe)
-          const coverUrl = item.cover_url || '/public/img/cover-fallback.svg';
-          const cover = item.cover_url 
-            ? `<img src="${coverUrl}" alt="" data-cover-img="true">` 
-            : '<div class="card-cover-placeholder"><svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg></div>';
           // Always show title and author with fallbacks
           const title = item.title || 'Untitled';
           const authorText = item.author || 'Unknown author';
-          const author = `<div class="card-author">${authorText}</div>`;
           const provider = item.provider ? `<span class="provider-badge provider-${item.provider}">${item.provider}</span>` : '';
           
+          // Cover image - CSP-safe with data-fallback for error handling
+          const coverUrl = item.cover_url || '/public/img/cover-fallback.svg';
+          const cover = `<img src="${coverUrl}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-fallback="/public/img/cover-fallback.svg">`;
+          
           // Check if this item can be read on BookLantern
-          // readable flag can be boolean true or string 'true' depending on source
           const hasValidToken = item.token && typeof item.token === 'string' && item.token.length > 10;
           const hasValidHref = item.href && typeof item.href === 'string' && item.href.includes('token=');
-          // Handle both boolean and string 'true' for readable flag
           const readableFlag = item.readable === true || item.readable === 'true';
           const isReadable = readableFlag && hasValidToken && hasValidHref;
-          const isExternalOnly = item.external_only === true || !isReadable;
           
-          // Check if external-only item has a clickable external link
-          // Check all possible URL fields (DOAB/catalog compatibility)
-          const externalUrl = item.open_access_url || item.source_url || item.open_url || item.landing_url || item.open_access || null;
-          const hasExternalLink = Boolean(item.has_external_link || externalUrl);
+          // Check for external URL - only use string URLs, not boolean open_access
+          const externalUrl = item.open_access_url || item.source_url || item.open_url || item.landing_url ||
+            (typeof item.open_access === 'string' && item.open_access.startsWith('http') ? item.open_access : null);
           
           // Show format badge for non-EPUB items (PDF, etc)
           const formatBadge = (item.format && item.format !== 'epub' && item.format !== 'unknown')
             ? `<span class="format-badge">${item.format.toUpperCase()}</span>`
             : '';
           
-          if (isExternalOnly && hasExternalLink) {
-            // External-only but has a link - render as anchor tag for full clickability
-            // Escape HTML to prevent XSS
-            const escapeHtml = (str) => {
-              const div = document.createElement('div');
-              div.textContent = str;
-              return div.innerHTML;
-            };
+          // Escape HTML to prevent XSS
+          const escapeHtml = (str) => {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+          };
+          const escapedTitle = escapeHtml(title);
+          const escapedAuthor = escapeHtml(authorText);
+          
+          // DECISION TREE:
+          // 1. If readable on BookLantern -> internal reader link
+          if (isReadable) {
+            const url = new URL(item.href, window.location.origin);
+            url.searchParams.set('ref', location.pathname + location.search);
+            const href = url.pathname + url.search;
+            return `<a class="book-card readable-card" href="${href}" data-item-idx="${idx}">
+                      ${formatBadge}
+                      ${provider}
+                      <div class="card-cover">${cover}</div>
+                      <div class="card-title">${escapedTitle}</div>
+                      <div class="card-author">${escapedAuthor}</div>
+                      <div class="card-cta"><span>Read</span></div>
+                    </a>`;
+          }
+          
+          // 2. If has external URL -> external link (opens in new tab)
+          if (externalUrl) {
             const escapedUrl = externalUrl.replace(/"/g, '&quot;');
-            const escapedTitle = escapeHtml(title);
-            const escapedAuthor = escapeHtml(authorText);
             return `<a class="book-card external-card" href="${escapedUrl}" target="_blank" rel="noopener noreferrer"
                        data-item-idx="${idx}">
                       <span class="format-badge external-badge">External</span>
@@ -234,36 +245,17 @@ document.addEventListener('DOMContentLoaded', () => {
                       <div class="card-cover">${cover}</div>
                       <div class="card-title">${escapedTitle}</div>
                       <div class="card-author">${escapedAuthor}</div>
-                      <div class="card-cta"><span>View Source ↗</span></div>
+                      <div class="card-cta"><span>Open ↗</span></div>
                     </a>`;
           }
           
-          if (isExternalOnly) {
-            // NOT available to read on BookLantern and no external link
-            return `<div class="book-card unavailable" data-item-idx="${idx}" data-disabled="true">
-                      <span class="format-badge unavailable-badge">Unavailable</span>
-                      ${provider}
-                      <div class="card-cover">${cover}</div>
-                      <div class="card-title">${title}</div>
-                      ${author}
-                    </div>`;
-          }
-          
-          // Readable on BookLantern - use data attributes instead of href (CSP-safe)
-          const url = new URL(item.href, window.location.origin);
-          url.searchParams.set('ref', location.pathname + location.search);
-          const href = url.pathname + url.search;
-          // Use div with data attributes instead of <a> with inline handlers
-          return `<div class="book-card readable-card" tabindex="0" role="button" 
-                       data-href="${href}" 
-                       data-token="${item.token || ''}" 
-                       data-provider="${item.provider || ''}">
-                    ${formatBadge}
+          // 3. Otherwise -> unavailable (no link, non-clickable)
+          return `<div class="book-card unavailable" data-item-idx="${idx}" data-disabled="true">
+                    <span class="format-badge unavailable-badge">Unavailable</span>
                     ${provider}
                     <div class="card-cover">${cover}</div>
-                    <div class="card-title">${title}</div>
-                    ${author}
-                    <div class="card-cta"><span>Read</span></div>
+                    <div class="card-title">${escapedTitle}</div>
+                    <div class="card-author">${escapedAuthor}</div>
                   </div>`;
         }).join('');
         
@@ -272,8 +264,11 @@ document.addEventListener('DOMContentLoaded', () => {
         mount.addEventListener('keydown', handleCardKeydown);
         
         // Add error handlers for cover images (CSP-safe, no inline onerror)
-        mount.querySelectorAll('img[data-cover-img]').forEach(img => {
-          img.addEventListener('error', () => handleImageError(img));
+        mount.querySelectorAll('img[data-fallback]').forEach(img => {
+          img.addEventListener('error', () => {
+            img.src = img.dataset.fallback;
+            img.removeAttribute('data-fallback');
+          }, { once: true });
         });
       })
       .catch(err => {
@@ -291,19 +286,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Ignore disabled/unavailable cards
     if (card.dataset.disabled === 'true' || card.classList.contains('unavailable')) {
+      e.preventDefault();
       return;
     }
     
-    // Handle external cards - they're now anchor tags, so native behavior handles it
-    // No need to interfere with anchor tag clicks
-    if (card.classList.contains('external-card') && card.tagName === 'A') {
+    // Anchor tags handle their own navigation - let native behavior work
+    if (card.tagName === 'A') {
       return;
-    }
-    
-    // Navigate to reader if href exists (for div-based readable cards)
-    const href = card.dataset.href;
-    if (href) {
-      window.location.href = href;
     }
   }
   
@@ -320,19 +309,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Prevent default space scroll behavior
-    e.preventDefault();
-    
-    // Handle external cards - they're now anchor tags, so native behavior handles it
-    // Trigger click for keyboard accessibility
-    if (card.classList.contains('external-card') && card.tagName === 'A') {
-      card.click();
-      return;
+    if (e.key === ' ') {
+      e.preventDefault();
     }
     
-    // Navigate to reader if href exists (for div-based readable cards)
-    const href = card.dataset.href;
-    if (href) {
-      window.location.href = href;
+    // Anchor tags handle their own Enter key behavior
+    if (card.tagName === 'A') {
+      return;
     }
   }
 });
