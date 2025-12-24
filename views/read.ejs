@@ -56,6 +56,25 @@
     .provider-loc { background: #ffe4e4; color: #b12a2a; }
     .provider-oapen { background: #fef3c7; color: #92400e; }
     .provider-openstax { background: #dbeafe; color: #1e40af; }
+    .provider-catalog { background: #f3e8ff; color: #7c3aed; }
+    
+    /* External card styling (clickable links to external sources) */
+    .book-card.external-card {
+      cursor: pointer;
+      border: 1px solid #e9d5ff;
+    }
+    .book-card.external-card:hover {
+      border-color: #c084fc;
+      box-shadow: 0 2px 8px rgba(124, 58, 237, 0.15);
+    }
+    .book-card.external-card:focus {
+      outline: 2px solid #7c3aed;
+      outline-offset: 2px;
+    }
+    .format-badge.external-badge {
+      background: #7c3aed;
+      color: #fff;
+    }
     
     /* Placeholder cover for missing images */
     .book-card .card-cover-placeholder {

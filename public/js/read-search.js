@@ -190,8 +190,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const cover = item.cover_url 
             ? `<img src="${item.cover_url}" alt="" data-cover-img="true">` 
             : '<div class="card-cover-placeholder"><svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg></div>';
+          // Always show title and author with fallbacks
           const title = item.title || 'Untitled';
-          const author = item.author ? `<div class="card-author">${item.author}</div>` : '';
+          const authorText = item.author || 'Unknown author';
+          const author = `<div class="card-author">${authorText}</div>`;
           const provider = item.provider ? `<span class="provider-badge provider-${item.provider}">${item.provider}</span>` : '';
           
           // Check if this item can be read on BookLantern
@@ -203,14 +205,33 @@ document.addEventListener('DOMContentLoaded', () => {
           const isReadable = readableFlag && hasValidToken && hasValidHref;
           const isExternalOnly = item.external_only === true || !isReadable;
           
+          // Check if external-only item has a clickable external link
+          const externalUrl = item.open_access_url || item.source_url || null;
+          const hasExternalLink = Boolean(item.has_external_link || externalUrl);
+          
           // Show format badge for non-EPUB items (PDF, etc)
-          const formatBadge = (item.format && item.format !== 'epub')
+          const formatBadge = (item.format && item.format !== 'epub' && item.format !== 'unknown')
             ? `<span class="format-badge">${item.format.toUpperCase()}</span>`
             : '';
           
+          if (isExternalOnly && hasExternalLink) {
+            // External-only but has a link - make it clickable to open external source
+            // Use /out?url= redirect route for consistent UX
+            const safeUrl = encodeURIComponent(externalUrl);
+            return `<div class="book-card external-card" tabindex="0" role="button"
+                         data-external-url="${externalUrl}"
+                         data-item-idx="${idx}">
+                      <span class="format-badge external-badge">External</span>
+                      ${provider}
+                      <div class="card-cover">${cover}</div>
+                      <div class="card-title">${title}</div>
+                      ${author}
+                      <div class="card-cta"><span>View Source ↗</span></div>
+                    </div>`;
+          }
+          
           if (isExternalOnly) {
-            // NOT available to read on BookLantern
-            // NO "Borrow" button - just show as unavailable with NO clickable action
+            // NOT available to read on BookLantern and no external link
             return `<div class="book-card unavailable" data-item-idx="${idx}" data-disabled="true">
                       <span class="format-badge unavailable-badge">Unavailable</span>
                       ${provider}
@@ -265,6 +286,15 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
+    // Handle external cards - open external URL in new tab
+    if (card.classList.contains('external-card')) {
+      const externalUrl = card.dataset.externalUrl;
+      if (externalUrl) {
+        window.open(externalUrl, '_blank', 'noopener,noreferrer');
+      }
+      return;
+    }
+    
     // Navigate to reader if href exists
     const href = card.dataset.href;
     if (href) {
@@ -286,6 +316,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Prevent default space scroll behavior
     e.preventDefault();
+    
+    // Handle external cards - open external URL in new tab
+    if (card.classList.contains('external-card')) {
+      const externalUrl = card.dataset.externalUrl;
+      if (externalUrl) {
+        window.open(externalUrl, '_blank', 'noopener,noreferrer');
+      }
+      return;
+    }
     
     // Navigate to reader if href exists
     const href = card.dataset.href;

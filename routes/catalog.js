@@ -113,6 +113,9 @@ async function fallbackSearch(supabase, q, limit, res, startTime) {
  * Normalize a catalog_books row to match /api/search item shape
  */
 function normalizeItem(row) {
+  // Build the best available access URL
+  const accessUrl = row.source_url || row.open_access_url || null;
+  
   return {
     // Provider info
     provider: 'catalog',
@@ -121,23 +124,25 @@ function normalizeItem(row) {
     
     // Book metadata
     title: row.title || 'Untitled',
-    author: row.authors || '',
-    cover_url: null, // DOAB doesn't provide covers in OAI-PMH
+    author: row.authors || 'Unknown author',
+    cover_url: row.cover_url || null,
     year: row.published_year || null,
     language: row.language || 'en',
     
-    // Access info
-    source_url: row.source_url || null,
-    direct_url: null, // Catalog items link to source
-    format: 'unknown', // Would need to be determined from source
+    // Access info - catalog items link to external source
+    source_url: accessUrl,
+    open_access_url: accessUrl,
+    direct_url: null, // Catalog items link to source, not direct download
+    format: row.format || 'unknown',
     
     // Book ID for dedup
     book_id: `catalog:${row.source}:${row.source_id}`,
     
-    // Catalog items are external-only (link to DOAB/source)
+    // Catalog items are external-only but CLICKABLE if they have source_url
     external_only: true,
+    has_external_link: Boolean(accessUrl),
     readable: false,
-    reason: 'catalog_reference',
+    reason: 'external_reference',
     
     // Additional metadata
     subjects: row.subjects || null,
