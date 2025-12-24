@@ -365,6 +365,17 @@ try {
   console.error('[routes] failed to mount ./routes/search:', e);
 }
 
+// Mount catalog search router at /api/catalog
+// This searches the local Supabase catalog_books table
+try {
+  const catalogRoutes = require('./routes/catalog');
+  const { ensureSubscriberApi } = require('./utils/gate');
+  app.use('/api/catalog', ensureSubscriberApi, catalogRoutes);
+  console.log('[routes] mounted catalog router at /api/catalog (gated)');
+} catch (e) {
+  console.error('[routes] failed to mount ./routes/catalog:', e);
+}
+
 const hasSB = Boolean(
   (process.env.SUPABASE_URL || process.env.supabaseUrl) &&
     (process.env.SUPABASE_SERVICE_ROLE_KEY ||
