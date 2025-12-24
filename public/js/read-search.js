@@ -187,8 +187,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         mount.innerHTML = items.map((item, idx) => {
           // Use placeholder cover if missing - NO inline onerror (CSP-safe)
+          const coverUrl = item.cover_url || '/public/img/cover-fallback.svg';
           const cover = item.cover_url 
-            ? `<img src="${item.cover_url}" alt="" data-cover-img="true">` 
+            ? `<img src="${coverUrl}" alt="" data-cover-img="true">` 
             : '<div class="card-cover-placeholder"><svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg></div>';
           // Always show title and author with fallbacks
           const title = item.title || 'Untitled';
@@ -206,7 +207,8 @@ document.addEventListener('DOMContentLoaded', () => {
           const isExternalOnly = item.external_only === true || !isReadable;
           
           // Check if external-only item has a clickable external link
-          const externalUrl = item.open_access_url || item.source_url || null;
+          // Check all possible URL fields (DOAB/catalog compatibility)
+          const externalUrl = item.open_access_url || item.source_url || item.open_url || item.landing_url || item.open_access || null;
           const hasExternalLink = Boolean(item.has_external_link || externalUrl);
           
           // Show format badge for non-EPUB items (PDF, etc)
@@ -215,19 +217,25 @@ document.addEventListener('DOMContentLoaded', () => {
             : '';
           
           if (isExternalOnly && hasExternalLink) {
-            // External-only but has a link - make it clickable to open external source
-            // Use /out?url= redirect route for consistent UX
-            const safeUrl = encodeURIComponent(externalUrl);
-            return `<div class="book-card external-card" tabindex="0" role="button"
-                         data-external-url="${externalUrl}"
-                         data-item-idx="${idx}">
+            // External-only but has a link - render as anchor tag for full clickability
+            // Escape HTML to prevent XSS
+            const escapeHtml = (str) => {
+              const div = document.createElement('div');
+              div.textContent = str;
+              return div.innerHTML;
+            };
+            const escapedUrl = externalUrl.replace(/"/g, '&quot;');
+            const escapedTitle = escapeHtml(title);
+            const escapedAuthor = escapeHtml(authorText);
+            return `<a class="book-card external-card" href="${escapedUrl}" target="_blank" rel="noopener noreferrer"
+                       data-item-idx="${idx}">
                       <span class="format-badge external-badge">External</span>
                       ${provider}
                       <div class="card-cover">${cover}</div>
-                      <div class="card-title">${title}</div>
-                      ${author}
+                      <div class="card-title">${escapedTitle}</div>
+                      <div class="card-author">${escapedAuthor}</div>
                       <div class="card-cta"><span>View Source ↗</span></div>
-                    </div>`;
+                    </a>`;
           }
           
           if (isExternalOnly) {
@@ -286,16 +294,13 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    // Handle external cards - open external URL in new tab
-    if (card.classList.contains('external-card')) {
-      const externalUrl = card.dataset.externalUrl;
-      if (externalUrl) {
-        window.open(externalUrl, '_blank', 'noopener,noreferrer');
-      }
+    // Handle external cards - they're now anchor tags, so native behavior handles it
+    // No need to interfere with anchor tag clicks
+    if (card.classList.contains('external-card') && card.tagName === 'A') {
       return;
     }
     
-    // Navigate to reader if href exists
+    // Navigate to reader if href exists (for div-based readable cards)
     const href = card.dataset.href;
     if (href) {
       window.location.href = href;
@@ -317,16 +322,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Prevent default space scroll behavior
     e.preventDefault();
     
-    // Handle external cards - open external URL in new tab
-    if (card.classList.contains('external-card')) {
-      const externalUrl = card.dataset.externalUrl;
-      if (externalUrl) {
-        window.open(externalUrl, '_blank', 'noopener,noreferrer');
-      }
+    // Handle external cards - they're now anchor tags, so native behavior handles it
+    // Trigger click for keyboard accessibility
+    if (card.classList.contains('external-card') && card.tagName === 'A') {
+      card.click();
       return;
     }
     
-    // Navigate to reader if href exists
+    // Navigate to reader if href exists (for div-based readable cards)
     const href = card.dataset.href;
     if (href) {
       window.location.href = href;

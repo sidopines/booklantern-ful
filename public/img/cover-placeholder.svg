@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" fill="none">
+  <rect width="200" height="300" fill="#f3f4f6"/>
+  <rect x="10" y="10" width="180" height="280" rx="8" fill="#e5e7eb"/>
+  <g transform="translate(60, 110)">
+    <path stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" 
+          d="M40 20v52m0-52c-4.67-3.07-10.66-5-17-5s-12.33 1.93-17 5v52c4.67-3.07 10.66-5 17-5s12.33 1.93 17 5m0-52c4.67-3.07 10.66-5 17-5s12.33 1.93 17 5v52c-4.67-3.07-10.66-5-17-5s-12.33 1.93-17 5"/>
+  </g>
+  <text x="100" y="240" font-family="sans-serif" font-size="12" fill="#9ca3af" text-anchor="middle">No Cover</text>
+</svg>
