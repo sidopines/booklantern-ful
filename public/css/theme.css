@@ -1369,7 +1369,10 @@ body.scrolling-locked {
   gap: 1rem;
 }
 
-.book-card {
+.book-card,
+a.book-card {
+  display: flex;
+  flex-direction: column;
   background: var(--card);
   border: 1px solid var(--glass-border);
   border-radius: 12px;
@@ -1380,7 +1383,8 @@ body.scrolling-locked {
   color: inherit;
 }
 
-.book-card:hover {
+.book-card:hover,
+a.book-card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-lg);
   border-color: var(--primary);

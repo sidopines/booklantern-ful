@@ -59,6 +59,12 @@
     .provider-catalog { background: #f3e8ff; color: #7c3aed; }
     
     /* External card styling (clickable links to external sources) */
+    a.book-card {
+      display: flex;
+      flex-direction: column;
+      text-decoration: none;
+      color: inherit;
+    }
     .book-card.external-card {
       cursor: pointer;
       border: 1px solid #e9d5ff;
@@ -75,6 +81,10 @@
       background: #7c3aed;
       color: #fff;
     }
+    /* Ensure external card children don't block clicks */
+    .external-card * {
+      pointer-events: none;
+    }
     
     /* Placeholder cover for missing images */
     .book-card .card-cover-placeholder {
@@ -86,6 +96,19 @@
       background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
       border-radius: 6px;
       color: #9ca3af;
+    }
+    /* Ensure cover container has consistent size */
+    .book-card .card-cover {
+      width: 100%;
+      aspect-ratio: 2/3;
+      overflow: hidden;
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+    .book-card .card-cover img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
   </style>
 </head>
