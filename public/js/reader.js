@@ -896,9 +896,17 @@
         } else if (response.status === 502) {
           showEpubError('Could not fetch book from source. ' + (errorDetail || 'Please try again later.'), errorSourceUrl);
         } else if (response.status === 422 || response.status === 409) {
-          // Handle no_epub_available: try PDF fallback if available
+          // Handle different 422 error types
           clearLoadTimeout();
           
+          // Check for borrow_required - show friendly message
+          if (errorJson && errorJson.error === 'borrow_required') {
+            tsLog('Book requires borrowing from source library');
+            showBorrowRequiredError(errorSourceUrl);
+            return;
+          }
+          
+          // Handle no_epub_available: try PDF fallback if available
           if (errorJson && (errorJson.error === 'no_epub_available' || errorJson.error === 'Invalid EPUB (not a ZIP archive)')) {
             // Server says no valid EPUB - try PDF fallback
             const fallbackPdf = errorJson.best_pdf || currentBestPdf;
@@ -1497,6 +1505,47 @@
           window.history.back();
         });
       }
+    }
+    
+    errorShown = true;
+  }
+
+  /**
+   * Show friendly error for borrow-required books
+   * @param {string} sourceUrl - URL to the book on Archive.org or source library
+   */
+  function showBorrowRequiredError(sourceUrl) {
+    const viewer = document.getElementById('epub-viewer');
+    const loading = document.getElementById('epub-loading');
+    
+    if (loading) {
+      loading.style.display = 'none';
+    }
+    
+    // Build the source button - always show for borrow-required since user needs it
+    const sourceButton = sourceUrl 
+      ? `<a href="${sourceUrl}" target="_blank" rel="noopener" class="reader-error-btn primary-btn">Open on Archive.org ↗</a>`
+      : '';
+    
+    if (viewer) {
+      viewer.innerHTML = `
+        <div class="reader-error-panel">
+          <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: #7c3aed;">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+          </svg>
+          <h3>This book requires borrowing</h3>
+          <p class="error-message">This edition is protected and requires borrowing from the Internet Archive library. You can borrow it for free with an Archive.org account.</p>
+          <div class="reader-error-actions">
+            ${sourceButton}
+            <button data-action="back" class="reader-error-btn secondary-btn">Go Back</button>
+          </div>
+          <p style="margin-top: 16px; font-size: 13px; color: #6b7280;">Tip: Try searching for a different edition of this book on BookLantern — some editions are freely available.</p>
+        </div>
+      `;
+      // Setup button click handlers (CSP-safe, no inline onclick)
+      viewer.querySelector('[data-action="back"]').addEventListener('click', function() {
+        window.history.back();
+      });
     }
     
     errorShown = true;

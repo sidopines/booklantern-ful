@@ -415,10 +415,14 @@ async function handleSearch(req, res) {
         }
       }
       
+      // For external-only items (like catalog/DOAB), provide external link if available
+      const hasExternalLink = Boolean(book.has_external_link || book.source_url || book.open_access_url);
+      const externalUrl = book.open_access_url || book.source_url || null;
+      
       return {
         provider: book.provider,
-        title: asText(book.title),
-        author: asText(book.author),
+        title: asText(book.title) || 'Untitled',
+        author: asText(book.author) || 'Unknown author',
         cover_url: book.cover_url,
         year: book.year,
         language: book.language,
@@ -427,12 +431,14 @@ async function handleSearch(req, res) {
         format: book.format,
         access: book.access,
         source_url: book.source_url,
+        open_access_url: externalUrl,
         direct_url: actualDirectUrl,
         token,
         href,
         readable: isReadable, // Boolean for UI
         // External-only flag and reason for UI display
         external_only: externalOnly,
+        has_external_link: hasExternalLink, // Can click to open external source
         reason: reason,
         // Pass readable status for sorting/debugging
         readable_status: book.readable,
