@@ -58,19 +58,63 @@
     .provider-openstax { background: #dbeafe; color: #1e40af; }
     .provider-catalog { background: #f3e8ff; color: #7c3aed; }
     
-    /* External card styling (clickable links to external sources) */
-    a.book-card {
+    /* Results grid - proper multi-column layout with constrained cards */
+    #results.results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 16px;
+      align-items: start;
+    }
+    #results.results-grid .book-card {
       display: block;
       text-decoration: none;
       color: inherit;
+      position: relative;
     }
+    #results.results-grid .card-cover {
+      width: 100%;
+      aspect-ratio: 2 / 3;
+      overflow: hidden;
+      border-radius: 8px;
+      background: #f3f4f6;
+    }
+    #results.results-grid .card-cover img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    #results.results-grid .card-title {
+      margin-top: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.3;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    #results.results-grid .card-author {
+      font-size: 12px;
+      opacity: 0.7;
+      margin-top: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #results.results-grid .card-cta {
+      font-size: 11px;
+      margin-top: 6px;
+      color: var(--primary, #6366f1);
+    }
+    
+    /* External card styling */
     .book-card.external-card {
       cursor: pointer;
-      border: 1px solid #e9d5ff;
     }
     .book-card.external-card:hover {
-      border-color: #c084fc;
-      box-shadow: 0 2px 8px rgba(124, 58, 237, 0.15);
+      transform: translateY(-2px);
     }
     .book-card.external-card:focus {
       outline: 2px solid #7c3aed;
@@ -83,19 +127,6 @@
     /* Ensure external card children don't block clicks */
     .external-card * {
       pointer-events: none;
-    }
-    
-    /* Cover image styling */
-    .book-card .card-cover {
-      overflow: hidden;
-      border-radius: 6px;
-      margin-bottom: 8px;
-    }
-    .book-card .card-cover img {
-      width: 100%;
-      height: auto;
-      display: block;
-      border-radius: 6px;
     }
   </style>
 </head>

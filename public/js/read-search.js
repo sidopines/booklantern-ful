@@ -193,16 +193,20 @@ document.addEventListener('DOMContentLoaded', () => {
           
           // Cover image - CSP-safe with data-fallback for error handling
           const coverUrl = item.cover_url || '/public/img/cover-fallback.svg';
-          const cover = `<img src="${coverUrl}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-fallback="/public/img/cover-fallback.svg">`;
+          const cover = `<img src="${coverUrl}" alt="" data-fallback="/public/img/cover-fallback.svg">`;
           
           // Check if this item can be read on BookLantern
-          const hasValidToken = item.token && typeof item.token === 'string' && item.token.length > 10;
-          const hasValidHref = item.href && typeof item.href === 'string' && item.href.includes('token=');
-          const readableFlag = item.readable === true || item.readable === 'true';
-          const isReadable = readableFlag && hasValidToken && hasValidHref;
+          // Determine readable primarily by presence of valid token+href (some providers don't set readable flag)
+          const hasToken = typeof item.token === 'string' && item.token.length > 10;
+          const hasHref = typeof item.href === 'string' && item.href.includes('token=');
+          const isReadable = hasToken && hasHref;
           
-          // Check for external URL - only use string URLs, not boolean open_access
-          const externalUrl = item.open_access_url || item.source_url || item.open_url || item.landing_url ||
+          // Check for external URL - must be string starting with http (avoid boolean open_access)
+          const externalUrl =
+            (typeof item.open_access_url === 'string' && item.open_access_url.startsWith('http') ? item.open_access_url : null) ||
+            (typeof item.source_url === 'string' && item.source_url.startsWith('http') ? item.source_url : null) ||
+            (typeof item.open_url === 'string' && item.open_url.startsWith('http') ? item.open_url : null) ||
+            (typeof item.landing_url === 'string' && item.landing_url.startsWith('http') ? item.landing_url : null) ||
             (typeof item.open_access === 'string' && item.open_access.startsWith('http') ? item.open_access : null);
           
           // Show format badge for non-EPUB items (PDF, etc)
