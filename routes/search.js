@@ -11,6 +11,14 @@ const loc = require('../lib/sources/loc');
 const oapen = require('../lib/sources/oapen');
 const openstax = require('../lib/sources/openstax');
 
+// Local catalog search (Supabase)
+let catalogSearch = null;
+try {
+  catalogSearch = require('./catalog').searchCatalog;
+} catch (e) {
+  console.warn('[search] catalog module not available:', e.message);
+}
+
 const router = express.Router();
 
 // Cache: small TTL to reduce upstream load without serving stale/blocked items for long
@@ -40,6 +48,7 @@ function asText(v) {
 /**
  * Provider priority for deduplication (lower = preferred)
  * Gutenberg is most reliable, then OAPEN/OpenStax (always open), then OL/LoC, archive last
+ * Catalog items are lowest priority (external links only)
  */
 const PROVIDER_PRIORITY = {
   gutenberg: 1,
@@ -48,6 +57,7 @@ const PROVIDER_PRIORITY = {
   openlibrary: 3,
   loc: 4,
   archive: 5,
+  catalog: 6,  // Catalog is external-only, lowest priority
   unknown: 99,
 };
 
@@ -210,6 +220,21 @@ async function handleSearch(req, res) {
     
     console.log('[search] query="' + q + '" page=' + page);
     
+    // Search local catalog FIRST (fast, Supabase)
+    let catalogResults = [];
+    let catalogElapsed = 0;
+    if (catalogSearch) {
+      try {
+        const catalogStart = Date.now();
+        const catalogData = await catalogSearch(q, 15);
+        catalogResults = catalogData.items || [];
+        catalogElapsed = Date.now() - catalogStart;
+        console.log(`[catalog] hits=${catalogResults.length} elapsed=${catalogElapsed}ms`);
+      } catch (e) {
+        console.error('[catalog] search failed:', e.message);
+      }
+    }
+    
     // Parallel search across all sources (including new OAPEN and OpenStax)
     // Wrap each source with its own timeout to prevent any single source from blocking
     const connectorNames = ['gutenberg', 'openlibrary', 'archive', 'loc', 'oapen', 'openstax'];
@@ -259,6 +284,14 @@ async function handleSearch(req, res) {
     let allBooks = [];
     const counts = {};
     
+    // Add catalog results FIRST (already searched above)
+    if (catalogResults.length > 0) {
+      counts.catalog = catalogResults.length;
+      allBooks = allBooks.concat(catalogResults);
+    } else {
+      counts.catalog = 0;
+    }
+    
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
       const connectorName = connectorNames[i];
@@ -275,10 +308,13 @@ async function handleSearch(req, res) {
     }
     
     const elapsedMs = Date.now() - searchStartTime;
-    console.log(`[search] results: gutenberg=${counts.gutenberg || 0} openlibrary=${counts.openlibrary || 0} archive=${counts.archive || 0} loc=${counts.loc || 0} oapen=${counts.oapen || 0} openstax=${counts.openstax || 0} total_before_dedup=${allBooks.length} elapsed=${elapsedMs}ms${hitDeadline ? ' (deadline)' : ''}`);
+    console.log(`[search] results: catalog=${counts.catalog || 0} gutenberg=${counts.gutenberg || 0} openlibrary=${counts.openlibrary || 0} archive=${counts.archive || 0} loc=${counts.loc || 0} oapen=${counts.oapen || 0} openstax=${counts.openstax || 0} total_before_dedup=${allBooks.length} elapsed=${elapsedMs}ms${hitDeadline ? ' (deadline)' : ''}`);
     
     // Normalize all books to consistent schema (includes external_only + reason flags)
-    const normalizedBooks = allBooks.map(normalizeBook);
+    // Skip catalog items as they're already normalized
+    const normalizedBooks = allBooks.map(book => 
+      book.provider === 'catalog' ? book : normalizeBook(book)
+    );
     
     // NOTE: We no longer filter out restricted items here - instead we mark them as external_only
     // and show them in results with "Unavailable" label (no "Borrow" action)
