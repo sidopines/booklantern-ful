@@ -253,8 +253,10 @@ router.get('/api/proxy/pdf', async (req, res) => {
     // Check for Range header for partial content requests
     const rangeHeader = req.headers.range;
     const headers = {
-      'User-Agent': PROXY_UA,
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept': 'application/pdf, */*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Referer': 'https://openstax.org/',
       'Accept-Encoding': 'identity', // Don't compress - needed for Range to work
     };
     
@@ -285,7 +287,15 @@ router.get('/api/proxy/pdf', async (req, res) => {
       // Accept 200 OK or 206 Partial Content
       if (proxyRes.statusCode !== 200 && proxyRes.statusCode !== 206) {
         console.error('[pdf] Upstream error:', proxyRes.statusCode, targetUrl);
-        return res.status(proxyRes.statusCode).json({ error: 'Upstream error' });
+        
+        // For 403 specifically: redirect client to original URL (let iframe/browser try direct load)
+        if (proxyRes.statusCode === 403) {
+          const originalUrl = urlParam || (archiveId ? `https://archive.org/details/${archiveId}` : targetUrl);
+          console.log('[pdf] 403 fallback - redirecting to:', originalUrl);
+          return res.redirect(302, originalUrl);
+        }
+        
+        return res.status(proxyRes.statusCode).json({ error: 'Upstream error', status: proxyRes.statusCode });
       }
       
       const upstreamContentLength = proxyRes.headers['content-length'];
