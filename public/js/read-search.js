@@ -45,30 +45,30 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   // Helper to extract external URL from item (tries all common field variants)
-  function getExternalUrl(item) {
-    // Guard against boolean open_access field
+  // Uses minimal normalization to avoid losing valid URLs
+  function pickExternalUrl(item) {
     const candidates = [
       item.open_access_url,
-      item.openAccessUrl,
       item.source_url,
-      item.sourceUrl,
+      item.open_access_url?.url,  // if ever nested
+      item.source_url?.url,       // if ever nested
       item.landing_url,
-      item.landingUrl,
       item.open_url,
-      item.openUrl,
-      item.url,
-      item.web_url,
-      item.webUrl,
-      // Only use open_access if it's a string URL (not boolean)
-      typeof item.open_access === 'string' ? item.open_access : null,
+      item.url
     ];
-    
-    for (const c of candidates) {
-      const normalized = normalizeUrl(c);
-      if (normalized) return normalized;
+    for (const u of candidates) {
+      if (typeof u === 'string') {
+        const s = u.trim();
+        if (s.startsWith('http://') || s.startsWith('https://')) return s;
+        if (s.startsWith('//')) return 'https:' + s;
+        if (s.startsWith('www.')) return 'https://' + s;
+      }
     }
     return null;
   }
+  
+  // Alias for backward compatibility
+  const getExternalUrl = pickExternalUrl;
   
   // Create toast container for unavailable items - NO mention of borrow/restricted
   let toastContainer = document.getElementById('external-toast');
@@ -260,8 +260,12 @@ document.addEventListener('DOMContentLoaded', () => {
           const hasHref = typeof item.href === 'string' && item.href.includes('token=');
           const isReadable = hasToken && hasHref;
           
+          // Compute provider for catalog/doab detection
+          const providerLower = (item.provider || item.source || item.collection || '').toLowerCase();
+          const isCatalogOrDoab = providerLower.includes('catalog') || providerLower.includes('doab');
+          
           // Check for external URL using comprehensive helper
-          const externalUrl = getExternalUrl(item);
+          const externalUrl = pickExternalUrl(item);
           
           // Show format badge for non-EPUB items (PDF, etc)
           const formatBadge = (item.format && item.format !== 'epub' && item.format !== 'unknown')
@@ -278,7 +282,21 @@ document.addEventListener('DOMContentLoaded', () => {
           const escapedAuthor = escapeHtml(authorText);
           
           // DECISION TREE:
-          // 1. If readable on BookLantern -> internal reader link
+          // 1. If catalog/doab with external URL -> always render as external anchor
+          if (isCatalogOrDoab && externalUrl) {
+            const escapedUrl = externalUrl.replace(/"/g, '&quot;');
+            return `<a class="book-card external-card" href="${escapedUrl}" target="_blank" rel="noopener noreferrer"
+                       data-external-url="${escapedUrl}" data-item-idx="${idx}">
+                      <span class="format-badge external-badge">External</span>
+                      ${provider}
+                      <div class="card-cover">${cover}</div>
+                      <div class="card-title">${escapedTitle}</div>
+                      <div class="card-author">${escapedAuthor}</div>
+                      <div class="card-cta"><span>Open ↗</span></div>
+                    </a>`;
+          }
+          
+          // 2. If readable on BookLantern -> internal reader link
           if (isReadable) {
             const url = new URL(item.href, window.location.origin);
             url.searchParams.set('ref', location.pathname + location.search);
@@ -293,11 +311,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     </a>`;
           }
           
-          // 2. If has external URL -> external link (opens in new tab)
+          // 3. If has external URL -> external link (opens in new tab)
           if (externalUrl) {
             const escapedUrl = externalUrl.replace(/"/g, '&quot;');
             return `<a class="book-card external-card" href="${escapedUrl}" target="_blank" rel="noopener noreferrer"
-                       data-item-idx="${idx}">
+                       data-external-url="${escapedUrl}" data-item-idx="${idx}">
                       <span class="format-badge external-badge">External</span>
                       ${provider}
                       <div class="card-cover">${cover}</div>
@@ -307,7 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </a>`;
           }
           
-          // 3. Otherwise -> unavailable (no link, non-clickable)
+          // 4. Otherwise -> unavailable (no link, non-clickable)
           return `<div class="book-card unavailable" data-item-idx="${idx}" data-disabled="true">
                     <span class="format-badge unavailable-badge">Unavailable</span>
                     ${provider}
@@ -329,25 +347,20 @@ document.addEventListener('DOMContentLoaded', () => {
           }, { once: true });
         });
         
-        // DEBUG: Log first 3 catalog items to confirm field names
-        const catalogItems = items.filter(i => 
-          i.provider === 'catalog' || i.provider === 'doab' || 
-          i.source === 'catalog' || i.source === 'doab'
-        ).slice(0, 3);
+        // DEBUG: Log external-card count in DOM
+        console.log('[read-search] external-card count in DOM:', mount.querySelectorAll('a.book-card.external-card').length);
+        
+        // DEBUG: Log first 3 catalog items with computed externalUrl
+        const catalogItems = items.filter(i => {
+          const prov = (i.provider || i.source || i.collection || '').toLowerCase();
+          return prov.includes('catalog') || prov.includes('doab');
+        }).slice(0, 3);
         if (catalogItems.length > 0) {
-          console.log('[catalog-sample]', catalogItems.map(i => ({
-            title: i.title,
-            provider: i.provider,
-            source: i.source,
-            open_access_url: i.open_access_url,
-            openAccessUrl: i.openAccessUrl,
-            source_url: i.source_url,
-            sourceUrl: i.sourceUrl,
-            landing_url: i.landing_url,
-            landingUrl: i.landingUrl,
-            url: i.url,
-            web_url: i.web_url,
-            computedExternalUrl: getExternalUrl(i),
+          console.log('[read-search] catalog sample', catalogItems.map(x => ({
+            title: x.title,
+            open_access_url: x.open_access_url,
+            source_url: x.source_url,
+            externalUrl: pickExternalUrl(x)
           })));
         }
       })
