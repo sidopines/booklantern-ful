@@ -844,8 +844,10 @@ router.get('/api/proxy/pdf', ensureSubscriberApi, async (req, res) => {
     // Check for Range header for partial content requests
     const rangeHeader = req.headers.range;
     const headers = {
-      'User-Agent': PROXY_UA,
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept': 'application/pdf, */*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Referer': 'https://openstax.org/',
     };
     if (rangeHeader) {
       headers['Range'] = rangeHeader;
@@ -857,14 +859,21 @@ router.get('/api/proxy/pdf', ensureSubscriberApi, async (req, res) => {
     if (!response.ok && response.status !== 206) {
       console.error('[pdf-proxy] Upstream error:', response.status, targetUrl);
       
-      if (response.status === 401 || response.status === 403) {
+      // For 403 specifically: redirect client to original URL (let iframe/browser try direct load)
+      if (response.status === 403) {
+        const originalUrl = urlParam || (archiveId ? `https://archive.org/details/${archiveId}` : targetUrl);
+        console.log('[pdf-proxy] 403 fallback - redirecting to:', originalUrl);
+        return res.redirect(302, originalUrl);
+      }
+      
+      if (response.status === 401) {
         return res.status(422).json({ 
           error: 'borrow_required',
           detail: 'This PDF requires borrowing from the source library',
           source_url: archiveId ? `https://archive.org/details/${archiveId}` : targetUrl
         });
       }
-      return res.status(response.status).json({ error: 'Upstream error' });
+      return res.status(response.status).json({ error: 'Upstream error', status: response.status });
     }
     
     // Set response headers for embeddable inline viewing

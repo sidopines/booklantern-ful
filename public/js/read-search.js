@@ -11,6 +11,65 @@ document.addEventListener('DOMContentLoaded', () => {
     (document.querySelector('.reader-intro') || document.querySelector('main') || document.body).appendChild(mount);
   }
   
+  // Helper to normalize URLs (handles missing scheme, //prefix, www prefix, etc)
+  function normalizeUrl(u) {
+    if (typeof u !== 'string') return null;
+    let url = u.trim();
+    if (!url) return null;
+    
+    // Accept http:// or https://
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    // //example.com → https://example.com
+    if (url.startsWith('//')) {
+      return 'https:' + url;
+    }
+    // www.example.com → https://www.example.com
+    if (url.startsWith('www.')) {
+      return 'https://' + url;
+    }
+    // directory.doabooks.org/... → https://directory.doabooks.org/...
+    if (url.startsWith('directory.doabooks.org')) {
+      return 'https://' + url;
+    }
+    // library.oapen.org/... → https://library.oapen.org/...
+    if (url.startsWith('library.oapen.org')) {
+      return 'https://' + url;
+    }
+    // oapen.org/... → https://oapen.org/...
+    if (url.startsWith('oapen.org')) {
+      return 'https://' + url;
+    }
+    return null;
+  }
+  
+  // Helper to extract external URL from item (tries all common field variants)
+  function getExternalUrl(item) {
+    // Guard against boolean open_access field
+    const candidates = [
+      item.open_access_url,
+      item.openAccessUrl,
+      item.source_url,
+      item.sourceUrl,
+      item.landing_url,
+      item.landingUrl,
+      item.open_url,
+      item.openUrl,
+      item.url,
+      item.web_url,
+      item.webUrl,
+      // Only use open_access if it's a string URL (not boolean)
+      typeof item.open_access === 'string' ? item.open_access : null,
+    ];
+    
+    for (const c of candidates) {
+      const normalized = normalizeUrl(c);
+      if (normalized) return normalized;
+    }
+    return null;
+  }
+  
   // Create toast container for unavailable items - NO mention of borrow/restricted
   let toastContainer = document.getElementById('external-toast');
   if (!toastContainer) {
@@ -201,13 +260,8 @@ document.addEventListener('DOMContentLoaded', () => {
           const hasHref = typeof item.href === 'string' && item.href.includes('token=');
           const isReadable = hasToken && hasHref;
           
-          // Check for external URL - must be string starting with http (avoid boolean open_access)
-          const externalUrl =
-            (typeof item.open_access_url === 'string' && item.open_access_url.startsWith('http') ? item.open_access_url : null) ||
-            (typeof item.source_url === 'string' && item.source_url.startsWith('http') ? item.source_url : null) ||
-            (typeof item.open_url === 'string' && item.open_url.startsWith('http') ? item.open_url : null) ||
-            (typeof item.landing_url === 'string' && item.landing_url.startsWith('http') ? item.landing_url : null) ||
-            (typeof item.open_access === 'string' && item.open_access.startsWith('http') ? item.open_access : null);
+          // Check for external URL using comprehensive helper
+          const externalUrl = getExternalUrl(item);
           
           // Show format badge for non-EPUB items (PDF, etc)
           const formatBadge = (item.format && item.format !== 'epub' && item.format !== 'unknown')
@@ -274,6 +328,28 @@ document.addEventListener('DOMContentLoaded', () => {
             img.removeAttribute('data-fallback');
           }, { once: true });
         });
+        
+        // DEBUG: Log first 3 catalog items to confirm field names
+        const catalogItems = items.filter(i => 
+          i.provider === 'catalog' || i.provider === 'doab' || 
+          i.source === 'catalog' || i.source === 'doab'
+        ).slice(0, 3);
+        if (catalogItems.length > 0) {
+          console.log('[catalog-sample]', catalogItems.map(i => ({
+            title: i.title,
+            provider: i.provider,
+            source: i.source,
+            open_access_url: i.open_access_url,
+            openAccessUrl: i.openAccessUrl,
+            source_url: i.source_url,
+            sourceUrl: i.sourceUrl,
+            landing_url: i.landing_url,
+            landingUrl: i.landingUrl,
+            url: i.url,
+            web_url: i.web_url,
+            computedExternalUrl: getExternalUrl(i),
+          })));
+        }
       })
       .catch(err => {
         console.error('search render error', err);
