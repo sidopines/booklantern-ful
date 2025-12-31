@@ -282,17 +282,23 @@ document.addEventListener('DOMContentLoaded', () => {
           const escapedAuthor = escapeHtml(authorText);
           
           // DECISION TREE:
-          // 1. If catalog/doab with external URL -> always render as external anchor
+          // 1. If catalog/doab/oapen with external URL -> render as internal card that resolves PDF on click
           if (isCatalogOrDoab && externalUrl) {
             const escapedUrl = externalUrl.replace(/"/g, '&quot;');
-            return `<a class="book-card external-card" href="${escapedUrl}" target="_blank" rel="noopener noreferrer"
-                       data-external-url="${escapedUrl}" data-item-idx="${idx}">
-                      <span class="format-badge external-badge">External</span>
+            const escapedCover = (coverUrl || '').replace(/"/g, '&quot;');
+            return `<a class="book-card external-card" href="#" 
+                       data-landing-url="${escapedUrl}" 
+                       data-title="${escapedTitle}"
+                       data-author="${escapedAuthor}"
+                       data-cover="${escapedCover}"
+                       data-provider="${item.provider || 'catalog'}"
+                       data-item-idx="${idx}">
+                      <span class="format-badge external-badge">CATALOG</span>
                       ${provider}
                       <div class="card-cover">${cover}</div>
                       <div class="card-title">${escapedTitle}</div>
                       <div class="card-author">${escapedAuthor}</div>
-                      <div class="card-cta"><span>Open ↗</span></div>
+                      <div class="card-cta"><span>Read</span></div>
                     </a>`;
           }
           
@@ -383,7 +389,61 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    // Anchor tags handle their own navigation - let native behavior work
+    // Handle external-card clicks (catalog/doab/oapen) - resolve PDF and open in unified-reader
+    if (card.classList.contains('external-card') && card.dataset.landingUrl) {
+      e.preventDefault();
+      
+      const landingUrl = card.dataset.landingUrl;
+      const title = card.dataset.title || 'Untitled';
+      const author = card.dataset.author || '';
+      const coverUrl = card.dataset.cover || '';
+      const provider = card.dataset.provider || 'catalog';
+      
+      console.log('[external] clicked, provider=' + provider + ', title=' + title);
+      
+      // Show loading state on the card
+      const ctaSpan = card.querySelector('.card-cta span');
+      const originalCta = ctaSpan ? ctaSpan.textContent : 'Read';
+      if (ctaSpan) ctaSpan.textContent = 'Loading...';
+      card.style.pointerEvents = 'none';
+      card.style.opacity = '0.7';
+      
+      // Call the backend to resolve and get a token
+      fetch('/api/external/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: provider,
+          title: title,
+          author: author,
+          cover_url: coverUrl,
+          landing_url: landingUrl
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && data.token) {
+          console.log('[external] token ok');
+          const ref = encodeURIComponent(location.pathname + location.search);
+          window.location = '/unified-reader?token=' + encodeURIComponent(data.token) + '&ref=' + ref;
+        } else {
+          console.log('[external] fallback to:', data.open_url || landingUrl);
+          const ref = encodeURIComponent(location.pathname + location.search);
+          const fallbackUrl = data.open_url || landingUrl;
+          window.location = '/external?url=' + encodeURIComponent(fallbackUrl) + '&ref=' + ref;
+        }
+      })
+      .catch(err => {
+        console.error('[external] error:', err);
+        // On error, go to fallback page
+        const ref = encodeURIComponent(location.pathname + location.search);
+        window.location = '/external?url=' + encodeURIComponent(landingUrl) + '&ref=' + ref;
+      });
+      
+      return;
+    }
+    
+    // Other anchor tags handle their own navigation - let native behavior work
     if (card.tagName === 'A') {
       return;
     }
