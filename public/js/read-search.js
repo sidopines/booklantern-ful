@@ -70,6 +70,24 @@ document.addEventListener('DOMContentLoaded', () => {
   // Alias for backward compatibility
   const getExternalUrl = pickExternalUrl;
   
+  // Helper to extract Archive.org identifier from URL
+  function extractArchiveId(url) {
+    if (!url || typeof url !== 'string') return null;
+    if (!url.includes('archive.org')) return null;
+    try {
+      const parsed = new URL(url);
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      // /details/identifier or /download/identifier
+      const idx = parts.findIndex(p => p === 'details' || p === 'download');
+      if (idx !== -1 && parts[idx + 1]) {
+        return parts[idx + 1];
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+  
   // Create toast container for unavailable items - NO mention of borrow/restricted
   let toastContainer = document.getElementById('external-toast');
   if (!toastContainer) {
@@ -263,9 +281,20 @@ document.addEventListener('DOMContentLoaded', () => {
           // Compute provider for catalog/doab detection
           const providerLower = (item.provider || item.source || item.collection || '').toLowerCase();
           const isCatalogOrDoab = providerLower.includes('catalog') || providerLower.includes('doab');
+          const isArchive = providerLower.includes('archive');
           
           // Check for external URL using comprehensive helper
           const externalUrl = pickExternalUrl(item);
+          
+          // Extract Archive.org identifier if present
+          const archiveId = item.archive_id || item.identifier || (isArchive && externalUrl ? extractArchiveId(externalUrl) : null);
+          
+          // For Archive items, use the thumbnail service for covers
+          let finalCoverUrl = coverUrl;
+          if (isArchive && archiveId && (coverUrl === '/public/img/cover-fallback.svg' || !item.cover_url)) {
+            finalCoverUrl = 'https://archive.org/services/img/' + encodeURIComponent(archiveId);
+          }
+          const finalCover = `<img src="${finalCoverUrl}" alt="" data-fallback="/public/img/cover-fallback.svg">`;
           
           // Show format badge for non-EPUB items (PDF, etc)
           const formatBadge = (item.format && item.format !== 'epub' && item.format !== 'unknown')
@@ -282,6 +311,25 @@ document.addEventListener('DOMContentLoaded', () => {
           const escapedAuthor = escapeHtml(authorText);
           
           // DECISION TREE:
+          // 0. If Archive item with identifier -> render as internal archive card
+          if (isArchive && archiveId) {
+            const escapedCover = (finalCoverUrl || '').replace(/"/g, '&quot;');
+            return `<a class="book-card archive-card" href="#" 
+                       data-archive-id="${archiveId}" 
+                       data-title="${escapedTitle}"
+                       data-author="${escapedAuthor}"
+                       data-cover="${escapedCover}"
+                       data-provider="archive"
+                       data-item-idx="${idx}">
+                      <span class="format-badge archive-badge">ARCHIVE</span>
+                      ${provider}
+                      <div class="card-cover">${finalCover}</div>
+                      <div class="card-title">${escapedTitle}</div>
+                      <div class="card-author">${escapedAuthor}</div>
+                      <div class="card-cta"><span>Read</span></div>
+                    </a>`;
+          }
+          
           // 1. If catalog/doab/oapen with external URL -> render as internal card that resolves PDF on click
           if (isCatalogOrDoab && externalUrl) {
             const escapedUrl = externalUrl.replace(/"/g, '&quot;');
@@ -295,7 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
                        data-item-idx="${idx}">
                       <span class="format-badge external-badge">CATALOG</span>
                       ${provider}
-                      <div class="card-cover">${cover}</div>
+                      <div class="card-cover">${finalCover}</div>
                       <div class="card-title">${escapedTitle}</div>
                       <div class="card-author">${escapedAuthor}</div>
                       <div class="card-cta"><span>Read</span></div>
@@ -310,24 +358,49 @@ document.addEventListener('DOMContentLoaded', () => {
             return `<a class="book-card readable-card" href="${href}" data-item-idx="${idx}">
                       ${formatBadge}
                       ${provider}
-                      <div class="card-cover">${cover}</div>
+                      <div class="card-cover">${finalCover}</div>
                       <div class="card-title">${escapedTitle}</div>
                       <div class="card-author">${escapedAuthor}</div>
                       <div class="card-cta"><span>Read</span></div>
                     </a>`;
           }
           
-          // 3. If has external URL -> external link (opens in new tab)
+          // 3. If has external URL -> render as internal card (never open externally)
           if (externalUrl) {
             const escapedUrl = externalUrl.replace(/"/g, '&quot;');
-            return `<a class="book-card external-card" href="${escapedUrl}" target="_blank" rel="noopener noreferrer"
-                       data-external-url="${escapedUrl}" data-item-idx="${idx}">
+            const escapedCover = (finalCoverUrl || '').replace(/"/g, '&quot;');
+            // Check if it's an Archive URL we can try to resolve
+            const possibleArchiveId = extractArchiveId(externalUrl);
+            if (possibleArchiveId) {
+              return `<a class="book-card archive-card" href="#" 
+                         data-archive-id="${possibleArchiveId}" 
+                         data-title="${escapedTitle}"
+                         data-author="${escapedAuthor}"
+                         data-cover="${escapedCover}"
+                         data-provider="archive"
+                         data-item-idx="${idx}">
+                        <span class="format-badge archive-badge">ARCHIVE</span>
+                        ${provider}
+                        <div class="card-cover">${finalCover}</div>
+                        <div class="card-title">${escapedTitle}</div>
+                        <div class="card-author">${escapedAuthor}</div>
+                        <div class="card-cta"><span>Read</span></div>
+                      </a>`;
+            }
+            // Non-archive external URL - still keep on site via fallback
+            return `<a class="book-card external-card" href="#"
+                       data-external-url="${escapedUrl}" 
+                       data-title="${escapedTitle}"
+                       data-author="${escapedAuthor}"
+                       data-cover="${escapedCover}"
+                       data-provider="${item.provider || 'external'}"
+                       data-item-idx="${idx}">
                       <span class="format-badge external-badge">External</span>
                       ${provider}
-                      <div class="card-cover">${cover}</div>
+                      <div class="card-cover">${finalCover}</div>
                       <div class="card-title">${escapedTitle}</div>
                       <div class="card-author">${escapedAuthor}</div>
-                      <div class="card-cta"><span>Open ↗</span></div>
+                      <div class="card-cta"><span>Read</span></div>
                     </a>`;
           }
           
@@ -335,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
           return `<div class="book-card unavailable" data-item-idx="${idx}" data-disabled="true">
                     <span class="format-badge unavailable-badge">Unavailable</span>
                     ${provider}
-                    <div class="card-cover">${cover}</div>
+                    <div class="card-cover">${finalCover}</div>
                     <div class="card-title">${escapedTitle}</div>
                     <div class="card-author">${escapedAuthor}</div>
                   </div>`;
@@ -443,6 +516,70 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location = '/external?url=' + encodeURIComponent(landingUrl) + '&ref=' + ref;
       });
       
+      return;
+    }
+    
+    // Handle archive-card clicks - resolve via Archive API
+    if (card.classList.contains('archive-card') && card.dataset.archiveId) {
+      e.preventDefault();
+      
+      const archiveId = card.dataset.archiveId;
+      const title = card.dataset.title || 'Untitled';
+      const author = card.dataset.author || '';
+      const coverUrl = card.dataset.cover || 'https://archive.org/services/img/' + encodeURIComponent(archiveId);
+      
+      console.log('[archive] clicked, id=' + archiveId + ', title=' + title);
+      
+      // Show loading state on the card
+      const ctaSpan = card.querySelector('.card-cta span');
+      if (ctaSpan) ctaSpan.textContent = 'Loading...';
+      card.style.pointerEvents = 'none';
+      card.style.opacity = '0.7';
+      
+      // Call the backend to resolve Archive item and get a token
+      fetch('/api/archive/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier: archiveId,
+          title: title,
+          author: author,
+          cover_url: coverUrl
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && data.token) {
+          console.log('[archive] token ok');
+          const ref = encodeURIComponent(location.pathname + location.search);
+          window.location = '/unified-reader?token=' + encodeURIComponent(data.token) + '&ref=' + ref;
+        } else {
+          console.log('[archive] fallback to:', data.open_url);
+          const ref = encodeURIComponent(location.pathname + location.search);
+          window.location = '/external?url=' + encodeURIComponent(data.open_url) + '&ref=' + ref;
+        }
+      })
+      .catch(err => {
+        console.error('[archive] error:', err);
+        // On error, go to fallback page
+        const ref = encodeURIComponent(location.pathname + location.search);
+        window.location = '/external?url=' + encodeURIComponent('https://archive.org/details/' + archiveId) + '&ref=' + ref;
+      });
+      
+      return;
+    }
+    
+    // Handle generic external-card clicks (non-catalog, non-archive) - go to internal fallback
+    if (card.classList.contains('external-card') && card.dataset.externalUrl) {
+      e.preventDefault();
+      
+      const externalUrl = card.dataset.externalUrl;
+      const title = card.dataset.title || 'Untitled';
+      
+      console.log('[external] clicked generic external, title=' + title);
+      
+      const ref = encodeURIComponent(location.pathname + location.search);
+      window.location = '/external?url=' + encodeURIComponent(externalUrl) + '&ref=' + ref;
       return;
     }
     

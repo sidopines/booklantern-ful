@@ -543,6 +543,134 @@ router.post('/api/external/token', async (req, res) => {
   return res.json({ ok: false, open_url: landing_url });
 });
 
+// ============================================================================
+// ARCHIVE.ORG RESOLVER: Resolve Archive items to readable files
+// ============================================================================
+
+/**
+ * Extract Archive.org identifier from URL or return as-is if already an identifier
+ * @param {string} input - URL like https://archive.org/details/xyz or identifier like xyz
+ * @returns {string|null}
+ */
+function extractArchiveIdentifier(input) {
+  if (!input) return null;
+  
+  // If it looks like a URL, parse it
+  if (input.includes('archive.org')) {
+    try {
+      const url = new URL(input);
+      const parts = url.pathname.split('/').filter(Boolean);
+      // /details/identifier or /download/identifier
+      const idx = parts.findIndex(p => p === 'details' || p === 'download');
+      if (idx !== -1 && parts[idx + 1]) {
+        return parts[idx + 1];
+      }
+    } catch {
+      return null;
+    }
+  }
+  
+  // Otherwise treat as identifier directly (alphanumeric, dots, underscores, hyphens)
+  if (/^[a-zA-Z0-9._-]+$/.test(input)) {
+    return input;
+  }
+  
+  return null;
+}
+
+/**
+ * Resolve an Archive.org identifier to a readable file (PDF or EPUB)
+ * @param {string} identifier
+ * @returns {Promise<{ok: boolean, format?: string, direct_url?: string, source_url: string}>}
+ */
+async function resolveArchiveFile(identifier) {
+  const sourceUrl = `https://archive.org/details/${identifier}`;
+  
+  try {
+    const meta = await fetchArchiveMetadata(identifier);
+    if (!meta || !meta.files) {
+      console.log(`[archiveResolve] id=${identifier} found=none (no metadata)`);
+      return { ok: false, source_url: sourceUrl };
+    }
+    
+    // Use existing pickBestArchiveFile which prioritizes EPUB then PDF
+    const bestFile = pickBestArchiveFile(meta.files);
+    
+    if (!bestFile || bestFile.too_large) {
+      console.log(`[archiveResolve] id=${identifier} found=none (no suitable file)`);
+      return { ok: false, source_url: sourceUrl };
+    }
+    
+    const directUrl = `https://archive.org/download/${encodeURIComponent(identifier)}/${encodeURIComponent(bestFile.name)}`;
+    console.log(`[archiveResolve] id=${identifier} found=${bestFile.name} format=${bestFile.format}`);
+    
+    return {
+      ok: true,
+      format: bestFile.format, // 'epub' or 'pdf'
+      direct_url: directUrl,
+      source_url: sourceUrl
+    };
+  } catch (err) {
+    console.error(`[archiveResolve] error for ${identifier}:`, err.message);
+    return { ok: false, source_url: sourceUrl };
+  }
+}
+
+// GET /api/archive/resolve?identifier=...
+router.get('/api/archive/resolve', async (req, res) => {
+  const input = req.query.identifier || req.query.id || req.query.url;
+  
+  if (!input) {
+    return res.status(400).json({ ok: false, error: 'Missing identifier parameter' });
+  }
+  
+  const identifier = extractArchiveIdentifier(input);
+  if (!identifier) {
+    return res.status(400).json({ ok: false, error: 'Invalid Archive.org identifier' });
+  }
+  
+  const result = await resolveArchiveFile(identifier);
+  return res.json(result);
+});
+
+// POST /api/archive/token
+router.post('/api/archive/token', async (req, res) => {
+  const { identifier, title, author, cover_url } = req.body;
+  
+  if (!identifier) {
+    return res.status(400).json({ ok: false, error: 'Missing identifier' });
+  }
+  
+  const id = extractArchiveIdentifier(identifier);
+  if (!id) {
+    return res.status(400).json({ ok: false, error: 'Invalid Archive.org identifier' });
+  }
+  
+  const sourceUrl = `https://archive.org/details/${id}`;
+  const resolved = await resolveArchiveFile(id);
+  
+  if (resolved.ok && resolved.direct_url) {
+    const { buildReaderToken } = require('../utils/buildReaderToken');
+    
+    const token = buildReaderToken({
+      provider: 'archive',
+      provider_id: id,
+      format: resolved.format,
+      direct_url: resolved.direct_url,
+      source_url: sourceUrl,
+      title: title || 'Untitled',
+      author: author || '',
+      cover_url: cover_url || `https://archive.org/services/img/${id}`,
+    });
+    
+    console.log(`[archiveToken] generated token for: ${title} (${id})`);
+    return res.json({ ok: true, token });
+  }
+  
+  console.log(`[archiveToken] fallback for: ${id}`);
+  return res.json({ ok: false, open_url: sourceUrl });
+});
+
 // GET /external?url=...&ref=...
 router.get('/external', (req, res) => {
   const url = req.query.url || '';
