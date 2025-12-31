@@ -369,6 +369,9 @@ document.addEventListener('DOMContentLoaded', () => {
             externalUrl: pickExternalUrl(x)
           })));
         }
+        
+        // Lazy-load covers for external cards that have placeholder images
+        lazyLoadExternalCovers(mount);
       })
       .catch(err => {
         console.error('search render error', err);
@@ -470,5 +473,57 @@ document.addEventListener('DOMContentLoaded', () => {
     if (card.tagName === 'A') {
       return;
     }
+  }
+  
+  // Lazy-load covers for external cards (OAPEN/DOAB/CATALOG) that have placeholder images
+  function lazyLoadExternalCovers(container) {
+    const PLACEHOLDER = '/public/img/cover-fallback.svg';
+    const MAX_CONCURRENT = 4;
+    
+    // Find external cards with placeholder covers
+    const externalCards = container.querySelectorAll('a.book-card.external-card[data-landing-url]');
+    const cardsNeedingCovers = [];
+    
+    externalCards.forEach(card => {
+      const img = card.querySelector('.card-cover img');
+      if (img && (img.src.endsWith(PLACEHOLDER) || img.getAttribute('src') === PLACEHOLDER)) {
+        cardsNeedingCovers.push({ card, img, landingUrl: card.dataset.landingUrl, title: card.dataset.title });
+      }
+    });
+    
+    if (cardsNeedingCovers.length === 0) return;
+    
+    console.log('[external] covers to resolve:', cardsNeedingCovers.length);
+    
+    // Simple queue with limited concurrency
+    let activeRequests = 0;
+    let queueIndex = 0;
+    
+    function processNext() {
+      while (activeRequests < MAX_CONCURRENT && queueIndex < cardsNeedingCovers.length) {
+        const { card, img, landingUrl, title } = cardsNeedingCovers[queueIndex++];
+        activeRequests++;
+        
+        fetch('/api/external/meta?url=' + encodeURIComponent(landingUrl))
+          .then(r => r.json())
+          .then(data => {
+            if (data.ok && data.cover_url) {
+              img.src = data.cover_url;
+              // Also update data-cover on card for click handler
+              card.dataset.cover = data.cover_url;
+              console.log('[external] cover resolved', title, data.cover_url);
+            }
+          })
+          .catch(err => {
+            console.warn('[external] cover fetch error:', err.message);
+          })
+          .finally(() => {
+            activeRequests--;
+            processNext();
+          });
+      }
+    }
+    
+    processNext();
   }
 });

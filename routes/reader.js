@@ -272,6 +272,26 @@ async function fetchArchiveMetadata(identifier) {
 // EXTERNAL RESOLVER: Resolve landing pages to direct PDF URLs
 // ============================================================================
 
+// In-memory cache for external metadata (cover URLs) with 24h TTL
+const externalMetaCache = new Map();
+const EXTERNAL_META_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function getCachedExternalMeta(url) {
+  const cached = externalMetaCache.get(url);
+  if (cached && Date.now() < cached.expires) {
+    return cached.data;
+  }
+  externalMetaCache.delete(url);
+  return null;
+}
+
+function setCachedExternalMeta(url, data) {
+  externalMetaCache.set(url, {
+    data,
+    expires: Date.now() + EXTERNAL_META_CACHE_TTL_MS
+  });
+}
+
 // Allowlist for external resolution (OAPEN/DOAB/CATALOG)
 const EXTERNAL_RESOLVE_ALLOWLIST = [
   'library.oapen.org',
@@ -375,6 +395,111 @@ router.get('/api/external/resolve', async (req, res) => {
   }
   
   return res.json({ ok: false, source_url: url });
+});
+
+// GET /api/external/meta?url=<landing_url>
+// Returns cover image URL extracted from landing page HTML
+router.get('/api/external/meta', async (req, res) => {
+  const url = req.query.url;
+  
+  if (!url) {
+    return res.status(400).json({ ok: false, error: 'Missing url parameter' });
+  }
+
+  // Validate URL format
+  try {
+    new URL(url);
+  } catch {
+    return res.status(400).json({ ok: false, error: 'Invalid URL format' });
+  }
+
+  // Check allowlist
+  if (!isAllowedExternalDomain(url)) {
+    return res.json({ ok: false });
+  }
+
+  // Check cache first
+  const cached = getCachedExternalMeta(url);
+  if (cached !== null) {
+    console.log(`[externalMeta] cache hit landing=${url} cover=${cached.cover_url || 'null'}`);
+    return res.json(cached);
+  }
+
+  try {
+    // Fetch the landing page HTML
+    const response = await fetchWithTimeout(url, 15000, {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+    });
+
+    if (!response.ok) {
+      console.log(`[externalMeta] landing=${url} status=${response.status}`);
+      const result = { ok: false };
+      setCachedExternalMeta(url, result);
+      return res.json(result);
+    }
+
+    const html = await response.text();
+    let coverUrl = null;
+
+    // 1. Try og:image meta tag
+    const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i)
+                      || html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i);
+    if (ogImageMatch && ogImageMatch[1]) {
+      let ogUrl = ogImageMatch[1].trim();
+      if (ogUrl && !ogUrl.toLowerCase().endsWith('.pdf')) {
+        if (!ogUrl.startsWith('http://') && !ogUrl.startsWith('https://')) {
+          ogUrl = new URL(ogUrl, url).toString();
+        }
+        coverUrl = ogUrl;
+      }
+    }
+
+    // 2. Try img src with /bitstream/handle/ and image extension
+    if (!coverUrl) {
+      const imgPattern = /<img[^>]+src=["']([^"']*\/bitstream\/handle\/[^"']*)["'][^>]*>/gi;
+      let imgMatch;
+      while ((imgMatch = imgPattern.exec(html)) !== null) {
+        let src = imgMatch[1];
+        // Check if it's an image (jpg, jpeg, png, webp)
+        if (/\.(jpg|jpeg|png|webp)/i.test(src)) {
+          if (!src.startsWith('http://') && !src.startsWith('https://')) {
+            src = new URL(src, url).toString();
+          }
+          coverUrl = src;
+          break;
+        }
+      }
+    }
+
+    // 3. Try any og:image:url or twitter:image
+    if (!coverUrl) {
+      const twitterImageMatch = html.match(/<meta\s+(?:name|property)=["']twitter:image["']\s+content=["']([^"']+)["']/i)
+                             || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:name|property)=["']twitter:image["']/i);
+      if (twitterImageMatch && twitterImageMatch[1]) {
+        let twUrl = twitterImageMatch[1].trim();
+        if (twUrl && !twUrl.toLowerCase().endsWith('.pdf')) {
+          if (!twUrl.startsWith('http://') && !twUrl.startsWith('https://')) {
+            twUrl = new URL(twUrl, url).toString();
+          }
+          coverUrl = twUrl;
+        }
+      }
+    }
+
+    console.log(`[externalMeta] landing=${url} cover=${coverUrl || 'null'}`);
+
+    const result = coverUrl ? { ok: true, cover_url: coverUrl } : { ok: false };
+    setCachedExternalMeta(url, result);
+    return res.json(result);
+
+  } catch (err) {
+    console.error(`[externalMeta] error for ${url}:`, err.message);
+    const result = { ok: false };
+    setCachedExternalMeta(url, result);
+    return res.json(result);
+  }
 });
 
 // POST /api/external/token
