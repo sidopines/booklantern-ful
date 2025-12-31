@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <%
+    const safeExternalUrl = (typeof externalUrl === 'string' && externalUrl) ? externalUrl : '';
+    const safeBackHref = (typeof backHref === 'string' && backHref) ? backHref : '/read';
+    const safeTitle = (typeof pageTitle === 'string' && pageTitle) ? pageTitle : 'External Content';
+  %>
+  <%- include('partials/head', { pageTitle: safeTitle, title: safeTitle }) %>
+  <body class="page">
+    <%- include('partials/navbar') %>
+
+    <main class="container" style="max-width: 600px; text-align: center; padding: 60px 20px;">
+      <div style="margin-bottom: 24px;">
+        <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: #6b7280;">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+        </svg>
+      </div>
+      
+      <h1 style="font-size: 24px; font-weight: 600; margin-bottom: 12px; color: #1a1a1a;">
+        This title can't be opened in BookLantern yet
+      </h1>
+      
+      <p style="color: #6b7280; margin-bottom: 32px;">
+        We couldn't find a compatible PDF for this book. You can open it on the original source website instead.
+      </p>
+
+      <div style="display: flex; flex-direction: column; gap: 12px; align-items: center;">
+        <% if (safeExternalUrl) { %>
+          <a href="<%= safeExternalUrl %>" target="_blank" rel="noopener noreferrer" 
+             class="btn" style="display: inline-flex; align-items: center; gap: 8px;">
+            Open on source
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+            </svg>
+          </a>
+        <% } %>
+        
+        <a href="<%= safeBackHref %>" style="color: #4f46e5; font-size: 14px;">
+          ← Back to search
+        </a>
+      </div>
+    </main>
+
+    <%- include('partials/footer') %>
+  </body>
+</html>

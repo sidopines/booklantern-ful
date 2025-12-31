@@ -20,6 +20,8 @@ const ALLOWED_PROXY_DOMAINS = [
   // OAPEN / DOAB (open access books)
   'library.oapen.org',
   'oapen.org',
+  'directory.doabooks.org',
+  'doabooks.org',
   // OpenStax (open textbooks)
   'openstax.org',
   'assets.openstax.org',
@@ -39,6 +41,7 @@ function isAllowedProxyDomain(urlString) {
       if (hostname.endsWith('.loc.gov')) return true;
       if (hostname.endsWith('.gutenberg.org')) return true;
       if (hostname.endsWith('.oapen.org')) return true;
+      if (hostname.endsWith('.doabooks.org')) return true;
       if (hostname.endsWith('.openstax.org')) return true;
       if (hostname.endsWith('.cloudfront.net')) return true; // OpenStax CDN
       return false;
@@ -264,6 +267,168 @@ async function fetchArchiveMetadata(identifier) {
     return null;
   }
 }
+
+// ============================================================================
+// EXTERNAL RESOLVER: Resolve landing pages to direct PDF URLs
+// ============================================================================
+
+// Allowlist for external resolution (OAPEN/DOAB/CATALOG)
+const EXTERNAL_RESOLVE_ALLOWLIST = [
+  'library.oapen.org',
+  'oapen.org',
+  'directory.doabooks.org',
+  'doabooks.org',
+  'www.doabooks.org',
+];
+
+function isAllowedExternalDomain(urlString) {
+  try {
+    const parsed = new URL(urlString);
+    const hostname = parsed.hostname.toLowerCase();
+    return EXTERNAL_RESOLVE_ALLOWLIST.some(domain => 
+      hostname === domain || hostname.endsWith('.' + domain)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve a landing page URL to a direct PDF link
+ * @param {string} landingUrl - The landing page URL to resolve
+ * @returns {Promise<{ok: boolean, direct_url?: string, format?: string}>}
+ */
+async function resolveExternalPdf(landingUrl) {
+  try {
+    // Fetch the landing page HTML
+    const response = await fetchWithTimeout(landingUrl, 15000, {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+    });
+
+    if (!response.ok) {
+      console.log(`[externalResolve] landing=${landingUrl} status=${response.status}`);
+      return { ok: false };
+    }
+
+    const html = await response.text();
+    
+    // Extract PDF link: look for href containing /bitstream/handle/ and .pdf
+    // Pattern: href="..." or href='...'
+    const hrefPattern = /href=["']([^"']*\/bitstream\/handle\/[^"']*\.pdf[^"']*)["']/gi;
+    let match;
+    let directUrl = null;
+
+    while ((match = hrefPattern.exec(html)) !== null) {
+      let href = match[1];
+      // Convert relative URL to absolute
+      if (!href.startsWith('http://') && !href.startsWith('https://')) {
+        href = new URL(href, landingUrl).toString();
+      }
+      directUrl = href;
+      break; // Use the first match
+    }
+
+    console.log(`[externalResolve] landing=${landingUrl} foundPdf=${directUrl || 'null'}`);
+    
+    if (directUrl) {
+      return { ok: true, format: 'pdf', direct_url: directUrl };
+    }
+    return { ok: false };
+  } catch (err) {
+    console.error(`[externalResolve] error for ${landingUrl}:`, err.message);
+    return { ok: false };
+  }
+}
+
+// GET /api/external/resolve?url=<landing_url>
+router.get('/api/external/resolve', async (req, res) => {
+  const url = req.query.url;
+  
+  if (!url) {
+    return res.status(400).json({ ok: false, error: 'Missing url parameter' });
+  }
+
+  // Validate URL format
+  try {
+    new URL(url);
+  } catch {
+    return res.status(400).json({ ok: false, error: 'Invalid URL format' });
+  }
+
+  // Check allowlist
+  if (!isAllowedExternalDomain(url)) {
+    console.log(`[externalResolve] blocked non-allowlisted domain: ${url}`);
+    return res.json({ ok: false, source_url: url });
+  }
+
+  const result = await resolveExternalPdf(url);
+  
+  if (result.ok) {
+    return res.json({
+      ok: true,
+      format: result.format,
+      direct_url: result.direct_url,
+      source_url: url
+    });
+  }
+  
+  return res.json({ ok: false, source_url: url });
+});
+
+// POST /api/external/token
+router.post('/api/external/token', async (req, res) => {
+  const { provider, title, author, cover_url, landing_url } = req.body;
+  
+  if (!landing_url) {
+    return res.status(400).json({ ok: false, error: 'Missing landing_url' });
+  }
+
+  // Check allowlist
+  if (!isAllowedExternalDomain(landing_url)) {
+    console.log(`[externalToken] blocked non-allowlisted domain: ${landing_url}`);
+    return res.json({ ok: false, open_url: landing_url });
+  }
+
+  // Try to resolve the landing page to a direct PDF
+  const resolved = await resolveExternalPdf(landing_url);
+  
+  if (resolved.ok && resolved.direct_url) {
+    // Generate a signed reader token using buildReaderToken (same format as other providers)
+    const { buildReaderToken } = require('../utils/buildReaderToken');
+    
+    const token = buildReaderToken({
+      provider: 'external',
+      provider_id: landing_url, // Use landing URL as unique ID
+      format: 'pdf',
+      direct_url: resolved.direct_url,
+      source_url: landing_url,
+      title: title || 'Untitled',
+      author: author || '',
+      cover_url: cover_url || '',
+    });
+    
+    console.log(`[externalToken] generated token for: ${title}`);
+    return res.json({ ok: true, token });
+  }
+  
+  // Could not resolve - return fallback URL
+  console.log(`[externalToken] fallback for: ${landing_url}`);
+  return res.json({ ok: false, open_url: landing_url });
+});
+
+// GET /external?url=...&ref=...
+router.get('/external', (req, res) => {
+  const url = req.query.url || '';
+  const ref = req.query.ref || '/read';
+  
+  res.render('external', {
+    pageTitle: 'External Content',
+    externalUrl: url,
+    backHref: ref,
+  });
+});
 
 // GET /unified-reader?token=...&ref=...
 router.get('/unified-reader', ensureSubscriber, async (req, res) => {
