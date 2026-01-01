@@ -25,7 +25,11 @@ const ALLOWED_PROXY_DOMAINS = [
   // OpenStax (open textbooks)
   'openstax.org',
   'assets.openstax.org',
+  'cnx.org',
   'd3bxy9euw4e147.cloudfront.net', // OpenStax CDN
+  // HathiTrust
+  'babel.hathitrust.org',
+  'hathitrust.org',
 ];
 
 // Check if URL domain is allowed for proxying
@@ -43,6 +47,8 @@ function isAllowedProxyDomain(urlString) {
       if (hostname.endsWith('.oapen.org')) return true;
       if (hostname.endsWith('.doabooks.org')) return true;
       if (hostname.endsWith('.openstax.org')) return true;
+      if (hostname.endsWith('.cnx.org')) return true;
+      if (hostname.endsWith('.hathitrust.org')) return true;
       if (hostname.endsWith('.cloudfront.net')) return true; // OpenStax CDN
       return false;
     });
@@ -667,19 +673,89 @@ router.post('/api/archive/token', async (req, res) => {
     return res.json({ ok: true, token });
   }
   
-  console.log(`[archiveToken] fallback for: ${id}`);
-  return res.json({ ok: false, open_url: sourceUrl });
+  // Fallback: fetch metadata for available files to show on external page
+  let availableFiles = null;
+  try {
+    const meta = await fetchArchiveMetadata(id);
+    if (meta && meta.files) {
+      const epubs = meta.files
+        .filter(f => isValidEpubFile(f) && !isProtectedArchiveFile(f))
+        .map(f => ({ name: f.name, size: Number(f.size) || 0 }))
+        .sort((a, b) => a.size - b.size);
+      const pdfs = meta.files
+        .filter(f => isValidPdfFile(f) && !isProtectedArchiveFile(f))
+        .map(f => ({ name: f.name, size: Number(f.size) || 0 }))
+        .sort((a, b) => a.size - b.size);
+      if (epubs.length || pdfs.length) {
+        availableFiles = { epubs, pdfs };
+      }
+    }
+  } catch (e) {
+    console.error('[archiveToken] metadata fetch error:', e.message);
+  }
+  
+  console.log(`[archiveToken] fallback for: ${id} files=${availableFiles ? 'yes' : 'no'}`);
+  return res.json({ 
+    ok: false, 
+    open_url: sourceUrl,
+    archive_id: id,
+    available_files: availableFiles,
+    title: title || '',
+    author: author || '',
+    cover_url: cover_url || `https://archive.org/services/img/${id}`
+  });
 });
 
-// GET /external?url=...&ref=...
-router.get('/external', (req, res) => {
+// GET /external?url=...&ref=...&title=...&author=...&reason=...&archive_id=...&files=...
+router.get('/external', async (req, res) => {
   const url = req.query.url || '';
   const ref = req.query.ref || '/read';
+  const bookTitle = req.query.title || '';
+  const author = req.query.author || '';
+  const reason = req.query.reason || '';
+  const archiveId = req.query.archive_id || '';
+  const coverUrl = req.query.cover_url || (archiveId ? `https://archive.org/services/img/${archiveId}` : '');
+  
+  // Try to get available files from query or fetch from archive
+  let files = null;
+  if (req.query.files) {
+    try {
+      files = JSON.parse(req.query.files);
+    } catch (e) {}
+  }
+  
+  // If no files provided but we have an archive ID, try to fetch
+  if (!files && archiveId) {
+    try {
+      const meta = await fetchArchiveMetadata(archiveId);
+      if (meta && meta.files) {
+        const epubs = meta.files
+          .filter(f => isValidEpubFile(f) && !isProtectedArchiveFile(f))
+          .map(f => ({ name: f.name, size: Number(f.size) || 0 }))
+          .sort((a, b) => a.size - b.size);
+        const pdfs = meta.files
+          .filter(f => isValidPdfFile(f) && !isProtectedArchiveFile(f))
+          .map(f => ({ name: f.name, size: Number(f.size) || 0 }))
+          .sort((a, b) => a.size - b.size);
+        if (epubs.length || pdfs.length) {
+          files = { epubs, pdfs };
+        }
+      }
+    } catch (e) {
+      console.error('[external] metadata fetch error:', e.message);
+    }
+  }
   
   res.render('external', {
-    pageTitle: 'External Content',
+    pageTitle: bookTitle || 'External Content',
     externalUrl: url,
     backHref: ref,
+    bookTitle: bookTitle,
+    author: author,
+    reason: reason,
+    archiveId: archiveId,
+    coverUrl: coverUrl,
+    files: files,
   });
 });
 
@@ -1335,6 +1411,144 @@ router.get('/api/proxy/pdf', ensureSubscriberApi, async (req, res) => {
         return res.status(504).json({ error: 'Request timeout' });
       }
       return res.status(502).json({ error: 'Failed to fetch PDF: ' + err.message });
+    }
+  }
+});
+
+/**
+ * GET /api/proxy/file?url=<encoded-url>
+ * Generic file proxy that streams any file type (PDF, EPUB, images)
+ * - Validates URL against allowlist
+ * - Supports Range requests (Accept-Ranges / 206 Partial Content) for PDFs
+ * - Preserves Content-Type and Content-Length
+ * - Sets Content-Disposition: inline for embedding
+ * 
+ * This is the primary endpoint for embedding blocked-iframe PDFs like OpenStax
+ */
+router.get('/api/proxy/file', ensureSubscriberApi, async (req, res) => {
+  const targetUrl = req.query.url;
+  
+  if (!targetUrl) {
+    return res.status(400).json({ error: 'Missing url parameter' });
+  }
+  
+  // Validate URL format
+  let parsed;
+  try {
+    parsed = new URL(targetUrl);
+  } catch {
+    return res.status(400).json({ error: 'Invalid URL format' });
+  }
+  
+  // Validate domain against allowlist
+  if (!isAllowedProxyDomain(targetUrl)) {
+    console.warn('[file-proxy] Blocked non-whitelisted domain:', targetUrl);
+    return res.status(403).json({ error: 'Domain not allowed for proxying' });
+  }
+  
+  console.log('[file-proxy] Proxying:', targetUrl);
+  
+  try {
+    // Build request headers
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': '*/*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept-Encoding': 'identity', // Don't compress for proper Range support
+    };
+    
+    // Forward Range header if present (critical for PDF viewing)
+    const rangeHeader = req.headers.range;
+    if (rangeHeader) {
+      headers['Range'] = rangeHeader;
+      console.log('[file-proxy] Range request:', rangeHeader);
+    }
+    
+    // Set appropriate Referer for known hosts
+    const hostname = parsed.hostname.toLowerCase();
+    if (hostname.includes('openstax') || hostname.includes('cnx.org')) {
+      headers['Referer'] = 'https://openstax.org/';
+    } else if (hostname.includes('archive.org')) {
+      headers['Referer'] = 'https://archive.org/';
+    } else if (hostname.includes('oapen') || hostname.includes('doab')) {
+      headers['Referer'] = 'https://library.oapen.org/';
+    }
+    
+    const response = await fetchWithTimeout(targetUrl, 60000, headers);
+    
+    // Handle redirects by following them (fetch follows automatically)
+    if (!response.ok && response.status !== 206) {
+      console.error('[file-proxy] Upstream error:', response.status, targetUrl);
+      return res.status(response.status).json({ error: 'Upstream error', status: response.status });
+    }
+    
+    // Determine content type
+    const upstreamContentType = response.headers.get('content-type') || 'application/octet-stream';
+    let contentType = upstreamContentType;
+    
+    // Force correct content types for known extensions
+    const urlLower = targetUrl.toLowerCase();
+    if (urlLower.endsWith('.pdf')) {
+      contentType = 'application/pdf';
+    } else if (urlLower.endsWith('.epub')) {
+      contentType = 'application/epub+zip';
+    } else if (urlLower.match(/\.(jpg|jpeg)$/)) {
+      contentType = 'image/jpeg';
+    } else if (urlLower.endsWith('.png')) {
+      contentType = 'image/png';
+    } else if (urlLower.endsWith('.webp')) {
+      contentType = 'image/webp';
+    }
+    
+    // Set response headers
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Accept-Ranges', 'bytes');
+    
+    // Set Content-Disposition: inline for embedding (critical for PDFs)
+    let filename = 'file';
+    try {
+      filename = decodeURIComponent(parsed.pathname.split('/').pop() || 'file');
+    } catch {}
+    const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 100);
+    res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
+    
+    // Forward Content-Length if present
+    const contentLength = response.headers.get('content-length');
+    if (contentLength) {
+      res.setHeader('Content-Length', contentLength);
+    }
+    
+    // Handle 206 Partial Content
+    if (response.status === 206) {
+      const contentRange = response.headers.get('content-range');
+      if (contentRange) {
+        res.setHeader('Content-Range', contentRange);
+        console.log('[file-proxy] Content-Range:', contentRange);
+      }
+      res.status(206);
+    } else {
+      res.status(200);
+    }
+    
+    // Stream the response
+    const reader = response.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+    res.end();
+    console.log('[file-proxy] File streamed successfully:', contentType);
+    
+  } catch (err) {
+    console.error('[file-proxy] Error:', err.message);
+    if (!res.headersSent) {
+      if (err.name === 'AbortError') {
+        return res.status(504).json({ error: 'Request timeout' });
+      }
+      return res.status(502).json({ error: 'Failed to fetch file: ' + err.message });
     }
   }
 });

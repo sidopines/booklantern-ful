@@ -89,6 +89,8 @@
 
   /**
    * Get the PDF render URL for a token (uses same-origin proxy for Archive)
+   * For non-archive sources (OpenStax, OAPEN, etc), uses /api/proxy/file which handles
+   * iframe-blocked PDFs by streaming through our domain
    * @param {Object} token - Token object with provider and URL info
    * @param {string} [bestPdfFile] - Optional: specific PDF filename for archive items
    * @returns {string} URL to use for PDF rendering
@@ -103,13 +105,10 @@
       console.log('[reader] render url selected', { mode: 'pdf', provider: token.provider, url: url, bestPdf: bestPdfFile || '(auto)' });
       return url;
     }
-    // Non-archive: return direct_url if it's a PDF, otherwise proxy it
+    // Non-archive: use /api/proxy/file for all PDFs (handles iframe-blocked sources like OpenStax)
     if (token && token.direct_url) {
-      if (token.direct_url.toLowerCase().endsWith('.pdf')) {
-        console.log('[reader] render url selected', { mode: 'pdf', provider: token.provider || 'other', url: token.direct_url });
-        return token.direct_url;
-      }
-      const url = '/api/proxy/pdf?url=' + encodeURIComponent(token.direct_url);
+      // Always use the generic file proxy to avoid iframe blocking issues
+      const url = '/api/proxy/file?url=' + encodeURIComponent(token.direct_url);
       console.log('[reader] render url selected', { mode: 'pdf', provider: token.provider || 'other', url: url });
       return url;
     }
