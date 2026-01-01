@@ -572,8 +572,6 @@ document.addEventListener('DOMContentLoaded', () => {
       
       return;
     }
-      return;
-    }
     
     // Handle archive-card clicks - resolve via Archive API
     if (card.classList.contains('archive-card') && card.dataset.archiveId) {
