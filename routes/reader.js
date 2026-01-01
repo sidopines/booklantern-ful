@@ -404,7 +404,7 @@ router.get('/api/external/resolve', async (req, res) => {
 });
 
 // GET /api/external/meta?url=<landing_url>
-// Returns cover image URL extracted from landing page HTML
+// Returns cover image URL and downloadable files extracted from landing page HTML
 router.get('/api/external/meta', async (req, res) => {
   const url = req.query.url;
   
@@ -427,7 +427,7 @@ router.get('/api/external/meta', async (req, res) => {
   // Check cache first
   const cached = getCachedExternalMeta(url);
   if (cached !== null) {
-    console.log(`[externalMeta] cache hit landing=${url} cover=${cached.cover_url || 'null'}`);
+    console.log(`[externalMeta] cache hit landing=${url} cover=${cached.cover_url || 'null'} files=${cached.files?.length || 0}`);
     return res.json(cached);
   }
 
@@ -448,17 +448,121 @@ router.get('/api/external/meta', async (req, res) => {
 
     const html = await response.text();
     let coverUrl = null;
+    const files = [];
+    const seenUrls = new Set();
 
+    // Helper: normalize relative URL to absolute
+    function toAbsolute(href) {
+      if (!href) return null;
+      href = href.trim();
+      if (!href) return null;
+      if (href.startsWith('http://') || href.startsWith('https://')) return href;
+      try {
+        return new URL(href, url).toString();
+      } catch {
+        return null;
+      }
+    }
+
+    // Helper: check if URL is a thumbnail/preview image (not actual PDF)
+    function isThumbnail(href) {
+      if (!href) return true;
+      const lower = href.toLowerCase();
+      return lower.includes('.pdf.jpg') || lower.includes('.pdf.png') || 
+             lower.includes('_thumb') || lower.includes('thumbnail') ||
+             lower.includes('/cover/') || lower.includes('preview');
+    }
+
+    // Helper: strip query/hash from URL for extension checking
+    function getCleanPath(href) {
+      if (!href) return '';
+      return href.split('?')[0].split('#')[0].toLowerCase();
+    }
+
+    // ============ Extract downloadable files ============
+    
+    // 1. Try citation_pdf_url meta tag (most reliable for academic sites)
+    const citationPdfMatch = html.match(/<meta\s+(?:name|property)=["']citation_pdf_url["']\s+content=["']([^"']+)["']/i)
+                          || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:name|property)=["']citation_pdf_url["']/i);
+    if (citationPdfMatch && citationPdfMatch[1]) {
+      const pdfUrl = toAbsolute(citationPdfMatch[1]);
+      if (pdfUrl && !isThumbnail(pdfUrl) && !seenUrls.has(pdfUrl)) {
+        seenUrls.add(pdfUrl);
+        files.push({ format: 'pdf', url: pdfUrl, label: 'PDF (citation)' });
+        console.log(`[externalMeta] found citation_pdf_url: ${pdfUrl}`);
+      }
+    }
+
+    // 2. Try citation_epub_url meta tag
+    const citationEpubMatch = html.match(/<meta\s+(?:name|property)=["']citation_epub_url["']\s+content=["']([^"']+)["']/i)
+                           || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:name|property)=["']citation_epub_url["']/i);
+    if (citationEpubMatch && citationEpubMatch[1]) {
+      const epubUrl = toAbsolute(citationEpubMatch[1]);
+      if (epubUrl && !seenUrls.has(epubUrl)) {
+        seenUrls.add(epubUrl);
+        files.push({ format: 'epub', url: epubUrl, label: 'EPUB (citation)' });
+        console.log(`[externalMeta] found citation_epub_url: ${epubUrl}`);
+      }
+    }
+
+    // 3. Look for <a href> links containing /bitstream/ ending with .pdf or .epub (handles querystrings)
+    const hrefPattern = /href=["']([^"']*\/bitstream\/[^"']*)["']/gi;
+    let hrefMatch;
+    while ((hrefMatch = hrefPattern.exec(html)) !== null) {
+      let href = hrefMatch[1];
+      
+      // Skip thumbnail images disguised as PDFs
+      if (isThumbnail(href)) continue;
+      
+      const absUrl = toAbsolute(href);
+      if (!absUrl || seenUrls.has(absUrl)) continue;
+      
+      // Strip query/hash for extension check
+      const cleanPath = getCleanPath(href);
+      
+      if (cleanPath.endsWith('.pdf')) {
+        seenUrls.add(absUrl);
+        files.push({ format: 'pdf', url: absUrl, label: 'PDF (bitstream)' });
+        console.log(`[externalMeta] found bitstream PDF: ${absUrl}`);
+      } else if (cleanPath.endsWith('.epub')) {
+        seenUrls.add(absUrl);
+        files.push({ format: 'epub', url: absUrl, label: 'EPUB (bitstream)' });
+        console.log(`[externalMeta] found bitstream EPUB: ${absUrl}`);
+      }
+    }
+
+    // 4. Look for any href ending with .pdf or .epub (broader search, handles querystrings)
+    const anyPdfPattern = /href=["']([^"']+\.pdf(?:\?[^"']*)?)["']/gi;
+    while ((hrefMatch = anyPdfPattern.exec(html)) !== null) {
+      const href = hrefMatch[1];
+      if (isThumbnail(href)) continue;
+      const absUrl = toAbsolute(href);
+      if (absUrl && !seenUrls.has(absUrl)) {
+        seenUrls.add(absUrl);
+        files.push({ format: 'pdf', url: absUrl, label: 'PDF' });
+        console.log(`[externalMeta] found generic PDF link: ${absUrl}`);
+      }
+    }
+
+    const anyEpubPattern = /href=["']([^"']+\.epub(?:\?[^"']*)?)["']/gi;
+    while ((hrefMatch = anyEpubPattern.exec(html)) !== null) {
+      const absUrl = toAbsolute(hrefMatch[1]);
+      if (absUrl && !seenUrls.has(absUrl)) {
+        seenUrls.add(absUrl);
+        files.push({ format: 'epub', url: absUrl, label: 'EPUB' });
+        console.log(`[externalMeta] found generic EPUB link: ${absUrl}`);
+      }
+    }
+
+    // ============ Extract cover image ============
+    
     // 1. Try og:image meta tag
     const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i)
                       || html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i);
     if (ogImageMatch && ogImageMatch[1]) {
       let ogUrl = ogImageMatch[1].trim();
       if (ogUrl && !ogUrl.toLowerCase().endsWith('.pdf')) {
-        if (!ogUrl.startsWith('http://') && !ogUrl.startsWith('https://')) {
-          ogUrl = new URL(ogUrl, url).toString();
-        }
-        coverUrl = ogUrl;
+        coverUrl = toAbsolute(ogUrl);
       }
     }
 
@@ -470,33 +574,31 @@ router.get('/api/external/meta', async (req, res) => {
         let src = imgMatch[1];
         // Check if it's an image (jpg, jpeg, png, webp)
         if (/\.(jpg|jpeg|png|webp)/i.test(src)) {
-          if (!src.startsWith('http://') && !src.startsWith('https://')) {
-            src = new URL(src, url).toString();
-          }
-          coverUrl = src;
+          coverUrl = toAbsolute(src);
           break;
         }
       }
     }
 
-    // 3. Try any og:image:url or twitter:image
+    // 3. Try twitter:image
     if (!coverUrl) {
       const twitterImageMatch = html.match(/<meta\s+(?:name|property)=["']twitter:image["']\s+content=["']([^"']+)["']/i)
                              || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:name|property)=["']twitter:image["']/i);
       if (twitterImageMatch && twitterImageMatch[1]) {
         let twUrl = twitterImageMatch[1].trim();
         if (twUrl && !twUrl.toLowerCase().endsWith('.pdf')) {
-          if (!twUrl.startsWith('http://') && !twUrl.startsWith('https://')) {
-            twUrl = new URL(twUrl, url).toString();
-          }
-          coverUrl = twUrl;
+          coverUrl = toAbsolute(twUrl);
         }
       }
     }
 
-    console.log(`[externalMeta] landing=${url} cover=${coverUrl || 'null'}`);
+    console.log(`[externalMeta] landing=${url} cover=${coverUrl || 'null'} files=${files.length}`);
 
-    const result = coverUrl ? { ok: true, cover_url: coverUrl } : { ok: false };
+    const result = { 
+      ok: coverUrl || files.length > 0, 
+      cover_url: coverUrl || undefined,
+      files: files.length > 0 ? files : undefined
+    };
     setCachedExternalMeta(url, result);
     return res.json(result);
 
@@ -509,6 +611,7 @@ router.get('/api/external/meta', async (req, res) => {
 });
 
 // POST /api/external/token
+// Resolves landing page to downloadable files and mints a signed token
 router.post('/api/external/token', async (req, res) => {
   const { provider, title, author, cover_url, landing_url } = req.body;
   
@@ -516,37 +619,165 @@ router.post('/api/external/token', async (req, res) => {
     return res.status(400).json({ ok: false, error: 'Missing landing_url' });
   }
 
-  // Check allowlist
+  // Check allowlist for landing URL
   if (!isAllowedExternalDomain(landing_url)) {
     console.log(`[externalToken] blocked non-allowlisted domain: ${landing_url}`);
     return res.json({ ok: false, open_url: landing_url });
   }
 
-  // Try to resolve the landing page to a direct PDF
-  const resolved = await resolveExternalPdf(landing_url);
+  // Use the same extraction logic as /api/external/meta
+  let files = [];
+  let resolvedCoverUrl = cover_url || null;
   
-  if (resolved.ok && resolved.direct_url) {
-    // Generate a signed reader token using buildReaderToken (same format as other providers)
-    const { buildReaderToken } = require('../utils/buildReaderToken');
-    
-    const token = buildReaderToken({
-      provider: 'external',
-      provider_id: landing_url, // Use landing URL as unique ID
-      format: 'pdf',
-      direct_url: resolved.direct_url,
-      source_url: landing_url,
-      title: title || 'Untitled',
-      author: author || '',
-      cover_url: cover_url || '',
+  try {
+    // Fetch the landing page HTML
+    const response = await fetchWithTimeout(landing_url, 15000, {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
     });
-    
-    console.log(`[externalToken] generated token for: ${title}`);
-    return res.json({ ok: true, token });
+
+    if (response.ok) {
+      const html = await response.text();
+      const seenUrls = new Set();
+
+      // Helper: normalize relative URL to absolute
+      function toAbsolute(href) {
+        if (!href) return null;
+        href = href.trim();
+        if (!href) return null;
+        if (href.startsWith('http://') || href.startsWith('https://')) return href;
+        try {
+          return new URL(href, landing_url).toString();
+        } catch {
+          return null;
+        }
+      }
+
+      // Helper: check if URL is a thumbnail/preview image (not actual PDF)
+      function isThumbnail(href) {
+        if (!href) return true;
+        const lower = href.toLowerCase();
+        return lower.includes('.pdf.jpg') || lower.includes('.pdf.png') || 
+               lower.includes('_thumb') || lower.includes('thumbnail') ||
+               lower.includes('/cover/') || lower.includes('preview');
+      }
+
+      // Helper: strip query/hash from URL for extension checking
+      function getCleanPath(href) {
+        if (!href) return '';
+        return href.split('?')[0].split('#')[0].toLowerCase();
+      }
+
+      // 1. Try citation_pdf_url meta tag
+      const citationPdfMatch = html.match(/<meta\s+(?:name|property)=["']citation_pdf_url["']\s+content=["']([^"']+)["']/i)
+                            || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:name|property)=["']citation_pdf_url["']/i);
+      if (citationPdfMatch && citationPdfMatch[1]) {
+        const pdfUrl = toAbsolute(citationPdfMatch[1]);
+        if (pdfUrl && !isThumbnail(pdfUrl) && !seenUrls.has(pdfUrl)) {
+          seenUrls.add(pdfUrl);
+          files.push({ format: 'pdf', url: pdfUrl });
+        }
+      }
+
+      // 2. Try citation_epub_url meta tag
+      const citationEpubMatch = html.match(/<meta\s+(?:name|property)=["']citation_epub_url["']\s+content=["']([^"']+)["']/i)
+                             || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:name|property)=["']citation_epub_url["']/i);
+      if (citationEpubMatch && citationEpubMatch[1]) {
+        const epubUrl = toAbsolute(citationEpubMatch[1]);
+        if (epubUrl && !seenUrls.has(epubUrl)) {
+          seenUrls.add(epubUrl);
+          files.push({ format: 'epub', url: epubUrl });
+        }
+      }
+
+      // 3. Look for <a href> links containing /bitstream/ ending with .pdf or .epub (handles querystrings)
+      const hrefPattern = /href=["']([^"']*\/bitstream\/[^"']*)["']/gi;
+      let hrefMatch;
+      while ((hrefMatch = hrefPattern.exec(html)) !== null) {
+        const href = hrefMatch[1];
+        if (isThumbnail(href)) continue;
+        const absUrl = toAbsolute(href);
+        if (!absUrl || seenUrls.has(absUrl)) continue;
+        const cleanPath = getCleanPath(href);
+        if (cleanPath.endsWith('.pdf')) {
+          seenUrls.add(absUrl);
+          files.push({ format: 'pdf', url: absUrl });
+        } else if (cleanPath.endsWith('.epub')) {
+          seenUrls.add(absUrl);
+          files.push({ format: 'epub', url: absUrl });
+        }
+      }
+
+      // 4. Look for any href ending with .pdf or .epub (broader search, handles querystrings)
+      const anyPdfPattern = /href=["']([^"']+\.pdf(?:\?[^"']*)?)["']/gi;
+      while ((hrefMatch = anyPdfPattern.exec(html)) !== null) {
+        const href = hrefMatch[1];
+        if (isThumbnail(href)) continue;
+        const absUrl = toAbsolute(href);
+        if (absUrl && !seenUrls.has(absUrl)) {
+          seenUrls.add(absUrl);
+          files.push({ format: 'pdf', url: absUrl });
+        }
+      }
+
+      const anyEpubPattern = /href=["']([^"']+\.epub(?:\?[^"']*)?)["']/gi;
+      while ((hrefMatch = anyEpubPattern.exec(html)) !== null) {
+        const absUrl = toAbsolute(hrefMatch[1]);
+        if (absUrl && !seenUrls.has(absUrl)) {
+          seenUrls.add(absUrl);
+          files.push({ format: 'epub', url: absUrl });
+        }
+      }
+
+      // Extract cover if not provided
+      if (!resolvedCoverUrl) {
+        const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i)
+                          || html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i);
+        if (ogImageMatch && ogImageMatch[1]) {
+          const ogUrl = ogImageMatch[1].trim();
+          if (ogUrl && !ogUrl.toLowerCase().endsWith('.pdf')) {
+            resolvedCoverUrl = toAbsolute(ogUrl);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`[externalToken] fetch error for ${landing_url}:`, err.message);
   }
+
+  // Choose best file: prefer PDF, then EPUB
+  const pdfFile = files.find(f => f.format === 'pdf');
+  const epubFile = files.find(f => f.format === 'epub');
+  const bestFile = pdfFile || epubFile;
+
+  if (!bestFile) {
+    console.log(`[externalToken] no files found for: ${landing_url}`);
+    return res.json({ ok: false, open_url: landing_url });
+  }
+
+  // Validate the chosen file URL is allowed by proxy
+  if (!isAllowedProxyDomain(bestFile.url)) {
+    console.log(`[externalToken] file URL not allowed by proxy: ${bestFile.url}`);
+    return res.json({ ok: false, open_url: landing_url });
+  }
+
+  // Generate a signed reader token using buildReaderToken (same format as other providers)
+  const { buildReaderToken } = require('../utils/buildReaderToken');
   
-  // Could not resolve - return fallback URL
-  console.log(`[externalToken] fallback for: ${landing_url}`);
-  return res.json({ ok: false, open_url: landing_url });
+  const token = buildReaderToken({
+    provider: 'external',
+    provider_id: landing_url, // Use landing URL as unique ID
+    format: bestFile.format,
+    direct_url: bestFile.url,
+    source_url: landing_url,
+    title: title || 'Untitled',
+    author: author || '',
+    cover_url: resolvedCoverUrl || '',
+  });
+  
+  console.log(`[externalToken] generated token for: ${title} (${bestFile.format})`);
+  return res.json({ ok: true, token, format: bestFile.format });
 });
 
 // ============================================================================

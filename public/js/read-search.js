@@ -518,7 +518,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    // Handle external-card clicks (catalog/doab/oapen) - resolve PDF and open in unified-reader
+    // Handle external-card clicks (catalog/doab/oapen) - resolve PDF/EPUB and open in unified-reader
     if (card.classList.contains('external-card') && card.dataset.landingUrl) {
       e.preventDefault();
       
@@ -537,7 +537,8 @@ document.addEventListener('DOMContentLoaded', () => {
       card.style.pointerEvents = 'none';
       card.style.opacity = '0.7';
       
-      // Call the backend to resolve and get a token
+      // Call the server to resolve the landing page and mint a signed token
+      // Server handles file extraction, format selection, and secure token generation
       fetch('/api/external/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -549,26 +550,28 @@ document.addEventListener('DOMContentLoaded', () => {
           landing_url: landingUrl
         })
       })
-      .then(r => r.json())
-      .then(data => {
-        if (data.ok && data.token) {
-          console.log('[external] token ok');
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok && data.token) {
+            console.log('[external] token ok, format=' + (data.format || 'unknown'));
+            const ref = encodeURIComponent(location.pathname + location.search);
+            window.location = '/unified-reader?token=' + encodeURIComponent(data.token) + '&ref=' + ref;
+          } else {
+            console.log('[external] fallback to:', data.open_url || landingUrl);
+            const ref = encodeURIComponent(location.pathname + location.search);
+            const fallbackUrl = data.open_url || landingUrl;
+            window.location = '/external?url=' + encodeURIComponent(fallbackUrl) + '&ref=' + ref;
+          }
+        })
+        .catch(err => {
+          console.error('[external] error:', err);
+          // On error, go to fallback page
           const ref = encodeURIComponent(location.pathname + location.search);
-          window.location = '/unified-reader?token=' + encodeURIComponent(data.token) + '&ref=' + ref;
-        } else {
-          console.log('[external] fallback to:', data.open_url || landingUrl);
-          const ref = encodeURIComponent(location.pathname + location.search);
-          const fallbackUrl = data.open_url || landingUrl;
-          window.location = '/external?url=' + encodeURIComponent(fallbackUrl) + '&ref=' + ref;
-        }
-      })
-      .catch(err => {
-        console.error('[external] error:', err);
-        // On error, go to fallback page
-        const ref = encodeURIComponent(location.pathname + location.search);
-        window.location = '/external?url=' + encodeURIComponent(landingUrl) + '&ref=' + ref;
-      });
+          window.location = '/external?url=' + encodeURIComponent(landingUrl) + '&ref=' + ref;
+        });
       
+      return;
+    }
       return;
     }
     
@@ -717,6 +720,11 @@ document.addEventListener('DOMContentLoaded', () => {
               // Also update data-cover on card for click handler
               card.dataset.cover = data.cover_url;
               console.log('[external] cover resolved', title, data.cover_url);
+            }
+            // Store files info in card for click handler (avoids re-fetch due to server cache)
+            if (data.files && data.files.length > 0) {
+              card.dataset.files = JSON.stringify(data.files);
+              console.log('[external] files cached', title, data.files.length + ' files');
             }
           })
           .catch(err => {

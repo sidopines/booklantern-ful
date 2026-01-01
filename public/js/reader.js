@@ -1162,14 +1162,49 @@
       // Use Promise.race with timeout for robust display handling
       tsLog('rendition.display() starting');
       try {
-        const savedLocation = getSavedLocation();
+        const rawSavedLocation = getSavedLocation();
         
-        // Helper: display with Promise.race timeout
+        // CRITICAL: Validate saved location before use - NEVER pass undefined/empty to display()
+        // A valid CFI looks like: epubcfi(/6/2!/...) - must start with 'epubcfi(' and have content
+        let savedLocation = null;
+        if (rawSavedLocation && typeof rawSavedLocation === 'string' && rawSavedLocation.trim().length > 10) {
+          const trimmed = rawSavedLocation.trim();
+          // Validate it looks like a CFI or spine href (not random garbage)
+          if (trimmed.startsWith('epubcfi(') || trimmed.includes('.xhtml') || trimmed.includes('.html') || trimmed.includes('.xml')) {
+            savedLocation = trimmed;
+            tsLog('Valid saved location found:', savedLocation.substring(0, 50) + '...');
+          } else {
+            tsLog('WARNING: Saved location looks invalid, ignoring:', trimmed.substring(0, 30));
+          }
+        } else {
+          tsLog('No valid saved location (empty/short/undefined)');
+        }
+        
+        // Helper: display with Promise.race timeout and safe fallback
         async function displayWithTimeout(location, timeoutMs) {
           currentSpineHref = location || '(start)';
           tsLog('rendition.display() attempt at:', currentSpineHref);
           
-          const displayPromise = location ? rendition.display(location) : rendition.display();
+          // CRITICAL: Never pass undefined/null/empty string to rendition.display()
+          // If location is falsy, call display() with no args to go to start
+          let displayPromise;
+          try {
+            if (location && typeof location === 'string' && location.trim().length > 0) {
+              displayPromise = rendition.display(location);
+            } else {
+              displayPromise = rendition.display();
+            }
+          } catch (displayErr) {
+            // If display() throws synchronously (indexOf error), retry without location
+            tsLog('WARN: display() threw synchronously:', displayErr.message);
+            try {
+              displayPromise = rendition.display();
+            } catch (retryErr) {
+              tsLog('ERROR: display() retry also failed:', retryErr.message);
+              return Promise.reject(retryErr);
+            }
+          }
+          
           const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => reject(new Error('DISPLAY_TIMEOUT')), timeoutMs);
           });
