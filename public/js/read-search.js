@@ -710,12 +710,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const { card, img, landingUrl, title } = cardsNeedingCovers[queueIndex++];
         activeRequests++;
         
+        // Set image attributes for external cards (better loading behavior)
+        img.referrerPolicy = 'no-referrer';
+        img.loading = 'lazy';
+        
         fetch('/api/external/meta?url=' + encodeURIComponent(landingUrl))
           .then(r => r.json())
           .then(data => {
             if (data.ok && data.cover_url) {
-              img.src = data.cover_url;
-              // Also update data-cover on card for click handler
+              // Route external cover through our image proxy for better reliability
+              var proxiedUrl = '/api/proxy/image?url=' + encodeURIComponent(data.cover_url);
+              img.src = proxiedUrl;
+              // Also update data-cover on card for click handler (store original URL)
               card.dataset.cover = data.cover_url;
               console.log('[external] cover resolved', title, data.cover_url);
             }
