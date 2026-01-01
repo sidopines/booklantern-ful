@@ -220,8 +220,31 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Handle image error without inline onerror (CSP-safe)
+  // If fallback also fails, generate an SVG placeholder with title/author
   function handleImageError(img) {
     img.style.display = 'none';
+  }
+  
+  // Generate an SVG placeholder cover with title/author text
+  function generatePlaceholderSvg(title, author) {
+    const safeTitle = (title || 'Book').substring(0, 30).replace(/[<>&"']/g, '');
+    const safeAuthor = (author || '').substring(0, 25).replace(/[<>&"']/g, '');
+    // Use gradient background with readable text
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="180" viewBox="0 0 120 180">
+      <defs>
+        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#4f46e5"/>
+          <stop offset="100%" style="stop-color:#7c3aed"/>
+        </linearGradient>
+      </defs>
+      <rect width="120" height="180" fill="url(#bg)" rx="4"/>
+      <text x="60" y="75" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="11" font-weight="600">
+        <tspan x="60" dy="0">${safeTitle.substring(0, 15)}</tspan>
+        ${safeTitle.length > 15 ? '<tspan x="60" dy="14">' + safeTitle.substring(15, 30) + '</tspan>' : ''}
+      </text>
+      ${safeAuthor ? '<text x="60" y="140" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-family="system-ui,sans-serif" font-size="9">' + safeAuthor + '</text>' : ''}
+    </svg>`;
+    return 'data:image/svg+xml;base64,' + btoa(svg);
   }
   
   if (q) {
@@ -291,10 +314,17 @@ document.addEventListener('DOMContentLoaded', () => {
           
           // For Archive items, use the thumbnail service for covers
           let finalCoverUrl = coverUrl;
-          if (isArchive && archiveId && (coverUrl === '/public/img/cover-fallback.svg' || !item.cover_url)) {
-            finalCoverUrl = 'https://archive.org/services/img/' + encodeURIComponent(archiveId);
+          let archiveFallbackUrl = null;
+          if (isArchive && archiveId) {
+            // Always set Archive.org thumbnail as primary or fallback
+            archiveFallbackUrl = 'https://archive.org/services/img/' + encodeURIComponent(archiveId);
+            if (coverUrl === '/public/img/cover-fallback.svg' || !item.cover_url) {
+              finalCoverUrl = archiveFallbackUrl;
+            }
           }
-          const finalCover = `<img src="${finalCoverUrl}" alt="" data-fallback="/public/img/cover-fallback.svg">`;
+          // Set fallback chain: Archive thumbnail (if archive) -> default placeholder
+          const fallbackUrl = archiveFallbackUrl || '/public/img/cover-fallback.svg';
+          const finalCover = `<img src="${finalCoverUrl}" alt="" data-fallback="${fallbackUrl}" data-title="${title.replace(/"/g, '&quot;')}" data-author="${authorText.replace(/"/g, '&quot;')}">`;
           
           // Show format badge for non-EPUB items (PDF, etc)
           const formatBadge = (item.format && item.format !== 'epub' && item.format !== 'unknown')
@@ -419,10 +449,33 @@ document.addEventListener('DOMContentLoaded', () => {
         mount.addEventListener('keydown', handleCardKeydown);
         
         // Add error handlers for cover images (CSP-safe, no inline onerror)
+        // On first error: try data-fallback (Archive.org thumbnail service or default)
+        // On second error: generate SVG placeholder with title/author
         mount.querySelectorAll('img[data-fallback]').forEach(img => {
-          img.addEventListener('error', () => {
-            img.src = img.dataset.fallback;
+          const card = img.closest('.book-card');
+          const title = card?.dataset?.title || card?.querySelector('.card-title')?.textContent || 'Book';
+          const author = card?.dataset?.author || card?.querySelector('.card-author')?.textContent || '';
+          
+          img.addEventListener('error', function onFirstError() {
+            // Get title/author from image data attributes (more reliable)
+            const imgTitle = img.dataset.title || title;
+            const imgAuthor = img.dataset.author || author;
+            
+            // First error: try fallback URL
+            const fallbackUrl = img.dataset.fallback;
             img.removeAttribute('data-fallback');
+            
+            if (fallbackUrl && fallbackUrl !== img.src && !fallbackUrl.startsWith('data:')) {
+              img.src = fallbackUrl;
+              // Add handler for second error (fallback also failed)
+              img.addEventListener('error', function onSecondError() {
+                // Second error: use generated SVG placeholder
+                img.src = generatePlaceholderSvg(imgTitle, imgAuthor);
+              }, { once: true });
+            } else {
+              // No fallback available, use generated SVG
+              img.src = generatePlaceholderSvg(imgTitle, imgAuthor);
+            }
           }, { once: true });
         });
         
@@ -556,14 +609,25 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           console.log('[archive] fallback to:', data.open_url);
           const ref = encodeURIComponent(location.pathname + location.search);
-          window.location = '/external?url=' + encodeURIComponent(data.open_url) + '&ref=' + ref;
+          // Pass context to external page (title, author, cover, archive_id, available files)
+          let fallbackUrl = '/external?url=' + encodeURIComponent(data.open_url) + '&ref=' + ref;
+          fallbackUrl += '&title=' + encodeURIComponent(data.title || title);
+          fallbackUrl += '&author=' + encodeURIComponent(data.author || author);
+          fallbackUrl += '&archive_id=' + encodeURIComponent(data.archive_id || archiveId);
+          if (data.cover_url) fallbackUrl += '&cover_url=' + encodeURIComponent(data.cover_url);
+          if (data.available_files) fallbackUrl += '&files=' + encodeURIComponent(JSON.stringify(data.available_files));
+          window.location = fallbackUrl;
         }
       })
       .catch(err => {
         console.error('[archive] error:', err);
-        // On error, go to fallback page
+        // On error, go to fallback page with basic context
         const ref = encodeURIComponent(location.pathname + location.search);
-        window.location = '/external?url=' + encodeURIComponent('https://archive.org/details/' + archiveId) + '&ref=' + ref;
+        let fallbackUrl = '/external?url=' + encodeURIComponent('https://archive.org/details/' + archiveId) + '&ref=' + ref;
+        fallbackUrl += '&title=' + encodeURIComponent(title);
+        fallbackUrl += '&author=' + encodeURIComponent(author);
+        fallbackUrl += '&archive_id=' + encodeURIComponent(archiveId);
+        window.location = fallbackUrl;
       });
       
       return;
@@ -575,11 +639,15 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const externalUrl = card.dataset.externalUrl;
       const title = card.dataset.title || 'Untitled';
+      const author = card.dataset.author || '';
       
       console.log('[external] clicked generic external, title=' + title);
       
       const ref = encodeURIComponent(location.pathname + location.search);
-      window.location = '/external?url=' + encodeURIComponent(externalUrl) + '&ref=' + ref;
+      let fallbackUrl = '/external?url=' + encodeURIComponent(externalUrl) + '&ref=' + ref;
+      fallbackUrl += '&title=' + encodeURIComponent(title);
+      fallbackUrl += '&author=' + encodeURIComponent(author);
+      window.location = fallbackUrl;
       return;
     }
     

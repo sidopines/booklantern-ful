@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="/public/css/unified-reader.css?v=<%= buildId || Date.now() %>">
   <% if (useEpubJs) { %>
   <script defer src="/public/vendor/jszip.min.js?v=<%= buildId || Date.now() %>"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+  <script defer src="/public/vendor/epub.min.js?v=<%= buildId || Date.now() %>"></script>
   <% } %>
 </head>
 <body data-page="reader" data-epub="<%= useEpubJs %>" data-pdf="<%= usePdfViewer %>" data-format="<%= safeFormat %>" data-is-admin="<%= (user && user.isAdmin) ? 'true' : 'false' %>" data-show-source-links="<%= process.env.SHOW_SOURCE_LINKS === 'true' ? 'true' : 'false' %>" data-max-epub-mb="<%= process.env.MAX_EPUB_MB || 50 %>" data-max-pdf-mb="<%= process.env.MAX_PDF_MB || 200 %>" data-file-size="<%= safeFileSize %>" data-too-large="<%= isTooLarge %>" data-available-files="<%= safeAvailableFiles %>" data-archive-id="<%= safeArchiveId %>" data-best-pdf="<%= safeBestPdf %>">
@@ -109,10 +109,10 @@
       <!-- PDF viewer via iframe - no sandbox to allow Chrome PDF plugin -->
       <div id="pdf-viewer-container" class="pdf-viewer-container">
         <% 
-          // Build PDF proxy URL
+          // Build PDF proxy URL - use /api/proxy/file for non-archive sources (handles blocked iframes like OpenStax)
           var pdfProxyUrl = safeArchiveId 
             ? '/api/proxy/pdf?archive=' + encodeURIComponent(safeArchiveId)
-            : '/api/proxy/pdf?url=' + encodeURIComponent(safeDirectUrl);
+            : '/api/proxy/file?url=' + encodeURIComponent(safeDirectUrl);
         %>
         <iframe
           id="pdf-frame"

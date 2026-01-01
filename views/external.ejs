@@ -4,40 +4,139 @@
     const safeExternalUrl = (typeof externalUrl === 'string' && externalUrl) ? externalUrl : '';
     const safeBackHref = (typeof backHref === 'string' && backHref) ? backHref : '/read';
     const safeTitle = (typeof pageTitle === 'string' && pageTitle) ? pageTitle : 'External Content';
+    const safeBookTitle = (typeof bookTitle === 'string' && bookTitle) ? bookTitle : '';
+    const safeAuthor = (typeof author === 'string' && author) ? author : '';
+    const safeReason = (typeof reason === 'string' && reason) ? reason : '';
+    const safeFiles = (typeof files === 'object' && files) ? files : null;
+    const safeArchiveId = (typeof archiveId === 'string' && archiveId) ? archiveId : '';
+    const safeCoverUrl = (typeof coverUrl === 'string' && coverUrl) ? coverUrl : '';
   %>
   <%- include('partials/head', { pageTitle: safeTitle, title: safeTitle }) %>
   <body class="page">
     <%- include('partials/navbar') %>
 
-    <main class="container" style="max-width: 600px; text-align: center; padding: 60px 20px;">
-      <div style="margin-bottom: 24px;">
-        <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: #6b7280;">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-        </svg>
+    <main class="container" style="max-width: 640px; padding: 40px 20px;">
+      
+      <!-- Book info header if available -->
+      <% if (safeBookTitle || safeCoverUrl) { %>
+      <div style="display: flex; gap: 20px; align-items: flex-start; margin-bottom: 32px; padding: 20px; background: #f9fafb; border-radius: 12px;">
+        <% if (safeCoverUrl) { %>
+        <img src="<%= safeCoverUrl %>" alt="" style="width: 80px; height: auto; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" onerror="this.style.display='none'">
+        <% } else if (safeBookTitle) { %>
+        <!-- Generated placeholder cover -->
+        <div style="width: 80px; height: 120px; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border-radius: 4px; display: flex; align-items: center; justify-content: center; padding: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          <span style="color: white; font-size: 11px; text-align: center; line-height: 1.3; word-break: break-word;"><%= safeBookTitle.substring(0, 40) %></span>
+        </div>
+        <% } %>
+        <div>
+          <% if (safeBookTitle) { %>
+          <h2 style="margin: 0 0 4px; font-size: 18px; font-weight: 600; color: #1a1a1a;"><%= safeBookTitle %></h2>
+          <% } %>
+          <% if (safeAuthor) { %>
+          <p style="margin: 0; color: #6b7280; font-size: 14px;"><%= safeAuthor %></p>
+          <% } %>
+        </div>
+      </div>
+      <% } %>
+      
+      <!-- Status section -->
+      <div style="text-align: center; margin-bottom: 32px;">
+        <div style="margin-bottom: 20px;">
+          <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: #6b7280;">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+          </svg>
+        </div>
+        
+        <h1 style="font-size: 22px; font-weight: 600; margin-bottom: 12px; color: #1a1a1a;">
+          <% if (safeReason) { %>
+            <%= safeReason %>
+          <% } else if (safeFiles && (safeFiles.pdfs?.length || safeFiles.epubs?.length)) { %>
+            Available files for download
+          <% } else { %>
+            No readable format available
+          <% } %>
+        </h1>
+        
+        <p style="color: #6b7280; font-size: 15px; line-height: 1.6;">
+          <% if (safeReason && safeReason.includes('borrow')) { %>
+            This edition is protected and requires borrowing from the source library.
+          <% } else if (safeFiles && (safeFiles.pdfs?.length || safeFiles.epubs?.length)) { %>
+            We couldn't render this book in the browser, but you can download the files below.
+          <% } else { %>
+            We couldn't find a PDF or EPUB file to display. Try searching for a different edition.
+          <% } %>
+        </p>
       </div>
       
-      <h1 style="font-size: 24px; font-weight: 600; margin-bottom: 12px; color: #1a1a1a;">
-        This title can't be opened in BookLantern yet
-      </h1>
+      <!-- Available files section -->
+      <% if (safeFiles && (safeFiles.pdfs?.length || safeFiles.epubs?.length)) { %>
+      <div style="background: #f9fafb; border-radius: 12px; padding: 20px; margin-bottom: 32px;">
+        <h3 style="margin: 0 0 16px; font-size: 14px; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.5px;">
+          Available Files
+        </h3>
+        
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <% if (safeFiles.epubs && safeFiles.epubs.length > 0) { %>
+            <% safeFiles.epubs.slice(0, 3).forEach(function(epub) { %>
+              <% 
+                const sizeMB = Math.round((epub.size || 0) / 1e6);
+                const downloadUrl = safeArchiveId 
+                  ? '/api/proxy/file?url=' + encodeURIComponent('https://archive.org/download/' + safeArchiveId + '/' + epub.name)
+                  : '#';
+              %>
+              <a href="<%= downloadUrl %>" 
+                 style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: white; border: 1px solid #e5e7eb; border-radius: 8px; text-decoration: none; color: inherit; transition: border-color 0.2s;"
+                 download>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="color: #059669; font-weight: 600;">EPUB</span>
+                  <span style="color: #374151; font-size: 14px;"><%= epub.name.substring(0, 40) %><%= epub.name.length > 40 ? '...' : '' %></span>
+                </div>
+                <span style="color: #6b7280; font-size: 13px;"><%= sizeMB %> MB</span>
+              </a>
+            <% }); %>
+          <% } %>
+          
+          <% if (safeFiles.pdfs && safeFiles.pdfs.length > 0) { %>
+            <% safeFiles.pdfs.slice(0, 3).forEach(function(pdf) { %>
+              <% 
+                const sizeMB = Math.round((pdf.size || 0) / 1e6);
+                const downloadUrl = safeArchiveId 
+                  ? '/api/proxy/file?url=' + encodeURIComponent('https://archive.org/download/' + safeArchiveId + '/' + pdf.name)
+                  : '#';
+              %>
+              <a href="<%= downloadUrl %>" 
+                 style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: white; border: 1px solid #e5e7eb; border-radius: 8px; text-decoration: none; color: inherit; transition: border-color 0.2s;"
+                 download>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="color: #dc2626; font-weight: 600;">PDF</span>
+                  <span style="color: #374151; font-size: 14px;"><%= pdf.name.substring(0, 40) %><%= pdf.name.length > 40 ? '...' : '' %></span>
+                </div>
+                <span style="color: #6b7280; font-size: 13px;"><%= sizeMB %> MB</span>
+              </a>
+            <% }); %>
+          <% } %>
+        </div>
+      </div>
+      <% } %>
       
-      <p style="color: #6b7280; margin-bottom: 32px;">
-        We couldn't find a compatible PDF for this book. You can open it on the original source website instead.
-      </p>
-
+      <!-- Actions -->
       <div style="display: flex; flex-direction: column; gap: 12px; align-items: center;">
+        <a href="<%= safeBackHref %>" class="btn" style="display: inline-flex; align-items: center; gap: 8px;">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+          Back to search
+        </a>
+        
         <% if (safeExternalUrl) { %>
           <a href="<%= safeExternalUrl %>" target="_blank" rel="noopener noreferrer" 
-             class="btn" style="display: inline-flex; align-items: center; gap: 8px;">
-            Open on source
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+             style="color: #6b7280; font-size: 14px; display: inline-flex; align-items: center; gap: 4px;">
+            Open on source website
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
             </svg>
           </a>
         <% } %>
-        
-        <a href="<%= safeBackHref %>" style="color: #4f46e5; font-size: 14px;">
-          ← Back to search
-        </a>
       </div>
     </main>
 
