@@ -1653,6 +1653,8 @@ router.get('/api/proxy/pdf', ensureSubscriberApi, async (req, res) => {
  * - Supports Range requests (Accept-Ranges / 206 Partial Content) for PDFs
  * - Preserves Content-Type and Content-Length
  * - Sets Content-Disposition: inline for embedding
+ * - Retries with simpler headers on failure
+ * - Falls back to 307 redirect if upstream returns 403/401/429/5xx
  * 
  * This is the primary endpoint for embedding blocked-iframe PDFs like OpenStax
  */
@@ -1679,38 +1681,68 @@ router.get('/api/proxy/file', ensureSubscriberApi, async (req, res) => {
   
   console.log('[file-proxy] Proxying:', targetUrl);
   
-  try {
-    // Build request headers
-    const headers = {
+  // Helper: build headers for upstream request
+  function buildHeaders(simple = false) {
+    const hostname = parsed.hostname.toLowerCase();
+    const upstreamOrigin = `${parsed.protocol}//${parsed.host}`;
+    
+    const hdrs = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': '*/*',
-      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept': 'application/pdf,*/*',
       'Accept-Encoding': 'identity', // Don't compress for proper Range support
     };
     
-    // Forward Range header if present (critical for PDF viewing)
+    if (!simple) {
+      hdrs['Accept-Language'] = 'en-US,en;q=0.9';
+      hdrs['Referer'] = upstreamOrigin + '/';
+      hdrs['Origin'] = upstreamOrigin;
+    }
+    
+    // Forward conditional/range headers from client
     const rangeHeader = req.headers.range;
     if (rangeHeader) {
-      headers['Range'] = rangeHeader;
+      hdrs['Range'] = rangeHeader;
       console.log('[file-proxy] Range request:', rangeHeader);
     }
+    if (req.headers['if-range']) hdrs['If-Range'] = req.headers['if-range'];
+    if (req.headers['if-modified-since']) hdrs['If-Modified-Since'] = req.headers['if-modified-since'];
+    if (req.headers['if-none-match']) hdrs['If-None-Match'] = req.headers['if-none-match'];
     
-    // Set appropriate Referer for known hosts
-    const hostname = parsed.hostname.toLowerCase();
-    if (hostname.includes('openstax') || hostname.includes('cnx.org')) {
-      headers['Referer'] = 'https://openstax.org/';
-    } else if (hostname.includes('archive.org')) {
-      headers['Referer'] = 'https://archive.org/';
-    } else if (hostname.includes('oapen') || hostname.includes('doab')) {
-      headers['Referer'] = 'https://library.oapen.org/';
+    return hdrs;
+  }
+  
+  // Helper: check if error status should trigger 307 fallback
+  function shouldFallback(status) {
+    return status === 403 || status === 401 || status === 429 || status >= 500;
+  }
+  
+  // Helper: send plain text error (not JSON) unless client wants JSON
+  function sendError(status, msg) {
+    const acceptJson = (req.headers.accept || '').includes('application/json');
+    if (acceptJson) {
+      return res.status(status).json({ error: msg });
+    }
+    res.status(status).type('text/plain').send(msg);
+  }
+  
+  try {
+    // First attempt with full headers
+    let response = await fetchWithTimeout(targetUrl, 60000, buildHeaders(false));
+    
+    // On failure, retry once with simpler headers
+    if (!response.ok && response.status !== 206 && shouldFallback(response.status)) {
+      console.log('[file-proxy] First attempt failed:', response.status, '- retrying with simple headers');
+      response = await fetchWithTimeout(targetUrl, 60000, buildHeaders(true));
     }
     
-    const response = await fetchWithTimeout(targetUrl, 60000, headers);
-    
-    // Handle redirects by following them (fetch follows automatically)
+    // If still failing with fallback-worthy status, redirect to original URL
     if (!response.ok && response.status !== 206) {
+      if (shouldFallback(response.status)) {
+        console.log('[file-proxy] Upstream error:', response.status, '- 307 redirect to:', targetUrl);
+        return res.redirect(307, targetUrl);
+      }
       console.error('[file-proxy] Upstream error:', response.status, targetUrl);
-      return res.status(response.status).json({ error: 'Upstream error', status: response.status });
+      return sendError(response.status, 'Upstream error: ' + response.status);
     }
     
     // Determine content type
@@ -1777,9 +1809,99 @@ router.get('/api/proxy/file', ensureSubscriberApi, async (req, res) => {
     console.error('[file-proxy] Error:', err.message);
     if (!res.headersSent) {
       if (err.name === 'AbortError') {
-        return res.status(504).json({ error: 'Request timeout' });
+        // On timeout, try 307 redirect
+        console.log('[file-proxy] Timeout - 307 redirect to:', targetUrl);
+        return res.redirect(307, targetUrl);
       }
-      return res.status(502).json({ error: 'Failed to fetch file: ' + err.message });
+      const acceptJson = (req.headers.accept || '').includes('application/json');
+      if (acceptJson) {
+        return res.status(502).json({ error: 'Failed to fetch file: ' + err.message });
+      }
+      res.status(502).type('text/plain').send('Failed to fetch file: ' + err.message);
+    }
+  }
+});
+
+/**
+ * GET /api/proxy/image?url=<encoded-url>
+ * Image proxy for external cover images (OAPEN, DOAB, OpenStax, etc.)
+ * - Validates URL against allowlist
+ * - Sets browser-like headers with Referer/Origin from upstream
+ * - Streams response with proper Content-Type
+ * - On 403/401/429/5xx: returns 307 redirect to original URL (let browser try direct)
+ */
+router.get('/api/proxy/image', async (req, res) => {
+  const targetUrl = req.query.url;
+  
+  if (!targetUrl) {
+    return res.status(400).type('text/plain').send('Missing url parameter');
+  }
+  
+  // Validate URL format
+  let parsed;
+  try {
+    parsed = new URL(targetUrl);
+  } catch {
+    return res.status(400).type('text/plain').send('Invalid URL format');
+  }
+  
+  // Validate domain against allowlist
+  if (!isAllowedProxyDomain(targetUrl)) {
+    console.warn('[image-proxy] Blocked non-whitelisted domain:', targetUrl);
+    // For non-allowed domains, redirect to original (browser can try)
+    return res.redirect(307, targetUrl);
+  }
+  
+  console.log('[image-proxy] Proxying:', targetUrl);
+  
+  try {
+    const upstreamOrigin = `${parsed.protocol}//${parsed.host}`;
+    
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'image/*,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Referer': upstreamOrigin + '/',
+      'Origin': upstreamOrigin,
+    };
+    
+    const response = await fetchWithTimeout(targetUrl, 15000, headers);
+    
+    // On error, redirect to original URL (let <img> try direct)
+    if (!response.ok) {
+      console.log('[image-proxy] Upstream error:', response.status, '- 307 redirect');
+      return res.redirect(307, targetUrl);
+    }
+    
+    // Get content type from upstream
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    
+    // Set response headers
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache images for 24 hours
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    
+    // Forward Content-Length if present
+    const contentLength = response.headers.get('content-length');
+    if (contentLength) {
+      res.setHeader('Content-Length', contentLength);
+    }
+    
+    // Stream the response
+    const reader = response.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+    res.end();
+    console.log('[image-proxy] Image streamed successfully:', contentType);
+    
+  } catch (err) {
+    console.error('[image-proxy] Error:', err.message);
+    if (!res.headersSent) {
+      // On any error, redirect to original URL
+      return res.redirect(307, targetUrl);
     }
   }
 });

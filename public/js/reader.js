@@ -456,6 +456,8 @@
 
   /**
    * Initialize PDF viewer with timeout fallback
+   * - After 8 seconds without load, tries switching to direct URL
+   * - Shows "Open PDF in new tab" fallback immediately on failure
    */
   function initPdfViewer() {
     const pdfFrame = document.getElementById('pdf-frame');
@@ -466,15 +468,67 @@
     
     let loadTimeout = null;
     let loaded = false;
+    let triedDirectFallback = false;
     
-    // Set a timeout for PDF loading (15 seconds)
+    // Extract direct URL from proxy URL (for fallback)
+    function getDirectUrl(proxySrc) {
+      if (!proxySrc) return null;
+      try {
+        var srcUrl = new URL(proxySrc, window.location.origin);
+        var urlParam = srcUrl.searchParams.get('url');
+        if (urlParam) return urlParam;
+        // For archive proxy, no direct fallback available
+        return null;
+      } catch (e) {
+        return null;
+      }
+    }
+    
+    // Try direct URL fallback
+    function tryDirectFallback() {
+      if (triedDirectFallback) return false;
+      triedDirectFallback = true;
+      
+      var directUrl = getDirectUrl(pdfFrame.src);
+      if (directUrl) {
+        tsLog('PDF proxy timeout/error - trying direct URL:', directUrl);
+        pdfFrame.src = directUrl;
+        // Give the direct URL attempt another 8 seconds
+        loadTimeout = setTimeout(function() {
+          if (!loaded) {
+            tsLog('Direct PDF also failed - showing fallback');
+            showFallbackUI(directUrl);
+          }
+        }, 8000);
+        return true;
+      }
+      return false;
+    }
+    
+    // Show fallback UI with direct link
+    function showFallbackUI(directUrl) {
+      if (pdfLoading) pdfLoading.style.display = 'none';
+      if (pdfFallback) {
+        pdfFallback.style.display = 'flex';
+        // Update the fallback link to point to direct URL if available
+        var openLink = pdfFallback.querySelector('a');
+        if (openLink && directUrl) {
+          openLink.href = directUrl;
+        }
+      }
+    }
+    
+    // Set a timeout for PDF loading (8 seconds for proxy, then try direct)
     loadTimeout = setTimeout(function() {
       if (!loaded) {
-        tsLog('PDF load timeout - showing fallback');
-        if (pdfLoading) pdfLoading.style.display = 'none';
-        if (pdfFallback) pdfFallback.style.display = 'flex';
+        tsLog('PDF proxy load timeout (8s)');
+        if (!tryDirectFallback()) {
+          // No direct fallback available (e.g., archive proxy)
+          if (pdfLoading) pdfLoading.style.display = 'none';
+          if (pdfFallback) pdfFallback.style.display = 'flex';
+        }
       }
-    }, 15000);
+    }, 8000);
     
     // Hide loading when iframe loads
     pdfFrame.addEventListener('load', function() {
@@ -492,11 +546,16 @@
     
     // Handle errors
     pdfFrame.addEventListener('error', function() {
-      loaded = true;
+      if (loaded) return; // Already handled
       if (loadTimeout) clearTimeout(loadTimeout);
       tsLog('PDF iframe error');
-      if (pdfLoading) pdfLoading.style.display = 'none';
-      if (pdfFallback) pdfFallback.style.display = 'flex';
+      
+      // Try direct URL fallback first
+      if (!tryDirectFallback()) {
+        loaded = true;
+        var directUrl = getDirectUrl(pdfFrame.getAttribute('src'));
+        showFallbackUI(directUrl);
+      }
     });
   }
 
