@@ -22,6 +22,8 @@ const ALLOWED_DOMAINS = [
   'library.oapen.org',
   'oapen.org',
   'doabooks.org',
+  'directory.doabooks.org',
+  'www.doabooks.org',
   // OpenStax (open textbooks)
   'openstax.org',
   'assets.openstax.org',
@@ -38,6 +40,7 @@ const PDF_ALLOWED_DOMAINS = [
   // OAPEN PDFs
   'library.oapen.org',
   'oapen.org',
+  'directory.doabooks.org',
   // OpenStax PDFs
   'openstax.org',
   'assets.openstax.org',
@@ -57,6 +60,7 @@ function isAllowedDomain(urlString, allowedList = ALLOWED_DOMAINS) {
       if (hostname.endsWith('.loc.gov')) return true;
       if (hostname.endsWith('.gutenberg.org')) return true;
       if (hostname.endsWith('.oapen.org')) return true;
+      if (hostname.endsWith('.doabooks.org')) return true;
       if (hostname.endsWith('.openstax.org')) return true;
       if (hostname.endsWith('.cloudfront.net')) return true; // OpenStax CDN
       return false;
