@@ -144,7 +144,28 @@ app.use(require('cookie-parser')(process.env.COOKIE_SECRET || 'dev_fallback_cook
 
 // ---------- Session middleware ----------
 const session = require('express-session');
+
+// Session store: Redis in production (Render), MemoryStore for local dev
+let sessionStore;
+if (process.env.REDIS_URL) {
+  const { createClient } = require('redis');
+  const RedisStore = require('connect-redis').default;
+  
+  const redisClient = createClient({ url: process.env.REDIS_URL });
+  redisClient.connect().catch(err => {
+    console.error('[session] Redis connection error:', err.message);
+  });
+  redisClient.on('error', err => console.error('[session] Redis error:', err.message));
+  redisClient.on('connect', () => console.log('[session] Redis connected'));
+  
+  sessionStore = new RedisStore({ client: redisClient, prefix: 'bl:sess:' });
+  console.log('[session] Using RedisStore');
+} else {
+  console.log('[session] REDIS_URL not set, using MemoryStore (dev only)');
+}
+
 app.use(session({
+  store: sessionStore, // undefined = MemoryStore (default)
   name: 'bl.sid',
   secret: process.env.SESSION_SECRET || process.env.COOKIE_SECRET || 'dev_fallback_session_secret',
   resave: false,
