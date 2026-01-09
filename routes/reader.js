@@ -640,6 +640,7 @@ router.post('/api/external/token', async (req, res) => {
     if (response.ok) {
       const html = await response.text();
       const seenUrls = new Set();
+      const isDOAB = landing_url.includes('directory.doabooks.org');
 
       // Helper: normalize relative URL to absolute
       function toAbsolute(href) {
@@ -655,12 +656,41 @@ router.post('/api/external/token', async (req, res) => {
       }
 
       // Helper: check if URL is a thumbnail/preview image (not actual PDF)
+      // For DOAB/DSpace, thumbnails typically have patterns like .pdf.jpg or end in image extensions after .pdf
       function isThumbnail(href) {
         if (!href) return true;
         const lower = href.toLowerCase();
-        return lower.includes('.pdf.jpg') || lower.includes('.pdf.png') || 
-               lower.includes('_thumb') || lower.includes('thumbnail') ||
-               lower.includes('/cover/') || lower.includes('preview');
+        // Strict thumbnail patterns - must have .pdf followed by image extension
+        if (/\.pdf\.(jpg|jpeg|png|gif|webp)$/i.test(lower)) return true;
+        if (/\.pdf\.(jpg|jpeg|png|gif|webp)\?/i.test(lower)) return true;
+        // Also check for explicit thumbnail markers
+        if (lower.includes('_thumb') || lower.includes('thumbnail')) return true;
+        // But NOT just /cover/ paths - those could be legitimate content
+        if (lower.includes('/cover/') && !lower.includes('/bitstream/')) return true;
+        if (lower.includes('preview') && !lower.includes('/bitstream/')) return true;
+        return false;
+      }
+      
+      // Helper: check if this is a valid PDF URL (not a thumbnail)
+      // Must end with .pdf (optionally followed by query string) but NOT followed by another extension
+      function isValidPdfUrl(href) {
+        if (!href) return false;
+        const lower = href.toLowerCase();
+        // Extract path without query/hash
+        const path = lower.split('?')[0].split('#')[0];
+        // Must end with .pdf
+        if (!path.endsWith('.pdf')) return false;
+        // Must not be a thumbnail (e.g., .pdf.jpg)
+        if (isThumbnail(lower)) return false;
+        return true;
+      }
+      
+      // Helper: check if this is a valid EPUB URL
+      function isValidEpubUrl(href) {
+        if (!href) return false;
+        const lower = href.toLowerCase();
+        const path = lower.split('?')[0].split('#')[0];
+        return path.endsWith('.epub');
       }
 
       // Helper: strip query/hash from URL for extension checking
@@ -669,14 +699,15 @@ router.post('/api/external/token', async (req, res) => {
         return href.split('?')[0].split('#')[0].toLowerCase();
       }
 
-      // 1. Try citation_pdf_url meta tag
+      // 1. Try citation_pdf_url meta tag (most reliable for academic sources)
       const citationPdfMatch = html.match(/<meta\s+(?:name|property)=["']citation_pdf_url["']\s+content=["']([^"']+)["']/i)
                             || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:name|property)=["']citation_pdf_url["']/i);
       if (citationPdfMatch && citationPdfMatch[1]) {
         const pdfUrl = toAbsolute(citationPdfMatch[1]);
-        if (pdfUrl && !isThumbnail(pdfUrl) && !seenUrls.has(pdfUrl)) {
+        if (pdfUrl && isValidPdfUrl(pdfUrl) && !seenUrls.has(pdfUrl)) {
           seenUrls.add(pdfUrl);
-          files.push({ format: 'pdf', url: pdfUrl });
+          files.push({ format: 'pdf', url: pdfUrl, source: 'citation_pdf_url' });
+          console.log(`[externalToken] Found PDF via citation_pdf_url: ${pdfUrl}`);
         }
       }
 
@@ -685,48 +716,62 @@ router.post('/api/external/token', async (req, res) => {
                              || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:name|property)=["']citation_epub_url["']/i);
       if (citationEpubMatch && citationEpubMatch[1]) {
         const epubUrl = toAbsolute(citationEpubMatch[1]);
-        if (epubUrl && !seenUrls.has(epubUrl)) {
+        if (epubUrl && isValidEpubUrl(epubUrl) && !seenUrls.has(epubUrl)) {
           seenUrls.add(epubUrl);
-          files.push({ format: 'epub', url: epubUrl });
+          files.push({ format: 'epub', url: epubUrl, source: 'citation_epub_url' });
+          console.log(`[externalToken] Found EPUB via citation_epub_url: ${epubUrl}`);
         }
       }
 
-      // 3. Look for <a href> links containing /bitstream/ ending with .pdf or .epub (handles querystrings)
-      const hrefPattern = /href=["']([^"']*\/bitstream\/[^"']*)["']/gi;
-      let hrefMatch;
-      while ((hrefMatch = hrefPattern.exec(html)) !== null) {
-        const href = hrefMatch[1];
-        if (isThumbnail(href)) continue;
-        const absUrl = toAbsolute(href);
-        if (!absUrl || seenUrls.has(absUrl)) continue;
-        const cleanPath = getCleanPath(href);
-        if (cleanPath.endsWith('.pdf')) {
-          seenUrls.add(absUrl);
-          files.push({ format: 'pdf', url: absUrl });
-        } else if (cleanPath.endsWith('.epub')) {
-          seenUrls.add(absUrl);
-          files.push({ format: 'epub', url: absUrl });
+      // 3. DOAB/DSpace specific: Look for bitstream links with proper PDF/EPUB extensions
+      // DSpace uses /bitstream/handle/... or /bitstream/... patterns
+      if (isDOAB || html.includes('/bitstream/')) {
+        // Match href attributes containing bitstream
+        const bitstreamPattern = /href=["']([^"']*\/bitstream\/[^"']*)["']/gi;
+        let hrefMatch;
+        while ((hrefMatch = bitstreamPattern.exec(html)) !== null) {
+          const href = hrefMatch[1];
+          const absUrl = toAbsolute(href);
+          if (!absUrl || seenUrls.has(absUrl)) continue;
+          
+          if (isValidPdfUrl(href)) {
+            seenUrls.add(absUrl);
+            files.push({ format: 'pdf', url: absUrl, source: 'bitstream' });
+            console.log(`[externalToken] Found PDF via bitstream: ${absUrl}`);
+          } else if (isValidEpubUrl(href)) {
+            seenUrls.add(absUrl);
+            files.push({ format: 'epub', url: absUrl, source: 'bitstream' });
+            console.log(`[externalToken] Found EPUB via bitstream: ${absUrl}`);
+          }
         }
       }
 
-      // 4. Look for any href ending with .pdf or .epub (broader search, handles querystrings)
-      const anyPdfPattern = /href=["']([^"']+\.pdf(?:\?[^"']*)?)["']/gi;
-      while ((hrefMatch = anyPdfPattern.exec(html)) !== null) {
-        const href = hrefMatch[1];
-        if (isThumbnail(href)) continue;
-        const absUrl = toAbsolute(href);
-        if (absUrl && !seenUrls.has(absUrl)) {
-          seenUrls.add(absUrl);
-          files.push({ format: 'pdf', url: absUrl });
+      // 4. Look for any href ending with .pdf (broader search, handles querystrings)
+      // Only if we haven't found files yet
+      if (files.length === 0) {
+        const anyPdfPattern = /href=["']([^"']+)["']/gi;
+        let hrefMatch;
+        while ((hrefMatch = anyPdfPattern.exec(html)) !== null) {
+          const href = hrefMatch[1];
+          if (!isValidPdfUrl(href)) continue;
+          const absUrl = toAbsolute(href);
+          if (absUrl && !seenUrls.has(absUrl)) {
+            seenUrls.add(absUrl);
+            files.push({ format: 'pdf', url: absUrl, source: 'href' });
+            console.log(`[externalToken] Found PDF via href scan: ${absUrl}`);
+          }
         }
-      }
-
-      const anyEpubPattern = /href=["']([^"']+\.epub(?:\?[^"']*)?)["']/gi;
-      while ((hrefMatch = anyEpubPattern.exec(html)) !== null) {
-        const absUrl = toAbsolute(hrefMatch[1]);
-        if (absUrl && !seenUrls.has(absUrl)) {
-          seenUrls.add(absUrl);
-          files.push({ format: 'epub', url: absUrl });
+        
+        // Also look for EPUBs
+        const html2 = html; // Reset for new regex
+        const anyEpubPattern = /href=["']([^"']+\.epub(?:\?[^"']*)?)["']/gi;
+        while ((hrefMatch = anyEpubPattern.exec(html2)) !== null) {
+          const absUrl = toAbsolute(hrefMatch[1]);
+          if (absUrl && !seenUrls.has(absUrl)) {
+            seenUrls.add(absUrl);
+            files.push({ format: 'epub', url: absUrl, source: 'href' });
+            console.log(`[externalToken] Found EPUB via href scan: ${absUrl}`);
+          }
         }
       }
 
@@ -746,10 +791,14 @@ router.post('/api/external/token', async (req, res) => {
     console.error(`[externalToken] fetch error for ${landing_url}:`, err.message);
   }
 
-  // Choose best file: prefer PDF, then EPUB
-  const pdfFile = files.find(f => f.format === 'pdf');
+  // Log what we found
+  console.log(`[externalToken] Found ${files.length} files for: ${landing_url}`);
+  files.forEach(f => console.log(`  - ${f.format}: ${f.url} (via ${f.source})`));
+
+  // Choose best file: prefer EPUB for reading, then PDF
   const epubFile = files.find(f => f.format === 'epub');
-  const bestFile = pdfFile || epubFile;
+  const pdfFile = files.find(f => f.format === 'pdf');
+  const bestFile = epubFile || pdfFile;
 
   if (!bestFile) {
     console.log(`[externalToken] no files found for: ${landing_url}`);
@@ -1647,14 +1696,43 @@ router.get('/api/proxy/pdf', ensureSubscriberApi, async (req, res) => {
 });
 
 /**
+ * SSRF protection: Check if a hostname resolves to a private/internal IP
+ * Blocks: localhost, 127.x.x.x, 10.x.x.x, 172.16-31.x.x, 192.168.x.x, 169.254.x.x, ::1, fc00::/7
+ */
+function isPrivateOrInternalHost(hostname) {
+  const lower = hostname.toLowerCase();
+  // Block localhost and common internal names
+  if (lower === 'localhost' || lower === 'localhost.localdomain' ||
+      lower.endsWith('.localhost') || lower.endsWith('.local') ||
+      lower.endsWith('.internal') || lower === 'metadata.google.internal') {
+    return true;
+  }
+  // Block IP address patterns
+  // IPv4 private/reserved
+  if (/^127\.\d+\.\d+\.\d+$/.test(hostname)) return true;  // 127.0.0.0/8
+  if (/^10\.\d+\.\d+\.\d+$/.test(hostname)) return true;   // 10.0.0.0/8
+  if (/^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(hostname)) return true; // 172.16.0.0/12
+  if (/^192\.168\.\d+\.\d+$/.test(hostname)) return true;  // 192.168.0.0/16
+  if (/^169\.254\.\d+\.\d+$/.test(hostname)) return true;  // Link-local (cloud metadata)
+  if (/^0\.\d+\.\d+\.\d+$/.test(hostname)) return true;    // 0.0.0.0/8
+  // IPv6 loopback and private
+  if (hostname === '::1' || hostname === '::' || hostname.startsWith('fe80:') ||
+      hostname.startsWith('fc') || hostname.startsWith('fd')) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * GET /api/proxy/file?url=<encoded-url>
  * Generic file proxy that streams any file type (PDF, EPUB, images)
  * - Validates URL against allowlist
+ * - SSRF protection: blocks localhost, private IPs, cloud metadata endpoints
  * - Supports Range requests (Accept-Ranges / 206 Partial Content) for PDFs
  * - Preserves Content-Type and Content-Length
  * - Sets Content-Disposition: inline for embedding
  * - Retries with simpler headers on failure
- * - Falls back to 307 redirect if upstream returns 403/401/429/5xx
+ * - Returns 502 on failure (NEVER redirects to external URL for CSP safety)
  * 
  * This is the primary endpoint for embedding blocked-iframe PDFs like OpenStax
  */
@@ -1671,6 +1749,18 @@ router.get('/api/proxy/file', ensureSubscriberApi, async (req, res) => {
     parsed = new URL(targetUrl);
   } catch {
     return res.status(400).json({ error: 'Invalid URL format' });
+  }
+  
+  // SSRF protection: only allow http/https
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    console.warn('[file-proxy] Blocked non-http protocol:', targetUrl);
+    return res.status(400).json({ error: 'Only http/https URLs allowed' });
+  }
+  
+  // SSRF protection: block private/internal hosts
+  if (isPrivateOrInternalHost(parsed.hostname)) {
+    console.warn('[file-proxy] Blocked private/internal host:', parsed.hostname);
+    return res.status(403).json({ error: 'Internal hosts not allowed' });
   }
   
   // Validate domain against allowlist
@@ -1711,9 +1801,9 @@ router.get('/api/proxy/file', ensureSubscriberApi, async (req, res) => {
     return hdrs;
   }
   
-  // Helper: check if error status should trigger 307 fallback
-  function shouldFallback(status) {
-    return status === 403 || status === 401 || status === 429 || status >= 500;
+  // Helper: check if error status should trigger retry with simpler headers
+  function shouldRetry(status) {
+    return status === 403 || status === 401 || status === 429;
   }
   
   // Helper: send plain text error (not JSON) unless client wants JSON
@@ -1730,19 +1820,15 @@ router.get('/api/proxy/file', ensureSubscriberApi, async (req, res) => {
     let response = await fetchWithTimeout(targetUrl, 60000, buildHeaders(false));
     
     // On failure, retry once with simpler headers
-    if (!response.ok && response.status !== 206 && shouldFallback(response.status)) {
+    if (!response.ok && response.status !== 206 && shouldRetry(response.status)) {
       console.log('[file-proxy] First attempt failed:', response.status, '- retrying with simple headers');
       response = await fetchWithTimeout(targetUrl, 60000, buildHeaders(true));
     }
     
-    // If still failing with fallback-worthy status, redirect to original URL
+    // If upstream fails, return 502 (NEVER redirect to external URL - would violate CSP)
     if (!response.ok && response.status !== 206) {
-      if (shouldFallback(response.status)) {
-        console.log('[file-proxy] Upstream error:', response.status, '- 307 redirect to:', targetUrl);
-        return res.redirect(307, targetUrl);
-      }
       console.error('[file-proxy] Upstream error:', response.status, targetUrl);
-      return sendError(response.status, 'Upstream error: ' + response.status);
+      return sendError(502, 'Upstream error: ' + response.status);
     }
     
     // Determine content type
@@ -1783,6 +1869,16 @@ router.get('/api/proxy/file', ensureSubscriberApi, async (req, res) => {
       res.setHeader('Content-Length', contentLength);
     }
     
+    // Forward ETag and Last-Modified for caching
+    const etag = response.headers.get('etag');
+    if (etag) {
+      res.setHeader('ETag', etag);
+    }
+    const lastModified = response.headers.get('last-modified');
+    if (lastModified) {
+      res.setHeader('Last-Modified', lastModified);
+    }
+    
     // Handle 206 Partial Content
     if (response.status === 206) {
       const contentRange = response.headers.get('content-range');
@@ -1808,16 +1904,15 @@ router.get('/api/proxy/file', ensureSubscriberApi, async (req, res) => {
   } catch (err) {
     console.error('[file-proxy] Error:', err.message);
     if (!res.headersSent) {
-      if (err.name === 'AbortError') {
-        // On timeout, try 307 redirect
-        console.log('[file-proxy] Timeout - 307 redirect to:', targetUrl);
-        return res.redirect(307, targetUrl);
-      }
+      // Always return 502 - NEVER redirect to external URL (would violate CSP)
       const acceptJson = (req.headers.accept || '').includes('application/json');
+      const errorMsg = err.name === 'AbortError' 
+        ? 'Request timeout - file may be too large or upstream too slow'
+        : 'Failed to fetch file: ' + err.message;
       if (acceptJson) {
-        return res.status(502).json({ error: 'Failed to fetch file: ' + err.message });
+        return res.status(502).json({ error: errorMsg });
       }
-      res.status(502).type('text/plain').send('Failed to fetch file: ' + err.message);
+      res.status(502).type('text/plain').send(errorMsg);
     }
   }
 });
@@ -1873,8 +1968,21 @@ router.get('/api/proxy/image', async (req, res) => {
       return res.redirect(307, targetUrl);
     }
     
-    // Get content type from upstream
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    // Get content type from upstream and strip charset (e.g., "image/png;charset=ISO-8859-1" -> "image/png")
+    let contentType = response.headers.get('content-type') || 'image/jpeg';
+    // Strip charset or any parameters from content-type
+    contentType = contentType.split(';')[0].trim();
+    // Ensure it's a valid image type
+    if (!contentType.startsWith('image/')) {
+      // Fallback based on URL extension
+      const urlLower = targetUrl.toLowerCase();
+      if (urlLower.match(/\.(jpg|jpeg)(\?|$)/)) contentType = 'image/jpeg';
+      else if (urlLower.match(/\.png(\?|$)/)) contentType = 'image/png';
+      else if (urlLower.match(/\.gif(\?|$)/)) contentType = 'image/gif';
+      else if (urlLower.match(/\.webp(\?|$)/)) contentType = 'image/webp';
+      else if (urlLower.match(/\.svg(\?|$)/)) contentType = 'image/svg+xml';
+      else contentType = 'image/jpeg'; // Default fallback
+    }
     
     // Set response headers
     res.setHeader('Content-Type', contentType);

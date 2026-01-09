@@ -455,9 +455,11 @@
   }
 
   /**
-   * Initialize PDF viewer with timeout fallback
-   * - After 8 seconds without load, tries switching to direct URL
-   * - Shows "Open PDF in new tab" fallback immediately on failure
+   * Initialize PDF viewer with graceful timeout handling
+   * - Uses 60 second timeout (large PDFs may take time via proxy)
+   * - NEVER switches iframe to direct external URL (would violate CSP)
+   * - Shows non-blocking "Still loading" notice after 15 seconds
+   * - Provides "Open on source site" link for users who can't wait
    */
   function initPdfViewer() {
     const pdfFrame = document.getElementById('pdf-frame');
@@ -466,74 +468,88 @@
     
     if (!pdfFrame) return;
     
-    let loadTimeout = null;
+    let softTimeout = null;
+    let hardTimeout = null;
     let loaded = false;
-    let triedDirectFallback = false;
+    let noticeShown = false;
     
-    // Extract direct URL from proxy URL (for fallback)
-    function getDirectUrl(proxySrc) {
-      if (!proxySrc) return null;
+    // Extract the original source URL from proxy URL (for "open on source" link only)
+    function getSourceUrl(proxySrc) {
+      if (!proxySrc) return currentSourceUrl || currentDirectUrl || null;
       try {
         var srcUrl = new URL(proxySrc, window.location.origin);
         var urlParam = srcUrl.searchParams.get('url');
         if (urlParam) return urlParam;
-        // For archive proxy, no direct fallback available
-        return null;
+        return currentSourceUrl || currentDirectUrl || null;
       } catch (e) {
-        return null;
+        return currentSourceUrl || currentDirectUrl || null;
       }
     }
     
-    // Try direct URL fallback
-    function tryDirectFallback() {
-      if (triedDirectFallback) return false;
-      triedDirectFallback = true;
+    // Show non-blocking "still loading" notice (does not replace loading UI)
+    function showStillLoadingNotice() {
+      if (noticeShown || loaded) return;
+      noticeShown = true;
       
-      var directUrl = getDirectUrl(pdfFrame.src);
-      if (directUrl) {
-        tsLog('PDF proxy timeout/error - trying direct URL:', directUrl);
-        pdfFrame.src = directUrl;
-        // Give the direct URL attempt another 8 seconds
-        loadTimeout = setTimeout(function() {
-          if (!loaded) {
-            tsLog('Direct PDF also failed - showing fallback');
-            showFallbackUI(directUrl);
-          }
-        }, 8000);
-        return true;
+      var sourceUrl = getSourceUrl(pdfFrame.src);
+      var noticeHtml = '<div id="pdf-loading-notice" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: #fef3c7; color: #92400e; padding: 12px 20px; border-radius: 8px; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 100; text-align: center; max-width: 90%;">' +
+        '<div style="margin-bottom: 8px;">⏳ Still loading… Large files may take a minute.</div>';
+      if (sourceUrl) {
+        noticeHtml += '<a href="' + sourceUrl + '" target="_blank" rel="noopener noreferrer" style="color: #b45309; text-decoration: underline;">Open on source site →</a>';
       }
-      return false;
+      noticeHtml += '</div>';
+      
+      // Insert notice into loading container or fallback area
+      var container = pdfLoading || pdfFrame.parentElement;
+      if (container) {
+        container.style.position = 'relative';
+        container.insertAdjacentHTML('beforeend', noticeHtml);
+      }
+      tsLog('PDF still loading - showing notice');
     }
     
-    // Show fallback UI with direct link
-    function showFallbackUI(directUrl) {
+    // Remove the "still loading" notice
+    function removeNotice() {
+      var notice = document.getElementById('pdf-loading-notice');
+      if (notice) notice.remove();
+    }
+    
+    // Show fallback UI (only on hard timeout/error)
+    function showFallbackUI() {
+      removeNotice();
       if (pdfLoading) pdfLoading.style.display = 'none';
       if (pdfFallback) {
         pdfFallback.style.display = 'flex';
-        // Update the fallback link to point to direct URL if available
+        // Update the fallback link to point to source URL
         var openLink = pdfFallback.querySelector('a');
-        if (openLink && directUrl) {
-          openLink.href = directUrl;
+        var sourceUrl = getSourceUrl(pdfFrame.src);
+        if (openLink && sourceUrl) {
+          openLink.href = sourceUrl;
         }
       }
     }
     
-    // Set a timeout for PDF loading (8 seconds for proxy, then try direct)
-    loadTimeout = setTimeout(function() {
+    // Soft timeout: show "still loading" notice after 15 seconds (non-blocking)
+    softTimeout = setTimeout(function() {
       if (!loaded) {
-        tsLog('PDF proxy load timeout (8s)');
-        if (!tryDirectFallback()) {
-          // No direct fallback available (e.g., archive proxy)
-          if (pdfLoading) pdfLoading.style.display = 'none';
-          if (pdfFallback) pdfFallback.style.display = 'flex';
-        }
+        showStillLoadingNotice();
       }
-    }, 8000);
+    }, 15000);
+    
+    // Hard timeout: show fallback UI after 60 seconds
+    hardTimeout = setTimeout(function() {
+      if (!loaded) {
+        tsLog('PDF proxy load timeout (60s)');
+        showFallbackUI();
+      }
+    }, 60000);
     
     // Hide loading when iframe loads
     pdfFrame.addEventListener('load', function() {
       loaded = true;
-      if (loadTimeout) clearTimeout(loadTimeout);
+      if (softTimeout) clearTimeout(softTimeout);
+      if (hardTimeout) clearTimeout(hardTimeout);
+      removeNotice();
       
       // Give a short delay to check if content actually rendered
       setTimeout(function() {
@@ -544,18 +560,14 @@
       }, 500);
     });
     
-    // Handle errors
+    // Handle errors (network errors, etc.)
     pdfFrame.addEventListener('error', function() {
       if (loaded) return; // Already handled
-      if (loadTimeout) clearTimeout(loadTimeout);
+      loaded = true;
+      if (softTimeout) clearTimeout(softTimeout);
+      if (hardTimeout) clearTimeout(hardTimeout);
       tsLog('PDF iframe error');
-      
-      // Try direct URL fallback first
-      if (!tryDirectFallback()) {
-        loaded = true;
-        var directUrl = getDirectUrl(pdfFrame.getAttribute('src'));
-        showFallbackUI(directUrl);
-      }
+      showFallbackUI();
     });
   }
 
