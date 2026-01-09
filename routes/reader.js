@@ -219,12 +219,12 @@ function isRetryableNetworkError(err) {
   return err?.name === 'AbortError' || (err instanceof TypeError && /fetch failed/i.test(err.message));
 }
 
-async function fetchWithTimeout(url, timeoutMs, headers = null) {
+async function fetchWithTimeout(url, timeoutMs, headers = null, method = 'GET') {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, {
-      method: 'GET',
+      method,
       headers: headers || {
         'User-Agent': PROXY_UA,
         'Accept': PROXY_ACCEPT,
@@ -610,213 +610,410 @@ router.get('/api/external/meta', async (req, res) => {
   }
 });
 
+// ============================================================================
+// PROVIDER-SPECIFIC EXTRACTORS FOR /api/external/token
+// ============================================================================
+
+/**
+ * Helper: Normalize relative URL to absolute
+ */
+function toAbsoluteUrl(href, baseUrl) {
+  if (!href) return null;
+  href = href.trim();
+  if (!href) return null;
+  if (href.startsWith('http://') || href.startsWith('https://')) return href;
+  try {
+    return new URL(href, baseUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Helper: Check if URL is a thumbnail/derivative (not actual content)
+ */
+function isThumbnailOrDerivative(href) {
+  if (!href) return true;
+  const lower = href.toLowerCase();
+  // Thumbnail patterns: .pdf.jpg, .pdf.png, etc.
+  if (/\.pdf\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(lower)) return true;
+  // Image file extensions
+  if (/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(lower)) return true;
+  // Explicit thumbnail markers
+  if (lower.includes('_thumb') || lower.includes('thumbnail')) return true;
+  // Preview/cover paths (unless in bitstream)
+  if ((lower.includes('/cover/') || lower.includes('preview')) && !lower.includes('/bitstream/')) return true;
+  return false;
+}
+
+/**
+ * Helper: Validate candidate URL via HEAD request
+ * Returns { valid: true, contentType } or { valid: false }
+ */
+async function validateCandidateUrl(url) {
+  try {
+    const response = await fetchWithTimeout(url, 10000, {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': '*/*',
+      'Accept-Encoding': 'identity',
+    }, 'HEAD');
+    
+    if (!response.ok) {
+      return { valid: false, reason: `HTTP ${response.status}` };
+    }
+    
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+    const isPdf = contentType.includes('application/pdf');
+    const isEpub = contentType.includes('application/epub+zip') || contentType.includes('application/epub');
+    const isOctet = contentType.includes('application/octet-stream');
+    
+    if (isPdf) return { valid: true, contentType: 'application/pdf', format: 'pdf' };
+    if (isEpub) return { valid: true, contentType: 'application/epub+zip', format: 'epub' };
+    // Accept octet-stream if URL has .pdf or .epub extension
+    if (isOctet) {
+      const urlLower = url.toLowerCase();
+      if (urlLower.includes('.pdf')) return { valid: true, contentType, format: 'pdf' };
+      if (urlLower.includes('.epub')) return { valid: true, contentType, format: 'epub' };
+    }
+    
+    return { valid: false, reason: `Content-Type: ${contentType}` };
+  } catch (err) {
+    return { valid: false, reason: err.message };
+  }
+}
+
+/**
+ * OAPEN Extractor (library.oapen.org)
+ * Extracts downloadable files from OAPEN landing pages
+ */
+async function extractOapenFiles(landingUrl, html) {
+  const candidates = [];
+  const seenUrls = new Set();
+  
+  // 1. citation_pdf_url meta tag (most reliable)
+  const citationPdfMatch = html.match(/<meta\s+(?:name|property)=["']citation_pdf_url["']\s+content=["']([^"']+)["']/i)
+                        || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:name|property)=["']citation_pdf_url["']/i);
+  if (citationPdfMatch?.[1]) {
+    const url = toAbsoluteUrl(citationPdfMatch[1], landingUrl);
+    if (url && !seenUrls.has(url)) {
+      seenUrls.add(url);
+      candidates.push({ url, format: 'pdf', source: 'citation_pdf_url' });
+    }
+  }
+  
+  // 2. citation_epub_url meta tag
+  const citationEpubMatch = html.match(/<meta\s+(?:name|property)=["']citation_epub_url["']\s+content=["']([^"']+)["']/i)
+                         || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:name|property)=["']citation_epub_url["']/i);
+  if (citationEpubMatch?.[1]) {
+    const url = toAbsoluteUrl(citationEpubMatch[1], landingUrl);
+    if (url && !seenUrls.has(url)) {
+      seenUrls.add(url);
+      candidates.push({ url, format: 'epub', source: 'citation_epub_url' });
+    }
+  }
+  
+  // 3. JSON-LD contentUrl / encoding.contentUrl
+  const jsonLdMatches = html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  for (const match of jsonLdMatches) {
+    try {
+      const jsonData = JSON.parse(match[1]);
+      const contentUrls = [];
+      if (jsonData.contentUrl) contentUrls.push(jsonData.contentUrl);
+      if (jsonData.encoding?.contentUrl) contentUrls.push(jsonData.encoding.contentUrl);
+      if (Array.isArray(jsonData.encoding)) {
+        jsonData.encoding.forEach(enc => enc.contentUrl && contentUrls.push(enc.contentUrl));
+      }
+      for (const rawUrl of contentUrls) {
+        const url = toAbsoluteUrl(rawUrl, landingUrl);
+        if (url && !seenUrls.has(url) && !isThumbnailOrDerivative(url)) {
+          seenUrls.add(url);
+          const lower = url.toLowerCase();
+          if (lower.includes('.epub')) {
+            candidates.push({ url, format: 'epub', source: 'json-ld' });
+          } else if (lower.includes('.pdf')) {
+            candidates.push({ url, format: 'pdf', source: 'json-ld' });
+          }
+        }
+      }
+    } catch { /* ignore parse errors */ }
+  }
+  
+  // 4. <a href> containing "/bitstream/" and ending with .pdf or .epub
+  const bitstreamPattern = /href=["']([^"']*\/bitstream\/[^"']*)["']/gi;
+  let match;
+  while ((match = bitstreamPattern.exec(html)) !== null) {
+    const url = toAbsoluteUrl(match[1], landingUrl);
+    if (!url || seenUrls.has(url) || isThumbnailOrDerivative(url)) continue;
+    seenUrls.add(url);
+    const lower = url.toLowerCase();
+    const path = lower.split('?')[0].split('#')[0];
+    if (path.endsWith('.epub')) {
+      candidates.push({ url, format: 'epub', source: 'bitstream' });
+    } else if (path.endsWith('.pdf')) {
+      candidates.push({ url, format: 'pdf', source: 'bitstream' });
+    }
+  }
+  
+  // 5. Any href ending with .pdf or .epub (fallback)
+  const hrefPattern = /href=["']([^"']+)["']/gi;
+  while ((match = hrefPattern.exec(html)) !== null) {
+    const url = toAbsoluteUrl(match[1], landingUrl);
+    if (!url || seenUrls.has(url) || isThumbnailOrDerivative(url)) continue;
+    const lower = url.toLowerCase();
+    const path = lower.split('?')[0].split('#')[0];
+    if (path.endsWith('.epub')) {
+      seenUrls.add(url);
+      candidates.push({ url, format: 'epub', source: 'href' });
+    } else if (path.endsWith('.pdf')) {
+      seenUrls.add(url);
+      candidates.push({ url, format: 'pdf', source: 'href' });
+    }
+  }
+  
+  return candidates;
+}
+
+/**
+ * DOAB/DSpace Extractor (directory.doabooks.org)
+ * Extracts downloadable files from DOAB/DSpace landing pages
+ */
+async function extractDoabFiles(landingUrl, html) {
+  const candidates = [];
+  const seenUrls = new Set();
+  
+  // 1. citation_pdf_url meta tag
+  const citationPdfMatch = html.match(/<meta\s+(?:name|property)=["']citation_pdf_url["']\s+content=["']([^"']+)["']/i)
+                        || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:name|property)=["']citation_pdf_url["']/i);
+  if (citationPdfMatch?.[1]) {
+    const url = toAbsoluteUrl(citationPdfMatch[1], landingUrl);
+    if (url && !seenUrls.has(url) && !isThumbnailOrDerivative(url)) {
+      seenUrls.add(url);
+      candidates.push({ url, format: 'pdf', source: 'citation_pdf_url' });
+    }
+  }
+  
+  // 2. citation_epub_url meta tag
+  const citationEpubMatch = html.match(/<meta\s+(?:name|property)=["']citation_epub_url["']\s+content=["']([^"']+)["']/i)
+                         || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:name|property)=["']citation_epub_url["']/i);
+  if (citationEpubMatch?.[1]) {
+    const url = toAbsoluteUrl(citationEpubMatch[1], landingUrl);
+    if (url && !seenUrls.has(url) && !isThumbnailOrDerivative(url)) {
+      seenUrls.add(url);
+      candidates.push({ url, format: 'epub', source: 'citation_epub_url' });
+    }
+  }
+  
+  // 3. DSpace bitstream links - collect all hrefs/srcs containing "/bitstream/"
+  // Accept candidates without extensions too (verify via HEAD later)
+  const bitstreamPattern = /(?:href|src)=["']([^"']*\/bitstream\/[^"']*)["']/gi;
+  let match;
+  while ((match = bitstreamPattern.exec(html)) !== null) {
+    const url = toAbsoluteUrl(match[1], landingUrl);
+    if (!url || seenUrls.has(url) || isThumbnailOrDerivative(url)) continue;
+    seenUrls.add(url);
+    
+    const lower = url.toLowerCase();
+    const path = lower.split('?')[0].split('#')[0];
+    
+    if (path.endsWith('.epub')) {
+      candidates.push({ url, format: 'epub', source: 'bitstream' });
+    } else if (path.endsWith('.pdf')) {
+      candidates.push({ url, format: 'pdf', source: 'bitstream' });
+    } else if (!path.match(/\.(jpg|jpeg|png|gif|webp|svg|html|htm|xml|css|js)$/)) {
+      // No extension or unknown - mark for HEAD validation
+      candidates.push({ url, format: 'unknown', source: 'bitstream', needsValidation: true });
+    }
+  }
+  
+  // 4. Any href ending with .pdf or .epub (broader search)
+  const hrefPattern = /href=["']([^"']+)["']/gi;
+  while ((match = hrefPattern.exec(html)) !== null) {
+    const url = toAbsoluteUrl(match[1], landingUrl);
+    if (!url || seenUrls.has(url) || isThumbnailOrDerivative(url)) continue;
+    const lower = url.toLowerCase();
+    const path = lower.split('?')[0].split('#')[0];
+    if (path.endsWith('.epub')) {
+      seenUrls.add(url);
+      candidates.push({ url, format: 'epub', source: 'href' });
+    } else if (path.endsWith('.pdf')) {
+      seenUrls.add(url);
+      candidates.push({ url, format: 'pdf', source: 'href' });
+    }
+  }
+  
+  return candidates;
+}
+
+/**
+ * Validate candidates via HEAD requests and return verified files
+ */
+async function validateCandidates(candidates, maxCandidates = 10) {
+  const validatedFiles = [];
+  const toValidate = candidates.slice(0, maxCandidates);
+  
+  for (const candidate of toValidate) {
+    // Skip validation for known formats unless marked needsValidation
+    if (!candidate.needsValidation && (candidate.format === 'pdf' || candidate.format === 'epub')) {
+      // Still do a quick HEAD to confirm it's accessible
+      const result = await validateCandidateUrl(candidate.url);
+      if (result.valid) {
+        validatedFiles.push({
+          url: candidate.url,
+          format: result.format || candidate.format,
+          source: candidate.source,
+          validated: true,
+        });
+      } else {
+        console.log(`[externalToken] HEAD failed for ${candidate.url}: ${result.reason}`);
+      }
+    } else if (candidate.needsValidation) {
+      // Unknown format - must validate via HEAD
+      const result = await validateCandidateUrl(candidate.url);
+      if (result.valid && result.format) {
+        validatedFiles.push({
+          url: candidate.url,
+          format: result.format,
+          source: candidate.source,
+          validated: true,
+        });
+      } else {
+        console.log(`[externalToken] HEAD validation failed for ${candidate.url}: ${result.reason}`);
+      }
+    }
+  }
+  
+  return validatedFiles;
+}
+
 // POST /api/external/token
 // Resolves landing page to downloadable files and mints a signed token
 router.post('/api/external/token', async (req, res) => {
   const { provider, title, author, cover_url, landing_url } = req.body;
   
+  // Standard response shape
+  const makeResponse = (ok, error, extras = {}) => ({
+    ok,
+    error: error || null,
+    token: extras.token || null,
+    format: extras.format || null,
+    direct_url: extras.direct_url || null,
+    source_url: landing_url || null,
+    open_url: landing_url || null,
+    title: title || null,
+    author: author || null,
+    cover_url: extras.cover_url || cover_url || null,
+  });
+  
+  // Validate landing_url
   if (!landing_url) {
-    return res.status(400).json({ ok: false, error: 'Missing landing_url' });
+    return res.status(400).json(makeResponse(false, 'missing_landing_url'));
   }
 
   // Check allowlist for landing URL
   if (!isAllowedExternalDomain(landing_url)) {
     console.log(`[externalToken] blocked non-allowlisted domain: ${landing_url}`);
-    return res.json({ ok: false, open_url: landing_url });
+    return res.json(makeResponse(false, 'domain_not_allowed'));
   }
 
-  // Use the same extraction logic as /api/external/meta
-  let files = [];
+  // Determine provider
+  const isOapen = landing_url.includes('library.oapen.org');
+  const isDoab = landing_url.includes('directory.doabooks.org');
+  const providerName = isOapen ? 'OAPEN' : isDoab ? 'DOAB' : 'unknown';
+  
+  let candidates = [];
   let resolvedCoverUrl = cover_url || null;
   
   try {
     // Fetch the landing page HTML
+    console.log(`[externalToken] Fetching landing page: ${landing_url}`);
     const response = await fetchWithTimeout(landing_url, 15000, {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'en-US,en;q=0.9',
     });
 
-    if (response.ok) {
-      const html = await response.text();
-      const seenUrls = new Set();
-      const isDOAB = landing_url.includes('directory.doabooks.org');
+    if (!response.ok) {
+      console.error(`[externalToken] Failed to fetch landing page: HTTP ${response.status}`);
+      return res.json(makeResponse(false, 'fetch_failed'));
+    }
 
-      // Helper: normalize relative URL to absolute
-      function toAbsolute(href) {
-        if (!href) return null;
-        href = href.trim();
-        if (!href) return null;
-        if (href.startsWith('http://') || href.startsWith('https://')) return href;
-        try {
-          return new URL(href, landing_url).toString();
-        } catch {
-          return null;
-        }
+    const html = await response.text();
+    
+    // Use provider-specific extractor
+    if (isOapen) {
+      candidates = await extractOapenFiles(landing_url, html);
+    } else if (isDoab) {
+      candidates = await extractDoabFiles(landing_url, html);
+    } else {
+      // Generic fallback: try both extractors
+      candidates = await extractOapenFiles(landing_url, html);
+      if (candidates.length === 0) {
+        candidates = await extractDoabFiles(landing_url, html);
       }
+    }
+    
+    console.log(`[externalToken] ${providerName}: Found ${candidates.length} candidates from HTML`);
+    candidates.slice(0, 10).forEach((c, i) => {
+      console.log(`  ${i + 1}. [${c.format}] ${c.url} (via ${c.source})${c.needsValidation ? ' [needs validation]' : ''}`);
+    });
 
-      // Helper: check if URL is a thumbnail/preview image (not actual PDF)
-      // For DOAB/DSpace, thumbnails typically have patterns like .pdf.jpg or end in image extensions after .pdf
-      function isThumbnail(href) {
-        if (!href) return true;
-        const lower = href.toLowerCase();
-        // Strict thumbnail patterns - must have .pdf followed by image extension
-        if (/\.pdf\.(jpg|jpeg|png|gif|webp)$/i.test(lower)) return true;
-        if (/\.pdf\.(jpg|jpeg|png|gif|webp)\?/i.test(lower)) return true;
-        // Also check for explicit thumbnail markers
-        if (lower.includes('_thumb') || lower.includes('thumbnail')) return true;
-        // But NOT just /cover/ paths - those could be legitimate content
-        if (lower.includes('/cover/') && !lower.includes('/bitstream/')) return true;
-        if (lower.includes('preview') && !lower.includes('/bitstream/')) return true;
-        return false;
-      }
-      
-      // Helper: check if this is a valid PDF URL (not a thumbnail)
-      // Must end with .pdf (optionally followed by query string) but NOT followed by another extension
-      function isValidPdfUrl(href) {
-        if (!href) return false;
-        const lower = href.toLowerCase();
-        // Extract path without query/hash
-        const path = lower.split('?')[0].split('#')[0];
-        // Must end with .pdf
-        if (!path.endsWith('.pdf')) return false;
-        // Must not be a thumbnail (e.g., .pdf.jpg)
-        if (isThumbnail(lower)) return false;
-        return true;
-      }
-      
-      // Helper: check if this is a valid EPUB URL
-      function isValidEpubUrl(href) {
-        if (!href) return false;
-        const lower = href.toLowerCase();
-        const path = lower.split('?')[0].split('#')[0];
-        return path.endsWith('.epub');
-      }
-
-      // Helper: strip query/hash from URL for extension checking
-      function getCleanPath(href) {
-        if (!href) return '';
-        return href.split('?')[0].split('#')[0].toLowerCase();
-      }
-
-      // 1. Try citation_pdf_url meta tag (most reliable for academic sources)
-      const citationPdfMatch = html.match(/<meta\s+(?:name|property)=["']citation_pdf_url["']\s+content=["']([^"']+)["']/i)
-                            || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:name|property)=["']citation_pdf_url["']/i);
-      if (citationPdfMatch && citationPdfMatch[1]) {
-        const pdfUrl = toAbsolute(citationPdfMatch[1]);
-        if (pdfUrl && isValidPdfUrl(pdfUrl) && !seenUrls.has(pdfUrl)) {
-          seenUrls.add(pdfUrl);
-          files.push({ format: 'pdf', url: pdfUrl, source: 'citation_pdf_url' });
-          console.log(`[externalToken] Found PDF via citation_pdf_url: ${pdfUrl}`);
-        }
-      }
-
-      // 2. Try citation_epub_url meta tag
-      const citationEpubMatch = html.match(/<meta\s+(?:name|property)=["']citation_epub_url["']\s+content=["']([^"']+)["']/i)
-                             || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:name|property)=["']citation_epub_url["']/i);
-      if (citationEpubMatch && citationEpubMatch[1]) {
-        const epubUrl = toAbsolute(citationEpubMatch[1]);
-        if (epubUrl && isValidEpubUrl(epubUrl) && !seenUrls.has(epubUrl)) {
-          seenUrls.add(epubUrl);
-          files.push({ format: 'epub', url: epubUrl, source: 'citation_epub_url' });
-          console.log(`[externalToken] Found EPUB via citation_epub_url: ${epubUrl}`);
-        }
-      }
-
-      // 3. DOAB/DSpace specific: Look for bitstream links with proper PDF/EPUB extensions
-      // DSpace uses /bitstream/handle/... or /bitstream/... patterns
-      if (isDOAB || html.includes('/bitstream/')) {
-        // Match href attributes containing bitstream
-        const bitstreamPattern = /href=["']([^"']*\/bitstream\/[^"']*)["']/gi;
-        let hrefMatch;
-        while ((hrefMatch = bitstreamPattern.exec(html)) !== null) {
-          const href = hrefMatch[1];
-          const absUrl = toAbsolute(href);
-          if (!absUrl || seenUrls.has(absUrl)) continue;
-          
-          if (isValidPdfUrl(href)) {
-            seenUrls.add(absUrl);
-            files.push({ format: 'pdf', url: absUrl, source: 'bitstream' });
-            console.log(`[externalToken] Found PDF via bitstream: ${absUrl}`);
-          } else if (isValidEpubUrl(href)) {
-            seenUrls.add(absUrl);
-            files.push({ format: 'epub', url: absUrl, source: 'bitstream' });
-            console.log(`[externalToken] Found EPUB via bitstream: ${absUrl}`);
-          }
-        }
-      }
-
-      // 4. Look for any href ending with .pdf (broader search, handles querystrings)
-      // Only if we haven't found files yet
-      if (files.length === 0) {
-        const anyPdfPattern = /href=["']([^"']+)["']/gi;
-        let hrefMatch;
-        while ((hrefMatch = anyPdfPattern.exec(html)) !== null) {
-          const href = hrefMatch[1];
-          if (!isValidPdfUrl(href)) continue;
-          const absUrl = toAbsolute(href);
-          if (absUrl && !seenUrls.has(absUrl)) {
-            seenUrls.add(absUrl);
-            files.push({ format: 'pdf', url: absUrl, source: 'href' });
-            console.log(`[externalToken] Found PDF via href scan: ${absUrl}`);
-          }
-        }
-        
-        // Also look for EPUBs
-        const html2 = html; // Reset for new regex
-        const anyEpubPattern = /href=["']([^"']+\.epub(?:\?[^"']*)?)["']/gi;
-        while ((hrefMatch = anyEpubPattern.exec(html2)) !== null) {
-          const absUrl = toAbsolute(hrefMatch[1]);
-          if (absUrl && !seenUrls.has(absUrl)) {
-            seenUrls.add(absUrl);
-            files.push({ format: 'epub', url: absUrl, source: 'href' });
-            console.log(`[externalToken] Found EPUB via href scan: ${absUrl}`);
-          }
-        }
-      }
-
-      // Extract cover if not provided
-      if (!resolvedCoverUrl) {
-        const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i)
-                          || html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i);
-        if (ogImageMatch && ogImageMatch[1]) {
-          const ogUrl = ogImageMatch[1].trim();
-          if (ogUrl && !ogUrl.toLowerCase().endsWith('.pdf')) {
-            resolvedCoverUrl = toAbsolute(ogUrl);
-          }
+    // Extract cover if not provided
+    if (!resolvedCoverUrl) {
+      const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i)
+                        || html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i);
+      if (ogImageMatch?.[1]) {
+        const ogUrl = ogImageMatch[1].trim();
+        if (ogUrl && !ogUrl.toLowerCase().endsWith('.pdf')) {
+          resolvedCoverUrl = toAbsoluteUrl(ogUrl, landing_url);
         }
       }
     }
   } catch (err) {
     console.error(`[externalToken] fetch error for ${landing_url}:`, err.message);
+    return res.json(makeResponse(false, 'fetch_error'));
   }
 
-  // Log what we found
-  console.log(`[externalToken] Found ${files.length} files for: ${landing_url}`);
-  files.forEach(f => console.log(`  - ${f.format}: ${f.url} (via ${f.source})`));
+  // Validate candidates via HEAD requests
+  console.log(`[externalToken] Validating ${Math.min(candidates.length, 10)} candidates via HEAD...`);
+  const validatedFiles = await validateCandidates(candidates, 10);
+  
+  console.log(`[externalToken] ${providerName}: ${validatedFiles.length} validated files`);
+  validatedFiles.forEach(f => console.log(`  - [${f.format}] ${f.url} (via ${f.source})`));
 
-  // Choose best file: prefer EPUB for reading, then PDF
-  const epubFile = files.find(f => f.format === 'epub');
-  const pdfFile = files.find(f => f.format === 'pdf');
+  // Choose best file: prefer EPUB > PDF
+  const epubFile = validatedFiles.find(f => f.format === 'epub');
+  const pdfFile = validatedFiles.find(f => f.format === 'pdf');
   const bestFile = epubFile || pdfFile;
 
   if (!bestFile) {
-    console.log(`[externalToken] no files found for: ${landing_url}`);
-    return res.json({ ok: false, open_url: landing_url });
+    // Diagnostics: log what we considered
+    console.log(`[externalToken] NO FILES FOUND for ${providerName}: ${landing_url}`);
+    console.log(`[externalToken] Top 10 candidates considered (after filtering):`);
+    candidates.slice(0, 10).forEach((c, i) => {
+      console.log(`  ${i + 1}. [${c.format}] ${c.url} (via ${c.source})`);
+    });
+    if (candidates.length === 0) {
+      console.log(`  (no candidates detected in HTML)`);
+    }
+    return res.json(makeResponse(false, 'no_files_found', { cover_url: resolvedCoverUrl }));
   }
 
   // Validate the chosen file URL is allowed by proxy
   if (!isAllowedProxyDomain(bestFile.url)) {
     console.log(`[externalToken] file URL not allowed by proxy: ${bestFile.url}`);
-    return res.json({ ok: false, open_url: landing_url });
+    return res.json(makeResponse(false, 'domain_not_allowed', {
+      format: bestFile.format,
+      direct_url: bestFile.url,
+      cover_url: resolvedCoverUrl,
+    }));
   }
 
-  // Generate a signed reader token using buildReaderToken (same format as other providers)
+  // Generate a signed reader token
   const { buildReaderToken } = require('../utils/buildReaderToken');
   
   const token = buildReaderToken({
     provider: 'external',
-    provider_id: landing_url, // Use landing URL as unique ID
+    provider_id: landing_url,
     format: bestFile.format,
     direct_url: bestFile.url,
     source_url: landing_url,
@@ -825,8 +1022,15 @@ router.post('/api/external/token', async (req, res) => {
     cover_url: resolvedCoverUrl || '',
   });
   
-  console.log(`[externalToken] generated token for: ${title} (${bestFile.format})`);
-  return res.json({ ok: true, token, format: bestFile.format });
+  console.log(`[externalToken] SUCCESS: ${title || 'Untitled'} (${bestFile.format})`);
+  console.log(`[externalToken] direct_url: ${bestFile.url}`);
+  
+  return res.json(makeResponse(true, null, {
+    token,
+    format: bestFile.format,
+    direct_url: bestFile.url,
+    cover_url: resolvedCoverUrl,
+  }));
 });
 
 // ============================================================================
@@ -1725,6 +1929,7 @@ function isPrivateOrInternalHost(hostname) {
 
 /**
  * GET /api/proxy/file?url=<encoded-url>
+ * GET /api/proxy/file?token=<signed-token>  (or ?t=...)
  * Generic file proxy that streams any file type (PDF, EPUB, images)
  * - Validates URL against allowlist
  * - SSRF protection: blocks localhost, private IPs, cloud metadata endpoints
@@ -1734,10 +1939,39 @@ function isPrivateOrInternalHost(hostname) {
  * - Retries with simpler headers on failure
  * - Returns 502 on failure (NEVER redirects to external URL for CSP safety)
  * 
+ * Authentication modes:
+ * 1. token/t param: Verifies signed token, extracts direct_url from payload (no session needed)
+ * 2. url param: Requires logged-in subscriber session (existing behavior)
+ * 
  * This is the primary endpoint for embedding blocked-iframe PDFs like OpenStax
  */
-router.get('/api/proxy/file', ensureSubscriberApi, async (req, res) => {
-  const targetUrl = req.query.url;
+router.get('/api/proxy/file', async (req, res, next) => {
+  // If token provided, validate it and extract direct_url
+  const tokenParam = req.query.token || req.query.t;
+  if (tokenParam) {
+    const payload = verifyReaderToken(tokenParam);
+    if (!payload) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+    if (!payload.direct_url) {
+      return res.status(400).json({ error: 'Token missing direct_url' });
+    }
+    // Attach extracted URL and proceed (skip ensureSubscriberApi)
+    req._tokenDirectUrl = payload.direct_url;
+    return handleFileProxy(req, res);
+  }
+  
+  // No token: require subscriber auth via middleware
+  ensureSubscriberApi(req, res, (err) => {
+    if (err) return next(err);
+    handleFileProxy(req, res);
+  });
+});
+
+// Shared handler for file proxy logic
+async function handleFileProxy(req, res) {
+  // Use token-extracted URL if present, otherwise query param
+  const targetUrl = req._tokenDirectUrl || req.query.url;
   
   if (!targetUrl) {
     return res.status(400).json({ error: 'Missing url parameter' });
@@ -1915,7 +2149,7 @@ router.get('/api/proxy/file', ensureSubscriberApi, async (req, res) => {
       res.status(502).type('text/plain').send(errorMsg);
     }
   }
-});
+}
 
 /**
  * GET /api/proxy/image?url=<encoded-url>
