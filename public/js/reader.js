@@ -12,6 +12,12 @@
   let currentDirectUrl = ''; // stored for error handlers
   let currentSourceUrl = ''; // stored for source link fallback
   let bookSizeBytes = 0; // stored for timeout calculation
+  
+  // Progress saving state
+  let progressSaveTimer = null;
+  const PROGRESS_SAVE_INTERVAL_MS = 15000; // Save every 15 seconds
+  let lastSavedLocation = null;
+  let readStartTime = null; // Track when reading started for events
 
   // Base timeout for book loading (45 seconds minimum)
   const BASE_TIMEOUT_MS = 45000;
@@ -794,6 +800,163 @@
   }
 
   /**
+   * Get book metadata from body data attributes
+   */
+  function getBookMetadata() {
+    const body = document.body;
+    return {
+      title: body.getAttribute('data-book-title') || 'Unknown',
+      author: body.getAttribute('data-book-author') || '',
+      cover: body.getAttribute('data-book-cover') || '',
+      source: body.getAttribute('data-book-source') || 'unknown',
+      category: body.getAttribute('data-book-category') || '',
+      sourceUrl: body.getAttribute('data-source-url') || '',
+      searchQuery: body.getAttribute('data-search-query') || ''
+    };
+  }
+
+  /**
+   * Save reading progress to server (debounced)
+   */
+  function saveProgressToServer(location, progress) {
+    if (!bookKey || !location) return;
+    
+    // Don't save duplicate locations
+    if (location === lastSavedLocation) return;
+    lastSavedLocation = location;
+    
+    const meta = getBookMetadata();
+    
+    fetch('/api/reading/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        bookKey: bookKey,
+        source: meta.source,
+        title: meta.title,
+        author: meta.author,
+        cover: meta.cover,
+        lastLocation: location,
+        progress: progress || 0,
+        readerUrl: window.location.pathname + window.location.search
+      })
+    }).catch(err => {
+      // Silently fail - progress saving is not critical
+      console.warn('[reader] Progress save failed:', err.message);
+    });
+  }
+
+  /**
+   * Start progress save timer (saves every 15s while reading)
+   */
+  function startProgressSaveTimer() {
+    if (progressSaveTimer) return;
+    
+    progressSaveTimer = setInterval(() => {
+      if (rendition && rendition.location) {
+        const loc = rendition.location;
+        if (loc.start && loc.start.cfi) {
+          const progress = loc.start.percentage ? Math.round(loc.start.percentage * 100) : 0;
+          saveProgressToServer(loc.start.cfi, progress);
+        }
+      }
+    }, PROGRESS_SAVE_INTERVAL_MS);
+  }
+
+  /**
+   * Stop progress save timer
+   */
+  function stopProgressSaveTimer() {
+    if (progressSaveTimer) {
+      clearInterval(progressSaveTimer);
+      progressSaveTimer = null;
+    }
+  }
+
+  /**
+   * Log reading event (open, read_30s, complete)
+   */
+  function logReadingEvent(eventType) {
+    if (!bookKey) return;
+    
+    const meta = getBookMetadata();
+    
+    fetch('/api/reading/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        bookKey: bookKey,
+        type: eventType,
+        title: meta.title,
+        author: meta.author,
+        cover: meta.cover,
+        source: meta.source,
+        category: meta.category,
+        readerUrl: window.location.pathname + window.location.search
+      })
+    }).catch(err => {
+      console.warn('[reader] Event log failed:', err.message);
+    });
+  }
+
+  /**
+   * Setup reading session tracking
+   */
+  function setupReadingSession() {
+    // Log 'open' event when reader loads
+    logReadingEvent('open');
+    readStartTime = Date.now();
+    
+    // Log 'read_30s' event after 30 seconds of reading
+    setTimeout(() => {
+      if (readStartTime && !errorShown) {
+        logReadingEvent('read_30s');
+      }
+    }, 30000);
+    
+    // Save progress on page unload
+    window.addEventListener('beforeunload', () => {
+      stopProgressSaveTimer();
+      // Final save on exit
+      if (rendition && rendition.location) {
+        const loc = rendition.location;
+        if (loc.start && loc.start.cfi) {
+          const progress = loc.start.percentage ? Math.round(loc.start.percentage * 100) : 0;
+          // Use sendBeacon for reliable delivery during unload
+          const data = JSON.stringify({
+            bookKey: bookKey,
+            source: getBookMetadata().source,
+            title: getBookMetadata().title,
+            author: getBookMetadata().author,
+            cover: getBookMetadata().cover,
+            lastLocation: loc.start.cfi,
+            progress: progress,
+            readerUrl: window.location.pathname + window.location.search
+          });
+          navigator.sendBeacon('/api/reading/progress', new Blob([data], { type: 'application/json' }));
+        }
+      }
+    });
+  }
+
+  /**
+   * Update loading message with step-wise status text
+   */
+  function updateLoadingMessage(message) {
+    const statusText = document.getElementById('loading-status-text');
+    if (statusText) {
+      statusText.textContent = message;
+    }
+    // Also update old-style loading text if present
+    const loadingText = document.querySelector('#epub-loading p:not(#loading-status-text)');
+    if (loadingText && loadingText !== statusText) {
+      loadingText.textContent = message;
+    }
+  }
+
+  /**
    * Initialize ePub.js reader
    */
   async function initEpubReader() {
@@ -1200,6 +1363,9 @@
             clearLoadTimeout();
             tsLog('First spine content rendered successfully - timeout cleared');
             hideLoading();
+            // Start reading session tracking (progress saves, events)
+            setupReadingSession();
+            startProgressSaveTimer();
           }
         } catch (err) {
           tsLog('WARN: Content hook error:', err);
@@ -1467,16 +1633,6 @@
   }
   
   /**
-   * Update loading message
-   */
-  function updateLoadingMessage(message) {
-    const loadingText = document.querySelector('#epub-loading p');
-    if (loadingText) {
-      loadingText.textContent = message;
-    }
-  }
-  
-  /**
    * Setup EPUB page navigation buttons
    */
   function setupEpubNavigation() {
@@ -1657,7 +1813,7 @@
   }
 
   /**
-   * Show error message for EPUB loading failures
+   * Show error message for EPUB loading failures with improved empty state
    * @param {string} message - Error message to display
    * @param {string} sourceUrl - Optional URL to the original source
    */
@@ -1669,38 +1825,128 @@
       loading.style.display = 'none';
     }
     
-    // Only show source link to admins or when SHOW_SOURCE_LINKS env is set
-    const isAdmin = document.body.getAttribute('data-is-admin') === 'true';
-    const showSourceLinks = document.body.getAttribute('data-show-source-links') === 'true';
+    // Get metadata for the report
+    const meta = getBookMetadata();
+    const searchQuery = meta.searchQuery || meta.title;
     
-    // Build source link button only for admins or when explicitly enabled
-    let sourceButton = '';
-    if (sourceUrl && (isAdmin || showSourceLinks)) {
-      sourceButton = `<a href="${sourceUrl}" target="_blank" rel="noopener" class="reader-error-btn source-btn">Open Source Link</a>`;
-    }
+    // Build "Try another edition" link
+    const tryAnotherUrl = searchQuery ? '/read?q=' + encodeURIComponent(searchQuery) : '';
+    const tryAnotherBtn = tryAnotherUrl 
+      ? `<a href="${tryAnotherUrl}" class="empty-state-btn primary">
+           <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+           </svg>
+           Try another edition
+         </a>`
+      : '';
+    
+    // Build "Open on source" link
+    const sourceBtn = sourceUrl 
+      ? `<a href="${sourceUrl}" target="_blank" rel="noopener" class="empty-state-btn secondary">
+           <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+           </svg>
+           Open on source website
+         </a>`
+      : '';
     
     if (viewer) {
       viewer.innerHTML = `
-        <div class="reader-error-panel">
-          <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        <div class="reader-empty-state">
+          <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
           </svg>
-          <h3>Unable to load book</h3>
-          <p class="error-message">${message}</p>
-          <div class="reader-error-actions">
-            <button data-action="reload" class="reader-error-btn primary-btn">Try Again</button>
-            <button data-action="back" class="reader-error-btn secondary-btn">Go Back</button>
-            ${sourceButton}
+          <h2>Unable to load this book</h2>
+          <p>${message}</p>
+          <div class="empty-state-actions">
+            ${tryAnotherBtn}
+            ${sourceBtn}
+            <button data-action="report" class="empty-state-btn report">
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+              Report this book
+            </button>
+          </div>
+        </div>
+        
+        <!-- Report Modal -->
+        <div id="report-modal" class="report-modal hidden">
+          <div class="report-modal-content">
+            <h3>Report a problem</h3>
+            <select id="report-reason">
+              <option value="no_content">No readable content</option>
+              <option value="drm_protected">DRM protected</option>
+              <option value="load_error" selected>Failed to load</option>
+              <option value="wrong_format">Wrong format</option>
+              <option value="other">Other issue</option>
+            </select>
+            <textarea id="report-details" placeholder="Additional details (optional)"></textarea>
+            <div class="report-modal-actions">
+              <button class="report-modal-btn cancel" data-action="cancel-report">Cancel</button>
+              <button class="report-modal-btn submit" data-action="submit-report">Submit Report</button>
+            </div>
           </div>
         </div>
       `;
-      // Setup button click handlers (CSP-safe, no inline onclick)
-      viewer.querySelector('[data-action="reload"]').addEventListener('click', function() {
-        window.location.reload();
-      });
-      viewer.querySelector('[data-action="back"]').addEventListener('click', function() {
-        window.history.back();
-      });
+      
+      // Setup button click handlers (CSP-safe)
+      const reportBtn = viewer.querySelector('[data-action="report"]');
+      const reportModal = viewer.querySelector('#report-modal');
+      const cancelReportBtn = viewer.querySelector('[data-action="cancel-report"]');
+      const submitReportBtn = viewer.querySelector('[data-action="submit-report"]');
+      
+      if (reportBtn && reportModal) {
+        reportBtn.addEventListener('click', function() {
+          reportModal.classList.remove('hidden');
+        });
+      }
+      
+      if (cancelReportBtn && reportModal) {
+        cancelReportBtn.addEventListener('click', function() {
+          reportModal.classList.add('hidden');
+        });
+      }
+      
+      if (submitReportBtn) {
+        submitReportBtn.addEventListener('click', function() {
+          const reason = document.getElementById('report-reason')?.value || 'load_error';
+          const details = document.getElementById('report-details')?.value || '';
+          
+          // Submit report to server
+          fetch('/api/reading/report', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              bookKey: bookKey || 'unknown',
+              failedUrl: currentDirectUrl || window.location.href,
+              reason: reason,
+              details: details,
+              title: meta.title,
+              author: meta.author,
+              source: meta.source
+            })
+          }).then(() => {
+            reportModal.classList.add('hidden');
+            // Show confirmation
+            reportBtn.textContent = '✓ Report submitted';
+            reportBtn.disabled = true;
+          }).catch(err => {
+            console.error('[reader] Report submission failed:', err);
+            alert('Failed to submit report. Please try again.');
+          });
+        });
+      }
+      
+      // Close modal when clicking outside
+      if (reportModal) {
+        reportModal.addEventListener('click', function(e) {
+          if (e.target === reportModal) {
+            reportModal.classList.add('hidden');
+          }
+        });
+      }
     }
     
     errorShown = true;

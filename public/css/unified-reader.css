@@ -811,3 +811,288 @@ body[data-page="reader"].dark-mode .reader-main {
 body[data-page="reader"].dark-mode #epub-viewer {
   background: #252525;
 }
+
+/* ========================================
+   SKELETON LOADER + STEP-WISE STATUS
+   Enhanced loading UX
+   ======================================== */
+
+.loading-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 600px;
+  padding: 24px;
+}
+
+.skeleton-line {
+  height: 16px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-line.w60 { width: 60%; }
+.skeleton-line.w70 { width: 70%; }
+.skeleton-line.w80 { width: 80%; }
+.skeleton-line.w85 { width: 85%; }
+.skeleton-line.w90 { width: 90%; }
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.loading-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #e5e7eb;
+  border-top-color: #4f46e5;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.epub-loading,
+.pdf-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  z-index: 10;
+}
+
+/* ========================================
+   EMPTY STATE / ERROR IMPROVEMENTS
+   Better UX when book can't load
+   ======================================== */
+
+.reader-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  height: 100%;
+  background: #fafafa;
+}
+
+.reader-empty-state .empty-icon {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 24px;
+  color: #9ca3af;
+}
+
+.reader-empty-state h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.reader-empty-state p {
+  margin: 0 0 24px;
+  font-size: 14px;
+  color: #6b7280;
+  max-width: 400px;
+  line-height: 1.6;
+}
+
+.empty-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.empty-state-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.empty-state-btn.primary {
+  background: #4f46e5;
+  color: white;
+}
+
+.empty-state-btn.primary:hover {
+  background: #4338ca;
+}
+
+.empty-state-btn.secondary {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+}
+
+.empty-state-btn.secondary:hover {
+  background: #e5e7eb;
+}
+
+.empty-state-btn.report {
+  background: transparent;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.empty-state-btn.report:hover {
+  background: #fef2f2;
+}
+
+.empty-state-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Report modal */
+.report-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.report-modal.hidden {
+  display: none;
+}
+
+.report-modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.report-modal h3 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  color: #1f2937;
+}
+
+.report-modal select,
+.report-modal textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.report-modal textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.report-modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.report-modal-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+}
+
+.report-modal-btn.cancel {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.report-modal-btn.submit {
+  background: #dc2626;
+  color: white;
+}
+
+.report-modal-btn.submit:hover {
+  background: #b91c1c;
+}
+
+/* Dark mode for new components */
+@media (prefers-color-scheme: dark) {
+  .loading-skeleton .skeleton-line {
+    background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%);
+    background-size: 200% 100%;
+  }
+  
+  .loading-status {
+    color: #9ca3af;
+  }
+  
+  .loading-spinner {
+    border-color: #444;
+    border-top-color: #818cf8;
+  }
+  
+  .reader-empty-state {
+    background: #1e1e1e;
+  }
+  
+  .reader-empty-state h2 {
+    color: #e5e5e5;
+  }
+  
+  .reader-empty-state p {
+    color: #9ca3af;
+  }
+  
+  .empty-state-btn.secondary {
+    background: #333;
+    color: #e5e5e5;
+    border-color: #444;
+  }
+  
+  .report-modal-content {
+    background: #1e1e1e;
+    color: #e5e5e5;
+  }
+  
+  .report-modal select,
+  .report-modal textarea {
+    background: #333;
+    border-color: #444;
+    color: #e5e5e5;
+  }
+}

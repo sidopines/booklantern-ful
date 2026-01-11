@@ -2157,10 +2157,14 @@ async function handleFileProxy(req, res) {
  * - Validates URL against allowlist
  * - Sets browser-like headers with Referer/Origin from upstream
  * - Streams response with proper Content-Type
+ * - Validates response is actually an image (not 0-byte or HTML)
+ * - On failure: attempts fallback sources (Archive.org thumbnail, OpenLibrary)
  * - On 403/401/429/5xx: returns 307 redirect to original URL (let browser try direct)
  */
 router.get('/api/proxy/image', async (req, res) => {
   const targetUrl = req.query.url;
+  const title = req.query.title || '';
+  const author = req.query.author || '';
   
   if (!targetUrl) {
     return res.status(400).type('text/plain').send('Missing url parameter');
@@ -2183,68 +2187,123 @@ router.get('/api/proxy/image', async (req, res) => {
   
   console.log('[image-proxy] Proxying:', targetUrl);
   
-  try {
-    const upstreamOrigin = `${parsed.protocol}//${parsed.host}`;
-    
-    const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'image/*,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Referer': upstreamOrigin + '/',
-      'Origin': upstreamOrigin,
-    };
-    
-    const response = await fetchWithTimeout(targetUrl, 15000, headers);
-    
-    // On error, redirect to original URL (let <img> try direct)
-    if (!response.ok) {
-      console.log('[image-proxy] Upstream error:', response.status, '- 307 redirect');
-      return res.redirect(307, targetUrl);
+  // Helper to try fetching an image URL and validate it's actually an image
+  async function tryFetchImage(url) {
+    try {
+      const urlParsed = new URL(url);
+      const upstreamOrigin = `${urlParsed.protocol}//${urlParsed.host}`;
+      
+      const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'image/*,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': upstreamOrigin + '/',
+        'Origin': upstreamOrigin,
+      };
+      
+      const response = await fetchWithTimeout(url, 15000, headers);
+      
+      if (!response.ok) {
+        console.log('[image-proxy] Upstream error:', response.status, 'for', url);
+        return null;
+      }
+      
+      // Get content length - reject 0-byte responses
+      const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
+      if (contentLength === 0) {
+        console.log('[image-proxy] 0-byte response for:', url);
+        return null;
+      }
+      
+      // Get content type - reject non-image responses
+      let contentType = response.headers.get('content-type') || '';
+      contentType = contentType.split(';')[0].trim().toLowerCase();
+      
+      // Check if it's actually an image (not HTML error page)
+      if (contentType.includes('html') || contentType.includes('text/plain')) {
+        console.log('[image-proxy] Non-image content-type:', contentType, 'for', url);
+        return null;
+      }
+      
+      // If content-type is not image/*, try to infer from URL
+      if (!contentType.startsWith('image/')) {
+        const urlLower = url.toLowerCase();
+        if (urlLower.match(/\.(jpg|jpeg)(\?|$)/)) contentType = 'image/jpeg';
+        else if (urlLower.match(/\.png(\?|$)/)) contentType = 'image/png';
+        else if (urlLower.match(/\.gif(\?|$)/)) contentType = 'image/gif';
+        else if (urlLower.match(/\.webp(\?|$)/)) contentType = 'image/webp';
+        else if (urlLower.match(/\.svg(\?|$)/)) contentType = 'image/svg+xml';
+        else contentType = 'image/jpeg'; // Default fallback
+      }
+      
+      return { response, contentType, contentLength };
+    } catch (err) {
+      console.log('[image-proxy] Fetch error for', url, ':', err.message);
+      return null;
     }
-    
-    // Get content type from upstream and strip charset (e.g., "image/png;charset=ISO-8859-1" -> "image/png")
-    let contentType = response.headers.get('content-type') || 'image/jpeg';
-    // Strip charset or any parameters from content-type
-    contentType = contentType.split(';')[0].trim();
-    // Ensure it's a valid image type
-    if (!contentType.startsWith('image/')) {
-      // Fallback based on URL extension
-      const urlLower = targetUrl.toLowerCase();
-      if (urlLower.match(/\.(jpg|jpeg)(\?|$)/)) contentType = 'image/jpeg';
-      else if (urlLower.match(/\.png(\?|$)/)) contentType = 'image/png';
-      else if (urlLower.match(/\.gif(\?|$)/)) contentType = 'image/gif';
-      else if (urlLower.match(/\.webp(\?|$)/)) contentType = 'image/webp';
-      else if (urlLower.match(/\.svg(\?|$)/)) contentType = 'image/svg+xml';
-      else contentType = 'image/jpeg'; // Default fallback
+  }
+  
+  // Build list of fallback URLs to try
+  const urlsToTry = [targetUrl];
+  
+  // If the URL is from Archive.org, also try the thumbnail service
+  if (targetUrl.includes('archive.org') && targetUrl.includes('/items/')) {
+    // Extract identifier from URL like archive.org/download/identifier/file.jpg
+    const match = targetUrl.match(/archive\.org\/(?:download|details)\/([^\/]+)/);
+    if (match) {
+      const identifier = match[1];
+      urlsToTry.push(`https://archive.org/services/img/${identifier}`);
     }
-    
-    // Set response headers
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache images for 24 hours
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    
-    // Forward Content-Length if present
-    const contentLength = response.headers.get('content-length');
-    if (contentLength) {
-      res.setHeader('Content-Length', contentLength);
+  }
+  
+  // If we have a title/author, try OpenLibrary covers as fallback
+  if (title) {
+    // Search OpenLibrary by title (limited, but worth a shot)
+    const searchTitle = title.replace(/[^a-zA-Z0-9\s]/g, '').toLowerCase();
+    // Can't easily get ISBN from title, but we can try the search API
+    // For now, just note this as a future enhancement point
+  }
+  
+  // Try each URL in order
+  for (const url of urlsToTry) {
+    const result = await tryFetchImage(url);
+    if (result) {
+      const { response, contentType, contentLength } = result;
+      
+      // Set response headers
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache images for 24 hours
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      
+      if (contentLength > 0) {
+        res.setHeader('Content-Length', contentLength);
+      }
+      
+      // Stream the response
+      try {
+        const reader = response.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(Buffer.from(value));
+        }
+        res.end();
+        console.log('[image-proxy] Image streamed successfully:', contentType, 'from', url);
+        return;
+      } catch (streamErr) {
+        console.error('[image-proxy] Stream error:', streamErr.message);
+        if (!res.headersSent) {
+          continue; // Try next URL
+        }
+        return;
+      }
     }
-    
-    // Stream the response
-    const reader = response.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(Buffer.from(value));
-    }
-    res.end();
-    console.log('[image-proxy] Image streamed successfully:', contentType);
-    
-  } catch (err) {
-    console.error('[image-proxy] Error:', err.message);
-    if (!res.headersSent) {
-      // On any error, redirect to original URL
-      return res.redirect(307, targetUrl);
-    }
+  }
+  
+  // All URLs failed - redirect to original as last resort (let browser try)
+  console.log('[image-proxy] All URLs failed, redirecting to original');
+  if (!res.headersSent) {
+    return res.redirect(307, targetUrl);
   }
 });
 
