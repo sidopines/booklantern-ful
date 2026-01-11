@@ -16,6 +16,9 @@
   var safeFileSize = (typeof fileSize === 'number') ? fileSize : 0;
   var isTooLarge = (typeof tooLarge === 'boolean') ? tooLarge : false;
   var safeAvailableFiles = (typeof availableFiles === 'object' && availableFiles) ? JSON.stringify(availableFiles) : 'null';
+  var safeCover = (typeof cover === 'string' && cover) ? cover : '';
+  var safeCategory = (typeof category === 'string' && category) ? category : '';
+  var safeQuery = (typeof query === 'string' && query) ? query : (typeof q === 'string' && q) ? q : '';
 %>
 <!doctype html>
 <html lang="en">
@@ -30,7 +33,7 @@
   <script defer src="/public/vendor/epub.min.js?v=<%= buildId || Date.now() %>"></script>
   <% } %>
 </head>
-<body data-page="reader" data-epub="<%= useEpubJs %>" data-pdf="<%= usePdfViewer %>" data-format="<%= safeFormat %>" data-is-admin="<%= (user && user.isAdmin) ? 'true' : 'false' %>" data-show-source-links="<%= process.env.SHOW_SOURCE_LINKS === 'true' ? 'true' : 'false' %>" data-max-epub-mb="<%= process.env.MAX_EPUB_MB || 50 %>" data-max-pdf-mb="<%= process.env.MAX_PDF_MB || 200 %>" data-file-size="<%= safeFileSize %>" data-too-large="<%= isTooLarge %>" data-available-files="<%= safeAvailableFiles %>" data-archive-id="<%= safeArchiveId %>" data-best-pdf="<%= safeBestPdf %>">
+<body data-page="reader" data-epub="<%= useEpubJs %>" data-pdf="<%= usePdfViewer %>" data-format="<%= safeFormat %>" data-is-admin="<%= (user && user.isAdmin) ? 'true' : 'false' %>" data-show-source-links="<%= process.env.SHOW_SOURCE_LINKS === 'true' ? 'true' : 'false' %>" data-max-epub-mb="<%= process.env.MAX_EPUB_MB || 50 %>" data-max-pdf-mb="<%= process.env.MAX_PDF_MB || 200 %>" data-file-size="<%= safeFileSize %>" data-too-large="<%= isTooLarge %>" data-available-files="<%= safeAvailableFiles %>" data-archive-id="<%= safeArchiveId %>" data-best-pdf="<%= safeBestPdf %>" data-book-title="<%= safeTitle %>" data-book-author="<%= safeAuthor %>" data-book-cover="<%= safeCover %>" data-book-source="<%= safeSource %>" data-book-category="<%= safeCategory %>" data-source-url="<%= safeSourceUrl %>" data-search-query="<%= safeQuery %>">
   
   <header class="reader-topbar">
     <a 
@@ -124,8 +127,16 @@
           allow="fullscreen"
         ></iframe>
         <div id="pdf-loading" class="pdf-loading">
-          <div class="pdf-spinner"></div>
-          <p>Loading PDF...</p>
+          <div class="loading-skeleton">
+            <div class="skeleton-line w80"></div>
+            <div class="skeleton-line w60"></div>
+            <div class="skeleton-line w90"></div>
+            <div class="skeleton-line w70"></div>
+          </div>
+          <div class="loading-status">
+            <div class="loading-spinner"></div>
+            <p id="loading-status-text">Preparing PDF...</p>
+          </div>
         </div>
         <!-- Fallback embed for browsers that don't render PDF in iframe -->
         <div id="pdf-fallback" class="pdf-fallback" style="display:none;">
@@ -137,8 +148,17 @@
       <!-- ePub.js will render into this div -->
       <div id="epub-viewer" data-epub-url="<%= safeDirectUrl %>" data-archive-id="<%= safeArchiveId %>" data-direct-url="<%= safeDirectUrl %>" data-source-url="<%= safeSourceUrl %>" data-best-pdf="<%= safeBestPdf %>"></div>
       <div id="epub-loading" class="epub-loading">
-        <div class="epub-spinner"></div>
-        <p>Loading book...</p>
+        <div class="loading-skeleton">
+          <div class="skeleton-line w80"></div>
+          <div class="skeleton-line w60"></div>
+          <div class="skeleton-line w90"></div>
+          <div class="skeleton-line w70"></div>
+          <div class="skeleton-line w85"></div>
+        </div>
+        <div class="loading-status">
+          <div class="loading-spinner"></div>
+          <p id="loading-status-text">Extracting book...</p>
+        </div>
       </div>
       <% if (isTooLarge) { %>
       <!-- Edition picker for large books -->

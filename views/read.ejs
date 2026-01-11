@@ -128,6 +128,140 @@
     .external-card * {
       pointer-events: none;
     }
+    
+    /* Continue Reading / Favorites Shelf */
+    .reading-shelf {
+      margin-bottom: 32px;
+    }
+    .reading-shelf .shelf-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .reading-shelf .shelf-header h2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .reading-shelf .shelf-header a {
+      font-size: 13px;
+      color: var(--primary, #6366f1);
+      text-decoration: none;
+    }
+    .reading-shelf .shelf-header a:hover {
+      text-decoration: underline;
+    }
+    .shelf-scroll {
+      display: flex;
+      gap: 14px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .shelf-scroll::-webkit-scrollbar {
+      height: 6px;
+    }
+    .shelf-scroll::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 3px;
+    }
+    .shelf-scroll::-webkit-scrollbar-thumb {
+      background: #ccc;
+      border-radius: 3px;
+    }
+    .shelf-card {
+      flex: 0 0 140px;
+      text-decoration: none;
+      color: inherit;
+      position: relative;
+    }
+    .shelf-card .card-cover {
+      width: 140px;
+      height: 200px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #f3f4f6;
+    }
+    .shelf-card .card-cover img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .shelf-card .card-title {
+      margin-top: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.3;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .shelf-card .card-author {
+      font-size: 11px;
+      color: #666;
+      margin-top: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .shelf-card .progress-bar {
+      height: 3px;
+      background: #e5e7eb;
+      border-radius: 2px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+    .shelf-card .progress-bar .progress-fill {
+      height: 100%;
+      background: var(--primary, #6366f1);
+      border-radius: 2px;
+      transition: width 0.3s;
+    }
+    .shelf-empty {
+      color: #888;
+      font-size: 14px;
+      padding: 16px 0;
+    }
+    
+    /* Heart/Favorite button on book cards */
+    .favorite-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.9);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+      transition: all 0.2s;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .favorite-btn:hover {
+      transform: scale(1.1);
+      background: white;
+    }
+    .favorite-btn svg {
+      width: 18px;
+      height: 18px;
+      stroke: #9ca3af;
+      fill: none;
+      transition: all 0.2s;
+    }
+    .favorite-btn.favorited svg {
+      stroke: #ef4444;
+      fill: #ef4444;
+    }
+    .favorite-btn:hover svg {
+      stroke: #ef4444;
+    }
   </style>
 </head>
 <body>
@@ -135,6 +269,23 @@
 
   <main class="reader-shell">
     <h1 class="page-title">Read</h1>
+    
+    <!-- Continue Reading Shelf (loaded via JS) -->
+    <section id="continue-reading-shelf" class="reading-shelf" style="display: none;">
+      <div class="shelf-header">
+        <h2>Continue Reading</h2>
+      </div>
+      <div id="continue-reading-items" class="shelf-scroll"></div>
+    </section>
+    
+    <!-- Favorites Shelf (loaded via JS) -->
+    <section id="favorites-shelf" class="reading-shelf" style="display: none;">
+      <div class="shelf-header">
+        <h2>Your Favorites</h2>
+        <a href="/favorites">See all →</a>
+      </div>
+      <div id="favorites-items" class="shelf-scroll"></div>
+    </section>
 
     <div id="results" class="results-grid"></div>
 

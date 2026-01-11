@@ -397,6 +397,15 @@ try {
   console.error('[routes] failed to mount ./routes/catalog:', e);
 }
 
+// Mount reading routes (progress, favorites, events, trending, recommendations)
+try {
+  const readingRoutes = require('./routes/reading');
+  app.use('/api/reading', readingRoutes);
+  console.log('[routes] mounted reading router at /api/reading');
+} catch (e) {
+  console.error('[routes] failed to mount ./routes/reading:', e);
+}
+
 const hasSB = Boolean(
   (process.env.SUPABASE_URL || process.env.supabaseUrl) &&
     (process.env.SUPABASE_SERVICE_ROLE_KEY ||

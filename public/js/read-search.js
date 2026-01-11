@@ -11,6 +11,15 @@ document.addEventListener('DOMContentLoaded', () => {
     (document.querySelector('.reader-intro') || document.querySelector('main') || document.body).appendChild(mount);
   }
   
+  // Track favorited book keys
+  const favoritedBooks = new Set();
+  
+  // Load Continue Reading shelf
+  loadContinueReading();
+  
+  // Load Favorites shelf
+  loadFavorites();
+  
   // Helper to normalize URLs (handles missing scheme, //prefix, www prefix, etc)
   function normalizeUrl(u) {
     if (typeof u !== 'string') return null;
@@ -42,6 +51,158 @@ document.addEventListener('DOMContentLoaded', () => {
       return 'https://' + url;
     }
     return null;
+  }
+  
+  /**
+   * Load Continue Reading shelf
+   */
+  function loadContinueReading() {
+    const shelf = document.getElementById('continue-reading-shelf');
+    const container = document.getElementById('continue-reading-items');
+    if (!shelf || !container) return;
+    
+    fetch('/api/reading/continue?limit=10', { credentials: 'include' })
+      .then(r => {
+        if (!r.ok) return { items: [] };
+        return r.json();
+      })
+      .then(data => {
+        if (!data.items || data.items.length === 0) {
+          shelf.style.display = 'none';
+          return;
+        }
+        
+        shelf.style.display = 'block';
+        container.innerHTML = data.items.map(item => {
+          const cover = item.cover || '/public/img/cover-fallback.svg';
+          const url = item.readerUrl || '#';
+          const progress = item.progress || 0;
+          return `
+            <a href="${url}" class="shelf-card">
+              <div class="card-cover">
+                <img src="${cover}" alt="" loading="lazy" onerror="this.src='/public/img/cover-fallback.svg'">
+              </div>
+              <div class="card-title">${escapeHtml(item.title)}</div>
+              ${item.author ? `<div class="card-author">${escapeHtml(item.author)}</div>` : ''}
+              <div class="progress-bar">
+                <div class="progress-fill" style="width: ${progress}%"></div>
+              </div>
+            </a>
+          `;
+        }).join('');
+      })
+      .catch(err => {
+        console.warn('[read-search] Continue reading load failed:', err);
+        shelf.style.display = 'none';
+      });
+  }
+  
+  /**
+   * Load Favorites shelf (also populates favoritedBooks set)
+   */
+  function loadFavorites() {
+    const shelf = document.getElementById('favorites-shelf');
+    const container = document.getElementById('favorites-items');
+    if (!shelf || !container) return;
+    
+    fetch('/api/reading/favorites?limit=10', { credentials: 'include' })
+      .then(r => {
+        if (!r.ok) return { items: [] };
+        return r.json();
+      })
+      .then(data => {
+        // Populate the favorited set
+        if (data.items) {
+          data.items.forEach(item => favoritedBooks.add(item.bookKey));
+        }
+        
+        if (!data.items || data.items.length === 0) {
+          shelf.style.display = 'none';
+          return;
+        }
+        
+        shelf.style.display = 'block';
+        container.innerHTML = data.items.map(item => {
+          const cover = item.cover || '/public/img/cover-fallback.svg';
+          const url = item.readerUrl || '#';
+          return `
+            <a href="${url}" class="shelf-card">
+              <div class="card-cover">
+                <img src="${cover}" alt="" loading="lazy" onerror="this.src='/public/img/cover-fallback.svg'">
+              </div>
+              <div class="card-title">${escapeHtml(item.title)}</div>
+              ${item.author ? `<div class="card-author">${escapeHtml(item.author)}</div>` : ''}
+            </a>
+          `;
+        }).join('');
+      })
+      .catch(err => {
+        console.warn('[read-search] Favorites load failed:', err);
+        shelf.style.display = 'none';
+      });
+  }
+  
+  /**
+   * Toggle favorite status for a book
+   */
+  function toggleFavorite(btn, bookKey, title, author, cover, readerUrl) {
+    const isFavorited = btn.classList.contains('favorited');
+    
+    fetch('/api/reading/favorite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        bookKey: bookKey,
+        title: title,
+        author: author || '',
+        cover: cover || '',
+        readerUrl: readerUrl || ''
+      })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.favorited) {
+        btn.classList.add('favorited');
+        favoritedBooks.add(bookKey);
+      } else {
+        btn.classList.remove('favorited');
+        favoritedBooks.delete(bookKey);
+      }
+    })
+    .catch(err => {
+      console.error('[read-search] Favorite toggle failed:', err);
+    });
+  }
+  
+  /**
+   * Escape HTML to prevent XSS
+   */
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+  
+  /**
+   * Generate a bookKey from item data
+   */
+  function generateBookKey(item) {
+    if (item.archive_id) return 'archive-' + item.archive_id;
+    if (item.identifier) return item.provider + '-' + item.identifier;
+    if (item.id) return item.provider + '-' + item.id;
+    // Hash the title+author as fallback
+    const str = (item.title || '') + (item.author || '');
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return 'book-' + Math.abs(hash);
   }
   
   // Helper to extract external URL from item (tries all common field variants)
@@ -344,6 +505,11 @@ document.addEventListener('DOMContentLoaded', () => {
           // 0. If Archive item with identifier -> render as internal archive card
           if (isArchive && archiveId) {
             const escapedCover = (finalCoverUrl || '').replace(/"/g, '&quot;');
+            const bookKey = 'archive-' + archiveId;
+            const isFavorited = favoritedBooks.has(bookKey);
+            const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="/unified-reader?archive=${archiveId}" aria-label="Add to favorites">
+                              <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+                            </button>`;
             return `<a class="book-card archive-card" href="#" 
                        data-archive-id="${archiveId}" 
                        data-title="${escapedTitle}"
@@ -351,6 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
                        data-cover="${escapedCover}"
                        data-provider="archive"
                        data-item-idx="${idx}">
+                      ${favBtn}
                       <span class="format-badge archive-badge">ARCHIVE</span>
                       ${provider}
                       <div class="card-cover">${finalCover}</div>
@@ -364,6 +531,11 @@ document.addEventListener('DOMContentLoaded', () => {
           if (isCatalogOrDoab && externalUrl) {
             const escapedUrl = externalUrl.replace(/"/g, '&quot;');
             const escapedCover = (coverUrl || '').replace(/"/g, '&quot;');
+            const bookKey = generateBookKey(item);
+            const isFavorited = favoritedBooks.has(bookKey);
+            const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${escapedUrl}" aria-label="Add to favorites">
+                              <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+                            </button>`;
             return `<a class="book-card external-card" href="#" 
                        data-landing-url="${escapedUrl}" 
                        data-title="${escapedTitle}"
@@ -371,6 +543,7 @@ document.addEventListener('DOMContentLoaded', () => {
                        data-cover="${escapedCover}"
                        data-provider="${item.provider || 'catalog'}"
                        data-item-idx="${idx}">
+                      ${favBtn}
                       <span class="format-badge external-badge">CATALOG</span>
                       ${provider}
                       <div class="card-cover">${finalCover}</div>
@@ -385,7 +558,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const url = new URL(item.href, window.location.origin);
             url.searchParams.set('ref', location.pathname + location.search);
             const href = url.pathname + url.search;
+            const bookKey = generateBookKey(item);
+            const isFavorited = favoritedBooks.has(bookKey);
+            const escapedCover = (finalCoverUrl || '').replace(/"/g, '&quot;');
+            const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${href}" aria-label="Add to favorites">
+                              <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+                            </button>`;
             return `<a class="book-card readable-card" href="${href}" data-item-idx="${idx}">
+                      ${favBtn}
                       ${formatBadge}
                       ${provider}
                       <div class="card-cover">${finalCover}</div>
@@ -509,6 +689,20 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Delegated click handler for book cards (CSP-safe)
   function handleCardClick(e) {
+    // Handle favorite button clicks
+    const favBtn = e.target.closest('.favorite-btn');
+    if (favBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const bookKey = favBtn.dataset.bookKey;
+      const title = favBtn.dataset.title || '';
+      const author = favBtn.dataset.author || '';
+      const cover = favBtn.dataset.cover || '';
+      const readerUrl = favBtn.dataset.readerUrl || '';
+      toggleFavorite(bookKey, title, author, cover, readerUrl, favBtn);
+      return;
+    }
+    
     const card = e.target.closest('.book-card');
     if (!card) return;
     
