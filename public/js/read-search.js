@@ -144,8 +144,29 @@ document.addEventListener('DOMContentLoaded', () => {
   
   /**
    * Toggle favorite status for a book
+   * @param {HTMLElement} btn - The favorite button element with data attributes
    */
-  function toggleFavorite(btn, bookKey, title, author, cover, readerUrl) {
+  function toggleFavorite(btn) {
+    // Robust guard: ensure btn is a valid DOM element
+    if (!btn || typeof btn.classList === 'undefined') {
+      console.error('[read-search] toggleFavorite called with invalid button:', btn);
+      return;
+    }
+    
+    // Read metadata from button dataset (or fallback to closest card)
+    const card = btn.closest('.book-card');
+    const bookKey = btn.dataset.bookKey || (card && card.dataset.archiveId ? 'archive-' + card.dataset.archiveId : null);
+    
+    if (!bookKey) {
+      console.error('[read-search] toggleFavorite: no bookKey found');
+      return;
+    }
+    
+    const title = btn.dataset.title || (card && card.dataset.title) || '';
+    const author = btn.dataset.author || (card && card.dataset.author) || '';
+    const cover = btn.dataset.cover || (card && card.dataset.cover) || '';
+    const readerUrl = btn.dataset.readerUrl || '';
+    
     const isFavorited = btn.classList.contains('favorited');
     
     fetch('/api/reading/favorite', {
@@ -155,12 +176,18 @@ document.addEventListener('DOMContentLoaded', () => {
       body: JSON.stringify({
         bookKey: bookKey,
         title: title,
-        author: author || '',
-        cover: cover || '',
-        readerUrl: readerUrl || ''
+        author: author,
+        cover: cover,
+        readerUrl: readerUrl
       })
     })
-    .then(r => r.json())
+    .then(r => {
+      if (!r.ok) {
+        console.error('[read-search] Favorite toggle HTTP error:', r.status, r.statusText);
+        return r.text().then(txt => { throw new Error(txt || r.statusText); });
+      }
+      return r.json();
+    })
     .then(data => {
       if (data.favorited) {
         btn.classList.add('favorited');
@@ -689,17 +716,15 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Delegated click handler for book cards (CSP-safe)
   function handleCardClick(e) {
-    // Handle favorite button clicks
-    const favBtn = e.target.closest('.favorite-btn');
+    // Handle favorite button clicks FIRST - use robust selector
+    const favBtn = e.target.closest('.favorite-btn, [data-favorite-btn]');
     if (favBtn) {
       e.preventDefault();
       e.stopPropagation();
-      const bookKey = favBtn.dataset.bookKey;
-      const title = favBtn.dataset.title || '';
-      const author = favBtn.dataset.author || '';
-      const cover = favBtn.dataset.cover || '';
-      const readerUrl = favBtn.dataset.readerUrl || '';
-      toggleFavorite(bookKey, title, author, cover, readerUrl, favBtn);
+      if (typeof e.stopImmediatePropagation === 'function') {
+        e.stopImmediatePropagation();
+      }
+      toggleFavorite(favBtn);
       return;
     }
     
