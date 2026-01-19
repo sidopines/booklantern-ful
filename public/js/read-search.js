@@ -534,7 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const escapedCover = (finalCoverUrl || '').replace(/"/g, '&quot;');
             const bookKey = 'archive-' + archiveId;
             const isFavorited = favoritedBooks.has(bookKey);
-            const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="/unified-reader?archive=${archiveId}" aria-label="Add to favorites">
+            const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="/unified-reader?archive=${archiveId}" aria-label="Add to favorites">
                               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
                             </button>`;
             return `<a class="book-card archive-card" href="#" 
@@ -560,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const escapedCover = (coverUrl || '').replace(/"/g, '&quot;');
             const bookKey = generateBookKey(item);
             const isFavorited = favoritedBooks.has(bookKey);
-            const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${escapedUrl}" aria-label="Add to favorites">
+            const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${escapedUrl}" aria-label="Add to favorites">
                               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
                             </button>`;
             return `<a class="book-card external-card" href="#" 
@@ -588,7 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const bookKey = generateBookKey(item);
             const isFavorited = favoritedBooks.has(bookKey);
             const escapedCover = (finalCoverUrl || '').replace(/"/g, '&quot;');
-            const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${href}" aria-label="Add to favorites">
+            const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${href}" aria-label="Add to favorites">
                               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
                             </button>`;
             return `<a class="book-card readable-card" href="${href}" data-item-idx="${idx}">
@@ -609,6 +609,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // Check if it's an Archive URL we can try to resolve
             const possibleArchiveId = extractArchiveId(externalUrl);
             if (possibleArchiveId) {
+              const bookKey = 'archive-' + possibleArchiveId;
+              const isFavorited = favoritedBooks.has(bookKey);
+              const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="/unified-reader?archive=${possibleArchiveId}" aria-label="Add to favorites">
+                                <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+                              </button>`;
               return `<a class="book-card archive-card" href="#" 
                          data-archive-id="${possibleArchiveId}" 
                          data-title="${escapedTitle}"
@@ -616,6 +621,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          data-cover="${escapedCover}"
                          data-provider="archive"
                          data-item-idx="${idx}">
+                        ${favBtn}
                         <span class="format-badge archive-badge">ARCHIVE</span>
                         ${provider}
                         <div class="card-cover">${finalCover}</div>
@@ -625,6 +631,11 @@ document.addEventListener('DOMContentLoaded', () => {
                       </a>`;
             }
             // Non-archive external URL - still keep on site via fallback
+            const bookKey = generateBookKey(item);
+            const isFavorited = favoritedBooks.has(bookKey);
+            const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${escapedUrl}" aria-label="Add to favorites">
+                              <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+                            </button>`;
             return `<a class="book-card external-card" href="#"
                        data-external-url="${escapedUrl}" 
                        data-title="${escapedTitle}"
@@ -632,6 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
                        data-cover="${escapedCover}"
                        data-provider="${item.provider || 'external'}"
                        data-item-idx="${idx}">
+                      ${favBtn}
                       <span class="format-badge external-badge">External</span>
                       ${provider}
                       <div class="card-cover">${finalCover}</div>
