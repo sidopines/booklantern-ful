@@ -137,7 +137,7 @@
             <tr>
               <td><%- b.title %></td>
               <td><%- b.author || '' %></td>
-              <td><%- b.category || '' %></td>
+              <td><%- (b.book_genres && b.book_genres.name) ? b.book_genres.name : (b.genre_slug || '') %></td>
               <td>
                 <a class="btn link" href="/admin/books/<%- b.id %>">Edit</a>
                 <form method="POST" action="/admin/books/delete" style="display:inline;">

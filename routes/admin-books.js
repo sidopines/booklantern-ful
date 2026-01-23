@@ -57,7 +57,8 @@ function isUUID(v) {
 }
 
 // ----------------- GET /admin/books (add + list) -----------------
-router.get('/books', async (req, res, next) => {
+// Note: This router is mounted at /admin/books, so route is just '/'
+router.get('/', async (req, res, next) => {
   try {
     const { data: genres, error: gErr } = await sb
       .from('book_genres')
@@ -110,7 +111,7 @@ router.get('/books', async (req, res, next) => {
 });
 
 // ----------------- POST /admin/books (create) -----------------
-router.post('/books', async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const {
       title,
@@ -172,7 +173,7 @@ router.post('/books', async (req, res) => {
 });
 
 // ----------------- POST /admin/books/delete -----------------
-router.post('/books/delete', async (req, res) => {
+router.post('/delete', async (req, res) => {
   try {
     const id = normalizeId(req);
     if (!isUUID(id)) {
@@ -191,7 +192,7 @@ router.post('/books/delete', async (req, res) => {
 });
 
 // ----------------- GET /admin/books/:id (edit page) -----------------
-router.get('/books/:id', async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const id = normalizeId(req);
     if (!isUUID(id)) {
@@ -226,7 +227,7 @@ router.get('/books/:id', async (req, res) => {
 });
 
 // ----------------- POST /admin/books/update -----------------
-router.post('/books/update', async (req, res) => {
+router.post('/update', async (req, res) => {
   try {
     const id = normalizeId(req);
     if (!isUUID(id)) {
