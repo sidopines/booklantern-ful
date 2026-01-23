@@ -56,8 +56,9 @@ router.get('/', async (req, res) => {
 
 // Sub-sections (keep consistent with server.js mount points)
 router.use('/books',        require('./admin-books'));
+router.use('/genres',       require('./admin-genres'));       // book genres
 router.use('/videos',       require('./admin-videos'));
-router.use('/video-genres', require('./admin-video-genres')); // ok to keep
+router.use('/video-genres', require('./admin-video-genres')); // video genres
 router.use('/users',        require('./admin-users'));
 
 module.exports = router;

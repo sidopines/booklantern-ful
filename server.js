@@ -414,13 +414,8 @@ const hasSB = Boolean(
 );
 
 if (hasSB) {
-  try {
-    app.use('/admin', require('./routes/admin-books'));
-    app.use('/admin', require('./routes/admin-genres'));
-    console.log('[routes] mounted admin-books and admin-genres at /admin');
-  } catch (e) {
-    console.error('[routes] failed to mount admin-books/admin-genres:', e);
-  }
+  // NOTE: admin-books and admin-genres are mounted via routes/admin.js at /admin/books and /admin/genres
+  // Do not mount them directly here to avoid duplicate routes
 
   // Mount reader routes (unified-reader, proxy/epub, library, reader APIs)
   try {
@@ -432,7 +427,7 @@ if (hasSB) {
   }
 } else {
   console.warn(
-    '[routes] Skipping admin-books/admin-genres/reader because Supabase URL/Key not detected.'
+    '[routes] Skipping reader routes because Supabase URL/Key not detected.'
   );
 }
 

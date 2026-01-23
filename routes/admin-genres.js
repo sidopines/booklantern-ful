@@ -29,8 +29,8 @@ function messagesFromQuery(q) {
   return msg;
 }
 
-// GET /admin/genres
-router.get('/genres', async (req, res, next) => {
+// GET /admin/genres (now / because mounted at /admin/genres)
+router.get('/', async (req, res, next) => {
   try {
     const { data, error } = await sb
       .from('book_genres')
@@ -40,17 +40,21 @@ router.get('/genres', async (req, res, next) => {
 
     if (error) {
       console.error('[admin] load genres failed:', error);
-      return res.status(500).render('admin-genres', {
-        ...messagesFromQuery({ err: error.message }),
+      return res.status(500).render('admin/genres', {
+        messages: messagesFromQuery({ err: error.message }),
+        ok: false,
+        err: error.message,
         genres: [],
-        pageTitle: 'Admin • Genres',
+        pageTitle: 'Admin • Book Genres',
       });
     }
 
-    res.render('admin-genres', {
-      ...messagesFromQuery(req.query),
+    res.render('admin/genres', {
+      messages: messagesFromQuery(req.query),
+      ok: true,
+      err: req.query.err ? decodeURIComponent(req.query.err) : '',
       genres: data || [],
-      pageTitle: 'Admin • Genres',
+      pageTitle: 'Admin • Book Genres',
     });
   } catch (e) {
     console.error('[admin] load genres failed:', e);
@@ -58,8 +62,8 @@ router.get('/genres', async (req, res, next) => {
   }
 });
 
-// POST /admin/genres — upsert by slug
-router.post('/genres', async (req, res) => {
+// POST /admin/genres — upsert by slug (now / because mounted at /admin/genres)
+router.post('/', async (req, res) => {
   try {
     const slug = (req.body.slug || '').trim();
     const name = (req.body.name || '').trim();
@@ -85,6 +89,27 @@ router.post('/genres', async (req, res) => {
     console.error('[admin] upsert genre failed:', e);
     const msg = encodeURIComponent(e.message || '1');
     return res.redirect(303, '/admin/genres?err=' + msg);
+  }
+});
+
+// POST /admin/genres/:slug/delete — delete by slug
+router.post('/:slug/delete', async (req, res) => {
+  try {
+    const slug = (req.params.slug || '').trim();
+    if (!slug) {
+      return res.redirect(303, '/admin/genres?err=' + encodeURIComponent('Missing slug.'));
+    }
+
+    const { error } = await sb.from('book_genres').delete().eq('slug', slug);
+    if (error) {
+      console.error('[admin] delete genre failed:', error);
+      return res.redirect(303, '/admin/genres?err=' + encodeURIComponent(error.message));
+    }
+
+    return res.redirect(303, '/admin/genres?ok=1');
+  } catch (e) {
+    console.error('[admin] delete genre failed:', e);
+    return res.redirect(303, '/admin/genres?err=' + encodeURIComponent(e.message || '1'));
   }
 });
 

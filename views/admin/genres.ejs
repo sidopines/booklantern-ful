@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <%- include('../partials/head.ejs', {
-    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : 'Admin • Genres',
-    pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Manage video genres'
+    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : 'Admin • Book Genres',
+    pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Manage book genres/shelves'
   }) %>
   <style>
     :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --link:#1256b3; --brand:#111; --brandHover:#333; --danger:#b42318; }
@@ -56,24 +56,28 @@
     <div class="crumbs">
       <a href="/admin">← Admin</a>
       <span style="color:#94a3b8">/</span>
-      <span>Genres</span>
+      <span>Book Genres</span>
     </div>
 
-    <h1>Genres</h1>
+    <h1>Book Genres</h1>
 
-    <% if (ok) { %><div class="notice ok">✅ Saved.</div><% } %>
-    <% if (err) { %><div class="notice err">⚠️ <%= err %></div><% } %>
+    <% if (typeof ok !== 'undefined' && ok && !(typeof err !== 'undefined' && err)) { %><div class="notice ok">✅ Saved.</div><% } %>
+    <% if (typeof err !== 'undefined' && err) { %><div class="notice err">⚠️ <%= err %></div><% } %>
+    <% if (typeof messages !== 'undefined' && messages && messages.success) { %><div class="notice ok">✅ <%= messages.success %></div><% } %>
+    <% if (typeof messages !== 'undefined' && messages && messages.error) { %><div class="notice err">⚠️ <%= messages.error %></div><% } %>
 
     <div class="grid">
       <!-- Add Genre -->
       <section class="card">
         <h2>Add New Genre</h2>
         <form class="flex" method="POST" action="/admin/genres">
-          <input type="text" name="name" placeholder="e.g., Science, History, Philosophy" required />
-          <button class="btn" type="submit">Add Genre</button>
+          <input type="text" name="slug" placeholder="slug (e.g., science)" required style="flex:1 1 100px;min-width:90px;" />
+          <input type="text" name="name" placeholder="Name (e.g., Science)" required style="flex:1 1 140px;" />
+          <input type="number" name="homepage_row" placeholder="Row #" style="width:70px;padding:.6rem .5rem;border:1px solid var(--border);border-radius:10px;" />
+          <button class="btn" type="submit">Add</button>
         </form>
         <p style="color:#667085; font-size:.92rem; margin:.6rem 0 0;">
-          Genres are used to organize videos on the Watch page.
+          Genres organize books on shelves. The slug is used internally.
         </p>
       </section>
 
@@ -86,9 +90,13 @@
           <ul class="list">
             <% genres.forEach(function(g){ %>
               <li>
-                <span class="name"><%= g.name %></span>
+                <div>
+                  <span class="name"><%= g.name %></span>
+                  <span style="color:#667085;font-size:.85rem;margin-left:6px;">(<%= g.slug %>)</span>
+                  <% if (g.homepage_row) { %><span style="color:#667085;font-size:.85rem;margin-left:6px;">Row <%= g.homepage_row %></span><% } %>
+                </div>
                 <div class="row-actions">
-                  <form method="POST" action="/admin/genres/<%= g._id %>/delete" onsubmit="return confirm('Delete genre “<%= g.name %>”?')">
+                  <form method="POST" action="/admin/genres/<%= g.slug %>/delete" onsubmit="return confirm('Delete genre &quot;<%= g.name %>&quot;?')">
                     <button class="btn small danger" type="submit">Delete</button>
                   </form>
                 </div>

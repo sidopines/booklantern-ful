@@ -1,12 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('../partials/head'); %>
+  <%- include('../partials/head', { pageTitle: 'Admin • Users' }); %>
   <title>Admin • Users</title>
   <style>
-    .admin-wrap{max-width:980px;margin:24px auto 64px;}
-    .card{border:1px solid #eee;border-radius:12px;padding:16px;background:#fff}
-    .note{background:#eef7ff;border:1px solid #cfe7ff;padding:8px 10px;border-radius:8px}
+    .admin-wrap{max-width:1100px;margin:24px auto 64px;padding:0 16px;}
+    .card{border:1px solid #eee;border-radius:12px;padding:16px;background:#fff;margin-bottom:20px;}
+    .note{background:#eef7ff;border:1px solid #cfe7ff;padding:8px 10px;border-radius:8px;margin-bottom:16px;}
+    .note.error{background:#ffebee;border-color:#ffcdd2;color:#c62828;}
+    .note.success{background:#e8f5e9;border-color:#c8e6c9;color:#2e7d32;}
+    table{width:100%;border-collapse:collapse;margin-top:16px;}
+    th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #eee;font-size:14px;}
+    th{background:#f5f5f5;font-weight:600;}
+    tr:hover{background:#fafafa;}
+    .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:500;}
+    .badge-admin{background:#e3f2fd;color:#1565c0;}
+    .badge-subscriber{background:#f3e5f5;color:#7b1fa2;}
+    .badge-verified{background:#e8f5e9;color:#2e7d32;}
+    .badge-unverified{background:#fff3e0;color:#e65100;}
+    .btn{display:inline-block;padding:5px 10px;border-radius:6px;font-size:12px;border:none;cursor:pointer;text-decoration:none;}
+    .btn-danger{background:#ffebee;color:#c62828;border:1px solid #ffcdd2;}
+    .btn-danger:hover{background:#ffcdd2;}
+    .btn-admin{background:#e3f2fd;color:#1565c0;border:1px solid #bbdefb;}
+    .btn-admin:hover{background:#bbdefb;}
+    .actions{display:flex;gap:6px;}
+    .email-cell{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .count-badge{background:#f5f5f5;padding:4px 10px;border-radius:6px;font-size:13px;}
+    form{display:inline;}
   </style>
 </head>
 <body>
@@ -14,12 +34,59 @@
 
   <main class="admin-wrap">
     <h1>Admin • Users</h1>
-    <% if (messages && (messages.error || messages.success || messages.info)) { %>
-      <p class="note"><%= messages.error || messages.success || messages.info %></p>
+    <nav style="margin-bottom:16px;"><a href="/admin">&larr; Back to Admin</a></nav>
+
+    <% if (messages && messages.error) { %>
+      <p class="note error"><%= messages.error %></p>
+    <% } %>
+    <% if (messages && messages.success) { %>
+      <p class="note success"><%= messages.success %></p>
     <% } %>
 
     <section class="card">
-      <p>This is a placeholder. No user operations are wired yet.</p>
+      <h2>All Users <span class="count-badge"><%= users.length %> total</span></h2>
+      
+      <% if (users.length === 0) { %>
+        <p>No users found in the database.</p>
+      <% } else { %>
+        <table>
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Display Name</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% users.forEach(function(u) { %>
+              <tr>
+                <td class="email-cell" title="<%= u.email %>"><%= u.email %></td>
+                <td><%= u.display_name || '—' %></td>
+                <td>
+                  <% if (u.is_admin) { %><span class="badge badge-admin">Admin</span><% } %>
+                  <% if (u.is_subscriber) { %><span class="badge badge-subscriber">Subscriber</span><% } %>
+                  <% if (u.email_verified) { %>
+                    <span class="badge badge-verified">Verified</span>
+                  <% } else { %>
+                    <span class="badge badge-unverified">Unverified</span>
+                  <% } %>
+                </td>
+                <td><%= u.created_at ? new Date(u.created_at).toLocaleDateString() : '—' %></td>
+                <td class="actions">
+                  <form method="POST" action="/admin/users/<%= u.id %>/toggle-admin" onsubmit="return confirm('Toggle admin status for this user?')">
+                    <button type="submit" class="btn btn-admin"><%= u.is_admin ? 'Remove Admin' : 'Make Admin' %></button>
+                  </form>
+                  <form method="POST" action="/admin/users/<%= u.id %>/delete" onsubmit="return confirm('Permanently delete this user? This cannot be undone.')">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                  </form>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
     </section>
   </main>
 
