@@ -787,10 +787,16 @@
 
   /**
    * Generate stable book key for localStorage
+   * Prevents double-prefixing by checking if prefix already exists
    */
   function generateBookKey(epubUrl, archiveId) {
     if (archiveId) {
-      return 'bl-book-' + archiveId;
+      // Strip any existing bl-book- prefix to prevent duplication
+      let cleanId = archiveId;
+      while (cleanId.startsWith('bl-book-')) {
+        cleanId = cleanId.slice(8); // 'bl-book-'.length = 8
+      }
+      return 'bl-book-' + cleanId;
     }
     // Use URL hash as fallback
     let hash = 0;
@@ -1110,10 +1116,11 @@
     
     if (!viewer) {
       console.error('[reader] epub-viewer element not found');
+      showReaderError('Reader container not found. Please refresh the page.');
       return;
     }
     
-    const epubUrl = viewer.getAttribute('data-epub-url');
+    let epubUrl = viewer.getAttribute('data-epub-url');
     const archiveId = viewer.getAttribute('data-archive-id');
     const directUrl = viewer.getAttribute('data-direct-url') || '';
     const sourceUrl = viewer.getAttribute('data-source-url') || directUrl;
@@ -1126,9 +1133,19 @@
     // Store bestPdf globally for fallback
     var currentBestPdf = bestPdf;
     
+    // If no epubUrl but we have archiveId, use the archive EPUB proxy
+    // This handles tokens from favorites that have archive_id but no direct_url initially
+    if (!epubUrl && archiveId) {
+      tsLog('No epubUrl but have archiveId, using archive proxy:', archiveId);
+      epubUrl = '/api/proxy/epub?archive=' + encodeURIComponent(archiveId);
+    }
+    
     if (!epubUrl) {
-      console.error('[reader] No EPUB URL provided');
-      showEpubError('No book URL provided', sourceUrl);
+      console.error('[reader] No EPUB URL provided and no archive ID');
+      const errorMsg = archiveId 
+        ? 'Could not load the book file. The archive may be temporarily unavailable.'
+        : 'No book URL provided. Please try selecting the book again from search results.';
+      showEpubError(errorMsg, sourceUrl);
       return;
     }
     
