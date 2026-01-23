@@ -494,6 +494,37 @@ body[data-page="reader"] {
   transform: scale(0.95);
 }
 
+/* Favorite button in reader toolbar */
+.reader-topbar .favorite-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 4px;
+  transition: transform 0.15s ease, background 0.2s;
+  line-height: 1;
+}
+
+.reader-topbar .favorite-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.1);
+}
+
+.reader-topbar .favorite-btn:active {
+  transform: scale(0.95);
+}
+
+.reader-topbar .favorite-btn.favorited {
+  animation: heartPop 0.3s ease;
+}
+
+@keyframes heartPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
 /* Error state inside epub viewer */
 #epub-viewer .reader-error {
   position: absolute;

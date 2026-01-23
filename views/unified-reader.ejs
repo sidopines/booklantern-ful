@@ -82,8 +82,19 @@
         </svg>
       </button>
     </div>
-    <% } else if (safeSource) { %>
+    
+    <!-- Favorite button -->
+    <button id="favorite-btn" class="favorite-btn" aria-label="Add to favorites" aria-pressed="false" title="Add to Favorites">
+      🤍
+    </button>
+    <% } else { %>
+    <!-- Favorite button for non-EPUB modes -->
+    <button id="favorite-btn" class="favorite-btn" aria-label="Add to favorites" aria-pressed="false" title="Add to Favorites">
+      🤍
+    </button>
+    <% if (safeSource) { %>
     <div class="reader-source"><%= safeSource %></div>
+    <% } %>
     <% } %>
   </header>
   

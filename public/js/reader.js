@@ -312,6 +312,22 @@
     const bestPdf = document.body.getAttribute('data-best-pdf');
     const dataFormat = (document.body.getAttribute('data-format') || '').toLowerCase();
     
+    // Generate bookKey early for favorites (PDF and iframe modes)
+    if (archiveId) {
+      bookKey = 'bl-book-' + archiveId;
+    } else {
+      // Try to generate from source URL
+      const sourceUrl = document.body.getAttribute('data-source-url') || '';
+      if (sourceUrl) {
+        let hash = 0;
+        for (let i = 0; i < sourceUrl.length; i++) {
+          hash = ((hash << 5) - hash) + sourceUrl.charCodeAt(i);
+          hash |= 0;
+        }
+        bookKey = 'bl-book-' + Math.abs(hash);
+      }
+    }
+    
     // Check URL params for explicit mode request
     const urlParams = new URLSearchParams(window.location.search);
     const explicitEpub = urlParams.get('mode') === 'epub';
@@ -327,12 +343,17 @@
       // Show calm loading message
       updateLoadingMessage('Preparing book...');
       
+      // Setup favorite button for PDF mode
+      setupFavoriteButton();
+      
       // Start PDF viewer directly with "Try EPUB" option
       startPdfViewerDirectly(archiveId, bestPdf, true);
       return;
     }
     
     if (isPdfPage) {
+      // Setup favorite button for PDF mode
+      setupFavoriteButton();
       // Setup PDF viewer handling
       initPdfViewer();
     } else if (isEpubPage) {
@@ -361,6 +382,8 @@
         }
       }
     } else {
+      // Setup favorite button for iframe mode
+      setupFavoriteButton();
       // Setup keyboard shortcuts for iframe
       setupKeyboardShortcuts();
     }
@@ -712,6 +735,9 @@
         }
       }
     });
+    
+    // Setup favorite button
+    setupFavoriteButton();
   }
 
   /**
@@ -788,7 +814,7 @@
   }
 
   /**
-   * Get saved reading location
+   * Get saved reading location - checks server first, then localStorage
    */
   function getSavedLocation() {
     if (!bookKey) return null;
@@ -797,6 +823,122 @@
     } catch (e) {
       return null;
     }
+  }
+
+  /**
+   * Load reading progress from server (async)
+   * Returns {lastLocation, progress} or null
+   */
+  async function loadServerProgress() {
+    if (!bookKey) return null;
+    try {
+      const response = await fetch('/api/reading/progress/' + encodeURIComponent(bookKey), {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.ok && data.found && data.lastLocation) {
+          console.log('[reader] Server progress found:', data.lastLocation);
+          // Also update localStorage for fast access next time
+          try {
+            localStorage.setItem(bookKey + '-loc', data.lastLocation);
+          } catch (e) {}
+          return data;
+        }
+      }
+    } catch (err) {
+      console.warn('[reader] Failed to load server progress:', err.message);
+    }
+    return null;
+  }
+
+  /**
+   * Check if current book is favorited
+   */
+  async function checkFavoriteStatus() {
+    if (!bookKey) return false;
+    try {
+      const response = await fetch('/api/reading/favorite/' + encodeURIComponent(bookKey), {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.ok && data.favorited;
+      }
+    } catch (err) {
+      console.warn('[reader] Failed to check favorite status:', err.message);
+    }
+    return false;
+  }
+
+  /**
+   * Toggle favorite status for current book
+   */
+  async function toggleFavorite() {
+    if (!bookKey) return { ok: false };
+    const meta = getBookMetadata();
+    try {
+      const response = await fetch('/api/reading/favorite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          bookKey: bookKey,
+          source: meta.source,
+          title: meta.title,
+          author: meta.author,
+          cover: meta.cover,
+          readerUrl: window.location.pathname + window.location.search,
+          category: meta.category
+        })
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+    } catch (err) {
+      console.warn('[reader] Failed to toggle favorite:', err.message);
+    }
+    return { ok: false };
+  }
+
+  /**
+   * Setup heart/favorite button in toolbar
+   */
+  function setupFavoriteButton() {
+    const favBtn = document.getElementById('favorite-btn');
+    if (!favBtn) return;
+    
+    // Check initial status
+    checkFavoriteStatus().then(function(isFavorited) {
+      if (isFavorited) {
+        favBtn.classList.add('favorited');
+        favBtn.setAttribute('aria-pressed', 'true');
+        favBtn.innerHTML = '❤️';
+      } else {
+        favBtn.classList.remove('favorited');
+        favBtn.setAttribute('aria-pressed', 'false');
+        favBtn.innerHTML = '🤍';
+      }
+    });
+    
+    // Handle click
+    favBtn.addEventListener('click', async function() {
+      favBtn.disabled = true;
+      const result = await toggleFavorite();
+      favBtn.disabled = false;
+      
+      if (result.ok) {
+        if (result.favorited) {
+          favBtn.classList.add('favorited');
+          favBtn.setAttribute('aria-pressed', 'true');
+          favBtn.innerHTML = '❤️';
+        } else {
+          favBtn.classList.remove('favorited');
+          favBtn.setAttribute('aria-pressed', 'false');
+          favBtn.innerHTML = '🤍';
+        }
+      }
+    });
   }
 
   /**
@@ -1399,7 +1541,13 @@
       // Use Promise.race with timeout for robust display handling
       tsLog('rendition.display() starting');
       try {
-        const rawSavedLocation = getSavedLocation();
+        // Try to load progress from server first (more reliable than localStorage)
+        let rawSavedLocation = getSavedLocation();
+        const serverProgress = await loadServerProgress();
+        if (serverProgress && serverProgress.lastLocation) {
+          rawSavedLocation = serverProgress.lastLocation;
+          tsLog('Using server-saved location');
+        }
         
         // CRITICAL: Validate saved location before use - NEVER pass undefined/empty to display()
         // A valid CFI looks like: epubcfi(/6/2!/...) - must start with 'epubcfi(' and have content

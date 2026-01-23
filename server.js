@@ -406,6 +406,15 @@ try {
   console.error('[routes] failed to mount ./routes/reading:', e);
 }
 
+// Mount favorites page and /open token-safe opener
+try {
+  const favoritesRoutes = require('./routes/favorites');
+  app.use('/', favoritesRoutes);
+  console.log('[routes] mounted favorites router at /');
+} catch (e) {
+  console.error('[routes] failed to mount ./routes/favorites:', e);
+}
+
 const hasSB = Boolean(
   (process.env.SUPABASE_URL || process.env.supabaseUrl) &&
     (process.env.SUPABASE_SERVICE_ROLE_KEY ||
