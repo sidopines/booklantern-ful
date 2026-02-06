@@ -7,25 +7,18 @@ const { ensureSubscriber } = require('../utils/gate');
 const { buildReaderToken } = require('../utils/buildReaderToken');
 const supabase = require('../lib/supabaseServer');
 
+// Safe fetch: use globalThis.fetch (Node 18+) or dynamic import node-fetch
+const fetchFn = globalThis.fetch
+  ? globalThis.fetch.bind(globalThis)
+  : (...args) => import('node-fetch').then(m => m.default(...args));
+
+const PROXY_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0 Safari/537.36 BookLantern/1.0';
+
 // Import archive resolution helpers from reader.js (lazy loaded to avoid circular deps)
-let fetchArchiveMetadataFn = null;
 let pickBestArchiveFileFn = null;
 
 async function resolveArchiveFile(identifier) {
-  // Lazy load from reader.js
-  if (!fetchArchiveMetadataFn) {
-    const fetch = require('node-fetch');
-    const PROXY_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0 Safari/537.36 BookLantern/1.0';
-    
-    fetchArchiveMetadataFn = async (id) => {
-      const metaUrl = `https://archive.org/metadata/${encodeURIComponent(id)}`;
-      const res = await fetch(metaUrl, {
-        headers: { 'User-Agent': PROXY_UA, 'Accept': 'application/json' },
-        timeout: 20000
-      });
-      if (!res.ok) return null;
-      try { return await res.json(); } catch { return null; }
-    };
+  if (!pickBestArchiveFileFn) {
     
     // Same logic as routes/reader.js pickBestArchiveFile
     pickBestArchiveFileFn = (files) => {
@@ -66,7 +59,12 @@ async function resolveArchiveFile(identifier) {
   
   const sourceUrl = `https://archive.org/details/${identifier}`;
   try {
-    const meta = await fetchArchiveMetadataFn(identifier);
+    const metaUrl = `https://archive.org/metadata/${encodeURIComponent(identifier)}`;
+    const metaRes = await fetchFn(metaUrl, {
+      headers: { 'User-Agent': PROXY_UA, 'Accept': 'application/json' },
+      signal: AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined
+    });
+    const meta = metaRes.ok ? await metaRes.json().catch(() => null) : null;
     if (!meta || !meta.files) {
       console.log(`[favorites/resolveArchive] id=${identifier} found=none (no metadata)`);
       return { ok: false, source_url: sourceUrl };
@@ -111,6 +109,18 @@ function extractArchiveIdFromKey(bookKey) {
     id = id.slice(8);
   }
   return id || null;
+}
+
+/**
+ * Detect whether a favorite is truly an Archive.org book.
+ * Only returns true for strong archive signals — avoids false positives
+ * for OpenLibrary / Gutenberg books saved as provider=unknown.
+ */
+function isArchiveLike({ provider, providerId, sourceUrl, cover }) {
+  if (provider === 'archive') return true;
+  if ((providerId || '').startsWith('archive-')) return true;
+  if ((sourceUrl || '').includes('archive.org/details/')) return true;
+  return false;
 }
 
 // Helper to get user ID from session
@@ -196,103 +206,143 @@ router.get('/open', ensureSubscriber, async (req, res) => {
     });
   }
 
+  const source_url = req.query.source_url || '';
+  const archive_id = req.query.archive_id || '';
+  const direct_url = req.query.direct_url || '';
+  const format = req.query.format || '';
+
   console.log(`[open] Opening book: provider=${provider}, id=${provider_id}, title=${title}`);
 
   try {
     // Extract real archive ID from bookKey (strips bl-book- prefix if present)
-    // This handles bookKeys like "bl-book-archiveIdentifier" or double-prefixed ones
     const realArchiveId = extractArchiveIdFromKey(provider_id);
-    
-    // Determine if this is an archive book
-    const isArchiveBook = provider === 'archive' || 
-                          provider === 'unknown' ||  // Most favorites saved as 'unknown' are archive
-                          provider_id.includes('archive.org') ||
-                          (realArchiveId && realArchiveId !== provider_id); // Had bl-book- prefix
-    
-    if (isArchiveBook) {
-      // Extract archive identifier from URL if it's a full URL
-      let archiveId = realArchiveId;
-      if (provider_id.includes('archive.org')) {
+
+    // Determine if this is truly an Archive.org book using strong signals only
+    const archiveLike = isArchiveLike({
+      provider,
+      providerId: provider_id,
+      sourceUrl: source_url,
+      cover
+    });
+
+    // ----- Branch 1: confirmed archive book -----
+    if (archiveLike) {
+      let archiveId = null;
+
+      // Derive archiveId from source_url first (most reliable)
+      if (source_url.includes('archive.org/details/')) {
+        const match = source_url.match(/archive\.org\/details\/([^/?#]+)/);
+        if (match) archiveId = match[1];
+      }
+      // Then try provider_id if it's a URL
+      if (!archiveId && provider_id.includes('archive.org')) {
         const match = provider_id.match(/archive\.org\/details\/([^/?#]+)/);
         if (match) archiveId = match[1];
       }
-      
+      // Then try archive_id query param
+      if (!archiveId && archive_id) archiveId = archive_id;
+      // Then try stripping bl-book- prefix
+      if (!archiveId && realArchiveId) archiveId = realArchiveId;
+
       if (!archiveId) {
         console.error(`[open] Could not extract archive ID from: ${provider_id}`);
-        return res.status(400).render('error', {
-          pageTitle: 'Invalid Book ID',
-          statusCode: 400,
-          message: 'Could not identify the book. Please try searching for it again.'
-        });
+        return res.redirect(`/read?q=${encodeURIComponent(title)}&notice=resolve_failed`);
       }
 
       console.log(`[open] Resolving archive book: ${archiveId}`);
-      
-      // Resolve the archive file to get the actual EPUB/PDF URL
       const resolved = await resolveArchiveFile(archiveId);
-      
+
       if (!resolved.ok) {
-        console.error(`[open] Archive resolution failed for: ${archiveId}`);
-        return res.status(404).render('error', {
-          pageTitle: 'Book Not Found',
-          statusCode: 404,
-          message: 'This book could not be found or is not available for reading. Please try searching for another edition.'
-        });
+        console.warn(`[open] Archive resolution failed for: ${archiveId}, falling back to search`);
+        return res.redirect(`/read?q=${encodeURIComponent(title)}&notice=resolve_failed`);
       }
 
-      // Generate token with full URLs - CRITICAL FIX
       const token = buildReaderToken({
         provider: 'archive',
         provider_id: archiveId,
         archive_id: archiveId,
-        format: resolved.format, // 'epub' or 'pdf'
-        direct_url: resolved.direct_url, // THE ACTUAL FILE URL
+        format: resolved.format,
+        direct_url: resolved.direct_url,
         source_url: resolved.source_url,
-        title: title,
-        author: author,
+        title,
+        author,
         cover_url: cover || `https://archive.org/services/img/${archiveId}`,
         best_pdf: resolved.best_pdf || null
       });
 
-      const redirectUrl = `/unified-reader?token=${encodeURIComponent(token)}&ref=${encodeURIComponent(ref)}`;
       console.log(`[open] Archive redirect: ${archiveId} -> ${resolved.format}`);
-      return res.redirect(redirectUrl);
+      return res.redirect(`/unified-reader?token=${encodeURIComponent(token)}&ref=${encodeURIComponent(ref)}`);
     }
 
-    // Check if this is an external/DOAB/OAPEN book (URL-based)
+    // ----- Branch 2: unknown provider but has archive_id param -----
+    if (archive_id && provider === 'unknown') {
+      console.log(`[open] Unknown provider with archive_id=${archive_id}, resolving as archive`);
+      const resolved = await resolveArchiveFile(archive_id);
+      if (resolved.ok) {
+        const token = buildReaderToken({
+          provider: 'archive',
+          provider_id: archive_id,
+          archive_id,
+          format: resolved.format,
+          direct_url: resolved.direct_url,
+          source_url: resolved.source_url,
+          title,
+          author,
+          cover_url: cover || `https://archive.org/services/img/${archive_id}`,
+          best_pdf: resolved.best_pdf || null
+        });
+        return res.redirect(`/unified-reader?token=${encodeURIComponent(token)}&ref=${encodeURIComponent(ref)}`);
+      }
+      // fall through to other strategies
+    }
+
+    // ----- Branch 3: has a direct_url we can use -----
+    if (direct_url) {
+      console.log(`[open] Using direct_url for ${provider}: ${provider_id}`);
+      const fmt = format || (direct_url.toLowerCase().endsWith('.pdf') ? 'pdf' : 'epub');
+      const token = buildReaderToken({
+        provider,
+        provider_id: realArchiveId || provider_id,
+        title,
+        author,
+        cover_url: cover,
+        format: fmt,
+        direct_url,
+        source_url
+      });
+      return res.redirect(`/unified-reader?token=${encodeURIComponent(token)}&ref=${encodeURIComponent(ref)}`);
+    }
+
+    // ----- Branch 4: external / DOAB / OAPEN -----
     if (provider === 'external' || provider === 'doab' || provider === 'oapen' ||
         provider_id.startsWith('http://') || provider_id.startsWith('https://')) {
-      
-      // For external books, redirect to /read with search to resolve
-      // This triggers the normal external token resolution flow
       const searchQuery = `${title} ${author}`.trim();
       console.log(`[open] External book, redirecting to search: ${searchQuery}`);
       return res.redirect(`/read?q=${encodeURIComponent(searchQuery)}`);
     }
 
-    // For other providers (gutenberg, openlibrary, etc.)
-    // Generate a fresh token - note: these may still need direct_url resolution
-    // For now, let unified-reader handle these via its existing proxy logic
-    const token = buildReaderToken({
-      provider: provider,
-      provider_id: provider_id,
-      title: title,
-      author: author,
-      cover_url: cover,
-      format: 'epub'
-    });
+    // ----- Branch 5: known providers (gutenberg, openlibrary, etc.) -----
+    if (provider !== 'unknown') {
+      console.log(`[open] Standard redirect for ${provider}: ${provider_id}`);
+      const token = buildReaderToken({
+        provider,
+        provider_id: provider_id,
+        title,
+        author,
+        cover_url: cover,
+        format: format || 'epub'
+      });
+      return res.redirect(`/unified-reader?token=${encodeURIComponent(token)}&ref=${encodeURIComponent(ref)}`);
+    }
 
-    const redirectUrl = `/unified-reader?token=${encodeURIComponent(token)}&ref=${encodeURIComponent(ref)}`;
-    console.log(`[open] Standard redirect for ${provider}: ${provider_id}`);
-    return res.redirect(redirectUrl);
+    // ----- Branch 6: truly unknown — graceful fallback to search -----
+    console.warn(`[open] Cannot resolve unknown favorite: ${provider_id} "${title}", falling back to search`);
+    return res.redirect(`/read?q=${encodeURIComponent(title)}&notice=resolve_failed`);
 
   } catch (err) {
     console.error('[open] error:', err);
-    return res.status(500).render('error', {
-      pageTitle: 'Error Opening Book',
-      statusCode: 500,
-      message: 'Failed to open book. Please try searching for it again.'
-    });
+    // Never 500 — redirect to search so user isn't stuck
+    return res.redirect(`/read?q=${encodeURIComponent(title)}&notice=error`);
   }
 });
 
