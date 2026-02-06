@@ -1,3 +1,12 @@
+// CSP-safe delegated image error handler (replaces inline onerror)
+document.addEventListener('error', function(e) {
+  var img = e.target;
+  if (img && img.tagName === 'IMG') {
+    var fb = img.getAttribute('data-fallback');
+    if (fb && img.src !== fb && !img.src.endsWith(fb)) img.src = fb;
+  }
+}, true);
+
 document.addEventListener('DOMContentLoaded', () => {
   const q = new URLSearchParams(location.search).get('q') || '';
   const box = document.querySelector('input[name="q"]');
@@ -73,14 +82,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         shelf.style.display = 'block';
-        container.innerHTML = data.items.map(item => {
+        // Dedupe by title (last defense)
+        var seenTitles = {};
+        var uniqueItems = data.items.filter(function(item) {
+          var key = (item.title || '').trim().toLowerCase();
+          if (key && seenTitles[key]) return false;
+          if (key) seenTitles[key] = true;
+          return true;
+        });
+        container.innerHTML = uniqueItems.map(item => {
           const cover = item.cover || '/public/img/cover-fallback.svg';
-          const url = item.readerUrl || '#';
+          const url = item.openUrl || item.readerUrl || '#';
           const progress = item.progress || 0;
           return `
             <a href="${url}" class="shelf-card">
               <div class="card-cover">
-                <img src="${cover}" alt="" loading="lazy" onerror="this.src='/public/img/cover-fallback.svg'">
+                <img src="${cover}" alt="" loading="lazy" data-fallback="/public/img/cover-fallback.svg">
               </div>
               <div class="card-title">${escapeHtml(item.title)}</div>
               ${item.author ? `<div class="card-author">${escapeHtml(item.author)}</div>` : ''}
@@ -124,11 +141,11 @@ document.addEventListener('DOMContentLoaded', () => {
         shelf.style.display = 'block';
         container.innerHTML = data.items.map(item => {
           const cover = item.cover || '/public/img/cover-fallback.svg';
-          const url = item.readerUrl || '#';
+          const url = item.openUrl || item.readerUrl || '#';
           return `
             <a href="${url}" class="shelf-card">
               <div class="card-cover">
-                <img src="${cover}" alt="" loading="lazy" onerror="this.src='/public/img/cover-fallback.svg'">
+                <img src="${cover}" alt="" loading="lazy" data-fallback="/public/img/cover-fallback.svg">
               </div>
               <div class="card-title">${escapeHtml(item.title)}</div>
               ${item.author ? `<div class="card-author">${escapeHtml(item.author)}</div>` : ''}

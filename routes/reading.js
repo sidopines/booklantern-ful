@@ -94,19 +94,40 @@ router.get('/continue', ensureSubscriberApi, async (req, res) => {
       return res.status(500).json({ ok: false, error: 'database_error' });
     }
 
+    // Deduplicate by title (case-insensitive) to handle variant book_keys
+    const seen = new Set();
+    const deduped = [];
+    for (const item of (items || [])) {
+      const canonical = (item.title || '').trim().toLowerCase();
+      if (canonical && seen.has(canonical)) continue;
+      if (canonical) seen.add(canonical);
+      deduped.push(item);
+    }
+
     return res.json({
       ok: true,
-      items: (items || []).map(item => ({
-        bookKey: item.book_key,
-        source: item.source,
-        title: item.title,
-        author: item.author,
-        cover: item.cover,
-        lastLocation: item.last_location,
-        progress: item.progress,
-        readerUrl: item.reader_url,
-        updatedAt: item.updated_at
-      }))
+      items: deduped.map(item => {
+        // Build /open URL so a fresh token is generated on click
+        const params = new URLSearchParams();
+        params.set('provider', item.source || 'archive');
+        params.set('provider_id', item.book_key || '');
+        if (item.title)  params.set('title', item.title);
+        if (item.author) params.set('author', item.author);
+        if (item.cover)  params.set('cover', item.cover);
+        const openUrl = '/open?' + params.toString();
+        return {
+          bookKey: item.book_key,
+          source: item.source,
+          title: item.title,
+          author: item.author,
+          cover: item.cover,
+          lastLocation: item.last_location,
+          progress: item.progress,
+          readerUrl: item.reader_url,
+          openUrl: openUrl,
+          updatedAt: item.updated_at
+        };
+      })
     });
   } catch (err) {
     console.error('[reading/continue] error:', err);
