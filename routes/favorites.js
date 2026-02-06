@@ -119,6 +119,7 @@ function extractArchiveIdFromKey(bookKey) {
 function isArchiveLike({ provider, providerId, sourceUrl, cover }) {
   if (provider === 'archive') return true;
   if ((providerId || '').startsWith('archive-')) return true;
+  if ((providerId || '').startsWith('bl-book-')) return true;
   if ((sourceUrl || '').includes('archive.org/details/')) return true;
   return false;
 }

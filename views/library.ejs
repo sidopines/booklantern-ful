@@ -42,8 +42,8 @@
             <% } %>
             <div class="book-title"><%= book.title %></div>
             <div class="book-author"><%= book.author %></div>
-            <% const readerUrl = '/unified-reader?token=' + encodeURIComponent(book.token); %>
-            <% const gatedReaderUrl = (typeof loginGate === 'function') ? loginGate(user, readerUrl) : readerUrl; %>
+            <% const openUrl = '/open?provider=' + encodeURIComponent(book.provider || 'unknown') + '&provider_id=' + encodeURIComponent(book.provider_id || book.book_id || '') + '&title=' + encodeURIComponent(book.title || '') + '&author=' + encodeURIComponent(book.author || '') + '&cover=' + encodeURIComponent(book.cover_url || '') + (book.direct_url ? '&direct_url=' + encodeURIComponent(book.direct_url) : '') + (book.format ? '&format=' + encodeURIComponent(book.format) : ''); %>
+            <% const gatedReaderUrl = (typeof loginGate === 'function') ? loginGate(user, openUrl) : openUrl; %>
             <button onclick="window.location.href='<%= gatedReaderUrl %>'">
               Read
             </button>
