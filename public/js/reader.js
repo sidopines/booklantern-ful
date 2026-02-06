@@ -894,7 +894,7 @@
           title: meta.title,
           author: meta.author,
           cover: meta.cover,
-          readerUrl: window.location.pathname + window.location.search,
+          readerUrl: '',
           category: meta.category
         })
       });
@@ -987,7 +987,7 @@
         cover: meta.cover,
         lastLocation: location,
         progress: progress || 0,
-        readerUrl: window.location.pathname + window.location.search
+        readerUrl: ''
       })
     }).catch(err => {
       // Silently fail - progress saving is not critical
@@ -1042,7 +1042,7 @@
         cover: meta.cover,
         source: meta.source,
         category: meta.category,
-        readerUrl: window.location.pathname + window.location.search
+        readerUrl: ''
       })
     }).catch(err => {
       console.warn('[reader] Event log failed:', err.message);
@@ -1081,7 +1081,7 @@
             cover: getBookMetadata().cover,
             lastLocation: loc.start.cfi,
             progress: progress,
-            readerUrl: window.location.pathname + window.location.search
+            readerUrl: ''
           });
           navigator.sendBeacon('/api/reading/progress', new Blob([data], { type: 'application/json' }));
         }
