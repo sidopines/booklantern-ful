@@ -1262,10 +1262,31 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
     const data = verifyReaderToken(token);
     if (!data) {
       console.warn('[reader] Token rejected for', req.path, { ref: req.query.ref });
+
+      // Try to decode the token payload (before the dot) so we can build a /open retry link
+      let retryUrl = '/read';
+      try {
+        const dotIdx = token.indexOf('.');
+        if (dotIdx > 0) {
+          const payloadB64 = token.slice(0, dotIdx);
+          const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
+          const params = new URLSearchParams();
+          params.set('provider', payload.provider || 'unknown');
+          params.set('provider_id', payload.provider_id || payload.archive_id || '');
+          if (payload.title) params.set('title', payload.title);
+          if (payload.author) params.set('author', payload.author);
+          if (payload.cover_url) params.set('cover', payload.cover_url);
+          if (payload.direct_url) params.set('direct_url', payload.direct_url);
+          if (payload.format) params.set('format', payload.format);
+          retryUrl = '/open?' + params.toString();
+        }
+      } catch (_) { /* keep default /read */ }
+
       return res.status(401).render('error', { 
         statusCode: 401,
-        message: 'Invalid or expired token. Please try selecting the book again.',
-        pageTitle: 'Invalid Token'
+        message: 'Your reading session has expired. Use the button below to re-open this book.',
+        pageTitle: 'Session Expired',
+        retryUrl: retryUrl
       });
     }
 
@@ -1512,12 +1533,7 @@ router.get('/library', ensureSubscriber, async (req, res) => {
     if (error) throw error;
     
     const booksWithTokens = (books || []).map(book => {
-      const token = sign({
-        book_id: book.book_id, provider: book.provider, provider_id: book.provider_id,
-        format: book.format, direct_url: book.direct_url, title: book.title,
-        author: book.author, cover_url: book.cover_url,
-      }, 3600);
-      return { ...book, token };
+      return { ...book };
     });
     
     return res.render('library', { pageTitle: 'My Library', books: booksWithTokens, error: null });

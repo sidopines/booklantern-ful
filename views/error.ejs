@@ -15,6 +15,9 @@
     <main class="container" style="max-width: 900px;">
       <h1 class="title"><%= _title %></h1>
       <p class="muted"><%= _message %></p>
+      <% if (typeof retryUrl !== 'undefined' && retryUrl) { %>
+        <p><a href="<%= retryUrl %>" class="btn" style="margin-right:8px;">🔄 Re-open this book</a> <a href="/read" class="btn">Search</a></p>
+      <% } %>
       <p class="muted">Status: <%= _status %></p>
 
       <% if (_showStack && _stack) { %>
