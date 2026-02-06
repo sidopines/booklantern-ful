@@ -19,13 +19,27 @@ function buildReaderToken(payload) {
 }
 
 function verifyReaderToken(token) {
-  if (!token || typeof token !== 'string' || !token.includes('.')) return null;
-  const [b64, sig] = token.split('.');
-  const good = crypto.createHmac('sha256', APP_SIGNING_SECRET).update(b64).digest('base64url');
-  if (sig !== good) return null;
-  const obj = JSON.parse(Buffer.from(b64, 'base64url').toString('utf8'));
-  if (!obj.exp || obj.exp < Math.floor(Date.now() / 1000)) return null;
-  return obj;
+  try {
+    if (!token || typeof token !== 'string' || !token.includes('.')) {
+      console.warn('[token] verify: malformed token (missing dot)');
+      return null;
+    }
+    const [b64, sig] = token.split('.');
+    const good = crypto.createHmac('sha256', APP_SIGNING_SECRET).update(b64).digest('base64url');
+    if (sig !== good) {
+      console.warn('[token] verify failed: invalid signature');
+      return null;
+    }
+    const obj = JSON.parse(Buffer.from(b64, 'base64url').toString('utf8'));
+    if (!obj.exp || obj.exp < Math.floor(Date.now() / 1000)) {
+      console.warn('[token] verify failed: expired', { exp: obj.exp, now: Math.floor(Date.now() / 1000) });
+      return null;
+    }
+    return obj;
+  } catch (err) {
+    console.error('[token] verify failed:', err.name, err.message);
+    return null;
+  }
 }
 
 module.exports = { buildReaderToken, verifyReaderToken };

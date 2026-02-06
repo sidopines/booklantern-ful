@@ -261,13 +261,13 @@
         // Render favorites grid
         let html = '<div class="favorites-grid">';
         for (const item of data.items) {
-          const coverUrl = item.cover || '/img/book-placeholder.svg';
+          const coverUrl = item.cover || '/public/img/book-placeholder.svg';
           const openUrl = item.openUrl || '/read';
           const title = escapeHtml(item.title || 'Untitled');
           const author = escapeHtml(item.author || 'Unknown author');
           html += `
             <a class="fav-card" href="${escapeHtml(openUrl)}" title="${title}">
-              <img class="fav-cover" src="${escapeHtml(coverUrl)}" alt="" loading="lazy">
+              <img class="fav-cover" src="${escapeHtml(coverUrl)}" alt="" loading="lazy" data-fallback="/public/img/book-placeholder.svg">
               <div class="fav-info">
                 <div class="fav-title">${title}</div>
                 <div class="fav-author">${author}</div>
@@ -294,8 +294,10 @@
 
     // Attach image error handler externally (CSP-safe, no inline onerror)
     document.addEventListener('error', function(e) {
-      if (e.target.tagName === 'IMG' && e.target.classList.contains('fav-cover')) {
-        e.target.src = '/img/book-placeholder.svg';
+      var img = e.target;
+      if (img && img.tagName === 'IMG') {
+        var fb = img.getAttribute('data-fallback') || '/public/img/book-placeholder.svg';
+        if (img.src !== fb && !img.src.endsWith(fb)) img.src = fb;
       }
     }, true);
   })();
