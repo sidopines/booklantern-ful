@@ -9,8 +9,8 @@ const APP_SIGNING_SECRET = process.env.APP_SIGNING_SECRET || 'dev-secret';
  */
 function buildReaderToken(payload) {
   const data = { ...payload };
-  // 2h default expiry
-  if (!data.exp) data.exp = Math.floor(Date.now() / 1000) + 2 * 60 * 60;
+  // 30-day default expiry (favorites regenerate tokens via /open anyway)
+  if (!data.exp) data.exp = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
 
   const json = JSON.stringify(data);
   const b64 = Buffer.from(json).toString('base64url');
