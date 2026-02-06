@@ -108,15 +108,23 @@ function isPublicPath(req) {
 
 /* -----------------------------------------------------------
    APP_SIGNING_SECRET check (required for reader tokens)
+   Falls back to SESSION_SECRET so tokens survive restarts even
+   if APP_SIGNING_SECRET is not explicitly configured.
 ----------------------------------------------------------- */
 if (!process.env.APP_SIGNING_SECRET) {
-  console.warn('[APP_SIGNING_SECRET] ⚠️  Missing! Generating temporary secret...');
-  console.warn('[APP_SIGNING_SECRET] Add this to your .env file:');
-  const tempSecret = require('crypto').randomBytes(32).toString('base64url');
-  console.warn(`APP_SIGNING_SECRET=${tempSecret}`);
-  process.env.APP_SIGNING_SECRET = tempSecret;
+  const fallback = process.env.READER_TOKEN_SECRET || process.env.JWT_SECRET || process.env.SESSION_SECRET;
+  if (fallback) {
+    process.env.APP_SIGNING_SECRET = fallback;
+    console.warn('[APP_SIGNING_SECRET] Not set explicitly \u2014 using fallback from SESSION_SECRET / JWT_SECRET');
+  } else {
+    console.warn('[APP_SIGNING_SECRET] \u26a0\ufe0f  Missing! Generating temporary secret...');
+    console.warn('[APP_SIGNING_SECRET] Add this to your .env file:');
+    const tempSecret = require('crypto').randomBytes(32).toString('base64url');
+    console.warn(`APP_SIGNING_SECRET=${tempSecret}`);
+    process.env.APP_SIGNING_SECRET = tempSecret;
+  }
 } else {
-  console.log('[APP_SIGNING_SECRET] ✓ Configured');
+  console.log('[APP_SIGNING_SECRET] \u2713 Configured');
 }
 
 // ---------- Express core ----------

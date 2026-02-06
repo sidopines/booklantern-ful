@@ -1261,7 +1261,7 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
     
     const data = verifyReaderToken(token);
     if (!data) {
-      console.warn('[reader] Invalid or expired token');
+      console.warn('[reader] Token rejected for', req.path, { ref: req.query.ref });
       return res.status(401).render('error', { 
         statusCode: 401,
         message: 'Invalid or expired token. Please try selecting the book again.',
