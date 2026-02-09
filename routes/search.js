@@ -378,29 +378,22 @@ async function handleSearch(req, res) {
       let token = null;
       let href = null;
 
-      // Only create reader token if we can actually render it
+      // Only create reader link if we can actually render it
+      // Build /open URL so a fresh token is minted at click-time (never store tokens in links)
       if (isReadable && !externalOnly) {
-        // Use archive_id when provided to ensure metadata-based fetch path
-        const useArchive = Boolean(book.archive_id);
-        
-        // Determine format - prefer PDF for items marked preferPdf
+        const openParams = new URLSearchParams();
+        openParams.set('provider', book.provider || 'unknown');
+        openParams.set('provider_id', book.provider_id || '');
+        if (asText(book.title))    openParams.set('title', asText(book.title));
+        if (asText(book.author))   openParams.set('author', asText(book.author));
+        if (book.cover_url)        openParams.set('cover', book.cover_url);
+        if (book.source_url)       openParams.set('source_url', book.source_url);
+        if (actualDirectUrl)       openParams.set('direct_url', actualDirectUrl);
+        if (book.archive_id)       openParams.set('archive_id', book.archive_id);
         const tokenFormat = book.preferPdf ? 'pdf' : (book.format || 'epub');
-        
-        token = buildReaderToken({
-          provider: book.provider,
-          provider_id: book.provider_id,
-          format: tokenFormat,
-          direct_url: actualDirectUrl,
-          archive_id: useArchive ? book.archive_id : undefined,
-          title: asText(book.title),
-          author: asText(book.author),
-          cover_url: book.cover_url,
-          source_url: book.source_url,
-          // Include PDF fallback info for archive items
-          best_pdf: book.bestPdf ? book.bestPdf.name : undefined,
-          exp: Math.floor(Date.now() / 1000) + 3600 // 1 hour
-        });
-        href = `/unified-reader?token=${encodeURIComponent(token)}`;
+        if (tokenFormat)           openParams.set('format', tokenFormat);
+        href = '/open?' + openParams.toString();
+        // token is no longer pre-minted; /open mints it at click-time
       }
       
       // Determine reason for non-readable items

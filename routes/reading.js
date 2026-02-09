@@ -94,13 +94,21 @@ router.get('/continue', ensureSubscriberApi, async (req, res) => {
       return res.status(500).json({ ok: false, error: 'database_error' });
     }
 
-    // Deduplicate by title (case-insensitive) to handle variant book_keys
-    const seen = new Set();
+    // Deduplicate by provider+provider_id first, then by normalized title
+    const seenKeys = new Set();
+    const seenTitles = new Set();
     const deduped = [];
     for (const item of (items || [])) {
+      // Primary dedup: provider + book_key (provider_id)
+      const providerKey = ((item.source || 'unknown') + ':' + (item.book_key || '')).toLowerCase();
+      if (providerKey && providerKey !== 'unknown:' && seenKeys.has(providerKey)) continue;
+      if (providerKey && providerKey !== 'unknown:') seenKeys.add(providerKey);
+
+      // Secondary dedup: normalized title
       const canonical = (item.title || '').trim().toLowerCase();
-      if (canonical && seen.has(canonical)) continue;
-      if (canonical) seen.add(canonical);
+      if (canonical && seenTitles.has(canonical)) continue;
+      if (canonical) seenTitles.add(canonical);
+
       deduped.push(item);
     }
 

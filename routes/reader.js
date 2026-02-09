@@ -1244,11 +1244,31 @@ router.get('/external', async (req, res) => {
 });
 
 // GET /unified-reader?token=...&ref=...
+// Also handles legacy query-param redirects: ?archive=ID or ?provider_id=ID
 router.get('/unified-reader', ensureSubscriber, async (req, res) => {
   console.log('[reader] GET /unified-reader', req.query);
   try {
     const token = req.query.token;
     
+    // ── Legacy redirect: ?archive=ID → /open?provider=archive&provider_id=ID ──
+    if (!token && (req.query.archive || req.query.provider_id)) {
+      const provider = req.query.provider || (req.query.archive ? 'archive' : 'unknown');
+      const providerId = req.query.archive || req.query.provider_id;
+      const params = new URLSearchParams();
+      params.set('provider', provider);
+      params.set('provider_id', providerId);
+      if (req.query.title)      params.set('title', req.query.title);
+      if (req.query.author)     params.set('author', req.query.author);
+      if (req.query.cover)      params.set('cover', req.query.cover);
+      if (req.query.cover_url)  params.set('cover', req.query.cover_url);
+      if (req.query.source_url) params.set('source_url', req.query.source_url);
+      if (req.query.direct_url) params.set('direct_url', req.query.direct_url);
+      if (req.query.format)     params.set('format', req.query.format);
+      if (req.query.ref)        params.set('ref', req.query.ref);
+      console.log('[reader] Legacy redirect /unified-reader → /open', params.toString());
+      return res.redirect(302, '/open?' + params.toString());
+    }
+
     // Problem B: Return proper status codes for missing/invalid tokens
     if (!token) {
       console.warn('[reader] Missing token in unified-reader request');
