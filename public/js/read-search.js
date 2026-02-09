@@ -82,9 +82,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         shelf.style.display = 'block';
-        // Dedupe by title (last defense)
+        // Dedupe by provider+bookKey first, then by normalized title
+        var seenKeys = {};
         var seenTitles = {};
         var uniqueItems = data.items.filter(function(item) {
+          // Primary dedup: provider + bookKey
+          var pkey = ((item.source || 'unknown') + ':' + (item.bookKey || '')).toLowerCase();
+          if (pkey && pkey !== 'unknown:' && seenKeys[pkey]) return false;
+          if (pkey && pkey !== 'unknown:') seenKeys[pkey] = true;
+
+          // Secondary dedup: normalized title
           var key = (item.title || '').trim().toLowerCase();
           if (key && seenTitles[key]) return false;
           if (key) seenTitles[key] = true;
@@ -501,10 +508,9 @@ document.addEventListener('DOMContentLoaded', () => {
           const cover = `<img src="${coverUrl}" alt="" data-fallback="/public/img/cover-fallback.svg">`;
           
           // Check if this item can be read on BookLantern
-          // Determine readable primarily by presence of valid token+href (some providers don't set readable flag)
-          const hasToken = typeof item.token === 'string' && item.token.length > 10;
-          const hasHref = typeof item.href === 'string' && item.href.includes('token=');
-          const isReadable = hasToken && hasHref;
+          // Determine readable by: explicit readable flag, or presence of an /open href
+          const hasHref = typeof item.href === 'string' && item.href.length > 1;
+          const isReadable = (item.readable === true) || (hasHref && item.href.startsWith('/open'));
           
           // Compute provider for catalog/doab detection
           const providerLower = (item.provider || item.source || item.collection || '').toLowerCase();
@@ -551,7 +557,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const escapedCover = (finalCoverUrl || '').replace(/"/g, '&quot;');
             const bookKey = 'archive-' + archiveId;
             const isFavorited = favoritedBooks.has(bookKey);
-            const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="/unified-reader?archive=${archiveId}" aria-label="Add to favorites">
+            const archiveOpenUrl = '/open?provider=archive&provider_id=' + encodeURIComponent(archiveId) + '&title=' + encodeURIComponent(escapedTitle) + '&author=' + encodeURIComponent(escapedAuthor) + '&cover=' + encodeURIComponent(escapedCover);
+            const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${archiveOpenUrl}" aria-label="Add to favorites">
                               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
                             </button>`;
             return `<a class="book-card archive-card" href="#" 
@@ -628,7 +635,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (possibleArchiveId) {
               const bookKey = 'archive-' + possibleArchiveId;
               const isFavorited = favoritedBooks.has(bookKey);
-              const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="/unified-reader?archive=${possibleArchiveId}" aria-label="Add to favorites">
+              const archiveOpenUrl2 = '/open?provider=archive&provider_id=' + encodeURIComponent(possibleArchiveId) + '&title=' + encodeURIComponent(escapedTitle) + '&author=' + encodeURIComponent(escapedAuthor) + '&cover=' + encodeURIComponent(escapedCover);
+              const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${archiveOpenUrl2}" aria-label="Add to favorites">
                                 <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
                               </button>`;
               return `<a class="book-card archive-card" href="#" 
@@ -803,7 +811,17 @@ document.addEventListener('DOMContentLoaded', () => {
           if (data.ok && data.token) {
             console.log('[external] token ok, format=' + (data.format || 'unknown'));
             const ref = encodeURIComponent(location.pathname + location.search);
-            window.location = '/unified-reader?token=' + encodeURIComponent(data.token) + '&ref=' + ref;
+            // Use /open to mint a fresh token at click-time instead of embedding token in URL
+            var openUrl = '/open?provider=' + encodeURIComponent(provider)
+              + '&provider_id=' + encodeURIComponent(landingUrl)
+              + '&title=' + encodeURIComponent(title)
+              + '&author=' + encodeURIComponent(author)
+              + '&cover=' + encodeURIComponent(coverUrl);
+            if (data.direct_url) openUrl += '&direct_url=' + encodeURIComponent(data.direct_url);
+            if (data.source_url) openUrl += '&source_url=' + encodeURIComponent(data.source_url);
+            if (data.format) openUrl += '&format=' + encodeURIComponent(data.format);
+            openUrl += '&ref=' + ref;
+            window.location = openUrl;
           } else {
             console.log('[external] fallback to:', data.open_url || landingUrl);
             const ref = encodeURIComponent(location.pathname + location.search);
@@ -854,7 +872,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.ok && data.token) {
           console.log('[archive] token ok');
           const ref = encodeURIComponent(location.pathname + location.search);
-          window.location = '/unified-reader?token=' + encodeURIComponent(data.token) + '&ref=' + ref;
+          // Use /open to mint a fresh token at click-time
+          window.location = '/open?provider=archive&provider_id=' + encodeURIComponent(archiveId)
+            + '&title=' + encodeURIComponent(title)
+            + '&author=' + encodeURIComponent(author)
+            + '&cover=' + encodeURIComponent(coverUrl)
+            + '&ref=' + ref;
         } else {
           console.log('[archive] fallback to:', data.open_url);
           const ref = encodeURIComponent(location.pathname + location.search);
