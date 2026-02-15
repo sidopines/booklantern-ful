@@ -1617,13 +1617,16 @@
         // Helper: try display with fallbacks - improved with better spine selection
         let displayError = null;
         let displayAttempts = 0;
+        let consecutiveTimeouts = 0;
         const maxAttempts = MAX_SPINE_ATTEMPTS;
+        const MAX_CONSECUTIVE_TIMEOUTS = 3; // Auto-switch to PDF after 3 timeouts
         
         async function tryDisplay(location) {
           displayAttempts++;
           try {
             await displayWithTimeout(location, DISPLAY_TIMEOUT_MS);
             tsLog('rendition.display() SUCCEEDED for:', location || '(start)');
+            consecutiveTimeouts = 0; // Reset on success
             // Log which items failed before success
             if (failedSpineItems.length > 0) {
               tsLog('Previously failed spine items:', failedSpineItems.join(', '));
@@ -1633,8 +1636,18 @@
             const isTimeout = err.message === 'DISPLAY_TIMEOUT';
             const failedHref = location || 'spine_start';
             failedSpineItems.push(failedHref);
+            if (isTimeout) consecutiveTimeouts++;
             tsLog(`Display attempt ${displayAttempts} ${isTimeout ? 'TIMEOUT' : 'FAILED'} at "${failedHref}":`, err.message);
             displayError = err;
+            
+            // Early bail: if we've hit N consecutive timeouts, switch to PDF immediately
+            if (consecutiveTimeouts >= MAX_CONSECUTIVE_TIMEOUTS && archiveId) {
+              tsLog(`${consecutiveTimeouts} consecutive DISPLAY_TIMEOUTs — auto-switching to PDF`);
+              updateLoadingMessage('Switching to PDF version...');
+              clearLoadTimeout();
+              const pdfOk = await tryPdfFallback(archiveId, sourceUrl, currentBestPdf);
+              if (pdfOk) return true; // Treated as success (PDF fallback shown)
+            }
             return false;
           }
         }
@@ -1671,8 +1684,8 @@
           }
         }
         
-        // If all EPUB attempts failed, try PDF fallback for Archive items
-        if (displayError && archiveId) {
+        // If all EPUB attempts failed (and PDF fallback not already shown), try PDF fallback
+        if (displayError && !errorShown && archiveId) {
           tsLog('All EPUB attempts failed, checking for PDF fallback');
           updateLoadingMessage('Switching to PDF version...');
           const pdfFallbackSuccess = await tryPdfFallback(archiveId, sourceUrl);
@@ -1682,7 +1695,7 @@
         }
         
         // If all attempts failed, show calm error message
-        if (displayError) {
+        if (displayError && !errorShown) {
           clearLoadTimeout();
           tsLog('ERROR: All display attempts failed. Last error:', displayError.message);
           showEpubError("This edition couldn't be rendered. Please try another edition.", sourceUrl);
@@ -2180,7 +2193,6 @@
               src="${pdfProxyUrl}" 
               title="PDF Viewer"
               loading="lazy"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
               allow="fullscreen"
             ></iframe>
           </div>

@@ -6,6 +6,7 @@ const { ensureAuthenticated } = require('../middleware/auth');
 const { ensureSubscriber } = require('../utils/gate');
 const { buildReaderToken } = require('../utils/buildReaderToken');
 const supabase = require('../lib/supabaseServer');
+const { extractArchiveId, buildOpenUrl } = require('../utils/bookHelpers');
 
 // Safe fetch: use globalThis.fetch (Node 18+) or dynamic import node-fetch
 const fetchFn = globalThis.fetch
@@ -156,17 +157,28 @@ router.get('/favorites', ensureSubscriber, async (req, res) => {
       });
     }
 
-    // Map to template format
-    const favorites = (items || []).map(item => ({
-      bookKey: item.book_key,
-      source: item.source,
-      title: item.title,
-      author: item.author,
-      cover: item.cover,
-      readerUrl: item.reader_url,
-      category: item.category,
-      createdAt: item.created_at
-    }));
+    // Map to template format — include openUrl built with shared helper
+    const favorites = (items || []).map(item => {
+      const meta = {
+        provider: item.source,
+        provider_id: item.book_key,
+        title: item.title,
+        author: item.author,
+        cover: item.cover,
+        source_url: item.reader_url
+      };
+      return {
+        bookKey: item.book_key,
+        source: item.source,
+        title: item.title,
+        author: item.author,
+        cover: item.cover,
+        readerUrl: item.reader_url,
+        openUrl: buildOpenUrl(meta),
+        category: item.category,
+        createdAt: item.created_at
+      };
+    });
 
     return res.render('favorites', {
       pageTitle: 'My Favorites',
@@ -215,11 +227,17 @@ router.get('/open', ensureSubscriber, async (req, res) => {
   console.log(`[open] Opening book: provider=${provider}, id=${provider_id}, title=${title}`);
 
   try {
-    // Extract real archive ID from bookKey (strips bl-book- prefix if present)
-    const realArchiveId = extractArchiveIdFromKey(provider_id);
+    // Use shared helper to extract archive ID from all available metadata
+    const derivedArchiveId = extractArchiveId({
+      archive_id: archive_id,
+      provider: provider,
+      provider_id: provider_id,
+      source_url: source_url,
+      cover: cover
+    });
 
     // Determine if this is truly an Archive.org book using strong signals only
-    const archiveLike = isArchiveLike({
+    const archiveLike = derivedArchiveId || isArchiveLike({
       provider,
       providerId: provider_id,
       sourceUrl: source_url,
@@ -227,35 +245,20 @@ router.get('/open', ensureSubscriber, async (req, res) => {
     });
 
     // ----- Branch 1: confirmed archive book -----
-    if (archiveLike) {
-      let archiveId = null;
-
-      // Derive archiveId from source_url first (most reliable)
-      if (source_url.includes('archive.org/details/')) {
-        const match = source_url.match(/archive\.org\/details\/([^/?#]+)/);
-        if (match) archiveId = match[1];
-      }
-      // Then try provider_id if it's a URL
-      if (!archiveId && provider_id.includes('archive.org')) {
-        const match = provider_id.match(/archive\.org\/details\/([^/?#]+)/);
-        if (match) archiveId = match[1];
-      }
-      // Then try archive_id query param
-      if (!archiveId && archive_id) archiveId = archive_id;
-      // Then try stripping bl-book- prefix
-      if (!archiveId && realArchiveId) archiveId = realArchiveId;
-
-      if (!archiveId) {
-        console.error(`[open] Could not extract archive ID from: ${provider_id}`);
-        return res.redirect(`/read?q=${encodeURIComponent(title)}&notice=resolve_failed`);
-      }
+    if (archiveLike && derivedArchiveId) {
+      const archiveId = derivedArchiveId;
 
       console.log(`[open] Resolving archive book: ${archiveId}`);
       const resolved = await resolveArchiveFile(archiveId);
 
       if (!resolved.ok) {
-        console.warn(`[open] Archive resolution failed for: ${archiveId}, falling back to search`);
-        return res.redirect(`/read?q=${encodeURIComponent(title)}&notice=resolve_failed`);
+        // Don't redirect to /read?q=... — show a proper error page
+        console.warn(`[open] Archive resolution failed for: ${archiveId}`);
+        return res.status(502).render('error', {
+          pageTitle: 'Book Unavailable',
+          statusCode: 502,
+          message: `Could not load "${title}" from Archive.org right now. The source may be temporarily unavailable.`
+        });
       }
 
       const token = buildReaderToken({
@@ -273,6 +276,36 @@ router.get('/open', ensureSubscriber, async (req, res) => {
 
       console.log(`[open] Archive redirect: ${archiveId} -> ${resolved.format}`);
       return res.redirect(`/unified-reader?token=${encodeURIComponent(token)}&ref=${encodeURIComponent(ref)}`);
+    }
+
+    // ----- Branch 1b: archiveLike but couldn't extract ID — try realArchiveId from prefix stripping -----
+    if (archiveLike && !derivedArchiveId) {
+      const realArchiveId = extractArchiveIdFromKey(provider_id);
+      if (realArchiveId) {
+        console.log(`[open] Trying prefix-stripped archive ID: ${realArchiveId}`);
+        const resolved = await resolveArchiveFile(realArchiveId);
+        if (resolved.ok) {
+          const token = buildReaderToken({
+            provider: 'archive',
+            provider_id: realArchiveId,
+            archive_id: realArchiveId,
+            format: resolved.format,
+            direct_url: resolved.direct_url,
+            source_url: resolved.source_url,
+            title,
+            author,
+            cover_url: cover || `https://archive.org/services/img/${realArchiveId}`,
+            best_pdf: resolved.best_pdf || null
+          });
+          return res.redirect(`/unified-reader?token=${encodeURIComponent(token)}&ref=${encodeURIComponent(ref)}`);
+        }
+      }
+      // Still no luck — show error
+      return res.status(502).render('error', {
+        pageTitle: 'Book Unavailable',
+        statusCode: 502,
+        message: `Could not load "${title}" right now. The source may be temporarily unavailable.`
+      });
     }
 
     // ----- Branch 2: unknown provider but has archive_id param -----
@@ -301,6 +334,7 @@ router.get('/open', ensureSubscriber, async (req, res) => {
     if (direct_url) {
       console.log(`[open] Using direct_url for ${provider}: ${provider_id}`);
       const fmt = format || (direct_url.toLowerCase().endsWith('.pdf') ? 'pdf' : 'epub');
+      const realArchiveId = extractArchiveIdFromKey(provider_id);
       const token = buildReaderToken({
         provider,
         provider_id: realArchiveId || provider_id,
@@ -336,14 +370,43 @@ router.get('/open', ensureSubscriber, async (req, res) => {
       return res.redirect(`/unified-reader?token=${encodeURIComponent(token)}&ref=${encodeURIComponent(ref)}`);
     }
 
-    // ----- Branch 6: truly unknown — graceful fallback to search -----
-    console.warn(`[open] Cannot resolve unknown favorite: ${provider_id} "${title}", falling back to search`);
-    return res.redirect(`/read?q=${encodeURIComponent(title)}&notice=resolve_failed`);
+    // ----- Branch 6: truly unknown — try to resolve as archive one last time -----
+    const lastResortId = extractArchiveIdFromKey(provider_id);
+    if (lastResortId) {
+      console.log(`[open] Last resort: trying provider_id as archive: ${lastResortId}`);
+      const resolved = await resolveArchiveFile(lastResortId);
+      if (resolved.ok) {
+        const token = buildReaderToken({
+          provider: 'archive',
+          provider_id: lastResortId,
+          archive_id: lastResortId,
+          format: resolved.format,
+          direct_url: resolved.direct_url,
+          source_url: resolved.source_url,
+          title,
+          author,
+          cover_url: cover || `https://archive.org/services/img/${lastResortId}`,
+          best_pdf: resolved.best_pdf || null
+        });
+        return res.redirect(`/unified-reader?token=${encodeURIComponent(token)}&ref=${encodeURIComponent(ref)}`);
+      }
+    }
+
+    // Show proper error page instead of redirecting to search
+    console.warn(`[open] Cannot resolve unknown favorite: ${provider_id} "${title}"`);
+    return res.status(404).render('error', {
+      pageTitle: 'Book Not Found',
+      statusCode: 404,
+      message: `Could not open "${title}". The book may no longer be available from its source.`
+    });
 
   } catch (err) {
     console.error('[open] error:', err);
-    // Never 500 — redirect to search so user isn't stuck
-    return res.redirect(`/read?q=${encodeURIComponent(title)}&notice=error`);
+    return res.status(500).render('error', {
+      pageTitle: 'Error',
+      statusCode: 500,
+      message: `Something went wrong opening "${title}". Please try again.`
+    });
   }
 });
 

@@ -152,7 +152,7 @@
               <div class="author"><%= fav.author %></div>
             <% } %>
             <div class="actions">
-              <a href="/open?provider=<%= encodeURIComponent(fav.source || 'unknown') %>&provider_id=<%= encodeURIComponent(fav.bookKey) %>&title=<%= encodeURIComponent(fav.title) %>&author=<%= encodeURIComponent(fav.author || '') %>&cover=<%= encodeURIComponent(fav.cover || '') %>" class="read-btn">📖 Read</a>
+              <a href="<%= fav.openUrl %>" class="read-btn">📖 Read</a>
               <button class="remove-btn" data-remove-key="<%= fav.bookKey %>" data-title="<%= fav.title %>">✕</button>
             </div>
           </div>

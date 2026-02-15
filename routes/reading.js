@@ -4,6 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { ensureSubscriberApi } = require('../utils/gate');
+const { canonicalBookKey, buildOpenUrl, extractArchiveId } = require('../utils/bookHelpers');
 
 // Supabase client for database operations
 const supabase = require('../lib/supabaseServer');
@@ -115,14 +116,16 @@ router.get('/continue', ensureSubscriberApi, async (req, res) => {
     return res.json({
       ok: true,
       items: deduped.map(item => {
-        // Build /open URL so a fresh token is generated on click
-        const params = new URLSearchParams();
-        params.set('provider', item.source || 'archive');
-        params.set('provider_id', item.book_key || '');
-        if (item.title)  params.set('title', item.title);
-        if (item.author) params.set('author', item.author);
-        if (item.cover)  params.set('cover', item.cover);
-        const openUrl = '/open?' + params.toString();
+        // Build /open URL using shared helper (includes archive_id when applicable)
+        const meta = {
+          provider: item.source,
+          provider_id: item.book_key,
+          title: item.title,
+          author: item.author,
+          cover: item.cover,
+          source_url: item.reader_url
+        };
+        const openUrl = buildOpenUrl(meta);
         return {
           bookKey: item.book_key,
           source: item.source,
@@ -278,14 +281,16 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
     return res.json({
       ok: true,
       items: (items || []).map(item => {
-        // Build /open URL from metadata so a fresh token is generated on click
-        const params = new URLSearchParams();
-        params.set('provider', item.source || 'archive');
-        params.set('provider_id', item.book_key || '');
-        if (item.title)  params.set('title', item.title);
-        if (item.author) params.set('author', item.author);
-        if (item.cover)  params.set('cover', item.cover);
-        const openUrl = '/open?' + params.toString();
+        // Build /open URL using shared helper (includes archive_id when applicable)
+        const meta = {
+          provider: item.source,
+          provider_id: item.book_key,
+          title: item.title,
+          author: item.author,
+          cover: item.cover,
+          source_url: item.reader_url
+        };
+        const openUrl = buildOpenUrl(meta);
         return {
           bookKey: item.book_key,
           source: item.source,
