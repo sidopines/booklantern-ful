@@ -1901,6 +1901,10 @@ router.get('/api/proxy/pdf', ensureSubscriberApi, async (req, res) => {
     const safeFilename = (fileParam || 'document').replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.pdf$/i, '') + '.pdf';
     res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
     
+    // Remove X-Frame-Options to allow same-origin iframe embedding of PDFs
+    // (Helmet sets SAMEORIGIN globally, but some browsers are strict about this on PDFs)
+    res.removeHeader('X-Frame-Options');
+    
     // Forward relevant headers
     const contentLength = response.headers.get('content-length');
     if (contentLength) {
