@@ -4,6 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { ensureSubscriberApi } = require('../utils/gate');
+const { buildOpenUrl, normalizeMeta } = require('../utils/bookHelpers');
 
 // Supabase client for database operations
 const supabase = require('../lib/supabaseServer');
@@ -115,14 +116,16 @@ router.get('/continue', ensureSubscriberApi, async (req, res) => {
     return res.json({
       ok: true,
       items: deduped.map(item => {
-        // Build /open URL so a fresh token is generated on click
-        const params = new URLSearchParams();
-        params.set('provider', item.source || 'archive');
-        params.set('provider_id', item.book_key || '');
-        if (item.title)  params.set('title', item.title);
-        if (item.author) params.set('author', item.author);
-        if (item.cover)  params.set('cover', item.cover);
-        const openUrl = '/open?' + params.toString();
+        // Build /open URL fresh via normalized meta (never trust stored openUrl)
+        const meta = {
+          provider: item.source,
+          provider_id: item.book_key,
+          title: item.title,
+          author: item.author,
+          cover: item.cover,
+          source_url: item.reader_url
+        };
+        const openUrl = buildOpenUrl(meta);
         return {
           bookKey: item.book_key,
           source: item.source,
@@ -132,7 +135,7 @@ router.get('/continue', ensureSubscriberApi, async (req, res) => {
           lastLocation: item.last_location,
           progress: item.progress,
           readerUrl: item.reader_url,
-          openUrl: openUrl,
+          openUrl: openUrl || '/read',
           updatedAt: item.updated_at
         };
       })
@@ -200,11 +203,23 @@ router.post('/favorite', ensureSubscriberApi, async (req, res) => {
       return res.status(401).json({ ok: false, error: 'auth_required' });
     }
 
-    const { bookKey, source, title, author, cover, readerUrl, category } = req.body;
+    const { bookKey, title, author, cover, readerUrl, category } = req.body;
+    let { source } = req.body;
     
     if (!bookKey || !title) {
       return res.status(400).json({ ok: false, error: 'bookKey and title required' });
     }
+
+    // Normalize meta before persisting to fix provider=unknown / numeric IDs
+    const normalized = normalizeMeta({
+      provider: source || 'unknown',
+      provider_id: bookKey,
+      title,
+      author: author || '',
+      cover: cover || '',
+      source_url: readerUrl || ''
+    });
+    source = normalized.provider || source || 'unknown';
 
     // Check if already favorited
     const { data: existing } = await supabase
@@ -277,16 +292,30 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
 
     return res.json({
       ok: true,
-      items: (items || []).map(item => ({
-        bookKey: item.book_key,
-        source: item.source,
-        title: item.title,
-        author: item.author,
-        cover: item.cover,
-        readerUrl: item.reader_url,
-        category: item.category,
-        createdAt: item.created_at
-      }))
+      items: (items || []).map(item => {
+        // Build /open URL fresh from normalized meta
+        const meta = {
+          provider: item.source,
+          provider_id: item.book_key,
+          title: item.title,
+          author: item.author,
+          cover: item.cover,
+          source_url: item.reader_url
+        };
+        const openUrl = buildOpenUrl(meta);
+        return {
+          bookKey: item.book_key,
+          source: item.source,
+          title: item.title,
+          author: item.author,
+          cover: item.cover,
+          readerUrl: item.reader_url,
+          openUrl: openUrl || null,
+          unavailable: !openUrl,
+          category: item.category,
+          createdAt: item.created_at
+        };
+      })
     });
   } catch (err) {
     console.error('[reading/favorites] error:', err);
