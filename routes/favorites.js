@@ -6,7 +6,7 @@ const { ensureAuthenticated } = require('../middleware/auth');
 const { ensureSubscriber } = require('../utils/gate');
 const { buildReaderToken } = require('../utils/buildReaderToken');
 const supabase = require('../lib/supabaseServer');
-const { extractArchiveId, buildOpenUrl } = require('../utils/bookHelpers');
+const { extractArchiveId, buildOpenUrl, normalizeMeta } = require('../utils/bookHelpers');
 
 // Safe fetch: use globalThis.fetch (Node 18+) or dynamic import node-fetch
 const fetchFn = globalThis.fetch
@@ -200,39 +200,63 @@ router.get('/favorites', ensureSubscriber, async (req, res) => {
 // This ensures favorited books never expire
 // ============================================================================
 router.get('/open', ensureSubscriber, async (req, res) => {
-  const {
-    provider = 'unknown',
-    provider_id,
-    title = 'Untitled',
-    author = '',
-    cover = ''
-  } = req.query;
-
   const ref = req.query.ref || '/read';
 
-  // Validate required params
-  if (!provider_id) {
-    return res.status(400).render('error', {
-      pageTitle: 'Missing Book ID',
-      statusCode: 400,
-      message: 'No book identifier provided. Please go back and try again.'
-    });
-  }
-
-  const source_url = req.query.source_url || '';
-  const archive_id = req.query.archive_id || '';
-  const direct_url = req.query.direct_url || '';
-  const format = req.query.format || '';
-
-  console.log(`[open] Opening book: provider=${provider}, id=${provider_id}, title=${title}`);
-
   try {
+    // ── Priority redirect: source_url already points to unified-reader ──
+    const rawSourceUrl = req.query.source_url || '';
+    if (rawSourceUrl.startsWith('/unified-reader?token=')) {
+      console.log('[open] Fast redirect via source_url token path');
+      return res.redirect(302, rawSourceUrl);
+    }
+
+    // ── Self-heal metadata via normalizeMeta ──
+    const raw = {
+      provider:    req.query.provider || 'unknown',
+      provider_id: req.query.provider_id || '',
+      archive_id:  req.query.archive_id || '',
+      source_url:  rawSourceUrl,
+      direct_url:  req.query.direct_url || '',
+      title:       req.query.title || 'Untitled',
+      author:      req.query.author || '',
+      cover:       req.query.cover || '',
+      cover_url:   req.query.cover || '',
+      format:      req.query.format || ''
+    };
+    const meta = normalizeMeta(raw);
+
+    const provider    = meta.provider || 'unknown';
+    const provider_id = meta.provider_id || '';
+    const title       = meta.title || 'Untitled';
+    const author      = meta.author || '';
+    const cover       = meta.cover || meta.cover_url || '';
+    const source_url  = meta.source_url || '';
+    const archive_id  = meta.archive_id || '';
+    const direct_url  = meta.direct_url || '';
+    const format      = meta.format || '';
+
+    // Validate required params
+    if (!provider_id) {
+      return res.status(404).render('error', {
+        pageTitle: 'Book Not Found',
+        statusCode: 404,
+        message: 'No book identifier could be resolved. Please go back and try again.'
+      });
+    }
+
+    // Log self-healing when normalizeMeta changed provider_id
+    if (provider_id !== (req.query.provider_id || '')) {
+      console.log(`[open] Self-healed: provider_id ${req.query.provider_id} → ${provider_id} (provider=${provider})`);
+    }
+    console.log(`[open] Opening book: provider=${provider}, id=${provider_id}, title=${title}`);
+
     // Use shared helper to extract archive ID from all available metadata
     const derivedArchiveId = extractArchiveId({
       archive_id: archive_id,
       provider: provider,
       provider_id: provider_id,
       source_url: source_url,
+      direct_url: direct_url,
       cover: cover
     });
 
@@ -252,12 +276,11 @@ router.get('/open', ensureSubscriber, async (req, res) => {
       const resolved = await resolveArchiveFile(archiveId);
 
       if (!resolved.ok) {
-        // Don't redirect to /read?q=... — show a proper error page
         console.warn(`[open] Archive resolution failed for: ${archiveId}`);
-        return res.status(502).render('error', {
-          pageTitle: 'Book Unavailable',
-          statusCode: 502,
-          message: `Could not load "${title}" from Archive.org right now. The source may be temporarily unavailable.`
+        return res.status(404).render('error', {
+          pageTitle: 'Book Not Found',
+          statusCode: 404,
+          message: `Could not load "${title}" from Archive.org. The book may no longer be available.`
         });
       }
 
@@ -301,10 +324,10 @@ router.get('/open', ensureSubscriber, async (req, res) => {
         }
       }
       // Still no luck — show error
-      return res.status(502).render('error', {
-        pageTitle: 'Book Unavailable',
-        statusCode: 502,
-        message: `Could not load "${title}" right now. The source may be temporarily unavailable.`
+      return res.status(404).render('error', {
+        pageTitle: 'Book Not Found',
+        statusCode: 404,
+        message: `Could not load "${title}". The book may no longer be available from its source.`
       });
     }
 
@@ -402,10 +425,11 @@ router.get('/open', ensureSubscriber, async (req, res) => {
 
   } catch (err) {
     console.error('[open] error:', err);
+    const safeTitle = req.query.title || 'this book';
     return res.status(500).render('error', {
       pageTitle: 'Error',
       statusCode: 500,
-      message: `Something went wrong opening "${title}". Please try again.`
+      message: `Something went wrong opening "${safeTitle}". Please try again.`
     });
   }
 });
