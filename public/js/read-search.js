@@ -7,6 +7,11 @@ document.addEventListener('error', function(e) {
   }
 }, true);
 
+// Helper: detect purely numeric strings (ISBNs, not Archive.org identifiers)
+function isNumericOnly(s) {
+  return typeof s === 'string' && /^\d+$/.test(s);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const q = new URLSearchParams(location.search).get('q') || '';
   const box = document.querySelector('input[name="q"]');
@@ -270,8 +275,8 @@ document.addEventListener('DOMContentLoaded', () => {
    * Uses bl-book-<archive_id> for archive items (matches reader.js)
    */
   function generateBookKey(item) {
-    if (item.archive_id) return 'bl-book-' + item.archive_id;
-    if (item.identifier && (item.provider === 'archive' || (item.source_url || '').includes('archive.org')))
+    if (item.archive_id && !isNumericOnly(item.archive_id)) return 'bl-book-' + item.archive_id;
+    if (item.identifier && !isNumericOnly(item.identifier) && (item.provider === 'archive' || (item.source_url || '').includes('archive.org')))
       return 'bl-book-' + item.identifier;
     if (item.identifier) return item.provider + '-' + item.identifier;
     if (item.id) return item.provider + '-' + item.id;
@@ -549,8 +554,9 @@ document.addEventListener('DOMContentLoaded', () => {
           // Check for external URL using comprehensive helper
           const externalUrl = pickExternalUrl(item);
           
-          // Extract Archive.org identifier if present
-          const archiveId = item.archive_id || item.identifier || (isArchive && externalUrl ? extractArchiveId(externalUrl) : null);
+          // Extract Archive.org identifier if present (reject numeric-only values)
+          let archiveId = item.archive_id || item.identifier || (isArchive && externalUrl ? extractArchiveId(externalUrl) : null);
+          if (isNumericOnly(archiveId)) archiveId = null;
           
           // For Archive items, use the thumbnail service for covers
           let finalCoverUrl = coverUrl;
@@ -586,7 +592,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const escapedCover = (finalCoverUrl || '').replace(/"/g, '&quot;');
             const bookKey = 'bl-book-' + archiveId;
             const isFavorited = favoritedBooks.has(bookKey) || favoritedBooks.has('archive-' + archiveId);
-            const archiveOpenUrl = '/open?provider=archive&provider_id=' + encodeURIComponent(archiveId) + '&title=' + encodeURIComponent(escapedTitle) + '&author=' + encodeURIComponent(escapedAuthor) + '&cover=' + encodeURIComponent(escapedCover);
+            const archiveOpenUrl = '/open?provider=archive&provider_id=' + encodeURIComponent(archiveId) + '&archive_id=' + encodeURIComponent(archiveId) + '&source_url=' + encodeURIComponent('https://archive.org/details/' + archiveId) + '&title=' + encodeURIComponent(escapedTitle) + '&author=' + encodeURIComponent(escapedAuthor) + '&cover=' + encodeURIComponent(escapedCover);
             const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${archiveOpenUrl}" aria-label="Add to favorites">
                               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
                             </button>`;
@@ -661,10 +667,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const escapedCover = (finalCoverUrl || '').replace(/"/g, '&quot;');
             // Check if it's an Archive URL we can try to resolve
             const possibleArchiveId = extractArchiveId(externalUrl);
-            if (possibleArchiveId) {
+            if (possibleArchiveId && !isNumericOnly(possibleArchiveId)) {
               const bookKey = 'bl-book-' + possibleArchiveId;
               const isFavorited = favoritedBooks.has(bookKey) || favoritedBooks.has('archive-' + possibleArchiveId);
-              const archiveOpenUrl2 = '/open?provider=archive&provider_id=' + encodeURIComponent(possibleArchiveId) + '&title=' + encodeURIComponent(escapedTitle) + '&author=' + encodeURIComponent(escapedAuthor) + '&cover=' + encodeURIComponent(escapedCover);
+              const archiveOpenUrl2 = '/open?provider=archive&provider_id=' + encodeURIComponent(possibleArchiveId) + '&archive_id=' + encodeURIComponent(possibleArchiveId) + '&source_url=' + encodeURIComponent('https://archive.org/details/' + possibleArchiveId) + '&title=' + encodeURIComponent(escapedTitle) + '&author=' + encodeURIComponent(escapedAuthor) + '&cover=' + encodeURIComponent(escapedCover);
               const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${archiveOpenUrl2}" aria-label="Add to favorites">
                                 <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
                               </button>`;
@@ -873,6 +879,10 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       
       const archiveId = card.dataset.archiveId;
+      if (!archiveId || isNumericOnly(archiveId)) {
+        console.warn('[archive] Blocked click: numeric-only or empty archiveId:', archiveId);
+        return;
+      }
       const title = card.dataset.title || 'Untitled';
       const author = card.dataset.author || '';
       const coverUrl = card.dataset.cover || 'https://archive.org/services/img/' + encodeURIComponent(archiveId);
@@ -903,6 +913,8 @@ document.addEventListener('DOMContentLoaded', () => {
           const ref = encodeURIComponent(location.pathname + location.search);
           // Use /open to mint a fresh token at click-time
           window.location = '/open?provider=archive&provider_id=' + encodeURIComponent(archiveId)
+            + '&archive_id=' + encodeURIComponent(archiveId)
+            + '&source_url=' + encodeURIComponent('https://archive.org/details/' + archiveId)
             + '&title=' + encodeURIComponent(title)
             + '&author=' + encodeURIComponent(author)
             + '&cover=' + encodeURIComponent(coverUrl)

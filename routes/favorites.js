@@ -6,7 +6,7 @@ const { ensureAuthenticated } = require('../middleware/auth');
 const { ensureSubscriber } = require('../utils/gate');
 const { buildReaderToken } = require('../utils/buildReaderToken');
 const supabase = require('../lib/supabaseServer');
-const { extractArchiveId, buildOpenUrl, normalizeMeta } = require('../utils/bookHelpers');
+const { extractArchiveId, buildOpenUrl, normalizeMeta, isNumericOnly, stripPrefixes } = require('../utils/bookHelpers');
 
 // Safe fetch: use globalThis.fetch (Node 18+) or dynamic import node-fetch
 const fetchFn = globalThis.fetch
@@ -167,6 +167,8 @@ router.get('/favorites', ensureSubscriber, async (req, res) => {
         cover: item.cover,
         source_url: item.reader_url
       };
+      const openUrl = buildOpenUrl(meta);
+      const bareKey = stripPrefixes(item.book_key) || item.book_key || '';
       return {
         bookKey: item.book_key,
         source: item.source,
@@ -174,11 +176,12 @@ router.get('/favorites', ensureSubscriber, async (req, res) => {
         author: item.author,
         cover: item.cover,
         readerUrl: item.reader_url,
-        openUrl: buildOpenUrl(meta),
+        openUrl: openUrl,
+        unavailable: !openUrl || isNumericOnly(bareKey),
         category: item.category,
         createdAt: item.created_at
       };
-    });
+    }).filter(item => !item.unavailable);
 
     return res.render('favorites', {
       pageTitle: 'My Favorites',
@@ -260,7 +263,7 @@ router.get('/open', ensureSubscriber, async (req, res) => {
       cover: cover
     });
 
-    // Determine if this is truly an Archive.org book using strong signals only
+    // Detect if this is truly an Archive.org book using strong signals only
     const archiveLike = derivedArchiveId || isArchiveLike({
       provider,
       providerId: provider_id,
@@ -268,9 +271,30 @@ router.get('/open', ensureSubscriber, async (req, res) => {
       cover
     });
 
+    // Guard: if provider=archive but provider_id is purely numeric (ISBN),
+    // and we couldn't derive a real archive identifier, this is unresolvable
+    if (provider === 'archive' && !derivedArchiveId && isNumericOnly(provider_id)) {
+      console.warn(`[open] Numeric-only archive provider_id=${provider_id} with no resolvable identifier for "${title}"`);
+      return res.status(404).render('error', {
+        pageTitle: 'Book Not Found',
+        statusCode: 404,
+        message: `Could not open "${title}". The book identifier is not a valid Archive.org identifier.`
+      });
+    }
+
     // ----- Branch 1: confirmed archive book -----
     if (archiveLike && derivedArchiveId) {
       const archiveId = derivedArchiveId;
+
+      // Guard: never call resolveArchiveFile with numeric-only identifier
+      if (isNumericOnly(archiveId)) {
+        console.warn(`[open] Blocked numeric-only derivedArchiveId=${archiveId} for "${title}"`);
+        return res.status(404).render('error', {
+          pageTitle: 'Book Not Found',
+          statusCode: 404,
+          message: `Could not open "${title}". The book identifier is not a valid Archive.org identifier.`
+        });
+      }
 
       console.log(`[open] Resolving archive book: ${archiveId}`);
       const resolved = await resolveArchiveFile(archiveId);
@@ -304,7 +328,7 @@ router.get('/open', ensureSubscriber, async (req, res) => {
     // ----- Branch 1b: archiveLike but couldn't extract ID — try realArchiveId from prefix stripping -----
     if (archiveLike && !derivedArchiveId) {
       const realArchiveId = extractArchiveIdFromKey(provider_id);
-      if (realArchiveId) {
+      if (realArchiveId && !isNumericOnly(realArchiveId)) {
         console.log(`[open] Trying prefix-stripped archive ID: ${realArchiveId}`);
         const resolved = await resolveArchiveFile(realArchiveId);
         if (resolved.ok) {
@@ -333,6 +357,15 @@ router.get('/open', ensureSubscriber, async (req, res) => {
 
     // ----- Branch 2: unknown provider but has archive_id param -----
     if (archive_id && provider === 'unknown') {
+      // Guard: never call resolveArchiveFile with numeric-only identifier
+      if (isNumericOnly(archive_id)) {
+        console.warn(`[open] Blocked numeric-only archive_id=${archive_id} in Branch 2 for "${title}"`);
+        return res.status(404).render('error', {
+          pageTitle: 'Book Not Found',
+          statusCode: 404,
+          message: `Could not open "${title}". The book identifier is not a valid Archive.org identifier.`
+        });
+      }
       console.log(`[open] Unknown provider with archive_id=${archive_id}, resolving as archive`);
       const resolved = await resolveArchiveFile(archive_id);
       if (resolved.ok) {
@@ -395,7 +428,7 @@ router.get('/open', ensureSubscriber, async (req, res) => {
 
     // ----- Branch 6: truly unknown — try to resolve as archive one last time -----
     const lastResortId = extractArchiveIdFromKey(provider_id);
-    if (lastResortId) {
+    if (lastResortId && !isNumericOnly(lastResortId)) {
       console.log(`[open] Last resort: trying provider_id as archive: ${lastResortId}`);
       const resolved = await resolveArchiveFile(lastResortId);
       if (resolved.ok) {
