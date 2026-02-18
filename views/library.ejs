@@ -43,7 +43,7 @@
             <% } %>
             <div class="book-title"><%= book.title %></div>
             <div class="book-author"><%= book.author %></div>
-            <% const openUrl = '/open?provider=' + encodeURIComponent(book.provider || 'unknown') + '&provider_id=' + encodeURIComponent(book.provider_id || book.book_id || '') + '&title=' + encodeURIComponent(book.title || '') + '&author=' + encodeURIComponent(book.author || '') + '&cover=' + encodeURIComponent(book.cover_url || '') + (book.direct_url ? '&direct_url=' + encodeURIComponent(book.direct_url) : '') + (book.source_url ? '&source_url=' + encodeURIComponent(book.source_url) : '') + (book.archive_id ? '&archive_id=' + encodeURIComponent(book.archive_id) : '') + (book.format ? '&format=' + encodeURIComponent(book.format) : ''); %>
+            <% const openUrl = book.openUrl || ('/open?provider=' + encodeURIComponent(book.provider || 'unknown') + '&provider_id=' + encodeURIComponent(book.provider_id || book.book_id || '') + '&title=' + encodeURIComponent(book.title || '') + '&author=' + encodeURIComponent(book.author || '') + '&cover=' + encodeURIComponent(book.cover_url || '') + (book.direct_url ? '&direct_url=' + encodeURIComponent(book.direct_url) : '') + (book.source_url ? '&source_url=' + encodeURIComponent(book.source_url) : '') + (book.archive_id ? '&archive_id=' + encodeURIComponent(book.archive_id) : '') + (book.format ? '&format=' + encodeURIComponent(book.format) : '')); %>
             <% const gatedReaderUrl = (typeof loginGate === 'function') ? loginGate(user, openUrl) : openUrl; %>
             <a class="read-link" href="<%= gatedReaderUrl %>">Read</a>
           </div>

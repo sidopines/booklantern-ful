@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { ensureSubscriberApi } = require('../utils/gate');
-const { canonicalBookKey, buildOpenUrl, extractArchiveId, normalizeMeta } = require('../utils/bookHelpers');
+const { canonicalBookKey, buildOpenUrl, extractArchiveId, normalizeMeta, isNumericOnly, stripPrefixes } = require('../utils/bookHelpers');
 
 // Supabase client for database operations
 const supabase = require('../lib/supabaseServer');
@@ -117,7 +117,7 @@ router.get('/continue', ensureSubscriberApi, async (req, res) => {
       ok: true,
       items: deduped.map(item => {
         // Build /open URL fresh via normalized meta (never trust stored openUrl)
-        const meta = {
+        const rawMeta = {
           provider: item.source,
           provider_id: item.book_key,
           title: item.title,
@@ -125,7 +125,14 @@ router.get('/continue', ensureSubscriberApi, async (req, res) => {
           cover: item.cover,
           source_url: item.reader_url
         };
+        const meta = normalizeMeta(rawMeta);
         const openUrl = buildOpenUrl(meta);
+        // Strip bl-book-/archive- prefixes before numeric check
+        const bareKey = stripPrefixes(item.book_key) || item.book_key || '';
+        const unavailable = !openUrl || isNumericOnly(bareKey);
+        if (unavailable) {
+          console.log(`[reading/continue] filtered unavailable: bookKey=${item.book_key} title="${item.title}"`);
+        }
         return {
           bookKey: item.book_key,
           source: item.source,
@@ -135,13 +142,78 @@ router.get('/continue', ensureSubscriberApi, async (req, res) => {
           lastLocation: item.last_location,
           progress: item.progress,
           readerUrl: item.reader_url,
-          openUrl: openUrl || '/read',
+          openUrl: openUrl || null,
+          unavailable: unavailable,
           updatedAt: item.updated_at
         };
-      })
+      }).filter(item => !item.unavailable)
     });
   } catch (err) {
     console.error('[reading/continue] error:', err);
+    return res.status(500).json({ ok: false, error: 'server_error' });
+  }
+});
+
+/**
+ * DELETE /api/reading/continue/:bookKey
+ * Remove a specific item from Continue Reading (reading progress)
+ */
+router.delete('/continue/:bookKey', ensureSubscriberApi, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.status(401).json({ ok: false, error: 'auth_required' });
+    }
+
+    const { bookKey } = req.params;
+    if (!bookKey) {
+      return res.status(400).json({ ok: false, error: 'bookKey required' });
+    }
+
+    const { error } = await supabase
+      .from('reading_progress_v2')
+      .delete()
+      .eq('user_id', userId)
+      .eq('book_key', bookKey);
+
+    if (error) {
+      console.error('[reading/continue DELETE] supabase error:', error);
+      return res.status(500).json({ ok: false, error: 'database_error' });
+    }
+
+    console.log(`[reading/continue DELETE] removed bookKey=${bookKey} for user=${userId}`);
+    return res.json({ ok: true, removed: true });
+  } catch (err) {
+    console.error('[reading/continue DELETE] error:', err);
+    return res.status(500).json({ ok: false, error: 'server_error' });
+  }
+});
+
+/**
+ * DELETE /api/reading/continue
+ * Clear ALL Continue Reading items for the current user
+ */
+router.delete('/continue', ensureSubscriberApi, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.status(401).json({ ok: false, error: 'auth_required' });
+    }
+
+    const { error } = await supabase
+      .from('reading_progress_v2')
+      .delete()
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('[reading/continue DELETE ALL] supabase error:', error);
+      return res.status(500).json({ ok: false, error: 'database_error' });
+    }
+
+    console.log(`[reading/continue DELETE ALL] cleared for user=${userId}`);
+    return res.json({ ok: true, cleared: true });
+  } catch (err) {
+    console.error('[reading/continue DELETE ALL] error:', err);
     return res.status(500).json({ ok: false, error: 'server_error' });
   }
 });
@@ -293,8 +365,8 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
     return res.json({
       ok: true,
       items: (items || []).map(item => {
-        // Build /open URL fresh from normalized meta (never trust stored openUrl)
-        const meta = {
+        // Build /open URL fresh from normalized meta
+        const rawMeta = {
           provider: item.source,
           provider_id: item.book_key,
           title: item.title,
@@ -302,7 +374,13 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
           cover: item.cover,
           source_url: item.reader_url
         };
+        const meta = normalizeMeta(rawMeta);
         const openUrl = buildOpenUrl(meta);
+        const bareKey = stripPrefixes(item.book_key) || item.book_key || '';
+        const unavailable = !openUrl || isNumericOnly(bareKey);
+        if (unavailable) {
+          console.log(`[reading/favorites] filtered unavailable: bookKey=${item.book_key} title="${item.title}"`);
+        }
         return {
           bookKey: item.book_key,
           source: item.source,
@@ -311,11 +389,11 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
           cover: item.cover,
           readerUrl: item.reader_url,
           openUrl: openUrl || null,
-          unavailable: !openUrl,
+          unavailable: unavailable,
           category: item.category,
           createdAt: item.created_at
         };
-      })
+      }).filter(item => !item.unavailable)
     });
   } catch (err) {
     console.error('[reading/favorites] error:', err);
