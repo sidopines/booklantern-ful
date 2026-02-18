@@ -152,7 +152,11 @@
               <div class="author"><%= fav.author %></div>
             <% } %>
             <div class="actions">
-              <a href="<%= fav.openUrl %>" class="read-btn">📖 Read</a>
+              <% if (fav.openUrl) { %>
+                <a href="<%= fav.openUrl %>" class="read-btn">📖 Read</a>
+              <% } else { %>
+                <span class="read-btn" style="opacity:0.4;cursor:default;">Unavailable</span>
+              <% } %>
               <button class="remove-btn" data-remove-key="<%= fav.bookKey %>" data-title="<%= fav.title %>">✕</button>
             </div>
           </div>

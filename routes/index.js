@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 
 const supabase = require('../supabaseAdmin'); // service-role, may be null
+const { buildOpenUrl } = require('../utils/bookHelpers');
 
 // Helpers
 const isStr = (v) => typeof v === 'string' && v.trim().length > 0;
@@ -29,43 +30,70 @@ function parseYouTube(url) {
   }
 }
 
-/** Build a homepage card object - /read is public, no gating needed here */
+/** Build a homepage card object — always route through /open for reliable resolution */
 function toHomeCard(row) {
   const provider = row.provider || null;
   const pid = row.provider_id || null;
+  const cover = row.cover || row.cover_image || null;
 
-  // /read is public - no login gate here (gate happens at unified-reader level)
-  const readUrl =
-    provider && pid
-      ? `/read?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(pid)}`
-      : '/read';
+  // Build a canonical /open URL using the shared helper
+  const openUrl = buildOpenUrl({
+    provider: provider || 'unknown',
+    provider_id: pid || '',
+    title: row.title || '',
+    author: row.author || '',
+    cover: cover || '',
+    archive_id: row.archive_id || '',
+    source_url: row.source_url || '',
+    direct_url: row.direct_url || '',
+    format: row.format || ''
+  });
+
+  // Fallback: search by title+author if /open URL can't be built
+  const searchFallback = `/read?q=${encodeURIComponent([row.title, row.author].filter(Boolean).join(' '))}`;
+  const readUrl = openUrl || searchFallback;
 
   return {
     id: row.id,
     title: row.title,
     author: row.author,
-    cover: row.cover || row.cover_image || null,
-    cover_image: row.cover_image || row.cover || null,
+    cover: cover,
+    cover_image: cover,
     provider,
     provider_id: pid,
     readUrl
   };
 }
 
-/** Build a /read staff-pick card (curated_books ➜ /read?q=title+author search) */
+/** Build a staff-pick card — route through /open, fallback to search */
 function toReaderCard(row) {
-  // Link to /read with search query for public tokenless resolution
   const title = row.title || '';
   const author = row.author || '';
-  const searchQuery = [title, author].filter(Boolean).join(' ');
-  const readUrl = `/read?q=${encodeURIComponent(searchQuery)}`;
+  const cover = row.cover || null;
+
+  // Try canonical /open URL first
+  const openUrl = buildOpenUrl({
+    provider: row.provider || 'unknown',
+    provider_id: row.provider_id || '',
+    title,
+    author,
+    cover: cover || '',
+    archive_id: row.archive_id || '',
+    source_url: row.source_url || '',
+    direct_url: row.direct_url || '',
+    format: row.format || ''
+  });
+
+  // Fallback: search by title+author
+  const searchFallback = `/read?q=${encodeURIComponent([title, author].filter(Boolean).join(' '))}`;
+  const readUrl = openUrl || searchFallback;
 
   return {
     id: row.id,
     title: row.title,
     author: row.author,
-    cover: row.cover || null,
-    cover_image: row.cover || null,
+    cover: cover,
+    cover_image: cover,
     href: readUrl,
     readUrl
   };
@@ -215,16 +243,13 @@ router.get('/video/:id', async (req, res) => {
 // -----------------------------
 // Read (reader shell) — require subscriber
 router.get('/read', require('../utils/gate').ensureSubscriber, async (req, res) => {
-  const provider = isStr(req.query.provider) ? req.query.provider : '';
-  const id = isStr(req.query.id) ? req.query.id : '';
-
   let staffPicks = [];
   if (supabase) {
     try {
-      // Pull recent curated books; ensure we get provider/provider_id for /read links
+      // Pull recent curated books; include provider/provider_id for /open links
       const { data = [] } = await supabase
         .from('curated_books')
-        .select('id,title,author,cover,provider,provider_id,created_at')
+        .select('id,title,author,cover,provider,provider_id,archive_id,source_url,direct_url,format,created_at')
         .order('created_at', { ascending: false })
         .limit(12);
 
@@ -235,7 +260,7 @@ router.get('/read', require('../utils/gate').ensureSubscriber, async (req, res) 
     }
   }
 
-  return res.render('read', { provider, id, staffPicks });
+  return res.render('read', { staffPicks });
 });
 
 // -----------------------------
