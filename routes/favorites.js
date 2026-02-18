@@ -251,7 +251,12 @@ router.get('/open', ensureSubscriber, async (req, res) => {
     if (provider_id !== (req.query.provider_id || '')) {
       console.log(`[open] Self-healed: provider_id ${req.query.provider_id} → ${provider_id} (provider=${provider})`);
     }
-    console.log(`[open] Opening book: provider=${provider}, id=${provider_id}, title=${title}`);
+    console.log(`[open] provider=${provider} provider_id=${provider_id} archive_id=${archive_id} title="${title}"`);
+    // P0 log: numeric-only detection
+    const strippedPid = stripPrefixes(provider_id) || provider_id;
+    if (isNumericOnly(strippedPid)) {
+      console.warn(`[open] NUMERIC-ONLY detected: provider_id=${provider_id} stripped=${strippedPid}`);
+    }
 
     // Use shared helper to extract archive ID from all available metadata
     const derivedArchiveId = extractArchiveId({
@@ -262,6 +267,7 @@ router.get('/open', ensureSubscriber, async (req, res) => {
       direct_url: direct_url,
       cover: cover
     });
+    console.log(`[open] derivedArchiveId=${derivedArchiveId || 'null'} branch=pending`);
 
     // Detect if this is truly an Archive.org book using strong signals only
     const archiveLike = derivedArchiveId || isArchiveLike({
@@ -284,6 +290,7 @@ router.get('/open', ensureSubscriber, async (req, res) => {
 
     // ----- Branch 1: confirmed archive book -----
     if (archiveLike && derivedArchiveId) {
+      console.log(`[open] branch=1-archive archiveId=${derivedArchiveId}`);
       const archiveId = derivedArchiveId;
 
       // Guard: never call resolveArchiveFile with numeric-only identifier
@@ -327,6 +334,7 @@ router.get('/open', ensureSubscriber, async (req, res) => {
 
     // ----- Branch 1b: archiveLike but couldn't extract ID — try realArchiveId from prefix stripping -----
     if (archiveLike && !derivedArchiveId) {
+      console.log(`[open] branch=1b-archiveLike-noId provider_id=${provider_id}`);
       const realArchiveId = extractArchiveIdFromKey(provider_id);
       if (realArchiveId && !isNumericOnly(realArchiveId)) {
         console.log(`[open] Trying prefix-stripped archive ID: ${realArchiveId}`);
@@ -357,6 +365,7 @@ router.get('/open', ensureSubscriber, async (req, res) => {
 
     // ----- Branch 2: unknown provider but has archive_id param -----
     if (archive_id && provider === 'unknown') {
+      console.log(`[open] branch=2-unknown-with-archive_id archive_id=${archive_id}`);
       // Guard: never call resolveArchiveFile with numeric-only identifier
       if (isNumericOnly(archive_id)) {
         console.warn(`[open] Blocked numeric-only archive_id=${archive_id} in Branch 2 for "${title}"`);
@@ -388,7 +397,7 @@ router.get('/open', ensureSubscriber, async (req, res) => {
 
     // ----- Branch 3: has a direct_url we can use -----
     if (direct_url) {
-      console.log(`[open] Using direct_url for ${provider}: ${provider_id}`);
+      console.log(`[open] branch=3-direct_url provider=${provider} provider_id=${provider_id}`);
       const fmt = format || (direct_url.toLowerCase().endsWith('.pdf') ? 'pdf' : 'epub');
       const realArchiveId = extractArchiveIdFromKey(provider_id);
       const token = buildReaderToken({
@@ -408,13 +417,13 @@ router.get('/open', ensureSubscriber, async (req, res) => {
     if (provider === 'external' || provider === 'doab' || provider === 'oapen' ||
         provider_id.startsWith('http://') || provider_id.startsWith('https://')) {
       const searchQuery = `${title} ${author}`.trim();
-      console.log(`[open] External book, redirecting to search: ${searchQuery}`);
+      console.log(`[open] branch=4-external provider=${provider} redirecting to search: ${searchQuery}`);
       return res.redirect(`/read?q=${encodeURIComponent(searchQuery)}`);
     }
 
     // ----- Branch 5: known providers (gutenberg, openlibrary, etc.) -----
     if (provider !== 'unknown') {
-      console.log(`[open] Standard redirect for ${provider}: ${provider_id}`);
+      console.log(`[open] branch=5-known-provider provider=${provider} provider_id=${provider_id}`);
       const token = buildReaderToken({
         provider,
         provider_id: provider_id,
@@ -427,9 +436,10 @@ router.get('/open', ensureSubscriber, async (req, res) => {
     }
 
     // ----- Branch 6: truly unknown — try to resolve as archive one last time -----
+    console.log(`[open] branch=6-last-resort provider_id=${provider_id}`);
     const lastResortId = extractArchiveIdFromKey(provider_id);
     if (lastResortId && !isNumericOnly(lastResortId)) {
-      console.log(`[open] Last resort: trying provider_id as archive: ${lastResortId}`);
+      console.log(`[open] branch=6 trying as archive: ${lastResortId}`);
       const resolved = await resolveArchiveFile(lastResortId);
       if (resolved.ok) {
         const token = buildReaderToken({

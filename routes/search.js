@@ -3,6 +3,7 @@ const express = require('express');
 const { LRUCache } = require('lru-cache');
 const { ensureSubscriberApi } = require('../utils/gate');
 const { buildReaderToken } = require('../utils/buildReaderToken');
+const { buildOpenUrl, normalizeMeta } = require('../utils/bookHelpers');
 const { batchCheckReadability } = require('../lib/archiveMetadata');
 const gutenberg = require('../lib/sources/gutenberg');
 const openlibrary = require('../lib/sources/openlibrary');
@@ -379,21 +380,24 @@ async function handleSearch(req, res) {
       let href = null;
 
       // Only create reader link if we can actually render it
-      // Build /open URL so a fresh token is minted at click-time (never store tokens in links)
+      // Build /open URL via shared helper for consistent URL construction
       if (isReadable && !externalOnly) {
-        const openParams = new URLSearchParams();
-        openParams.set('provider', book.provider || 'unknown');
-        openParams.set('provider_id', book.provider_id || '');
-        if (asText(book.title))    openParams.set('title', asText(book.title));
-        if (asText(book.author))   openParams.set('author', asText(book.author));
-        if (book.cover_url)        openParams.set('cover', book.cover_url);
-        if (book.source_url)       openParams.set('source_url', book.source_url);
-        if (actualDirectUrl)       openParams.set('direct_url', actualDirectUrl);
-        if (book.archive_id)       openParams.set('archive_id', book.archive_id);
         const tokenFormat = book.preferPdf ? 'pdf' : (book.format || 'epub');
-        if (tokenFormat)           openParams.set('format', tokenFormat);
-        href = '/open?' + openParams.toString();
-        // token is no longer pre-minted; /open mints it at click-time
+        href = buildOpenUrl({
+          provider: book.provider || 'unknown',
+          provider_id: book.provider_id || '',
+          title: asText(book.title),
+          author: asText(book.author),
+          cover: book.cover_url,
+          source_url: book.source_url,
+          direct_url: actualDirectUrl,
+          archive_id: book.archive_id,
+          format: tokenFormat
+        });
+        // If buildOpenUrl returned null, treat as external-only
+        if (!href) {
+          console.log(`[search] buildOpenUrl returned null for ${book.provider}:${book.provider_id} "${asText(book.title)}"`);
+        }
       }
       
       // Determine reason for non-readable items

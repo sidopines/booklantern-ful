@@ -48,18 +48,22 @@ function extractArchiveId(meta) {
     if (aid && !isNumericOnly(aid)) return aid;
   }
 
-  // source_url containing archive.org/details/<id>
+  // source_url containing archive.org/details/<id> or archive.org/download/<id>
   const src = meta.source_url || meta.sourceUrl || '';
   if (src.includes('archive.org/details/')) {
     const m = src.match(/archive\.org\/details\/([^/?#]+)/);
-    if (m) return m[1];
+    if (m && !isNumericOnly(m[1])) return m[1];
+  }
+  if (src.includes('archive.org/download/')) {
+    const m = src.match(/archive\.org\/download\/([^/?#]+)/);
+    if (m && !isNumericOnly(m[1])) return m[1];
   }
 
   // provider_id that is an archive URL
   const pid = meta.provider_id || meta.bookKey || meta.book_key || '';
   if (pid.includes('archive.org')) {
-    const m = pid.match(/archive\.org\/details\/([^/?#]+)/);
-    if (m) return m[1];
+    const m = pid.match(/archive\.org\/(?:details|download)\/([^/?#]+)/);
+    if (m && !isNumericOnly(m[1])) return m[1];
   }
 
   // provider_id with bl-book- or archive- prefix

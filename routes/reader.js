@@ -1547,14 +1547,33 @@ router.get('/library', ensureSubscriber, async (req, res) => {
     return res.render('library', { pageTitle: 'My Library', books: [], error: 'Database not available' });
   }
   try {
+    const { buildOpenUrl: buildUrl, normalizeMeta: normMeta, isNumericOnly: isNum, stripPrefixes: strip } = require('../utils/bookHelpers');
     const userId = req.session.user.id;
     const { data: books, error } = await supabaseAdmin.from('saved_books').select('*')
       .eq('user_id', userId).order('updated_at', { ascending: false });
     if (error) throw error;
     
+    // Compute openUrl server-side using shared helper and filter unavailable
     const booksWithTokens = (books || []).map(book => {
-      return { ...book };
-    });
+      const meta = {
+        provider: book.provider || 'unknown',
+        provider_id: book.provider_id || book.book_id || '',
+        title: book.title || '',
+        author: book.author || '',
+        cover: book.cover_url || '',
+        source_url: book.source_url || '',
+        direct_url: book.direct_url || '',
+        archive_id: book.archive_id || '',
+        format: book.format || ''
+      };
+      const openUrl = buildUrl(normMeta(meta));
+      const bareKey = strip(book.provider_id || book.book_id || '') || '';
+      const unavailable = !openUrl || isNum(bareKey);
+      if (unavailable) {
+        console.log(`[library] filtered unavailable: book_id=${book.book_id} title="${book.title}"`);
+      }
+      return { ...book, openUrl, unavailable };
+    }).filter(b => !b.unavailable);
     
     return res.render('library', { pageTitle: 'My Library', books: booksWithTokens, error: null });
   } catch (error) {
