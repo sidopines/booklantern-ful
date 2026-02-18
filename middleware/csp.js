@@ -45,8 +45,8 @@ module.exports = function csp() {
           "https://www.googleapis.com"
         ],
 
-        // Inline styles + blob: for epub.js stylesheets
-        "style-src": ["'self'", "'unsafe-inline'", "blob:"],
+        // Inline styles + blob: for epub.js stylesheets + Google Fonts CSS
+        "style-src": ["'self'", "'unsafe-inline'", "blob:", "https://fonts.googleapis.com"],
 
         // Fonts: allow data:, blob:, and https: for EPUB embedded fonts
         "font-src": ["'self'", "data:", "blob:", "https:", "https://fonts.gstatic.com"],

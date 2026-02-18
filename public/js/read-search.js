@@ -98,6 +98,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         shelf.style.display = 'block';
+
+        // Add a "Clear all" link to the shelf header if not already present
+        var shelfHeader = shelf.querySelector('.shelf-header');
+        if (shelfHeader && !shelfHeader.querySelector('.shelf-clear-all')) {
+          var clearBtn = document.createElement('button');
+          clearBtn.className = 'shelf-clear-all';
+          clearBtn.textContent = 'Clear all';
+          clearBtn.style.cssText = 'background:none;border:none;color:#888;font-size:13px;cursor:pointer;margin-left:auto;';
+          clearBtn.addEventListener('click', function() {
+            if (!confirm('Clear all Continue Reading items?')) return;
+            fetch('/api/reading/continue', { method: 'DELETE', credentials: 'include' })
+              .then(function(r) { return r.json(); })
+              .then(function(d) {
+                if (d.ok) { shelf.style.display = 'none'; container.innerHTML = ''; }
+              })
+              .catch(function(err) { console.error('[read-search] Clear all failed:', err); });
+          });
+          shelfHeader.style.display = 'flex';
+          shelfHeader.style.alignItems = 'center';
+          shelfHeader.appendChild(clearBtn);
+        }
+
         // Dedupe by provider+bookKey first, then by normalized title
         var seenKeys = {};
         var seenTitles = {};
@@ -117,8 +139,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const cover = item.cover || '/public/img/cover-fallback.svg';
           const url = item.openUrl || item.readerUrl || '#';
           const progress = item.progress || 0;
+          const safeKey = (item.bookKey || '').replace(/"/g, '&quot;');
           return `
-            <a href="${url}" class="shelf-card">
+            <a href="${url}" class="shelf-card" data-book-key="${safeKey}">
+              <button class="shelf-card-remove" data-remove-continue="${safeKey}" aria-label="Remove" title="Remove">&times;</button>
               <div class="card-cover">
                 <img src="${cover}" alt="" loading="lazy" data-fallback="/public/img/cover-fallback.svg">
               </div>
@@ -130,6 +154,26 @@ document.addEventListener('DOMContentLoaded', () => {
             </a>
           `;
         }).join('');
+
+        // Delegated click handler for per-item remove buttons
+        container.addEventListener('click', function(e) {
+          var removeBtn = e.target.closest('[data-remove-continue]');
+          if (!removeBtn) return;
+          e.preventDefault();
+          e.stopPropagation();
+          var bk = removeBtn.getAttribute('data-remove-continue');
+          if (!bk) return;
+          fetch('/api/reading/continue/' + encodeURIComponent(bk), { method: 'DELETE', credentials: 'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+              if (d.ok) {
+                var card = removeBtn.closest('.shelf-card');
+                if (card) card.remove();
+                if (!container.querySelector('.shelf-card')) shelf.style.display = 'none';
+              }
+            })
+            .catch(function(err) { console.error('[read-search] Remove continue item failed:', err); });
+        });
       })
       .catch(err => {
         console.warn('[read-search] Continue reading load failed:', err);

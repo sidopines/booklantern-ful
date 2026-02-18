@@ -194,6 +194,35 @@ router.delete('/continue/:bookKey', ensureSubscriberApi, async (req, res) => {
 });
 
 /**
+ * DELETE /api/reading/continue
+ * Clear ALL Continue Reading items for the current user
+ */
+router.delete('/continue', ensureSubscriberApi, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.status(401).json({ ok: false, error: 'auth_required' });
+    }
+
+    const { error } = await supabase
+      .from('reading_progress_v2')
+      .delete()
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('[reading/continue DELETE ALL] supabase error:', error);
+      return res.status(500).json({ ok: false, error: 'database_error' });
+    }
+
+    console.log(`[reading/continue DELETE ALL] cleared for user=${userId}`);
+    return res.json({ ok: true, cleared: true });
+  } catch (err) {
+    console.error('[reading/continue DELETE ALL] error:', err);
+    return res.status(500).json({ ok: false, error: 'server_error' });
+  }
+});
+
+/**
  * GET /api/reading/progress/:bookKey
  * Get saved progress for a specific book
  */

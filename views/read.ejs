@@ -176,6 +176,28 @@
       color: inherit;
       position: relative;
     }
+    .shelf-card-remove {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      z-index: 2;
+      background: rgba(0,0,0,0.55);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 22px;
+      height: 22px;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .shelf-card:hover .shelf-card-remove { opacity: 1; }
+    .shelf-card-remove:hover { background: rgba(220,38,38,0.85); }
     .shelf-card .card-cover {
       width: 140px;
       height: 200px;
@@ -290,17 +312,8 @@
     <div id="results" class="results-grid"></div>
 
     <%
-      const providerSafe = typeof provider === 'string' ? provider : '';
-      const idSafe = typeof id === 'string' ? id : '';
       const picks = Array.isArray(staffPicks) ? staffPicks : [];
     %>
-
-    <% if (providerSafe && idSafe) { %>
-      <div class="row">
-        <section class="pane" id="reader"></section>
-        <aside class="pane" id="notes"></aside>
-      </div>
-    <% } %>
 
     <!-- Staff picks grid -->
     <section style="margin-top:32px;">
@@ -322,25 +335,6 @@
 
   <%- include('partials/footer') %>
 
-  <script>
-  (async function () {
-    const provider = "<%= providerSafe || '' %>";
-    const id = "<%= idSafe || '' %>";
-    if (!provider || !id) return;
-
-    const KEY_POS   = `bl:pos:${provider}:${id}`;
-    const KEY_NOTES = `bl:notes:${provider}:${id}`;
-
-    try {
-      const res = await fetch(`/api/book?provider=${encodeURIComponent(provider)}&id=${encodeURIComponent(id)}`);
-      if (!res.ok) throw new Error('Book not found');
-      const book = await res.json();
-      document.getElementById('reader').textContent = book.title || 'Loaded.';
-    } catch (e) {
-      document.getElementById('reader').textContent = 'Failed to load book.';
-    }
-  })();
-  </script>
   <script src="/public/js/read-search.js?v=<%= Date.now() %>" defer></script>
 </body>
 </html>
