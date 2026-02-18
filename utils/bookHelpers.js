@@ -42,8 +42,11 @@ function canonicalBookKey(meta) {
 function extractArchiveId(meta) {
   if (!meta) return null;
 
-  // Explicit archive_id field
-  if (meta.archive_id) return stripPrefixes(meta.archive_id);
+  // Explicit archive_id field (reject purely numeric ISBNs)
+  if (meta.archive_id) {
+    const aid = stripPrefixes(meta.archive_id);
+    if (aid && !isNumericOnly(aid)) return aid;
+  }
 
   // source_url containing archive.org/details/<id>
   const src = meta.source_url || meta.sourceUrl || '';
@@ -61,17 +64,20 @@ function extractArchiveId(meta) {
 
   // provider_id with bl-book- or archive- prefix
   const stripped = stripPrefixes(pid);
-  if (stripped && stripped !== pid) return stripped;
+  if (stripped && stripped !== pid && !isNumericOnly(stripped)) return stripped;
 
-  // provider is archive → provider_id is the id
+  // provider is archive → provider_id is the id (reject purely numeric ISBNs)
   const prov = (meta.provider || meta.source || '').toLowerCase();
-  if (prov === 'archive' && pid) return stripPrefixes(pid);
+  if (prov === 'archive' && pid) {
+    const stripped = stripPrefixes(pid);
+    if (stripped && !isNumericOnly(stripped)) return stripped;
+  }
 
   // cover URL containing archive.org/services/img/<id>
   const cover = meta.cover || meta.cover_url || '';
   if (cover.includes('archive.org/services/img/')) {
     const m = cover.match(/archive\.org\/services\/img\/([^/?#]+)/);
-    if (m) return m[1];
+    if (m && !isNumericOnly(m[1])) return m[1];
   }
 
   return null;
@@ -86,6 +92,14 @@ function stripPrefixes(key) {
   while (id.startsWith('bl-book-')) id = id.slice(8);
   if (id.startsWith('archive-')) id = id.slice(8);
   return id || null;
+}
+
+/**
+ * Test whether a string is purely numeric (e.g. an ISBN, not an Archive.org identifier).
+ * Archive.org identifiers are almost never purely numeric.
+ */
+function isNumericOnly(s) {
+  return typeof s === 'string' && /^\d+$/.test(s);
 }
 
 /**
@@ -187,14 +201,30 @@ function buildOpenUrl(meta, ref) {
   const archiveId = extractArchiveId(n);
   const params = new URLSearchParams();
 
-  if (archiveId) {
+  if (archiveId && !isNumericOnly(archiveId)) {
     params.set('provider', 'archive');
     params.set('provider_id', archiveId);
     params.set('archive_id', archiveId);
+    // Always include source_url for archive so /open can resolve
+    if (!n.source_url && !n.sourceUrl) {
+      params.set('source_url', 'https://archive.org/details/' + archiveId);
+    }
   } else {
     const prov = n.provider || n.source || 'unknown';
     const pid = n.provider_id || n.bookKey || n.book_key || '';
     if (prov === 'unknown' && !pid) return null; // unresolvable
+    // If provider is 'archive' but the underlying ID (after stripping prefixes) is
+    // numeric-only or missing, it's unresolvable — never call archive.org/metadata
+    if (prov === 'archive') {
+      const stripped = stripPrefixes(pid) || pid;
+      if (!stripped || isNumericOnly(stripped)) return null;
+    }
+    // If provider is unknown and the underlying ID is purely numeric, no resolution
+    // path in /open can handle it — filter it out so shelves never show broken ghosts
+    if (prov === 'unknown' && pid) {
+      const stripped = stripPrefixes(pid) || pid;
+      if (isNumericOnly(stripped)) return null;
+    }
     params.set('provider', prov);
     params.set('provider_id', pid);
   }
@@ -210,4 +240,4 @@ function buildOpenUrl(meta, ref) {
   return '/open?' + params.toString();
 }
 
-module.exports = { canonicalBookKey, extractArchiveId, stripPrefixes, buildOpenUrl, normalizeMeta };
+module.exports = { canonicalBookKey, extractArchiveId, stripPrefixes, buildOpenUrl, normalizeMeta, isNumericOnly };
