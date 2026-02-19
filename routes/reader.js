@@ -79,6 +79,7 @@ function isProtectedArchiveFile(f) {
   const format = (f?.format || '').toLowerCase();
 
   const nameMatches =
+    name.includes('_encrypted') ||
     name.includes('lcp') ||
     name.endsWith('_lcp.epub') ||
     name.includes('drm') ||
@@ -90,7 +91,8 @@ function isProtectedArchiveFile(f) {
     format.includes('protected') ||
     format.includes('drm') ||
     format.includes('adobe') ||
-    format.includes('acsm');
+    format.includes('acsm') ||
+    format.includes('encrypted');
 
   return nameMatches || formatMatches;
 }
@@ -1082,6 +1084,18 @@ async function resolveArchiveFile(identifier) {
       console.log(`[archiveResolve] id=${identifier} found=none (no metadata)`);
       return { ok: false, source_url: sourceUrl };
     }
+
+    // Borrow / encrypted check
+    const { isBorrowRequiredArchive: checkBorrow } = require('../utils/bookHelpers');
+    const bc = checkBorrow(meta.metadata, meta.files, meta);
+    if (bc.borrowRequired) {
+      console.log(`[archiveResolve] id=${identifier} borrow_required (${bc.reason})`);
+      return { ok: false, source_url: sourceUrl, borrow_required: true, reason: bc.reason };
+    }
+    if (bc.encryptedOnly) {
+      console.log(`[archiveResolve] id=${identifier} encrypted_only`);
+      return { ok: false, source_url: sourceUrl, encrypted_only: true, reason: bc.reason };
+    }
     
     // Use existing pickBestArchiveFile which prioritizes EPUB then PDF
     const bestFile = pickBestArchiveFile(meta.files);
@@ -1607,6 +1621,25 @@ router.get('/api/proxy/epub', ensureSubscriberApi, async (req, res) => {
       if (!meta || !meta.files) {
         return res.status(404).json({ error: 'Archive metadata not found' });
       }
+
+      // Early borrow/encrypted check using centralized helper
+      const { isBorrowRequiredArchive } = require('../utils/bookHelpers');
+      const borrowCheck = isBorrowRequiredArchive(meta.metadata, meta.files, meta);
+      if (borrowCheck.borrowRequired) {
+        return res.status(422).json({
+          error: 'borrow_required',
+          detail: 'This book requires borrowing from Archive.org',
+          reason: borrowCheck.reason,
+          source_url: `https://archive.org/details/${archiveId}`
+        });
+      }
+      if (borrowCheck.encryptedOnly) {
+        return res.status(422).json({
+          error: 'encrypted_only',
+          detail: 'All available files are DRM-encrypted',
+          source_url: `https://archive.org/details/${archiveId}`
+        });
+      }
       
       const bestName = pickBestArchiveEpub(meta.files);
       if (!bestName) {
@@ -2063,6 +2096,9 @@ async function handleFileProxy(req, res) {
   }
   
   console.log('[file-proxy] Proxying:', targetUrl);
+
+  // Size guard: reject files larger than limit before streaming
+  const MAX_FILE_PROXY_BYTES = (parseInt(process.env.MAX_PROXY_FILE_MB) || 250) * 1024 * 1024;
   
   // Helper: build headers for upstream request
   function buildHeaders(simple = false) {
@@ -2122,6 +2158,15 @@ async function handleFileProxy(req, res) {
     if (!response.ok && response.status !== 206) {
       console.error('[file-proxy] Upstream error:', response.status, targetUrl);
       return sendError(502, 'Upstream error: ' + response.status);
+    }
+
+    // Size guard: reject excessively large files before streaming
+    const clHeader = response.headers.get('content-length');
+    const clBytes = parseInt(clHeader || '0', 10);
+    if (clBytes > MAX_FILE_PROXY_BYTES) {
+      console.warn('[file-proxy] File too large:', clBytes, 'bytes, limit:', MAX_FILE_PROXY_BYTES);
+      response.body?.cancel?.();
+      return sendError(413, 'File too large to proxy (' + Math.round(clBytes / 1e6) + ' MB)');
     }
     
     // Determine content type
@@ -2184,15 +2229,37 @@ async function handleFileProxy(req, res) {
       res.status(200);
     }
     
-    // Stream the response
+    // Stream the response with byte-limit safety
     const reader = response.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(Buffer.from(value));
+    let totalBytes = 0;
+    const streamTimeout = setTimeout(() => {
+      try { reader.cancel(); } catch (_) {}
+      if (!res.headersSent) {
+        sendError(504, 'Stream timeout - file too slow');
+      } else {
+        try { res.end(); } catch (_) {}
+      }
+    }, 120000); // 2 min absolute stream deadline
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        totalBytes += value.byteLength;
+        if (totalBytes > MAX_FILE_PROXY_BYTES) {
+          reader.cancel();
+          clearTimeout(streamTimeout);
+          if (!res.headersSent) {
+            return sendError(413, 'File exceeded size limit during streaming');
+          }
+          return res.end();
+        }
+        res.write(Buffer.from(value));
+      }
+    } finally {
+      clearTimeout(streamTimeout);
     }
     res.end();
-    console.log('[file-proxy] File streamed successfully:', contentType);
+    console.log('[file-proxy] File streamed successfully:', contentType, totalBytes, 'bytes');
     
   } catch (err) {
     console.error('[file-proxy] Error:', err.message);

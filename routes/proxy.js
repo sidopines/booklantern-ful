@@ -3,6 +3,7 @@ const express = require('express');
 const https = require('https');
 const http = require('http');
 const { URL } = require('url');
+const { isBorrowRequiredArchive, isEncryptedFile } = require('../utils/bookHelpers');
 
 const router = express.Router();
 
@@ -106,7 +107,10 @@ function pickBestArchivePdf(files) {
       if (!f?.name) return false;
       const name = f.name.toLowerCase();
       const format = (f.format || '').toLowerCase();
-      return format.includes('text pdf') || format === 'pdf' || name.endsWith('.pdf');
+      if (!(format.includes('text pdf') || format === 'pdf' || name.endsWith('.pdf'))) return false;
+      // Skip encrypted / DRM files
+      if (isEncryptedFile(f)) return false;
+      return true;
     })
     .map(f => ({ name: f.name, size: Number(f.size) || 0 }))
     .sort((a, b) => a.size - b.size); // Prefer smaller PDFs
@@ -166,18 +170,53 @@ router.get('/api/proxy/epub', async (req, res) => {
         console.error('[proxy] Upstream error:', proxyRes.statusCode, targetUrl);
         return res.status(proxyRes.statusCode).json({ error: 'Upstream error' });
       }
-      
-      // Set CORS headers
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Content-Type', 'application/epub+zip');
-      
-      // Forward content-length if available
-      if (proxyRes.headers['content-length']) {
-        res.setHeader('Content-Length', proxyRes.headers['content-length']);
-      }
-      
-      // Stream the response
-      proxyRes.pipe(res);
+
+      // --- Content validation: read first chunk before streaming ---
+      let validated = false;
+
+      proxyRes.once('data', (firstChunk) => {
+        // Check for HTML error / login page
+        const peek = Buffer.from(firstChunk).toString('utf-8', 0, Math.min(200, firstChunk.length)).toLowerCase();
+        if (peek.includes('<!doctype') || peek.includes('<html') || peek.includes('<head')) {
+          console.error('[proxy] Got HTML instead of EPUB (login/error page):', targetUrl);
+          proxyRes.destroy();
+          if (!res.headersSent) {
+            return res.status(422).json({
+              error: 'borrow_required',
+              detail: 'Received HTML instead of EPUB — item may require login or borrowing',
+              source_url: targetUrl,
+            });
+          }
+          return;
+        }
+
+        // Validate ZIP/PK signature
+        if (firstChunk[0] !== 0x50 || firstChunk[1] !== 0x4B) {
+          console.error('[proxy] Invalid EPUB: not a ZIP file (first bytes:', firstChunk[0]?.toString(16), firstChunk[1]?.toString(16), '):', targetUrl);
+          proxyRes.destroy();
+          if (!res.headersSent) {
+            return res.status(422).json({ error: 'Invalid EPUB (not a ZIP archive)', detail: 'File signature mismatch' });
+          }
+          return;
+        }
+
+        // Signature OK — send headers and stream
+        validated = true;
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Content-Type', 'application/epub+zip');
+        if (proxyRes.headers['content-length']) {
+          res.setHeader('Content-Length', proxyRes.headers['content-length']);
+        }
+
+        res.write(firstChunk);
+        proxyRes.pipe(res);
+      });
+
+      proxyRes.on('end', () => {
+        if (!validated && !res.headersSent) {
+          res.status(422).json({ error: 'Empty response from upstream' });
+        }
+      });
     });
     
     proxyReq.on('error', (err) => {
@@ -225,6 +264,13 @@ router.get('/api/proxy/pdf', async (req, res) => {
       const meta = await fetchArchiveMetadata(archiveParam);
       if (!meta || !meta.files) {
         return res.status(404).json({ error: 'Archive metadata not found' });
+      }
+
+      // Borrow-required / DRM check
+      const borrowCheck = isBorrowRequiredArchive(meta.metadata, meta.files, meta);
+      if (borrowCheck.borrowRequired || borrowCheck.encryptedOnly) {
+        console.warn('[pdf] Borrow/DRM detected for archive:', archiveParam, borrowCheck.reason);
+        return res.redirect(302, `https://archive.org/details/${encodeURIComponent(archiveParam)}`);
       }
       
       const bestPdf = pickBestArchivePdf(meta.files);
@@ -304,22 +350,72 @@ router.get('/api/proxy/pdf', async (req, res) => {
       
       const upstreamContentLength = proxyRes.headers['content-length'];
       console.log('[pdf] Upstream status:', proxyRes.statusCode, 'content-length:', upstreamContentLength || 'chunked');
-      
-      // Set response headers - force correct content type
+
+      // --- Size guard: reject obviously huge PDFs before streaming ---
+      const MAX_PDF_PROXY_BYTES = (parseInt(process.env.MAX_PDF_PROXY_MB) || 200) * 1024 * 1024;
+      if (upstreamContentLength && Number(upstreamContentLength) > MAX_PDF_PROXY_BYTES) {
+        console.warn('[pdf] Content-Length exceeds limit:', upstreamContentLength, 'for', targetUrl);
+        proxyRes.destroy();
+        const externalUrl = urlParam || (archiveId ? `https://archive.org/details/${archiveId}` : targetUrl);
+        return res.redirect(302, externalUrl);
+      }
+
+      // --- Content validation for non-Range (full) requests: check first chunk ---
+      if (!rangeHeader) {
+        let validated = false;
+        proxyRes.once('data', (firstChunk) => {
+          // Check for HTML error / login page
+          const peek = Buffer.from(firstChunk).toString('utf-8', 0, Math.min(200, firstChunk.length)).toLowerCase();
+          if (peek.includes('<!doctype') || peek.includes('<html') || peek.includes('<head')) {
+            console.error('[pdf] Got HTML instead of PDF (login/error page):', targetUrl);
+            proxyRes.destroy();
+            if (!res.headersSent) {
+              const externalUrl = urlParam || (archiveId ? `https://archive.org/details/${archiveId}` : targetUrl);
+              return res.redirect(302, externalUrl);
+            }
+            return;
+          }
+
+          // Validate %PDF signature
+          if (firstChunk[0] !== 0x25 || firstChunk[1] !== 0x50 || firstChunk[2] !== 0x44 || firstChunk[3] !== 0x46) {
+            console.error('[pdf] Invalid PDF: missing %PDF signature (first bytes:', Array.from(firstChunk.slice(0,4)).map(b=>b.toString(16)).join(' '), '):', targetUrl);
+            proxyRes.destroy();
+            if (!res.headersSent) {
+              const externalUrl = urlParam || (archiveId ? `https://archive.org/details/${archiveId}` : targetUrl);
+              return res.redirect(302, externalUrl);
+            }
+            return;
+          }
+
+          validated = true;
+          // Signature OK — send headers + first chunk + pipe rest
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', 'inline; filename="document.pdf"');
+          res.setHeader('Cache-Control', 'public, max-age=3600');
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          res.setHeader('Accept-Ranges', 'bytes');
+          if (upstreamContentLength) res.setHeader('Content-Length', upstreamContentLength);
+          res.status(200);
+          res.write(firstChunk);
+          proxyRes.pipe(res);
+        });
+
+        proxyRes.on('end', () => {
+          if (!validated && !res.headersSent) {
+            res.status(422).json({ error: 'Empty PDF response from upstream' });
+          }
+        });
+        return; // handled via events above
+      }
+
+      // --- Range requests: stream directly (already validated by initial full fetch) ---
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="document.pdf"');
-      res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache PDFs for 1 hour
+      res.setHeader('Cache-Control', 'public, max-age=3600');
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      
-      // Always advertise Range support
       res.setHeader('Accept-Ranges', 'bytes');
-      
-      // Forward relevant headers from upstream
-      if (upstreamContentLength) {
-        res.setHeader('Content-Length', upstreamContentLength);
-      }
-      
-      // Handle 206 Partial Content responses
+      if (upstreamContentLength) res.setHeader('Content-Length', upstreamContentLength);
+
       if (proxyRes.statusCode === 206) {
         if (proxyRes.headers['content-range']) {
           res.setHeader('Content-Range', proxyRes.headers['content-range']);
@@ -329,8 +425,7 @@ router.get('/api/proxy/pdf', async (req, res) => {
       } else {
         res.status(200);
       }
-      
-      // Stream the response
+
       proxyRes.pipe(res);
     });
     

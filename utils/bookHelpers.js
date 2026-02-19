@@ -244,4 +244,133 @@ function buildOpenUrl(meta, ref) {
   return '/open?' + params.toString();
 }
 
-module.exports = { canonicalBookKey, extractArchiveId, stripPrefixes, buildOpenUrl, normalizeMeta, isNumericOnly };
+/**
+ * Check if an Archive.org file entry is encrypted / DRM-protected.
+ * Catches: _encrypted, _lcp, drm, protected, acsm patterns.
+ * @param {object} f - { name, format }
+ * @returns {boolean}
+ */
+function isEncryptedFile(f) {
+  const name = (f?.name || '').toLowerCase();
+  const format = (f?.format || '').toLowerCase();
+
+  return (
+    name.includes('_encrypted') ||
+    name.includes('lcp') ||
+    name.endsWith('_lcp.epub') ||
+    name.includes('drm') ||
+    name.includes('protected') ||
+    name.endsWith('.acsm') ||
+    format.includes('lcp') ||
+    format.includes('protected') ||
+    format.includes('drm') ||
+    format.includes('adobe') ||
+    format.includes('acsm') ||
+    format.includes('encrypted')
+  );
+}
+
+/**
+ * Determine if an Archive.org metadata object represents a borrow-only item.
+ * @param {object} meta       - item-level metadata (.metadata from IA API)
+ * @param {Array}  files      - file list (.files from IA API), optional
+ * @param {object} fullMeta   - full IA metadata response, optional
+ * @returns {{ borrowRequired: boolean, encryptedOnly: boolean, reason: string|null }}
+ */
+function isBorrowRequiredArchive(meta, files, fullMeta) {
+  if (!meta && !fullMeta) return { borrowRequired: false, encryptedOnly: false, reason: null };
+
+  const m = meta || (fullMeta && fullMeta.metadata) || {};
+  const f = files || (fullMeta && fullMeta.files) || [];
+
+  // 1. access-restricted-item
+  const restricted = m['access-restricted-item'];
+  if (restricted === true || restricted === 'true' || restricted === 1 || restricted === '1') {
+    return { borrowRequired: true, encryptedOnly: false, reason: 'access_restricted' };
+  }
+
+  // 2. Collection-based: borrow-only collections without open collections
+  const collections = Array.isArray(m.collection) ? m.collection : (m.collection ? [m.collection] : []);
+  const borrowCollections = ['inlibrary', 'printdisabled', 'lending', 'borrowable', 'lendingebooks', 'internetarchivebooks'];
+  const openCollections = ['opensource', 'gutenberg', 'millionbooks', 'americana', 'fedlink'];
+  const inBorrow = collections.some(c => borrowCollections.includes(String(c).toLowerCase()));
+  const inOpen = collections.some(c => openCollections.includes(String(c).toLowerCase()));
+  if (inBorrow && !inOpen) {
+    return { borrowRequired: true, encryptedOnly: false, reason: 'borrow_collection' };
+  }
+
+  // 3. Lending status
+  const lendStatus = String(m.lending___status || '').toLowerCase();
+  if (lendStatus.includes('borrow') || lendStatus.includes('lending') || lendStatus.includes('waitlist')) {
+    return { borrowRequired: true, encryptedOnly: false, reason: 'lending_status' };
+  }
+
+  // 4. Files: check if ALL epub/pdf files are encrypted
+  if (Array.isArray(f) && f.length > 0) {
+    const readableFiles = f.filter(file => {
+      const nm = (file.name || '').toLowerCase();
+      const fmt = (file.format || '').toLowerCase();
+      const isEpub = nm.endsWith('.epub') || fmt === 'epub' || fmt.startsWith('epub ');
+      const isPdf = nm.endsWith('.pdf') || fmt === 'pdf' || fmt.includes('text pdf');
+      return (isEpub || isPdf) && !isEncryptedFile(file);
+    });
+    if (readableFiles.length === 0) {
+      // Check if there were any epub/pdf at all (just all encrypted)
+      const anyEpubPdf = f.some(file => {
+        const nm = (file.name || '').toLowerCase();
+        const fmt = (file.format || '').toLowerCase();
+        return nm.endsWith('.epub') || nm.endsWith('.pdf') || fmt === 'epub' || fmt === 'pdf' || fmt.includes('text pdf');
+      });
+      if (anyEpubPdf) {
+        return { borrowRequired: false, encryptedOnly: true, reason: 'all_files_encrypted' };
+      }
+    }
+  }
+
+  return { borrowRequired: false, encryptedOnly: false, reason: null };
+}
+
+/**
+ * Score relevance of a book result against a search query.
+ * Returns 0-100: higher = more relevant. Items scoring below threshold should be demoted/dropped.
+ * @param {object} book - { title, author, subjects, description }
+ * @param {string} query - original search query
+ * @returns {number}
+ */
+function scoreRelevance(book, query) {
+  if (!query) return 50;
+  const tokens = query.toLowerCase().split(/\s+/).filter(t => t.length >= 3);
+  if (!tokens.length) return 50;
+
+  const title = (typeof book.title === 'string' ? book.title : '').toLowerCase();
+  const author = (typeof book.author === 'string' ? book.author : '').toLowerCase();
+  const subjects = (Array.isArray(book.subjects) ? book.subjects.join(' ') : (typeof book.subjects === 'string' ? book.subjects : '')).toLowerCase();
+  const description = (typeof book.description === 'string' ? book.description : '').toLowerCase();
+
+  let score = 0;
+  let titleHits = 0;
+  let authorHits = 0;
+  let subjectHits = 0;
+  let descHits = 0;
+
+  for (const tok of tokens) {
+    if (title.includes(tok)) { titleHits++; score += 25; }
+    if (author.includes(tok)) { authorHits++; score += 15; }
+    if (subjects.includes(tok)) { subjectHits++; score += 15; }
+    if (description.includes(tok)) { descHits++; score += 5; }
+  }
+
+  // Bonus: all tokens in title
+  if (titleHits === tokens.length) score += 20;
+  // Bonus: all tokens hit somewhere
+  const totalHits = Math.min(titleHits, 1) + Math.min(authorHits, 1) + Math.min(subjectHits, 1) + Math.min(descHits, 1);
+  if (totalHits === 0) score = 0;
+
+  return Math.min(100, score);
+}
+
+module.exports = {
+  canonicalBookKey, extractArchiveId, stripPrefixes, buildOpenUrl,
+  normalizeMeta, isNumericOnly, isEncryptedFile, isBorrowRequiredArchive,
+  scoreRelevance,
+};
