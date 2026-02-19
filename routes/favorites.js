@@ -6,7 +6,7 @@ const { ensureAuthenticated } = require('../middleware/auth');
 const { ensureSubscriber } = require('../utils/gate');
 const { buildReaderToken } = require('../utils/buildReaderToken');
 const supabase = require('../lib/supabaseServer');
-const { extractArchiveId, buildOpenUrl, normalizeMeta, isNumericOnly, stripPrefixes } = require('../utils/bookHelpers');
+const { extractArchiveId, buildOpenUrl, normalizeMeta, isNumericOnly, stripPrefixes, isBorrowRequiredArchive, isEncryptedFile } = require('../utils/bookHelpers');
 
 // Safe fetch: use globalThis.fetch (Node 18+) or dynamic import node-fetch
 const fetchFn = globalThis.fetch
@@ -35,9 +35,8 @@ async function resolveArchiveFile(identifier) {
         const name = f.name.toLowerCase();
         const format = (f.format || '').toLowerCase();
         
-        // Skip protected/DRM files
-        if (name.includes('lcp') || name.includes('drm') || name.includes('protected') ||
-            name.endsWith('.acsm') || format.includes('lcp') || format.includes('drm')) continue;
+        // Skip protected/DRM/encrypted files
+        if (isEncryptedFile(f)) continue;
         
         const sizeMB = parseInt(f.size || 0) / 1e6;
         
@@ -69,6 +68,13 @@ async function resolveArchiveFile(identifier) {
     if (!meta || !meta.files) {
       console.log(`[favorites/resolveArchive] id=${identifier} found=none (no metadata)`);
       return { ok: false, source_url: sourceUrl };
+    }
+
+    // Check borrow-required / encrypted-only
+    const borrowCheck = isBorrowRequiredArchive(meta.metadata, meta.files, meta);
+    if (borrowCheck.borrowRequired || borrowCheck.encryptedOnly) {
+      console.log(`[favorites/resolveArchive] id=${identifier} ${borrowCheck.reason}`);
+      return { ok: false, source_url: sourceUrl, borrow_required: borrowCheck.borrowRequired, encrypted_only: borrowCheck.encryptedOnly, reason: borrowCheck.reason };
     }
     
     const bestFile = pickBestArchiveFileFn(meta.files);
@@ -307,7 +313,20 @@ router.get('/open', ensureSubscriber, async (req, res) => {
       const resolved = await resolveArchiveFile(archiveId);
 
       if (!resolved.ok) {
-        console.warn(`[open] Archive resolution failed for: ${archiveId}`);
+        console.warn(`[open] Archive resolution failed for: ${archiveId} reason=${resolved.reason || 'unknown'}`);
+        // If borrow-required or encrypted, redirect to /external with a clean message
+        if (resolved.borrow_required || resolved.encrypted_only) {
+          const extParams = new URLSearchParams({
+            url: `https://archive.org/details/${archiveId}`,
+            title: title,
+            author: author,
+            reason: resolved.borrow_required ? 'borrow_required' : 'encrypted_only',
+            archive_id: archiveId,
+            ref: ref,
+          });
+          if (cover) extParams.set('cover_url', cover);
+          return res.redirect(`/external?${extParams.toString()}`);
+        }
         return res.status(404).render('error', {
           pageTitle: 'Book Not Found',
           statusCode: 404,
@@ -354,6 +373,17 @@ router.get('/open', ensureSubscriber, async (req, res) => {
           });
           return res.redirect(`/unified-reader?token=${encodeURIComponent(token)}&ref=${encodeURIComponent(ref)}`);
         }
+        // Borrow-required → redirect to /external
+        if (resolved.borrow_required || resolved.encrypted_only) {
+          const extParams = new URLSearchParams({
+            url: `https://archive.org/details/${realArchiveId}`,
+            title, author,
+            reason: resolved.borrow_required ? 'borrow_required' : 'encrypted_only',
+            archive_id: realArchiveId, ref,
+          });
+          if (cover) extParams.set('cover_url', cover);
+          return res.redirect(`/external?${extParams.toString()}`);
+        }
       }
       // Still no luck — show error
       return res.status(404).render('error', {
@@ -391,6 +421,17 @@ router.get('/open', ensureSubscriber, async (req, res) => {
           best_pdf: resolved.best_pdf || null
         });
         return res.redirect(`/unified-reader?token=${encodeURIComponent(token)}&ref=${encodeURIComponent(ref)}`);
+      }
+      // Borrow-required → redirect to /external
+      if (resolved.borrow_required || resolved.encrypted_only) {
+        const extParams = new URLSearchParams({
+          url: `https://archive.org/details/${archive_id}`,
+          title, author,
+          reason: resolved.borrow_required ? 'borrow_required' : 'encrypted_only',
+          archive_id, ref,
+        });
+        if (cover) extParams.set('cover_url', cover);
+        return res.redirect(`/external?${extParams.toString()}`);
       }
       // fall through to other strategies
     }

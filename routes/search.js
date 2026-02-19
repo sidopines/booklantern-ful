@@ -3,7 +3,7 @@ const express = require('express');
 const { LRUCache } = require('lru-cache');
 const { ensureSubscriberApi } = require('../utils/gate');
 const { buildReaderToken } = require('../utils/buildReaderToken');
-const { buildOpenUrl, normalizeMeta } = require('../utils/bookHelpers');
+const { buildOpenUrl, normalizeMeta, scoreRelevance } = require('../utils/bookHelpers');
 const { batchCheckReadability } = require('../lib/archiveMetadata');
 const gutenberg = require('../lib/sources/gutenberg');
 const openlibrary = require('../lib/sources/openlibrary');
@@ -325,21 +325,36 @@ async function handleSearch(req, res) {
     const uniqueBooks = deduplicate(normalizedBooks);
     
     console.log(`[search] after dedup: ${uniqueBooks.length} unique books`);
+
+    // --- Relevance scoring: drop garbage results ---
+    const RELEVANCE_THRESHOLD = 10; // minimum score to keep
+    const scored = uniqueBooks.map(book => ({
+      ...book,
+      _relevance: scoreRelevance(book, q),
+    }));
+    const relevant = scored.filter(b => b._relevance >= RELEVANCE_THRESHOLD);
+    const droppedCount = scored.length - relevant.length;
+    if (droppedCount > 0) {
+      console.log(`[search] relevance filter: dropped ${droppedCount} items below threshold ${RELEVANCE_THRESHOLD}`);
+    }
     
     // Check readability for Archive.org items using metadata + probing
     // This determines readable=true/false/maybe for each IA item
-    const withReadability = await batchCheckReadability(uniqueBooks, 20);
+    const withReadability = await batchCheckReadability(relevant, 20);
     
     console.log(`[search] after readability check: ${withReadability.length} items`);
     
-    // Sort by readability: true > maybe > false
-    // This ensures "working" items appear first
+    // Sort by readability: true > maybe > false, then by relevance, then by provider priority
     withReadability.sort((a, b) => {
       const order = { 'true': 0, 'maybe': 1, 'false': 2 };
       const aOrder = order[a.readable] ?? 1;
       const bOrder = order[b.readable] ?? 1;
       if (aOrder !== bOrder) return aOrder - bOrder;
-      // Within same readability, preserve provider priority
+      // Within same readability, sort by relevance descending
+      const aRel = a._relevance || 0;
+      const bRel = b._relevance || 0;
+      if (aRel !== bRel) return bRel - aRel;
+      // Then by provider priority
       const aPriority = PROVIDER_PRIORITY[a.provider] || 99;
       const bPriority = PROVIDER_PRIORITY[b.provider] || 99;
       return aPriority - bPriority;

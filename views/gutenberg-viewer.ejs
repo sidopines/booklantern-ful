@@ -154,7 +154,30 @@
       try{
         setStatus('Fetching content…');
         const proxied = `/read/gutenberg/${encodeURIComponent(gid)}/proxy?u=${encodeURIComponent(startUrl)}`;
-        const raw = await fetch(proxied, { credentials:'omit' }).then(r => r.text());
+        const resp = await fetch(proxied, { credentials:'omit' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const raw = await resp.text();
+
+        // Validate: reject obvious error pages, Cloudflare blocks, or JSON errors
+        const trimmed = raw.trim().toLowerCase();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          // JSON error response
+          console.warn('[gutenberg] Received JSON instead of HTML');
+          setStatus('Could not load book content. Use "Open original" to read on Gutenberg.');
+          return;
+        }
+        if (raw.length < 200) {
+          console.warn('[gutenberg] Response too short:', raw.length, 'bytes');
+          setStatus('Book content appears empty. Use "Open original".');
+          return;
+        }
+        // Check for Cloudflare / captcha / access-denied patterns
+        if (trimmed.includes('attention required') || trimmed.includes('captcha') || trimmed.includes('access denied') || trimmed.includes('403 forbidden')) {
+          console.warn('[gutenberg] Blocked response detected');
+          setStatus('Content blocked by upstream server. Use "Open original".');
+          return;
+        }
+
         const doc = new DOMParser().parseFromString(raw, 'text/html');
 
         // Prefer our injected wrapper if present; else try common article containers; else body

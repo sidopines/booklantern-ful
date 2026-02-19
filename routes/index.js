@@ -253,7 +253,7 @@ router.get('/read', require('../utils/gate').ensureSubscriber, async (req, res) 
         .order('created_at', { ascending: false })
         .limit(12);
 
-      staffPicks = data.map((r) => toReaderCard(r));
+      staffPicks = (data || []).map((r) => toReaderCard(r));
     } catch (e) {
       console.error('[read] staff picks load failed:', e);
       staffPicks = [];

@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { ensureSubscriberApi } = require('../utils/gate');
-const { buildOpenUrl, normalizeMeta, isNumericOnly, stripPrefixes } = require('../utils/bookHelpers');
+const { canonicalBookKey, buildOpenUrl, normalizeMeta, isNumericOnly, stripPrefixes } = require('../utils/bookHelpers');
 
 // Supabase client for database operations
 const supabase = require('../lib/supabaseServer');
@@ -169,16 +169,26 @@ router.delete('/continue/:bookKey', ensureSubscriberApi, async (req, res) => {
       return res.status(401).json({ ok: false, error: 'auth_required' });
     }
 
-    const { bookKey } = req.params;
-    if (!bookKey) {
+    const rawBookKey = req.params.bookKey;
+    if (!rawBookKey) {
       return res.status(400).json({ ok: false, error: 'bookKey required' });
+    }
+
+    // Try deleting by exact key first, then by normalized variants
+    const bookKey = decodeURIComponent(rawBookKey);
+    const variants = new Set([bookKey]);
+    const stripped = stripPrefixes(bookKey);
+    if (stripped && stripped !== bookKey) {
+      variants.add(stripped);
+      variants.add('bl-book-' + stripped);
+      variants.add('archive-' + stripped);
     }
 
     const { error } = await supabase
       .from('reading_progress_v2')
       .delete()
       .eq('user_id', userId)
-      .eq('book_key', bookKey);
+      .in('book_key', [...variants]);
 
     if (error) {
       console.error('[reading/continue DELETE] supabase error:', error);
