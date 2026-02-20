@@ -1,10 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('../partials/head.ejs', {
-    pageTitle: 'Admin • Video Genres',
-    pageDescription: 'Create, rename, and delete genres used to filter videos.'
-  }) %>
+  <%- include('../partials/head', { pageTitle: 'Admin • Video Genres' }) %>
   <style>
     :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --brand:#111; --brandHover:#333; --danger:#b42318; }
     *{ box-sizing:border-box; }
@@ -40,7 +37,7 @@
   </style>
 </head>
 <body>
-  <%- include('../partials/navbar.ejs') %>
+  <%- include('../partials/navbar') %>
   <main>
     <div class="crumbs">
       <a href="/admin">← Admin</a>
@@ -61,7 +58,7 @@
       <!-- Add -->
       <section class="card">
         <h2>Add Genre</h2>
-        <form class="row" method="POST" action="/admin/genres">
+        <form class="row" method="POST" action="/admin/video-genres">
           <input type="text" name="name" placeholder="e.g., Interviews" required>
           <button class="btn" type="submit">Add</button>
         </form>
@@ -88,11 +85,11 @@
                   <td><%= g.name %></td>
                   <td><%= g.usage %> video<%= g.usage === 1 ? '' : 's' %></td>
                   <td>
-                    <form method="POST" action="/admin/genres/<%= g.id %>/rename" style="margin-right:8px;">
+                    <form method="POST" action="/admin/video-genres/<%= g.id %>/rename" style="margin-right:8px;">
                       <input type="text" name="name" value="<%= g.name %>" required>
                       <button class="btn small" type="submit">Rename</button>
                     </form>
-                    <form method="POST" action="/admin/genres/<%= g.id %>/delete" onsubmit="return confirm('Delete “<%= g.name %>”? This removes its tags from videos.');">
+                    <form method="POST" action="/admin/video-genres/<%= g.id %>/delete" onsubmit="return confirm('Delete “<%= g.name %>”? This removes its tags from videos.');">
                       <button class="btn small danger" type="submit">Delete</button>
                     </form>
                   </td>
@@ -108,5 +105,7 @@
       <a href="/admin" class="btn outline">← Back to Admin</a>
     </div>
   </main>
+
+  <%- include('../partials/footer') %>
 </body>
 </html>

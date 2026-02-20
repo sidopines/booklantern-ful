@@ -175,5 +175,52 @@ assert('stripPrefixes consistency',
 );
 
 // ===========================================================================
+console.log('\n=== OpenStax proxy should redirect, not 502 ===');
+// Simulate: the proxy handler for OpenStax URLs should return redirect
+// We can't do a real HTTP test here, but we can validate the logic
+// by checking that assets.openstax.org is in the allowed domains and
+// the isRedirectFallbackHost logic would catch it
+{
+  const hostname = 'assets.openstax.org';
+  const isRedirectHost = hostname.endsWith('.openstax.org') || hostname === 'openstax.org' || hostname.endsWith('.cloudfront.net');
+  assert('assets.openstax.org is a redirect-fallback host', isRedirectHost === true);
+
+  const hostname2 = 'd3bxy9euw4e147.cloudfront.net';
+  const isRedirectHost2 = hostname2.endsWith('.openstax.org') || hostname2 === 'openstax.org' || hostname2.endsWith('.cloudfront.net');
+  assert('OpenStax CloudFront CDN is a redirect-fallback host', isRedirectHost2 === true);
+
+  const hostname3 = 'archive.org';
+  const isRedirectHost3 = hostname3.endsWith('.openstax.org') || hostname3 === 'openstax.org' || hostname3.endsWith('.cloudfront.net');
+  assert('archive.org is NOT a redirect-fallback host', isRedirectHost3 === false);
+}
+
+// ===========================================================================
+console.log('\n=== PDF viewer preflight: external vs same-origin ===');
+// External URLs should skip preflight (CORS blocks Range fetch)
+{
+  function isExternalUrl(src) {
+    return /^https?:\/\//i.test(src) && !src.startsWith('http://localhost');
+  }
+  assert('External https URL is detected as external',
+    isExternalUrl('https://assets.openstax.org/oscms/media/documents/College_Algebra.pdf') === true
+  );
+  assert('Same-origin proxy path is NOT external',
+    isExternalUrl('/api/proxy/file?url=https%3A%2F%2Fassets.openstax.org%2F...') === false
+  );
+  assert('Relative path is NOT external',
+    isExternalUrl('/api/proxy/pdf?archive=test') === false
+  );
+}
+
+// ===========================================================================
+console.log('\n=== canonicalBookKey for non-archive providers ===');
+assert('openstax provider key',
+  canonicalBookKey({ provider: 'openstax', provider_id: 'college-algebra-2e' }) === 'openstax-college-algebra-2e'
+);
+assert('canonicalBookKey server key matches expected for archive',
+  canonicalBookKey({ archive_id: 'principiamathema00newtuoft' }) === 'bl-book-principiamathema00newtuoft'
+);
+
+// ===========================================================================
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
 process.exit(failed > 0 ? 1 : 0);

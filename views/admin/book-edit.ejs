@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('../partials/head'); %>
-  <title>Admin • Edit book</title>
+  <%- include('../partials/head', { pageTitle: 'Admin • Edit Book' }) %>
   <style>
     .admin-wrap{max-width:980px;margin:24px auto 64px;}
     .card{border:1px solid #eee;border-radius:12px;padding:16px;background:#fff}
@@ -17,7 +16,7 @@
   </style>
 </head>
 <body>
-  <%- include('../partials/header'); %>
+  <%- include('../partials/navbar') %>
 
   <main class="admin-wrap">
     <a class="link" href="/admin/books">← Back to books</a>
@@ -86,6 +85,6 @@
     </section>
   </main>
 
-  <%- include('../partials/footer'); %>
+  <%- include('../partials/footer') %>
 </body>
 </html>

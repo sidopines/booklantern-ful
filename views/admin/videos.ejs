@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('../partials/header'); %>
-  <title>Admin • Videos</title>
+  <%- include('../partials/head', { pageTitle: 'Admin • Videos' }) %>
   <style>
     .wrap{max-width:1040px;margin:24px auto;padding:0 16px}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
@@ -26,7 +25,7 @@
   </style>
 </head>
 <body>
-  <%- include('../partials/navbar'); %>
+  <%- include('../partials/navbar') %>
   <main class="wrap">
     <h1 style="margin:8px 0 16px;">Admin · Videos</h1>
 
@@ -126,7 +125,7 @@
     </div>
   </main>
 
-  <%- include('../partials/footer'); %>
+  <%- include('../partials/footer') %>
 
   <script>
     // --- derive YouTube thumbnail if user types a YT URL ---

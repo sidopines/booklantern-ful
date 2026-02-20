@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('../partials/head', { pageTitle: 'Admin • BookLantern' }); %>
-  <title>Admin • BookLantern</title>
+  <%- include('../partials/head', { pageTitle: 'Admin • BookLantern' }) %>
   <style>
     .container{max-width:1100px;margin:0 auto;padding:0 16px;}
     .page-title{font-size:28px;font-weight:700;margin-bottom:16px;}
@@ -12,7 +11,7 @@
   </style>
 </head>
 <body>
-  <%- include('../partials/header'); %>
+  <%- include('../partials/navbar') %>
 
   <main class="container" style="padding:24px 0 64px;">
     <h1 class="page-title">Admin Dashboard</h1>
@@ -60,6 +59,6 @@
     </section>
   </main>
 
-  <%- include('../partials/footer'); %>
+  <%- include('../partials/footer') %>
 </body>
 </html>
