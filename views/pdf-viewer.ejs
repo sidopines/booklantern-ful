@@ -53,70 +53,44 @@
         var loading = document.getElementById('pdf-loading');
         var fallback = document.getElementById('pdf-fallback');
 
-        // Determine if src is same-origin (proxy) or external URL
-        var isExternal = /^https?:\/\//i.test(src) && !src.startsWith(window.location.origin);
-
-        function showIframe(url) {
-          loading.style.display = 'none';
-          frame.style.display = 'block';
-          frame.style.width = '100%';
-          frame.style.height = '100%';
-          frame.style.border = '0';
-          frame.style.background = '#1f2937';
-          frame.src = url + (url.includes('#') ? '' : '#view=FitH');
-        }
-
-        function showFallback() {
-          loading.style.display = 'none';
-          fallback.style.display = 'block';
-        }
-
-        if (isExternal) {
-          // External URL: skip preflight (CORS would block Range fetch)
-          // Just iframe it directly — browser handles cross-origin PDF rendering
-          console.log('[pdf-viewer] External URL, skipping preflight:', src.substring(0, 80));
-          showIframe(src);
-        } else {
-          // Same-origin (proxy): preflight to validate %PDF signature
-          fetch(src, { method: 'GET', headers: { Range: 'bytes=0-15' }, credentials: 'omit' })
-            .then(function(r){
-              // Handle JSON redirect response from proxy (OpenStax fallback)
-              var ct = (r.headers.get('content-type') || '').toLowerCase();
-              if (ct.includes('application/json')) {
-                return r.json().then(function(data) {
-                  if (data && data.redirect) {
-                    console.log('[pdf-viewer] Proxy returned redirect, iframing:', data.redirect);
-                    showIframe(data.redirect);
-                    return null; // skip further processing
-                  }
-                  throw new Error('Unexpected JSON from proxy');
-                });
-              }
-              // Handle 302 redirect (browser follows automatically, but check status)
-              if (!r.ok && r.status !== 206) throw new Error('HTTP ' + r.status);
-              return r.arrayBuffer();
-            })
-            .then(function(buf){
-              if (!buf) return; // already handled (JSON redirect)
-              var bytes = new Uint8Array(buf);
-              // %PDF = 0x25 0x50 0x44 0x46
-              if (bytes.length >= 4 && bytes[0]===0x25 && bytes[1]===0x50 && bytes[2]===0x44 && bytes[3]===0x46) {
-                // Valid PDF — show iframe
-                showIframe(src);
-              } else {
-                // Not a valid PDF — check if it's HTML (error page)
-                var text = '';
-                try { text = new TextDecoder().decode(bytes).toLowerCase(); } catch(e){}
-                console.warn('[pdf-viewer] Invalid PDF signature:', Array.from(bytes.slice(0,4)).map(function(b){return b.toString(16)}).join(' '), text.slice(0,50));
-                showFallback();
-              }
-            })
-            .catch(function(err){
-              console.warn('[pdf-viewer] Preflight failed:', err);
-              // Fallback: try loading anyway (might work for some servers that block Range)
-              showIframe(src);
-            });
-        }
+        // Preflight: fetch first bytes and check for %PDF signature
+        fetch(src, { method: 'GET', headers: { Range: 'bytes=0-15' }, credentials: 'omit' })
+          .then(function(r){
+            if (!r.ok && r.status !== 206) throw new Error('HTTP ' + r.status);
+            return r.arrayBuffer();
+          })
+          .then(function(buf){
+            var bytes = new Uint8Array(buf);
+            // %PDF = 0x25 0x50 0x44 0x46
+            if (bytes.length >= 4 && bytes[0]===0x25 && bytes[1]===0x50 && bytes[2]===0x44 && bytes[3]===0x46) {
+              // Valid PDF — show iframe
+              loading.style.display = 'none';
+              frame.style.display = 'block';
+              frame.style.width = '100%';
+              frame.style.height = '100%';
+              frame.style.border = '0';
+              frame.style.background = '#1f2937';
+              frame.src = src + '#view=FitH';
+            } else {
+              // Not a valid PDF — check if it's HTML (error page)
+              var text = '';
+              try { text = new TextDecoder().decode(bytes).toLowerCase(); } catch(e){}
+              console.warn('[pdf-viewer] Invalid PDF signature:', Array.from(bytes.slice(0,4)).map(function(b){return b.toString(16)}).join(' '), text.slice(0,50));
+              loading.style.display = 'none';
+              fallback.style.display = 'block';
+            }
+          })
+          .catch(function(err){
+            console.warn('[pdf-viewer] Preflight failed:', err);
+            // Fallback: try loading anyway (might work for some servers that block Range)
+            loading.style.display = 'none';
+            frame.style.display = 'block';
+            frame.style.width = '100%';
+            frame.style.height = '100%';
+            frame.style.border = '0';
+            frame.style.background = '#1f2937';
+            frame.src = src + '#view=FitH';
+          });
       })();
       </script>
     <% } else { %>

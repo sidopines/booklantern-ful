@@ -14,11 +14,10 @@ function requireUser(req, res, next) {
 /**
  * Inline PDF viewer
  * Usage: /read/pdf?src=<absolute-pdf-url>&title=<optional>
- *   or:  /pdf-viewer?src=<absolute-pdf-url>&title=<optional>
  * We render views/pdf-viewer.ejs which embeds the PDF (iframes),
  * and shows an "Open externally" button if embedding is blocked.
  */
-function handlePdfViewer(req, res) {
+router.get('/read/pdf', requireUser, (req, res) => {
   const src = typeof req.query.src === 'string' ? req.query.src : '';
   const title = typeof req.query.title === 'string' ? req.query.title : 'PDF';
   return res.render('pdf-viewer', {
@@ -27,9 +26,6 @@ function handlePdfViewer(req, res) {
     pdfUrl: src,
     query: req.query
   });
-}
-
-router.get('/read/pdf', requireUser, handlePdfViewer);
-router.get('/pdf-viewer', requireUser, handlePdfViewer);
+});
 
 module.exports = router;

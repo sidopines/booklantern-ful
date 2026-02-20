@@ -10,30 +10,6 @@
     const safeFiles = (typeof files === 'object' && files) ? files : null;
     const safeArchiveId = (typeof archiveId === 'string' && archiveId) ? archiveId : '';
     const safeCoverUrl = (typeof coverUrl === 'string' && coverUrl) ? coverUrl : '';
-
-    /* ── Compute primary reader URLs ── */
-    let bestPdfViewerUrl = '';
-    let bestEpubViewerUrl = '';
-    if (safeFiles) {
-      if (safeFiles.pdfs && safeFiles.pdfs.length > 0) {
-        const pdf = safeFiles.pdfs[0];
-        if (safeArchiveId && pdf.name) {
-          const directPdfUrl = 'https://archive.org/download/' + safeArchiveId + '/' + pdf.name;
-          bestPdfViewerUrl = '/pdf-viewer?src=' + encodeURIComponent(directPdfUrl) + '&title=' + encodeURIComponent(safeBookTitle || 'PDF');
-        }
-      }
-      if (safeFiles.epubs && safeFiles.epubs.length > 0) {
-        const epub = safeFiles.epubs[0];
-        if (safeArchiveId && epub.name) {
-          const epubUrl = 'https://archive.org/download/' + safeArchiveId + '/' + epub.name;
-          bestEpubViewerUrl = '/api/proxy/epub?url=' + encodeURIComponent(epubUrl);
-        }
-      }
-    }
-    /* For non-archive external URLs pointing to a PDF */
-    if (!bestPdfViewerUrl && safeExternalUrl && safeExternalUrl.toLowerCase().endsWith('.pdf')) {
-      bestPdfViewerUrl = '/pdf-viewer?src=' + encodeURIComponent(safeExternalUrl) + '&title=' + encodeURIComponent(safeBookTitle || 'PDF');
-    }
   %>
   <%- include('partials/head', { pageTitle: safeTitle, title: safeTitle }) %>
   <body class="page">
@@ -74,10 +50,8 @@
         <h1 style="font-size: 22px; font-weight: 600; margin-bottom: 12px; color: #1a1a1a;">
           <% if (safeReason) { %>
             <%= safeReason %>
-          <% } else if (bestPdfViewerUrl || bestEpubViewerUrl) { %>
-            Read on BookLantern
           <% } else if (safeFiles && (safeFiles.pdfs?.length || safeFiles.epubs?.length)) { %>
-            Read on BookLantern
+            Available files for download
           <% } else { %>
             No readable format available
           <% } %>
@@ -86,49 +60,28 @@
         <p style="color: #6b7280; font-size: 15px; line-height: 1.6;">
           <% if (safeReason && safeReason.includes('borrow')) { %>
             This edition is protected and requires borrowing from the source library.
-          <% } else if (bestPdfViewerUrl || bestEpubViewerUrl) { %>
-            This book is available to read right here in your browser.
+          <% } else if (safeFiles && (safeFiles.pdfs?.length || safeFiles.epubs?.length)) { %>
+            We couldn't render this book in the browser, but you can download the files below.
           <% } else { %>
             We couldn't find a PDF or EPUB file to display. Try searching for a different edition.
           <% } %>
         </p>
       </div>
-
-      <!-- Primary on-site reader actions -->
-      <% if (bestPdfViewerUrl || bestEpubViewerUrl) { %>
-      <div style="display: flex; flex-direction: column; gap: 12px; align-items: center; margin-bottom: 32px;">
-        <% if (bestPdfViewerUrl) { %>
-          <a href="<%= bestPdfViewerUrl %>" class="btn" style="display: inline-flex; align-items: center; gap: 8px; font-size: 16px; padding: 12px 28px;">
-            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-            </svg>
-            Read PDF in browser
-          </a>
-        <% } %>
-        <% if (bestEpubViewerUrl) { %>
-          <a href="<%= bestEpubViewerUrl %>" 
-             style="color: #4f46e5; font-size: 14px; display: inline-flex; align-items: center; gap: 4px; text-decoration: underline;">
-            Try EPUB in browser
-          </a>
-        <% } %>
-      </div>
-      <% } %>
       
-      <!-- Download files accordion (low emphasis) -->
+      <!-- Available files section -->
       <% if (safeFiles && (safeFiles.pdfs?.length || safeFiles.epubs?.length)) { %>
-      <details style="background: #f9fafb; border-radius: 12px; padding: 4px 20px; margin-bottom: 32px;">
-        <summary style="cursor: pointer; padding: 12px 0; font-size: 14px; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; list-style: none; display: flex; align-items: center; gap: 8px;">
-          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transition: transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-          Download Files
-        </summary>
+      <div style="background: #f9fafb; border-radius: 12px; padding: 20px; margin-bottom: 32px;">
+        <h3 style="margin: 0 0 16px; font-size: 14px; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.5px;">
+          Available Files
+        </h3>
         
-        <div style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 16px;">
+        <div style="display: flex; flex-direction: column; gap: 12px;">
           <% if (safeFiles.epubs && safeFiles.epubs.length > 0) { %>
             <% safeFiles.epubs.slice(0, 3).forEach(function(epub) { %>
               <% 
                 const sizeMB = Math.round((epub.size || 0) / 1e6);
                 const downloadUrl = safeArchiveId 
-                  ? 'https://archive.org/download/' + safeArchiveId + '/' + epub.name
+                  ? '/api/proxy/file?url=' + encodeURIComponent('https://archive.org/download/' + safeArchiveId + '/' + epub.name)
                   : '#';
               %>
               <a href="<%= downloadUrl %>" 
@@ -148,7 +101,7 @@
               <% 
                 const sizeMB = Math.round((pdf.size || 0) / 1e6);
                 const downloadUrl = safeArchiveId 
-                  ? 'https://archive.org/download/' + safeArchiveId + '/' + pdf.name
+                  ? '/api/proxy/file?url=' + encodeURIComponent('https://archive.org/download/' + safeArchiveId + '/' + pdf.name)
                   : '#';
               %>
               <a href="<%= downloadUrl %>" 
@@ -163,7 +116,7 @@
             <% }); %>
           <% } %>
         </div>
-      </details>
+      </div>
       <% } %>
       
       <!-- Actions -->

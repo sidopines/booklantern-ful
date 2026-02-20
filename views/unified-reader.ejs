@@ -19,7 +19,6 @@
   var safeCover = (typeof cover === 'string' && cover) ? cover : '';
   var safeCategory = (typeof category === 'string' && category) ? category : '';
   var safeQuery = (typeof query === 'string' && query) ? query : (typeof q === 'string' && q) ? q : '';
-  var safeBookKey = (typeof serverBookKey === 'string' && serverBookKey) ? serverBookKey : '';
 %>
 <!doctype html>
 <html lang="en">
@@ -34,7 +33,7 @@
   <script defer src="/public/vendor/epub.min.js?v=<%= buildId || Date.now() %>"></script>
   <% } %>
 </head>
-<body data-page="reader" data-epub="<%= useEpubJs %>" data-pdf="<%= usePdfViewer %>" data-format="<%= safeFormat %>" data-is-admin="<%= (user && user.isAdmin) ? 'true' : 'false' %>" data-show-source-links="<%= process.env.SHOW_SOURCE_LINKS === 'true' ? 'true' : 'false' %>" data-max-epub-mb="<%= process.env.MAX_EPUB_MB || 50 %>" data-max-pdf-mb="<%= process.env.MAX_PDF_MB || 200 %>" data-file-size="<%= safeFileSize %>" data-too-large="<%= isTooLarge %>" data-available-files="<%= safeAvailableFiles %>" data-archive-id="<%= safeArchiveId %>" data-best-pdf="<%= safeBestPdf %>" data-book-title="<%= safeTitle %>" data-book-author="<%= safeAuthor %>" data-book-cover="<%= safeCover %>" data-book-source="<%= safeSource %>" data-book-category="<%= safeCategory %>" data-source-url="<%= safeSourceUrl %>" data-search-query="<%= safeQuery %>" data-book-key="<%= safeBookKey %>">
+<body data-page="reader" data-epub="<%= useEpubJs %>" data-pdf="<%= usePdfViewer %>" data-format="<%= safeFormat %>" data-is-admin="<%= (user && user.isAdmin) ? 'true' : 'false' %>" data-show-source-links="<%= process.env.SHOW_SOURCE_LINKS === 'true' ? 'true' : 'false' %>" data-max-epub-mb="<%= process.env.MAX_EPUB_MB || 50 %>" data-max-pdf-mb="<%= process.env.MAX_PDF_MB || 200 %>" data-file-size="<%= safeFileSize %>" data-too-large="<%= isTooLarge %>" data-available-files="<%= safeAvailableFiles %>" data-archive-id="<%= safeArchiveId %>" data-best-pdf="<%= safeBestPdf %>" data-book-title="<%= safeTitle %>" data-book-author="<%= safeAuthor %>" data-book-cover="<%= safeCover %>" data-book-source="<%= safeSource %>" data-book-category="<%= safeCategory %>" data-source-url="<%= safeSourceUrl %>" data-search-query="<%= safeQuery %>">
   
   <header class="reader-topbar">
     <a 
