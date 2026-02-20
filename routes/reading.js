@@ -231,7 +231,6 @@ router.delete('/continue', ensureSubscriberApi, async (req, res) => {
 /**
  * GET /api/reading/progress/:bookKey
  * Get saved progress for a specific book
- * Tries the exact key, then canonical variants (bl-book-X, stripped X) for resilience
  */
 router.get('/progress/:bookKey', ensureSubscriberApi, async (req, res) => {
   try {
@@ -240,31 +239,20 @@ router.get('/progress/:bookKey', ensureSubscriberApi, async (req, res) => {
       return res.status(401).json({ ok: false, error: 'auth_required' });
     }
 
-    const bookKey = decodeURIComponent(req.params.bookKey);
-
-    // Build key variants for lookup resilience
-    const variants = new Set([bookKey]);
-    const stripped = stripPrefixes(bookKey);
-    if (stripped && stripped !== bookKey) {
-      variants.add(stripped);
-      variants.add('bl-book-' + stripped);
-      variants.add('archive-' + stripped);
-    }
+    const { bookKey } = req.params;
     
-    const { data: rows, error } = await supabase
+    const { data: progress, error } = await supabase
       .from('reading_progress_v2')
       .select('*')
       .eq('user_id', userId)
-      .in('book_key', [...variants])
-      .order('updated_at', { ascending: false })
-      .limit(1);
+      .eq('book_key', bookKey)
+      .single();
 
-    if (error) {
+    if (error && error.code !== 'PGRST116') {
       console.error('[reading/progress/:bookKey] supabase error:', error);
       return res.status(500).json({ ok: false, error: 'database_error' });
     }
 
-    const progress = rows && rows.length > 0 ? rows[0] : null;
     if (!progress) {
       return res.json({ ok: true, found: false });
     }

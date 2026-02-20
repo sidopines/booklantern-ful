@@ -4,7 +4,6 @@ const { URL } = require('url');
 const { ensureSubscriber, ensureSubscriberApi } = require('../utils/gate');
 const { verifyReaderToken } = require('../utils/buildReaderToken');
 const supabaseAdmin = require('../supabaseAdmin');
-const { canonicalBookKey } = require('../utils/bookHelpers');
 
 const router = express.Router();
 
@@ -1245,23 +1244,6 @@ router.get('/external', async (req, res) => {
     }
   }
   
-  // Log what the /external page will offer
-  const hasPdf = !!(files && files.pdfs && files.pdfs.length);
-  const hasEpub = !!(files && files.epubs && files.epubs.length);
-  if (hasPdf) {
-    const pdfName = files.pdfs[0].name;
-    const pdfViewerUrl = archiveId
-      ? '/pdf-viewer?src=' + encodeURIComponent('https://archive.org/download/' + archiveId + '/' + pdfName)
-      : (url && url.toLowerCase().endsWith('.pdf') ? '/pdf-viewer?src=' + encodeURIComponent(url) : '');
-    console.log('[external] Read-on-site: PDF viewer offered, url:', pdfViewerUrl || '(external link only)');
-  }
-  if (hasEpub) {
-    console.log('[external] Read-on-site: EPUB option offered, file:', files.epubs[0].name);
-  }
-  if (!hasPdf && !hasEpub) {
-    console.log('[external] No on-site reader available, reason:', reason || 'none', 'url:', url);
-  }
-
   res.render('external', {
     pageTitle: bookTitle || 'External Content',
     externalUrl: url,
@@ -1359,15 +1341,6 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
                    (directUrl && directUrl.toLowerCase().includes('.epub'));
     const isPdf = format && format.toLowerCase() === 'pdf';
     
-    // Compute canonical book key server-side so client always uses the same key
-    const serverBookKey = canonicalBookKey({
-      archive_id: archiveId || '',
-      provider: data.provider || data.source || 'unknown',
-      provider_id: data.provider_id || '',
-      title: data.title || '',
-      author: data.author || '',
-    });
-
     return res.render('unified-reader', {
       title: data.title || 'Book',
       author: data.author || '',
@@ -1389,8 +1362,7 @@ router.get('/unified-reader', ensureSubscriber, async (req, res) => {
       backHref: ref || '/read',
       ref,
       user: req.user || null,
-      buildId: Date.now(),
-      serverBookKey, // canonical key for progress persistence
+      buildId: Date.now()
     });
   } catch (e) {
     console.error('[unified-reader] error', e);
@@ -2171,24 +2143,6 @@ async function handleFileProxy(req, res) {
     }
     res.status(status).type('text/plain').send(msg);
   }
-
-  // Helper: check if target is a host that frequently blocks server-side proxying
-  // (OpenStax Cloudflare, etc) — prefer redirect fallback for these
-  function isRedirectFallbackHost(hostname) {
-    return hostname.endsWith('.openstax.org') || hostname === 'openstax.org' ||
-           hostname.endsWith('.cloudfront.net');
-  }
-
-  // Helper: send redirect or JSON redirect depending on client Accept header
-  // This keeps user on BookLantern by returning a URL the PDF viewer can iframe
-  function sendRedirectFallback(url) {
-    console.log('[file-proxy] Proxy redirect fallback (not 502):', url);
-    const acceptJson = (req.headers.accept || '').includes('application/json');
-    if (acceptJson) {
-      return res.status(200).json({ redirect: url });
-    }
-    return res.redirect(302, url);
-  }
   
   try {
     // First attempt with full headers
@@ -2200,12 +2154,9 @@ async function handleFileProxy(req, res) {
       response = await fetchWithTimeout(targetUrl, 60000, buildHeaders(true));
     }
     
-    // If upstream fails: for known problematic hosts, redirect instead of 502
+    // If upstream fails, return 502 (NEVER redirect to external URL - would violate CSP)
     if (!response.ok && response.status !== 206) {
       console.error('[file-proxy] Upstream error:', response.status, targetUrl);
-      if (isRedirectFallbackHost(parsed.hostname.toLowerCase())) {
-        return sendRedirectFallback(targetUrl);
-      }
       return sendError(502, 'Upstream error: ' + response.status);
     }
 
@@ -2313,10 +2264,7 @@ async function handleFileProxy(req, res) {
   } catch (err) {
     console.error('[file-proxy] Error:', err.message);
     if (!res.headersSent) {
-      // For known problematic hosts (OpenStax etc), redirect instead of 502
-      if (isRedirectFallbackHost(parsed.hostname.toLowerCase())) {
-        return sendRedirectFallback(targetUrl);
-      }
+      // Always return 502 - NEVER redirect to external URL (would violate CSP)
       const acceptJson = (req.headers.accept || '').includes('application/json');
       const errorMsg = err.name === 'AbortError' 
         ? 'Request timeout - file may be too large or upstream too slow'
