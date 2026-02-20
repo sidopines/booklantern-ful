@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('../partials/head'); %>
-  <title>Admin • Books</title>
+  <%- include('../partials/head', { pageTitle: 'Admin • Books' }) %>
   <style>
     .admin-wrap{max-width:980px;margin:24px auto 64px;}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -26,7 +25,7 @@
   </style>
 </head>
 <body>
-  <%- include('../partials/header'); %>
+  <%- include('../partials/navbar') %>
 
   <main class="admin-wrap">
     <h1>Admin • Books</h1>
@@ -142,7 +141,13 @@
                 <a class="btn link" href="/admin/books/<%- b.id %>">Edit</a>
                 <form method="POST" action="/admin/books/delete" style="display:inline;">
                   <input type="hidden" name="id" value="<%- b.id %>">
-                  <button class="btn danger" type="submit" onclick="return confirm('Delete “<%- (b.title || '').replace(/\"/g, '&quot;') %>”? This cannot be undone.');">Delete</button>
+                  <button
+                    class="btn danger"
+                    type="submit"
+                    onclick="return confirm('Delete ' + <%- JSON.stringify(b.title || '') %> + '? This cannot be undone.');"
+                  >
+                    Delete
+                  </button>
                 </form>
               </td>
             </tr>
@@ -153,6 +158,6 @@
     </section>
   </main>
 
-  <%- include('../partials/footer'); %>
+  <%- include('../partials/footer') %>
 </body>
 </html>

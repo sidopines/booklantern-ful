@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('../partials/head', { pageTitle: 'Admin • Users' }); %>
-  <title>Admin • Users</title>
+  <%- include('../partials/head', { pageTitle: 'Admin • Users' }) %>
   <style>
     .admin-wrap{max-width:1100px;margin:24px auto 64px;padding:0 16px;}
     .card{border:1px solid #eee;border-radius:12px;padding:16px;background:#fff;margin-bottom:20px;}
@@ -30,7 +29,7 @@
   </style>
 </head>
 <body>
-  <%- include('../partials/header'); %>
+  <%- include('../partials/navbar') %>
 
   <main class="admin-wrap">
     <h1>Admin • Users</h1>
@@ -90,6 +89,6 @@
     </section>
   </main>
 
-  <%- include('../partials/footer'); %>
+  <%- include('../partials/footer') %>
 </body>
 </html>

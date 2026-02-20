@@ -1,10 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('../partials/head.ejs', {
-    pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : 'Admin • Book Genres',
-    pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : 'Manage book genres/shelves'
-  }) %>
+  <%- include('../partials/head', { pageTitle: 'Admin • Book Genres' }) %>
   <style>
     :root { --bg:#f6f7fb; --text:#111; --muted:#667085; --card:#ffffff; --border:#e5e7eb; --link:#1256b3; --brand:#111; --brandHover:#333; --danger:#b42318; }
     * { box-sizing: border-box; }
@@ -50,7 +47,7 @@
   </style>
 </head>
 <body>
-  <%- include('../partials/navbar.ejs') %>
+  <%- include('../partials/navbar') %>
 
   <main>
     <div class="crumbs">
@@ -111,5 +108,7 @@
       <a href="/admin" class="btn outline">← Back to Admin</a>
     </div>
   </main>
+
+  <%- include('../partials/footer') %>
 </body>
 </html>

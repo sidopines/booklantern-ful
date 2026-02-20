@@ -313,7 +313,12 @@
     const dataFormat = (document.body.getAttribute('data-format') || '').toLowerCase();
     
     // Generate bookKey early for favorites (PDF and iframe modes)
-    if (archiveId) {
+    // Prefer server-computed canonical key (ensures consistency with favorites/progress)
+    const serverBookKey = document.body.getAttribute('data-book-key');
+    if (serverBookKey && serverBookKey.length > 0) {
+      bookKey = serverBookKey;
+      tsLog('Using server-canonical bookKey:', bookKey);
+    } else if (archiveId) {
       bookKey = 'bl-book-' + archiveId;
     } else {
       // Try to generate from source URL
@@ -788,8 +793,13 @@
   /**
    * Generate stable book key for localStorage
    * Prevents double-prefixing by checking if prefix already exists
+   * Prefers server-computed canonical key when available
    */
   function generateBookKey(epubUrl, archiveId) {
+    // Prefer server-canonical key for consistency with favorites/progress
+    const serverKey = document.body.getAttribute('data-book-key');
+    if (serverKey && serverKey.length > 0) return serverKey;
+
     if (archiveId) {
       // Strip any existing bl-book- prefix to prevent duplication
       let cleanId = archiveId;
@@ -1576,10 +1586,19 @@
             savedLocation = trimmed;
             tsLog('Valid saved location found:', savedLocation.substring(0, 50) + '...');
           } else {
-            tsLog('WARNING: Saved location looks invalid, ignoring:', trimmed.substring(0, 30));
+            // Invalid stored location — clear it so it doesn't pollute future opens
+            tsLog('WARNING: Saved location looks invalid, clearing:', trimmed.substring(0, 30));
+            console.warn('[reader] EPUB restore location ignored (invalid format):', trimmed.substring(0, 40));
+            try { localStorage.removeItem(bookKey + '-loc'); } catch (_) {}
           }
         } else {
-          tsLog('No valid saved location (empty/short/undefined)');
+          if (rawSavedLocation) {
+            tsLog('WARNING: Saved location too short/non-string, ignoring');
+            console.warn('[reader] EPUB restore location ignored (invalid value):', typeof rawSavedLocation, String(rawSavedLocation).substring(0, 20));
+            try { localStorage.removeItem(bookKey + '-loc'); } catch (_) {}
+          } else {
+            tsLog('No saved location');
+          }
         }
         
         // Helper: display with Promise.race timeout and safe fallback
@@ -1597,8 +1616,10 @@
               displayPromise = rendition.display();
             }
           } catch (displayErr) {
-            // If display() throws synchronously (indexOf error), retry without location
+            // If display() throws synchronously (indexOf error on undefined), retry without location
             tsLog('WARN: display() threw synchronously:', displayErr.message);
+            console.warn('[reader] EPUB restore location ignored (display crash):', location);
+            try { if (bookKey) localStorage.removeItem(bookKey + '-loc'); } catch (_) {}
             try {
               displayPromise = rendition.display();
             } catch (retryErr) {
@@ -1606,6 +1627,18 @@
               return Promise.reject(retryErr);
             }
           }
+          
+          // Wrap displayPromise to catch indexOf / undefined errors from epub.js internals
+          displayPromise = displayPromise.catch(function(err) {
+            var msg = (err && err.message) || String(err);
+            if (msg.includes('indexOf') || msg.includes('Cannot read properties of undefined') || msg.includes('Cannot read properties of null')) {
+              tsLog('WARN: display() async crash (indexOf/undef), falling back to start:', msg);
+              console.warn('[reader] EPUB restore location ignored (async crash):', location);
+              try { if (bookKey) localStorage.removeItem(bookKey + '-loc'); } catch (_) {}
+              return rendition.display();
+            }
+            throw err;
+          });
           
           const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => reject(new Error('DISPLAY_TIMEOUT')), timeoutMs);
