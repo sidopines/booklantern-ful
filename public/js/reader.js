@@ -316,6 +316,17 @@
     // Use canonical bl:<provider>:<provider_id> format
     var source = document.body.getAttribute('data-book-source') || 'unknown';
     var providerId = document.body.getAttribute('data-provider-id') || '';
+    // P0: Strip bl:<provider>: prefix if data-provider-id was polluted
+    var blPrefixMatch = providerId.match(/^bl:([^:]+):(.+)$/);
+    if (blPrefixMatch) {
+      console.log('[reader] Stripped bl: prefix from data-provider-id:', providerId);
+      if (source === 'unknown') source = blPrefixMatch[1];
+      providerId = blPrefixMatch[2];
+      // Recursively strip double-prefix
+      while ((blPrefixMatch = providerId.match(/^bl:([^:]+):(.+)$/))) {
+        providerId = blPrefixMatch[2];
+      }
+    }
     if (archiveId) {
       let cleanId = archiveId;
       while (cleanId.startsWith('bl-book-')) cleanId = cleanId.slice(8);
@@ -803,18 +814,26 @@
    */
   function generateBookKey(epubUrl, archiveId) {
     if (archiveId) {
-      // Strip any existing bl-book- prefix to prevent duplication
+      // Strip any existing bl-book- or bl:archive: prefix to prevent duplication
       let cleanId = archiveId;
       while (cleanId.startsWith('bl-book-')) {
         cleanId = cleanId.slice(8); // 'bl-book-'.length = 8
       }
+      var blm = cleanId.match(/^bl:([^:]+):(.+)$/);
+      if (blm) cleanId = blm[2];
       return 'bl:archive:' + cleanId;
     }
     // Try to use provider + provider_id from data attributes
     var source = document.body.getAttribute('data-book-source') || 'unknown';
-    var providerId = document.body.getAttribute('data-provider-id') || '';
-    if (source && source !== 'unknown' && providerId) {
-      return 'bl:' + source + ':' + providerId;
+    var pid = document.body.getAttribute('data-provider-id') || '';
+    // P0: strip bl: prefix from provider_id to prevent double-prefix
+    var pidBl = pid.match(/^bl:([^:]+):(.+)$/);
+    if (pidBl) {
+      if (source === 'unknown') source = pidBl[1];
+      pid = pidBl[2];
+    }
+    if (source && source !== 'unknown' && pid) {
+      return 'bl:' + source + ':' + pid;
     }
     // Use URL hash as fallback
     let hash = 0;
@@ -904,9 +923,24 @@
     // Build the /open URL that can reopen this book (Bug A: store enough to reconstruct)
     var providerId = document.body.getAttribute('data-provider-id') || '';
     var archId = document.body.getAttribute('data-archive-id') || '';
+    // P0: Strip bl: prefix from provider_id and archive_id if polluted
+    var pidBlMatch = providerId.match(/^bl:([^:]+):(.+)$/);
+    if (pidBlMatch) providerId = pidBlMatch[2];
+    var aidBlMatch = archId.match(/^bl:([^:]+):(.+)$/);
+    if (aidBlMatch) archId = aidBlMatch[2];
     var openParams = new URLSearchParams();
     openParams.set('provider', meta.source || 'unknown');
-    openParams.set('provider_id', providerId || archId || bookKey);
+    // P0: Never use bookKey as provider_id — always use raw providerId
+    var rawPid = providerId || archId || '';
+    // Guard: strip bl: prefix if somehow present
+    var pidMatch = rawPid.match(/^bl:([^:]+):(.+)$/);
+    if (pidMatch) rawPid = pidMatch[2];
+    // Last resort: if rawPid is empty, extract from bookKey but strip prefix
+    if (!rawPid && bookKey) {
+      var bkMatch = bookKey.match(/^bl:([^:]+):(.+)$/);
+      rawPid = bkMatch ? bkMatch[2] : bookKey;
+    }
+    openParams.set('provider_id', rawPid);
     if (archId) openParams.set('archive_id', archId);
     if (meta.title) openParams.set('title', meta.title);
     if (meta.author) openParams.set('author', meta.author);

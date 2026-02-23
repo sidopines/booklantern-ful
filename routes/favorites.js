@@ -6,7 +6,7 @@ const { ensureAuthenticated } = require('../middleware/auth');
 const { ensureSubscriber } = require('../utils/gate');
 const { buildReaderToken } = require('../utils/buildReaderToken');
 const supabase = require('../lib/supabaseServer');
-const { extractArchiveId, buildOpenUrl, normalizeMeta, isNumericOnly, stripPrefixes, isBorrowRequiredArchive, isEncryptedFile, repairFavoriteMeta } = require('../utils/bookHelpers');
+const { extractArchiveId, buildOpenUrl, normalizeMeta, isNumericOnly, stripPrefixes, isBorrowRequiredArchive, isEncryptedFile, repairFavoriteMeta, ensureRawProviderId, stripBlPrefix } = require('../utils/bookHelpers');
 
 // Safe fetch: use globalThis.fetch (Node 18+) or dynamic import node-fetch
 const fetchFn = globalThis.fetch
@@ -167,9 +167,12 @@ router.get('/favorites', ensureSubscriber, async (req, res) => {
     const favorites = (items || []).map(item => {
       // Repair favorites with unknown source on-the-fly
       const repaired = repairFavoriteMeta(item);
+      // P0: Always use raw provider_id (never bookKey) for open links
+      let provId = repaired._provider_id || item.book_key;
+      provId = ensureRawProviderId(provId, 'favorites/list');
       const meta = {
         provider: repaired.source || item.source,
-        provider_id: repaired._provider_id || item.book_key,
+        provider_id: provId,
         title: item.title,
         author: item.author,
         cover: item.cover,
@@ -238,10 +241,23 @@ router.get('/open', ensureSubscriber, async (req, res) => {
     }
 
     // ── Self-heal metadata via normalizeMeta ──
+    // P0: Strip bl:<provider>: prefix from provider_id and archive_id to fix polluted inputs
+    let rawProviderId = req.query.provider_id || '';
+    const pidStripped = stripBlPrefix(rawProviderId);
+    if (pidStripped) {
+      console.log(`[open] STRIPPED polluted provider_id: "${rawProviderId}" → "${pidStripped.rawId}"`);
+      rawProviderId = pidStripped.rawId;
+    }
+    let rawArchiveId = req.query.archive_id || '';
+    const aidStripped = stripBlPrefix(rawArchiveId);
+    if (aidStripped) {
+      console.log(`[open] STRIPPED polluted archive_id: "${rawArchiveId}" → "${aidStripped.rawId}"`);
+      rawArchiveId = aidStripped.rawId;
+    }
     const raw = {
       provider:    req.query.provider || 'unknown',
-      provider_id: req.query.provider_id || '',
-      archive_id:  req.query.archive_id || '',
+      provider_id: rawProviderId,
+      archive_id:  rawArchiveId,
       source_url:  rawSourceUrl,
       direct_url:  req.query.direct_url || '',
       title:       req.query.title || 'Untitled',
