@@ -140,8 +140,9 @@ document.addEventListener('DOMContentLoaded', () => {
           const url = item.openUrl || item.readerUrl || '#';
           const progress = item.progress || 0;
           const safeKey = (item.bookKey || '').replace(/"/g, '&quot;');
+          const isUnavailable = item.availability === 'unavailable' || (!item.openUrl && !item.readerUrl);
           return `
-            <a href="${url}" class="shelf-card" data-book-key="${safeKey}">
+            <a href="${isUnavailable ? '#' : url}" class="shelf-card" data-book-key="${safeKey}" style="${isUnavailable ? 'opacity:0.6;' : ''}">
               <button class="shelf-card-remove" data-remove-continue="${safeKey}" aria-label="Remove" title="Remove">&times;</button>
               <div class="card-cover">
                 <img src="${cover}" alt="" loading="lazy" data-fallback="/public/img/cover-fallback.svg">
@@ -209,8 +210,11 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = data.items.map(item => {
           const cover = item.cover || '/public/img/cover-fallback.svg';
           const url = item.openUrl || item.readerUrl || '#';
+          const isUnavailable = item.availability === 'unavailable' || (!item.openUrl && !item.readerUrl);
+          const badge = isUnavailable ? '<span style="position:absolute;top:4px;right:4px;background:#dc2626;color:white;font-size:10px;padding:2px 6px;border-radius:4px;">Unavailable</span>' : '';
           return `
-            <a href="${url}" class="shelf-card">
+            <a href="${isUnavailable ? '#' : url}" class="shelf-card" style="position:relative;${isUnavailable ? 'opacity:0.6;' : ''}">
+              ${badge}
               <div class="card-cover">
                 <img src="${cover}" alt="" loading="lazy" data-fallback="/public/img/cover-fallback.svg">
               </div>
@@ -265,6 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const author = btn.dataset.author || (card && card.dataset.author) || '';
     const cover = btn.dataset.cover || (card && card.dataset.cover) || '';
     const readerUrl = btn.dataset.readerUrl || '';
+    const source = btn.dataset.source || (card && card.dataset.provider) || '';
     
     const isFavorited = btn.classList.contains('favorited');
     
@@ -274,6 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
       credentials: 'include',
       body: JSON.stringify({
         bookKey: bookKey,
+        source: source,
         title: title,
         author: author,
         cover: cover,
@@ -316,14 +322,15 @@ document.addEventListener('DOMContentLoaded', () => {
   
   /**
    * Generate a bookKey from item data
-   * Uses bl-book-<archive_id> for archive items (matches reader.js)
+   * Uses canonical bl:<provider>:<provider_id> format
    */
   function generateBookKey(item) {
-    if (item.archive_id && !isNumericOnly(item.archive_id)) return 'bl-book-' + item.archive_id;
+    if (item.archive_id && !isNumericOnly(item.archive_id)) return 'bl:archive:' + item.archive_id;
     if (item.identifier && !isNumericOnly(item.identifier) && (item.provider === 'archive' || (item.source_url || '').includes('archive.org')))
-      return 'bl-book-' + item.identifier;
-    if (item.identifier) return item.provider + '-' + item.identifier;
-    if (item.id) return item.provider + '-' + item.id;
+      return 'bl:archive:' + item.identifier;
+    var provider = item.provider || 'unknown';
+    var id = item.identifier || item.id || item.provider_id || '';
+    if (provider !== 'unknown' && id) return 'bl:' + provider + ':' + id;
     // Hash the title+author as fallback
     const str = (item.title || '') + (item.author || '');
     let hash = 0;
@@ -331,7 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
       hash = ((hash << 5) - hash) + str.charCodeAt(i);
       hash |= 0;
     }
-    return 'book-' + Math.abs(hash);
+    return 'bl:unknown:' + Math.abs(hash);
   }
   
   // Helper to extract external URL from item (tries all common field variants)
@@ -634,8 +641,8 @@ document.addEventListener('DOMContentLoaded', () => {
           // 0. If Archive item with identifier -> render as internal archive card
           if (isArchive && archiveId) {
             const escapedCover = (finalCoverUrl || '').replace(/"/g, '&quot;');
-            const bookKey = 'bl-book-' + archiveId;
-            const isFavorited = favoritedBooks.has(bookKey) || favoritedBooks.has('archive-' + archiveId);
+            const bookKey = 'bl:archive:' + archiveId;
+            const isFavorited = favoritedBooks.has(bookKey) || favoritedBooks.has('bl-book-' + archiveId) || favoritedBooks.has('archive-' + archiveId);
             const archiveOpenUrl = '/open?provider=archive&provider_id=' + encodeURIComponent(archiveId) + '&archive_id=' + encodeURIComponent(archiveId) + '&source_url=' + encodeURIComponent('https://archive.org/details/' + archiveId) + '&title=' + encodeURIComponent(escapedTitle) + '&author=' + encodeURIComponent(escapedAuthor) + '&cover=' + encodeURIComponent(escapedCover);
             const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${archiveOpenUrl}" aria-label="Add to favorites">
                               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
@@ -691,7 +698,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const bookKey = generateBookKey(item);
             const isFavorited = favoritedBooks.has(bookKey);
             const escapedCover = (finalCoverUrl || '').replace(/"/g, '&quot;');
-            const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${href}" aria-label="Add to favorites">
+            const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${href}" data-source="${item.provider || ''}" aria-label="Add to favorites">
                               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
                             </button>`;
             return `<a class="book-card readable-card" href="${href}" data-item-idx="${idx}">
@@ -712,8 +719,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Check if it's an Archive URL we can try to resolve
             const possibleArchiveId = extractArchiveId(externalUrl);
             if (possibleArchiveId && !isNumericOnly(possibleArchiveId)) {
-              const bookKey = 'bl-book-' + possibleArchiveId;
-              const isFavorited = favoritedBooks.has(bookKey) || favoritedBooks.has('archive-' + possibleArchiveId);
+              const bookKey = 'bl:archive:' + possibleArchiveId;
+              const isFavorited = favoritedBooks.has(bookKey) || favoritedBooks.has('bl-book-' + possibleArchiveId) || favoritedBooks.has('archive-' + possibleArchiveId);
               const archiveOpenUrl2 = '/open?provider=archive&provider_id=' + encodeURIComponent(possibleArchiveId) + '&archive_id=' + encodeURIComponent(possibleArchiveId) + '&source_url=' + encodeURIComponent('https://archive.org/details/' + possibleArchiveId) + '&title=' + encodeURIComponent(escapedTitle) + '&author=' + encodeURIComponent(escapedAuthor) + '&cover=' + encodeURIComponent(escapedCover);
               const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${archiveOpenUrl2}" aria-label="Add to favorites">
                                 <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>

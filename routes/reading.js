@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { ensureSubscriberApi } = require('../utils/gate');
-const { canonicalBookKey, buildOpenUrl, extractArchiveId, normalizeMeta, isNumericOnly, stripPrefixes } = require('../utils/bookHelpers');
+const { canonicalBookKey, buildOpenUrl, extractArchiveId, normalizeMeta, isNumericOnly, stripPrefixes, bookKeyVariants, repairFavoriteMeta } = require('../utils/bookHelpers');
 
 // Supabase client for database operations
 const supabase = require('../lib/supabaseServer');
@@ -131,7 +131,7 @@ router.get('/continue', ensureSubscriberApi, async (req, res) => {
         const bareKey = stripPrefixes(item.book_key) || item.book_key || '';
         const unavailable = !openUrl || isNumericOnly(bareKey);
         if (unavailable) {
-          console.log(`[reading/continue] filtered unavailable: bookKey=${item.book_key} title="${item.title}"`);
+          console.log(`[reading/continue] unavailable (still returned): bookKey=${item.book_key} title="${item.title}"`);
         }
         return {
           bookKey: item.book_key,
@@ -143,10 +143,10 @@ router.get('/continue', ensureSubscriberApi, async (req, res) => {
           progress: item.progress,
           readerUrl: item.reader_url,
           openUrl: openUrl || null,
-          unavailable: unavailable,
+          availability: unavailable ? 'unavailable' : 'ok',
           updatedAt: item.updated_at
         };
-      }).filter(item => !item.unavailable)
+      }) // Bug B: do NOT filter — return all items
     });
   } catch (err) {
     console.error('[reading/continue] error:', err);
@@ -292,6 +292,19 @@ router.post('/favorite', ensureSubscriberApi, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'bookKey and title required' });
     }
 
+    // Parse provider info from readerUrl if source is unknown (Bug A)
+    if ((!source || source === 'unknown') && readerUrl) {
+      const qIdx = readerUrl.indexOf('?');
+      if (qIdx >= 0) {
+        try {
+          const params = new URLSearchParams(readerUrl.slice(qIdx + 1));
+          if (params.get('provider') && params.get('provider') !== 'unknown') {
+            source = params.get('provider');
+          }
+        } catch (_) {}
+      }
+    }
+
     // Normalize meta before persisting to fix provider=unknown / numeric IDs
     const normalized = normalizeMeta({
       provider: source || 'unknown',
@@ -303,13 +316,15 @@ router.post('/favorite', ensureSubscriberApi, async (req, res) => {
     });
     source = normalized.provider || source || 'unknown';
 
-    // Check if already favorited
+    // Check if already favorited — check canonical key AND legacy variants
+    const variants = bookKeyVariants(bookKey);
     const { data: existing } = await supabase
       .from('reading_favorites')
-      .select('id')
+      .select('id, book_key')
       .eq('user_id', userId)
-      .eq('book_key', bookKey)
-      .single();
+      .in('book_key', variants)
+      .limit(1)
+      .maybeSingle();
     
     if (existing) {
       // Remove favorite (toggle off)
@@ -375,35 +390,40 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
     return res.json({
       ok: true,
       items: (items || []).map(item => {
+        // Repair favorites with unknown source on-the-fly (Bug A)
+        const repaired = repairFavoriteMeta(item);
         // Build /open URL fresh from normalized meta
         const rawMeta = {
-          provider: item.source,
-          provider_id: item.book_key,
+          provider: repaired.source || item.source,
+          provider_id: repaired._provider_id || item.book_key,
           title: item.title,
           author: item.author,
           cover: item.cover,
-          source_url: item.reader_url
+          source_url: item.reader_url,
+          direct_url: repaired._direct_url || ''
         };
         const meta = normalizeMeta(rawMeta);
         const openUrl = buildOpenUrl(meta);
         const bareKey = stripPrefixes(item.book_key) || item.book_key || '';
         const unavailable = !openUrl || isNumericOnly(bareKey);
         if (unavailable) {
-          console.log(`[reading/favorites] filtered unavailable: bookKey=${item.book_key} title="${item.title}"`);
+          console.log(`[reading/favorites] unavailable (still returned): bookKey=${item.book_key} title="${item.title}"`);
         }
         return {
           bookKey: item.book_key,
-          source: item.source,
+          source: repaired.source || item.source,
           title: item.title,
           author: item.author,
           cover: item.cover,
           readerUrl: item.reader_url,
           openUrl: openUrl || null,
-          unavailable: unavailable,
+          availability: unavailable ? 'unavailable' : 'ok',
+          reason: unavailable ? 'cannot_resolve' : null,
+          lastCheckedAt: new Date().toISOString(),
           category: item.category,
           createdAt: item.created_at
         };
-      }).filter(item => !item.unavailable)
+      }) // Bug B: do NOT filter — return all favorites
     });
   } catch (err) {
     console.error('[reading/favorites] error:', err);
@@ -423,12 +443,14 @@ router.get('/favorite/:bookKey', ensureSubscriberApi, async (req, res) => {
     }
 
     const { bookKey } = req.params;
+    const variants = bookKeyVariants(bookKey);
     const { data: existing } = await supabase
       .from('reading_favorites')
       .select('id')
       .eq('user_id', userId)
-      .eq('book_key', bookKey)
-      .single();
+      .in('book_key', variants)
+      .limit(1)
+      .maybeSingle();
 
     return res.json({ ok: true, favorited: !!existing });
   } catch (err) {

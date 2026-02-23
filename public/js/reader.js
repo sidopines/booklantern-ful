@@ -313,10 +313,17 @@
     const dataFormat = (document.body.getAttribute('data-format') || '').toLowerCase();
     
     // Generate bookKey early for favorites (PDF and iframe modes)
+    // Use canonical bl:<provider>:<provider_id> format
+    var source = document.body.getAttribute('data-book-source') || 'unknown';
+    var providerId = document.body.getAttribute('data-provider-id') || '';
     if (archiveId) {
-      bookKey = 'bl-book-' + archiveId;
+      let cleanId = archiveId;
+      while (cleanId.startsWith('bl-book-')) cleanId = cleanId.slice(8);
+      bookKey = 'bl:archive:' + cleanId;
+    } else if (source && source !== 'unknown' && providerId) {
+      bookKey = 'bl:' + source + ':' + providerId;
     } else {
-      // Try to generate from source URL
+      // Try to generate from source URL as hash fallback
       const sourceUrl = document.body.getAttribute('data-source-url') || '';
       if (sourceUrl) {
         let hash = 0;
@@ -324,7 +331,7 @@
           hash = ((hash << 5) - hash) + sourceUrl.charCodeAt(i);
           hash |= 0;
         }
-        bookKey = 'bl-book-' + Math.abs(hash);
+        bookKey = 'bl:unknown:' + Math.abs(hash);
       }
     }
     
@@ -469,6 +476,8 @@
         loaded = true;
         clearTimeout(loadTimeout);
         tsLog('Direct PDF loaded successfully');
+        // Bug D: Start PDF progress tracking
+        startPdfProgressTimer();
       });
       
       pdfFrame.addEventListener('error', function() {
@@ -586,6 +595,8 @@
           pdfLoading.style.display = 'none';
         }
         tsLog('PDF loaded in iframe');
+        // Bug D: Start PDF progress tracking
+        startPdfProgressTimer();
       }, 500);
     });
     
@@ -787,7 +798,8 @@
 
   /**
    * Generate stable book key for localStorage
-   * Prevents double-prefixing by checking if prefix already exists
+   * Uses canonical bl:<provider>:<provider_id> format
+   * Falls back to bl:archive:<archiveId> or bl:unknown:<hash>
    */
   function generateBookKey(epubUrl, archiveId) {
     if (archiveId) {
@@ -796,7 +808,13 @@
       while (cleanId.startsWith('bl-book-')) {
         cleanId = cleanId.slice(8); // 'bl-book-'.length = 8
       }
-      return 'bl-book-' + cleanId;
+      return 'bl:archive:' + cleanId;
+    }
+    // Try to use provider + provider_id from data attributes
+    var source = document.body.getAttribute('data-book-source') || 'unknown';
+    var providerId = document.body.getAttribute('data-provider-id') || '';
+    if (source && source !== 'unknown' && providerId) {
+      return 'bl:' + source + ':' + providerId;
     }
     // Use URL hash as fallback
     let hash = 0;
@@ -804,7 +822,7 @@
       hash = ((hash << 5) - hash) + epubUrl.charCodeAt(i);
       hash |= 0;
     }
-    return 'bl-book-' + Math.abs(hash);
+    return 'bl:unknown:' + Math.abs(hash);
   }
 
   /**
@@ -883,6 +901,20 @@
   async function toggleFavorite() {
     if (!bookKey) return { ok: false };
     const meta = getBookMetadata();
+    // Build the /open URL that can reopen this book (Bug A: store enough to reconstruct)
+    var providerId = document.body.getAttribute('data-provider-id') || '';
+    var archId = document.body.getAttribute('data-archive-id') || '';
+    var openParams = new URLSearchParams();
+    openParams.set('provider', meta.source || 'unknown');
+    openParams.set('provider_id', providerId || archId || bookKey);
+    if (archId) openParams.set('archive_id', archId);
+    if (meta.title) openParams.set('title', meta.title);
+    if (meta.author) openParams.set('author', meta.author);
+    if (meta.cover) openParams.set('cover', meta.cover);
+    var dataFormat = document.body.getAttribute('data-format') || '';
+    if (dataFormat) openParams.set('format', dataFormat);
+    if (meta.sourceUrl) openParams.set('source_url', meta.sourceUrl);
+    var readerOpenUrl = '/open?' + openParams.toString();
     try {
       const response = await fetch('/api/reading/favorite', {
         method: 'POST',
@@ -894,7 +926,7 @@
           title: meta.title,
           author: meta.author,
           cover: meta.cover,
-          readerUrl: '',
+          readerUrl: readerOpenUrl,
           category: meta.category
         })
       });
@@ -987,7 +1019,7 @@
         cover: meta.cover,
         lastLocation: location,
         progress: progress || 0,
-        readerUrl: ''
+        readerUrl: window.location.pathname + window.location.search
       })
     }).catch(err => {
       // Silently fail - progress saving is not critical
@@ -1010,6 +1042,26 @@
         }
       }
     }, PROGRESS_SAVE_INTERVAL_MS);
+  }
+
+  /**
+   * Bug D: Start PDF-specific progress tracking
+   * Since we can't read the page number from a cross-origin PDF iframe,
+   * we save a marker that the user has the PDF open + format=pdf.
+   * On subsequent opens, the viewer will pick up where the last page was.
+   */
+  var pdfProgressTimer = null;
+  function startPdfProgressTimer() {
+    if (pdfProgressTimer) return;
+    if (!bookKey) return;
+    // Save initial PDF open marker
+    var fmt = (document.body.getAttribute('data-format') || 'pdf').toLowerCase();
+    saveProgressToServer('pdf:open:' + fmt, 1);
+    // Periodically save that the user is still reading (every 30s)
+    pdfProgressTimer = setInterval(function() {
+      if (!bookKey) return;
+      saveProgressToServer('pdf:reading:' + fmt, 5);
+    }, 30000);
   }
 
   /**

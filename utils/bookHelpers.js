@@ -13,13 +13,13 @@
 function canonicalBookKey(meta) {
   // 1. Derive the raw archive id (strip every known prefix)
   const rawArchiveId = extractArchiveId(meta);
-  if (rawArchiveId) return 'bl-book-' + rawArchiveId;
+  if (rawArchiveId) return 'bl:archive:' + rawArchiveId;
 
   // 2. Known non-archive provider
   const provider = (meta.provider || meta.source || 'unknown').toLowerCase();
   const id = meta.provider_id || meta.bookKey || meta.book_key || '';
   if (provider && provider !== 'unknown' && id) {
-    return provider + '-' + id;
+    return 'bl:' + provider + ':' + id;
   }
 
   // 3. Fallback: hash title+author
@@ -29,7 +29,106 @@ function canonicalBookKey(meta) {
     hash = ((hash << 5) - hash) + str.charCodeAt(i);
     hash |= 0;
   }
-  return 'book-' + Math.abs(hash);
+  return 'bl:unknown:' + Math.abs(hash);
+}
+
+/**
+ * Generate all plausible bookKey variants (old + new formats) for a given key.
+ * Used for backward-compatible lookups when toggling/checking favorites.
+ * @param {string} key - a bookKey in any format
+ * @returns {string[]} all variant keys to check
+ */
+function bookKeyVariants(key) {
+  if (!key) return [key];
+  const variants = new Set([key]);
+  // Parse bl:<provider>:<id> (new canonical format)
+  const blMatch = key.match(/^bl:([^:]+):(.+)$/);
+  if (blMatch) {
+    const [, provider, id] = blMatch;
+    variants.add(`${provider}-${id}`);
+    if (provider === 'archive') {
+      variants.add(`bl-book-${id}`);
+      variants.add(`archive-${id}`);
+    }
+  }
+  // Parse bl-book-<id> (old archive format)
+  if (key.startsWith('bl-book-')) {
+    const id = key.slice(8);
+    variants.add(`bl:archive:${id}`);
+    variants.add(`archive-${id}`);
+  }
+  // Parse <provider>-<id> (old non-archive format)
+  const dashMatch = key.match(/^(gutenberg|openlibrary|archive|loc|oapen|openstax)-(.+)$/);
+  if (dashMatch) {
+    const [, provider, id] = dashMatch;
+    variants.add(`bl:${provider}:${id}`);
+    if (provider === 'archive') {
+      variants.add(`bl-book-${id}`);
+    }
+  }
+  return [...variants];
+}
+
+/**
+ * Repair favorite metadata on-the-fly.
+ * If source is unknown but reader_url contains /open?provider=..., parse it
+ * to extract the real provider/provider_id.
+ * @param {object} item - DB row from reading_favorites
+ * @returns {object} item with repaired source and _repaired fields
+ */
+function repairFavoriteMeta(item) {
+  if (!item) return item;
+  const result = { ...item };
+  const source = item.source || 'unknown';
+  const readerUrl = item.reader_url || '';
+
+  // If already has a known provider, return as-is
+  if (source !== 'unknown' && source !== '') return result;
+
+  // Try to parse provider info from reader_url (which stores the /open URL)
+  if (readerUrl && (readerUrl.includes('/open?') || readerUrl.includes('provider='))) {
+    try {
+      const qIdx = readerUrl.indexOf('?');
+      if (qIdx >= 0) {
+        const params = new URLSearchParams(readerUrl.slice(qIdx + 1));
+        if (params.get('provider') && params.get('provider') !== 'unknown') {
+          result.source = params.get('provider');
+          result._repaired = true;
+        }
+        if (params.get('provider_id')) {
+          result._provider_id = params.get('provider_id');
+        }
+        if (params.get('direct_url')) {
+          result._direct_url = params.get('direct_url');
+        }
+        if (params.get('format')) {
+          result._format = params.get('format');
+        }
+        if (params.get('source_url')) {
+          result._source_url = params.get('source_url');
+        }
+      }
+    } catch (_) { /* ignore parse errors */ }
+  }
+
+  // Try to parse provider info from book_key (e.g. "gutenberg-12345" or "bl:gutenberg:12345")
+  if (!result._repaired && item.book_key) {
+    const colonMatch = item.book_key.match(/^bl:([^:]+):(.+)$/);
+    if (colonMatch && colonMatch[1] !== 'unknown') {
+      result.source = colonMatch[1];
+      result._provider_id = colonMatch[2];
+      result._repaired = true;
+    } else {
+      const dashMatch = item.book_key.match(/^(gutenberg|openlibrary|archive|loc|oapen|openstax)-(.+)$/);
+      if (dashMatch) {
+        result.source = dashMatch[1];
+        result._provider_id = dashMatch[2];
+        result._repaired = true;
+      }
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -372,5 +471,5 @@ function scoreRelevance(book, query) {
 module.exports = {
   canonicalBookKey, extractArchiveId, stripPrefixes, buildOpenUrl,
   normalizeMeta, isNumericOnly, isEncryptedFile, isBorrowRequiredArchive,
-  scoreRelevance,
+  scoreRelevance, bookKeyVariants, repairFavoriteMeta,
 };
