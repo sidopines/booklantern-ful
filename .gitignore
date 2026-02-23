@@ -19,3 +19,6 @@ node_modules/
 
 # Cache
 .cache/
+
+# Temp scripts
+_commit.sh
