@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { ensureSubscriberApi } = require('../utils/gate');
-const { canonicalBookKey, buildOpenUrl, normalizeMeta, isNumericOnly, stripPrefixes } = require('../utils/bookHelpers');
+const { canonicalBookKey, buildOpenUrl, normalizeMeta, isNumericOnly, stripPrefixes, stripBlPrefix, ensureRawProviderId } = require('../utils/bookHelpers');
 
 // Supabase client for database operations
 const supabase = require('../lib/supabaseServer');
@@ -296,10 +296,18 @@ router.post('/favorite', ensureSubscriberApi, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'bookKey and title required' });
     }
 
+    // P0: Extract raw provider + provider_id from bookKey for storage
+    let rawProviderId = bookKey;
+    const blParsed = stripBlPrefix(bookKey);
+    if (blParsed) {
+      if (!source || source === 'unknown') source = blParsed.provider;
+      rawProviderId = blParsed.rawId;
+    }
+
     // Normalize meta before persisting to fix provider=unknown / numeric IDs
     const normalized = normalizeMeta({
       provider: source || 'unknown',
-      provider_id: bookKey,
+      provider_id: rawProviderId,
       title,
       author: author || '',
       cover: cover || '',
@@ -380,9 +388,12 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
       ok: true,
       items: (items || []).map(item => {
         // Build /open URL fresh from normalized meta
+        // P0: Always use raw provider_id (never bookKey) for open links
+        let provId = item.book_key;
+        provId = ensureRawProviderId(provId, 'reading-sb/favorites');
         const rawMeta = {
           provider: item.source,
-          provider_id: item.book_key,
+          provider_id: provId,
           title: item.title,
           author: item.author,
           cover: item.cover,

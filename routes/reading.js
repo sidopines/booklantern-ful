@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { ensureSubscriberApi } = require('../utils/gate');
-const { canonicalBookKey, buildOpenUrl, extractArchiveId, normalizeMeta, isNumericOnly, stripPrefixes, bookKeyVariants, repairFavoriteMeta } = require('../utils/bookHelpers');
+const { canonicalBookKey, buildOpenUrl, extractArchiveId, normalizeMeta, isNumericOnly, stripPrefixes, bookKeyVariants, repairFavoriteMeta, stripBlPrefix, ensureRawProviderId } = require('../utils/bookHelpers');
 
 // Supabase client for database operations
 const supabase = require('../lib/supabaseServer');
@@ -292,6 +292,15 @@ router.post('/favorite', ensureSubscriberApi, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'bookKey and title required' });
     }
 
+    // P0: Extract raw provider + provider_id from bookKey for storage
+    // bookKey is bl:<provider>:<raw_id>, we need to store raw values
+    let rawProviderId = bookKey;
+    const blParsed = stripBlPrefix(bookKey);
+    if (blParsed) {
+      if (!source || source === 'unknown') source = blParsed.provider;
+      rawProviderId = blParsed.rawId;
+    }
+
     // Parse provider info from readerUrl if source is unknown (Bug A)
     if ((!source || source === 'unknown') && readerUrl) {
       const qIdx = readerUrl.indexOf('?');
@@ -308,7 +317,7 @@ router.post('/favorite', ensureSubscriberApi, async (req, res) => {
     // Normalize meta before persisting to fix provider=unknown / numeric IDs
     const normalized = normalizeMeta({
       provider: source || 'unknown',
-      provider_id: bookKey,
+      provider_id: rawProviderId,
       title,
       author: author || '',
       cover: cover || '',
@@ -393,9 +402,12 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
         // Repair favorites with unknown source on-the-fly (Bug A)
         const repaired = repairFavoriteMeta(item);
         // Build /open URL fresh from normalized meta
+        // P0: Always use raw provider_id (never bookKey) for open links
+        let provId = repaired._provider_id || item.book_key;
+        provId = ensureRawProviderId(provId, 'reading/favorites');
         const rawMeta = {
           provider: repaired.source || item.source,
-          provider_id: repaired._provider_id || item.book_key,
+          provider_id: provId,
           title: item.title,
           author: item.author,
           cover: item.cover,

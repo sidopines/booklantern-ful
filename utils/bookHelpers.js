@@ -2,10 +2,41 @@
 // Shared helpers for canonical book identity and URL building
 
 /**
+ * Strip a bl:<provider>:<rawId> prefix from a value.
+ * Returns { provider, rawId } if stripped, or null if no prefix found.
+ * Also handles double-prefixed values like bl:catalog:bl:catalog:...
+ */
+function stripBlPrefix(value) {
+  if (!value || typeof value !== 'string') return null;
+  const m = value.match(/^bl:([^:]+):(.+)$/);
+  if (!m) return null;
+  let rawId = m[2];
+  // Recursively strip if double-prefixed (bl:x:bl:x:...)
+  const inner = stripBlPrefix(rawId);
+  if (inner) rawId = inner.rawId;
+  return { provider: m[1], rawId };
+}
+
+/**
+ * Ensure a provider_id is raw (no bl: prefix).
+ * If it starts with bl:<provider>:, strip it and return the raw id.
+ * Logs when stripping occurs.
+ */
+function ensureRawProviderId(providerId, label) {
+  if (!providerId || typeof providerId !== 'string') return providerId || '';
+  const parsed = stripBlPrefix(providerId);
+  if (parsed) {
+    console.log(`[bookHelpers] Stripped bl: prefix from provider_id (${label || 'unknown'}): "${providerId}" → "${parsed.rawId}"`);
+    return parsed.rawId;
+  }
+  return providerId;
+}
+
+/**
  * Produce a canonical book key.
- * Archive-backed items always get `bl-book-<archive_id>`.
- * Other providers get `<provider>-<provider_id>`.
- * Prevents duplicates from mixed prefixes (archive-, bl-book-, etc).
+ * Archive-backed items always get `bl:archive:<archive_id>`.
+ * Other providers get `bl:<provider>:<raw_provider_id>`.
+ * Prevents duplicates from mixed prefixes (archive-, bl-book-, bl:, etc).
  *
  * @param {object} meta - { archive_id, provider, provider_id, bookKey }
  * @returns {string} canonical key
@@ -17,7 +48,9 @@ function canonicalBookKey(meta) {
 
   // 2. Known non-archive provider
   const provider = (meta.provider || meta.source || 'unknown').toLowerCase();
-  const id = meta.provider_id || meta.bookKey || meta.book_key || '';
+  let id = meta.provider_id || meta.bookKey || meta.book_key || '';
+  // Guard: strip bl: prefix from id to prevent bl:provider:bl:provider:...
+  id = ensureRawProviderId(id, 'canonicalBookKey');
   if (provider && provider !== 'unknown' && id) {
     return 'bl:' + provider + ':' + id;
   }
@@ -82,8 +115,16 @@ function repairFavoriteMeta(item) {
   const source = item.source || 'unknown';
   const readerUrl = item.reader_url || '';
 
-  // If already has a known provider, return as-is
-  if (source !== 'unknown' && source !== '') return result;
+  // If already has a known provider, still extract _provider_id from book_key if bl: formatted
+  if (source !== 'unknown' && source !== '') {
+    if (item.book_key) {
+      const blParsed = stripBlPrefix(item.book_key);
+      if (blParsed) {
+        result._provider_id = blParsed.rawId;
+      }
+    }
+    return result;
+  }
 
   // Try to parse provider info from reader_url (which stores the /open URL)
   if (readerUrl && (readerUrl.includes('/open?') || readerUrl.includes('provider='))) {
@@ -187,11 +228,15 @@ function extractArchiveId(meta) {
 }
 
 /**
- * Strip bl-book- and archive- prefixes to obtain a bare archive id.
+ * Strip bl-book-, archive-, and bl:archive: prefixes to obtain a bare archive id.
  */
 function stripPrefixes(key) {
   if (!key || typeof key !== 'string') return null;
   let id = key;
+  // Strip bl:<provider>: prefix (new canonical format)
+  const blParsed = stripBlPrefix(id);
+  if (blParsed) id = blParsed.rawId;
+  // Strip legacy prefixes
   while (id.startsWith('bl-book-')) id = id.slice(8);
   if (id.startsWith('archive-')) id = id.slice(8);
   return id || null;
@@ -306,7 +351,7 @@ function buildOpenUrl(meta, ref) {
 
   if (archiveId && !isNumericOnly(archiveId)) {
     params.set('provider', 'archive');
-    params.set('provider_id', archiveId);
+    params.set('provider_id', archiveId);  // archiveId is always raw
     params.set('archive_id', archiveId);
     // Always include source_url for archive so /open can resolve
     if (!n.source_url && !n.sourceUrl) {
@@ -314,7 +359,9 @@ function buildOpenUrl(meta, ref) {
     }
   } else {
     const prov = n.provider || n.source || 'unknown';
-    const pid = n.provider_id || n.bookKey || n.book_key || '';
+    // Ensure provider_id is always raw — never include bl: prefix in URLs
+    let pid = n.provider_id || n.bookKey || n.book_key || '';
+    pid = ensureRawProviderId(pid, 'buildOpenUrl');
     if (prov === 'unknown' && !pid) return null; // unresolvable
     // If provider is 'archive' but the underlying ID (after stripping prefixes) is
     // numeric-only or missing, it's unresolvable — never call archive.org/metadata
@@ -472,4 +519,5 @@ module.exports = {
   canonicalBookKey, extractArchiveId, stripPrefixes, buildOpenUrl,
   normalizeMeta, isNumericOnly, isEncryptedFile, isBorrowRequiredArchive,
   scoreRelevance, bookKeyVariants, repairFavoriteMeta,
+  stripBlPrefix, ensureRawProviderId,
 };

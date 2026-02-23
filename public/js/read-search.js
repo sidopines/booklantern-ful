@@ -330,6 +330,9 @@ document.addEventListener('DOMContentLoaded', () => {
       return 'bl:archive:' + item.identifier;
     var provider = item.provider || 'unknown';
     var id = item.identifier || item.id || item.provider_id || '';
+    // P0: Strip bl: prefix from id to prevent double-prefix
+    var blMatch = (typeof id === 'string') && id.match(/^bl:([^:]+):(.+)$/);
+    if (blMatch) { id = blMatch[2]; if (provider === 'unknown') provider = blMatch[1]; }
     if (provider !== 'unknown' && id) return 'bl:' + provider + ':' + id;
     // Hash the title+author as fallback
     const str = (item.title || '') + (item.author || '');
