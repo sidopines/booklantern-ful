@@ -265,8 +265,11 @@
           const openUrl = item.openUrl || '/read';
           const title = escapeHtml(item.title || 'Untitled');
           const author = escapeHtml(item.author || 'Unknown author');
+          const isUnavailable = item.availability === 'unavailable' || (!item.openUrl);
+          const badge = isUnavailable ? '<span style="position:absolute;top:4px;right:4px;background:#dc2626;color:white;font-size:10px;padding:2px 6px;border-radius:4px;z-index:1;">Unavailable</span>' : '';
           html += `
-            <a class="fav-card" href="${escapeHtml(openUrl)}" title="${title}">
+            <a class="fav-card" href="${escapeHtml(openUrl)}" title="${title}" style="position:relative;${isUnavailable ? 'opacity:0.6;' : ''}">
+              ${badge}
               <img class="fav-cover" src="${escapeHtml(coverUrl)}" alt="" loading="lazy" data-fallback="/public/img/book-placeholder.svg">
               <div class="fav-info">
                 <div class="fav-title">${title}</div>

@@ -327,24 +327,47 @@ async function handleSearch(req, res) {
     console.log(`[search] after dedup: ${uniqueBooks.length} unique books`);
 
     // --- Relevance scoring: drop garbage results ---
-    const RELEVANCE_THRESHOLD = 10; // minimum score to keep
+    // Adaptive threshold: lower for short/broad queries (Bug C)
+    const queryTokens = q.trim().split(/\s+/).filter(t => t.length >= 1);
+    const isShortQuery = q.trim().length <= 5 || queryTokens.length <= 1;
+    const RELEVANCE_THRESHOLD = isShortQuery ? 3 : 10;
+    const MIN_PER_PROVIDER = 10; // always keep at least N per provider
     const scored = uniqueBooks.map(book => ({
       ...book,
       _relevance: scoreRelevance(book, q),
     }));
-    const relevant = scored.filter(b => b._relevance >= RELEVANCE_THRESHOLD);
+    // Group by provider to enforce per-provider minimum
+    const byProvider = {};
+    for (const b of scored) {
+      const p = b.provider || 'unknown';
+      if (!byProvider[p]) byProvider[p] = [];
+      byProvider[p].push(b);
+    }
+    // Sort each provider group by relevance descending
+    for (const p of Object.keys(byProvider)) {
+      byProvider[p].sort((a, b) => (b._relevance || 0) - (a._relevance || 0));
+    }
+    const relevant = scored.filter(b => {
+      if (b._relevance >= RELEVANCE_THRESHOLD) return true;
+      // Keep top MIN_PER_PROVIDER per provider even if below threshold
+      const p = b.provider || 'unknown';
+      const rank = byProvider[p].indexOf(b);
+      return rank >= 0 && rank < MIN_PER_PROVIDER;
+    });
     const droppedCount = scored.length - relevant.length;
     if (droppedCount > 0) {
-      console.log(`[search] relevance filter: dropped ${droppedCount} items below threshold ${RELEVANCE_THRESHOLD}`);
+      console.log(`[search] relevance filter: dropped ${droppedCount} items below adaptive threshold ${RELEVANCE_THRESHOLD} (shortQuery=${isShortQuery})`);
     }
     
     // Check readability for Archive.org items using metadata + probing
-    // This determines readable=true/false/maybe for each IA item
-    const withReadability = await batchCheckReadability(relevant, 20);
+    // Bug C: Only check top K items, keep the rest as 'maybe' (lazy readability)
+    const MAX_READABILITY_PROBES = 15;
+    const withReadability = await batchCheckReadability(relevant, MAX_READABILITY_PROBES);
     
-    console.log(`[search] after readability check: ${withReadability.length} items`);
+    console.log(`[search] after readability check: ${withReadability.length} items (all kept)`);
     
     // Sort by readability: true > maybe > false, then by relevance, then by provider priority
+    // Bug C: Do NOT filter by readability — all items are returned, just sorted
     withReadability.sort((a, b) => {
       const order = { 'true': 0, 'maybe': 1, 'false': 2 };
       const aOrder = order[a.readable] ?? 1;

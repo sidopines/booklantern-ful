@@ -6,7 +6,7 @@ const { ensureAuthenticated } = require('../middleware/auth');
 const { ensureSubscriber } = require('../utils/gate');
 const { buildReaderToken } = require('../utils/buildReaderToken');
 const supabase = require('../lib/supabaseServer');
-const { extractArchiveId, buildOpenUrl, normalizeMeta, isNumericOnly, stripPrefixes, isBorrowRequiredArchive, isEncryptedFile } = require('../utils/bookHelpers');
+const { extractArchiveId, buildOpenUrl, normalizeMeta, isNumericOnly, stripPrefixes, isBorrowRequiredArchive, isEncryptedFile, repairFavoriteMeta } = require('../utils/bookHelpers');
 
 // Safe fetch: use globalThis.fetch (Node 18+) or dynamic import node-fetch
 const fetchFn = globalThis.fetch
@@ -165,29 +165,36 @@ router.get('/favorites', ensureSubscriber, async (req, res) => {
 
     // Map to template format — include openUrl built with shared helper
     const favorites = (items || []).map(item => {
+      // Repair favorites with unknown source on-the-fly
+      const repaired = repairFavoriteMeta(item);
       const meta = {
-        provider: item.source,
-        provider_id: item.book_key,
+        provider: repaired.source || item.source,
+        provider_id: repaired._provider_id || item.book_key,
         title: item.title,
         author: item.author,
         cover: item.cover,
-        source_url: item.reader_url
+        source_url: item.reader_url,
+        direct_url: repaired._direct_url || ''
       };
       const openUrl = buildOpenUrl(meta);
       const bareKey = stripPrefixes(item.book_key) || item.book_key || '';
+      const unavailable = !openUrl || isNumericOnly(bareKey);
+      if (unavailable) {
+        console.log(`[favorites] unavailable: bookKey=${item.book_key} title="${item.title}" (still shown)`);
+      }
       return {
         bookKey: item.book_key,
-        source: item.source,
+        source: repaired.source || item.source,
         title: item.title,
         author: item.author,
         cover: item.cover,
         readerUrl: item.reader_url,
         openUrl: openUrl,
-        unavailable: !openUrl || isNumericOnly(bareKey),
+        availability: unavailable ? 'unavailable' : 'ok',
         category: item.category,
         createdAt: item.created_at
       };
-    }).filter(item => !item.unavailable);
+    }); // Bug B: do NOT filter — return all favorites, even unavailable
 
     return res.render('favorites', {
       pageTitle: 'My Favorites',
@@ -217,6 +224,17 @@ router.get('/open', ensureSubscriber, async (req, res) => {
     if (rawSourceUrl.startsWith('/unified-reader?token=')) {
       console.log('[open] Fast redirect via source_url token path');
       return res.redirect(302, rawSourceUrl);
+    }
+
+    // ── Bug E+A: If provider=unknown and source_url is a safe internal path, redirect ──
+    if ((!req.query.provider || req.query.provider === 'unknown') && rawSourceUrl) {
+      const safePrefixes = ['/open?', '/unified-reader?'];
+      const isSafePath = safePrefixes.some(p => rawSourceUrl.startsWith(p));
+      // Security: prevent open redirect — only relative paths, no protocol
+      if (isSafePath && !rawSourceUrl.includes('://') && !rawSourceUrl.startsWith('//')) {
+        console.log(`[open] Redirecting provider=unknown via safe source_url: ${rawSourceUrl.slice(0, 80)}`);
+        return res.redirect(302, rawSourceUrl);
+      }
     }
 
     // ── Self-heal metadata via normalizeMeta ──

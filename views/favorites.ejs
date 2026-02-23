@@ -141,19 +141,24 @@
     <% } else { %>
       <div class="book-list">
         <% favorites.forEach(fav => { %>
-          <div class="book-card" data-book-key="<%= fav.bookKey %>">
+          <div class="book-card" data-book-key="<%= fav.bookKey %>" style="<%= fav.availability === 'unavailable' ? 'opacity:0.65;' : '' %>">
             <% if (fav.cover) { %>
               <img class="cover" src="<%= fav.cover %>" alt="<%= fav.title %> cover" loading="lazy">
             <% } else { %>
               <div class="no-cover">📖</div>
+            <% } %>
+            <% if (fav.availability === 'unavailable') { %>
+              <span style="display:inline-block;background:#dc2626;color:white;font-size:11px;padding:2px 8px;border-radius:4px;margin-bottom:4px;">Unavailable</span>
             <% } %>
             <h3><%= fav.title %></h3>
             <% if (fav.author) { %>
               <div class="author"><%= fav.author %></div>
             <% } %>
             <div class="actions">
-              <% if (fav.openUrl) { %>
+              <% if (fav.openUrl && fav.availability !== 'unavailable') { %>
                 <a href="<%= fav.openUrl %>" class="read-btn">📖 Read</a>
+              <% } else if (fav.openUrl) { %>
+                <a href="<%= fav.openUrl %>" class="read-btn" style="opacity:0.7;">🔄 Retry</a>
               <% } else { %>
                 <span class="read-btn" style="opacity:0.4;cursor:default;">Unavailable</span>
               <% } %>
