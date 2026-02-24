@@ -5,6 +5,7 @@ const express = require('express');
 const router = express.Router();
 const { ensureSubscriberApi } = require('../utils/gate');
 const { canonicalBookKey, buildOpenUrl, extractArchiveId, normalizeMeta, isNumericOnly, stripPrefixes, bookKeyVariants, repairFavoriteMeta, stripBlPrefix, ensureRawProviderId } = require('../utils/bookHelpers');
+const { buildReaderToken } = require('../utils/buildReaderToken');
 
 // Supabase client for database operations
 const supabase = require('../lib/supabaseServer');
@@ -30,11 +31,25 @@ router.post('/progress', ensureSubscriberApi, async (req, res) => {
       return res.status(401).json({ ok: false, error: 'auth_required' });
     }
 
+    // Guard: missing or non-object body (e.g. bad Content-Type)
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({ ok: false, error: 'invalid_body' });
+    }
+
     const { bookKey, source, title, author, cover, lastLocation, progress, readerUrl } = req.body;
     
     if (!bookKey || !title) {
+      console.log('[reading/progress] missing required fields', { bookKey: !!bookKey, title: !!title });
       return res.status(400).json({ ok: false, error: 'bookKey and title required' });
     }
+
+    // Normalize to canonical bookKey (bl:<provider>:<raw_id>) for consistent storage
+    const canonKey = canonicalBookKey({
+      provider: source,
+      provider_id: bookKey,
+      title,
+      author: author || ''
+    });
 
     const progressValue = typeof progress === 'number' ? Math.min(100, Math.max(0, progress)) : 0;
 
@@ -43,7 +58,7 @@ router.post('/progress', ensureSubscriberApi, async (req, res) => {
       .from('reading_progress_v2')
       .upsert({
         user_id: userId,
-        book_key: bookKey,
+        book_key: canonKey,
         source: source || 'unknown',
         title: title,
         author: author || '',
@@ -64,8 +79,10 @@ router.post('/progress', ensureSubscriberApi, async (req, res) => {
 
     return res.json({ ok: true });
   } catch (err) {
-    console.error('[reading/progress] error:', err);
-    return res.status(500).json({ ok: false, error: 'server_error' });
+    console.error('[reading/progress] unhandled error:', err);
+    // Always return JSON, never drop the connection
+    try { return res.status(500).json({ ok: false, error: 'server_error' }); }
+    catch (_) { /* headers already sent */ }
   }
 });
 
@@ -241,18 +258,21 @@ router.get('/progress/:bookKey', ensureSubscriberApi, async (req, res) => {
 
     const { bookKey } = req.params;
     
-    const { data: progress, error } = await supabase
+    // Look up by exact key first, then by all canonical variants
+    const variants = bookKeyVariants(bookKey);
+    const { data: rows, error } = await supabase
       .from('reading_progress_v2')
       .select('*')
       .eq('user_id', userId)
-      .eq('book_key', bookKey)
-      .single();
+      .in('book_key', variants)
+      .limit(1);
 
     if (error && error.code !== 'PGRST116') {
       console.error('[reading/progress/:bookKey] supabase error:', error);
       return res.status(500).json({ ok: false, error: 'database_error' });
     }
 
+    const progress = rows && rows.length > 0 ? rows[0] : null;
     if (!progress) {
       return res.json({ ok: true, found: false });
     }
@@ -396,46 +416,92 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
       return res.status(500).json({ ok: false, error: 'database_error' });
     }
 
+    // --- Dedup by canonical bookKey (keep first = most recent) ---
+    const seenCanonical = new Set();
+    const dedupedItems = [];
+    for (const item of (items || [])) {
+      const repaired = repairFavoriteMeta(item);
+      let provId = repaired._provider_id || item.book_key;
+      provId = ensureRawProviderId(provId, 'reading/favorites');
+
+      // P0-OAPEN: if provider=oapen and provider_id is numeric-only,
+      // check source_url / reader_url for real UUID provider_id
+      let provider = (repaired.source || item.source || 'unknown').toLowerCase();
+      if (provider === 'oapen' && isNumericOnly(provId)) {
+        const urls = [item.reader_url || '', repaired._source_url || ''];
+        for (const u of urls) {
+          const uuidMatch = u.match(/provider_id=([0-9a-f]{8}-[0-9a-f-]{27})/i);
+          if (uuidMatch) { provId = uuidMatch[1]; break; }
+        }
+      }
+
+      const rawMeta = {
+        provider,
+        provider_id: provId,
+        title: item.title,
+        author: item.author || '',
+        cover: item.cover || '',
+        source_url: item.reader_url || '',
+        direct_url: repaired._direct_url || '',
+        format: repaired._format || ''
+      };
+      const meta = normalizeMeta(rawMeta);
+      const cKey = canonicalBookKey(meta);
+      if (seenCanonical.has(cKey)) continue;
+      seenCanonical.add(cKey);
+
+      // Build /unified-reader?token=... URL when we have enough data
+      let openUrl = null;
+      const prov = meta.provider || provider;
+      const pid  = meta.provider_id || provId;
+      if (prov && prov !== 'unknown' && pid) {
+        try {
+          const tokenPayload = {
+            provider: prov,
+            provider_id: pid,
+            title: meta.title || item.title || '',
+            author: meta.author || item.author || '',
+            cover_url: meta.cover || meta.cover_url || item.cover || '',
+            format: meta.format || repaired._format || 'epub',
+            direct_url: meta.direct_url || repaired._direct_url || '',
+            source_url: meta.source_url || item.reader_url || '',
+          };
+          if (meta.archive_id) tokenPayload.archive_id = meta.archive_id;
+          const token = buildReaderToken(tokenPayload);
+          openUrl = '/unified-reader?token=' + encodeURIComponent(token);
+        } catch (e) {
+          console.warn('[reading/favorites] token build failed, falling back to /open:', e.message);
+          openUrl = buildOpenUrl(meta);
+        }
+      } else {
+        openUrl = buildOpenUrl(meta);
+      }
+
+      // Truly unavailable only when we have zero way to open it
+      const unavailable = !openUrl;
+      if (unavailable) {
+        console.log(`[reading/favorites] unavailable: bookKey=${item.book_key} title="${item.title}"`);
+      }
+
+      dedupedItems.push({
+        bookKey: item.book_key,
+        source: prov,
+        title: item.title,
+        author: item.author,
+        cover: item.cover,
+        readerUrl: item.reader_url,
+        openUrl: openUrl || null,
+        availability: unavailable ? 'unavailable' : 'ok',
+        reason: unavailable ? 'cannot_resolve' : null,
+        lastCheckedAt: new Date().toISOString(),
+        category: item.category,
+        createdAt: item.created_at
+      });
+    }
+
     return res.json({
       ok: true,
-      items: (items || []).map(item => {
-        // Repair favorites with unknown source on-the-fly (Bug A)
-        const repaired = repairFavoriteMeta(item);
-        // Build /open URL fresh from normalized meta
-        // P0: Always use raw provider_id (never bookKey) for open links
-        let provId = repaired._provider_id || item.book_key;
-        provId = ensureRawProviderId(provId, 'reading/favorites');
-        const rawMeta = {
-          provider: repaired.source || item.source,
-          provider_id: provId,
-          title: item.title,
-          author: item.author,
-          cover: item.cover,
-          source_url: item.reader_url,
-          direct_url: repaired._direct_url || ''
-        };
-        const meta = normalizeMeta(rawMeta);
-        const openUrl = buildOpenUrl(meta);
-        const bareKey = stripPrefixes(item.book_key) || item.book_key || '';
-        const unavailable = !openUrl || isNumericOnly(bareKey);
-        if (unavailable) {
-          console.log(`[reading/favorites] unavailable (still returned): bookKey=${item.book_key} title="${item.title}"`);
-        }
-        return {
-          bookKey: item.book_key,
-          source: repaired.source || item.source,
-          title: item.title,
-          author: item.author,
-          cover: item.cover,
-          readerUrl: item.reader_url,
-          openUrl: openUrl || null,
-          availability: unavailable ? 'unavailable' : 'ok',
-          reason: unavailable ? 'cannot_resolve' : null,
-          lastCheckedAt: new Date().toISOString(),
-          category: item.category,
-          createdAt: item.created_at
-        };
-      }) // Bug B: do NOT filter — return all favorites
+      items: dedupedItems
     });
   } catch (err) {
     console.error('[reading/favorites] error:', err);
