@@ -206,8 +206,8 @@ async function handleSearch(req, res) {
     'Surrogate-Control': 'no-store'
   });
   
-  // Global deadline: 8 seconds max for entire search request
-  const GLOBAL_DEADLINE_MS = 8000;
+  // Global deadline: 18 seconds max for entire search request
+  const GLOBAL_DEADLINE_MS = 18000;
   const searchStartTime = Date.now();
   
   try {
@@ -361,7 +361,7 @@ async function handleSearch(req, res) {
     
     // Check readability for Archive.org items using metadata + probing
     // Bug C: Only check top K items, keep the rest as 'maybe' (lazy readability)
-    const MAX_READABILITY_PROBES = 15;
+    const MAX_READABILITY_PROBES = 30;
     const withReadability = await batchCheckReadability(relevant, MAX_READABILITY_PROBES);
     
     console.log(`[search] after readability check: ${withReadability.length} items (all kept)`);
