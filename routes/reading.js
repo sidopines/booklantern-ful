@@ -345,19 +345,26 @@ router.post('/favorite', ensureSubscriberApi, async (req, res) => {
     });
     source = normalized.provider || source || 'unknown';
 
+    // Use normalized provider_id (may have been resolved to archive ID)
+    const resolvedPid = ensureRawProviderId(normalized.provider_id || rawProviderId, 'favorite-canon');
+
     // Compute canonical bookKey for dedup-safe storage
+    // Pass source_url so extractArchiveId can detect archive-backed books
     const canonKey = canonicalBookKey({
       provider: source,
-      provider_id: rawProviderId,
+      provider_id: resolvedPid,
+      source_url: readerUrl || '',
       title,
       author: author || ''
     });
 
     // Check if already favorited — check canonical key AND all legacy variants
-    // Build exhaustive variant list from BOTH the raw bookKey AND the canonical key
+    // Build exhaustive variant list from raw, canonical, AND resolved keys
     const rawVariants = bookKeyVariants(bookKey);
     const canonVariants = bookKeyVariants(canonKey);
-    const variantSet = new Set([...rawVariants, ...canonVariants, canonKey, bookKey]);
+    const resolvedKey = 'bl:' + source + ':' + resolvedPid;
+    const resolvedVariants = bookKeyVariants(resolvedKey);
+    const variantSet = new Set([...rawVariants, ...canonVariants, ...resolvedVariants, canonKey, bookKey, resolvedKey]);
     const variants = [...variantSet];
 
     const { data: existingRows } = await supabase
@@ -402,6 +409,21 @@ router.post('/favorite', ensureSubscriberApi, async (req, res) => {
       }
       console.error('[reading/favorite] supabase error:', error);
       return res.status(500).json({ ok: false, error: 'database_error' });
+    }
+
+    // Async cleanup: consolidate any old variant-key rows into the canonical key
+    // This removes duplicates left over from before the canonical-key fix
+    const nonCanonVariants = variants.filter(v => v !== canonKey);
+    if (nonCanonVariants.length > 0) {
+      supabase
+        .from('reading_favorites')
+        .delete()
+        .eq('user_id', userId)
+        .in('book_key', nonCanonVariants)
+        .then(({ error: ce }) => {
+          if (ce) console.error('[reading/favorite] variant cleanup err:', ce);
+        })
+        .catch(() => {});
     }
 
     return res.json({ ok: true, favorited: true });
@@ -464,7 +486,7 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
         title: item.title,
         author: item.author || '',
         cover: item.cover || '',
-        source_url: item.reader_url || '',
+        source_url: repaired._source_url || item.reader_url || '',
         direct_url: repaired._direct_url || '',
         format: repaired._format || ''
       };
@@ -486,7 +508,7 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
 
       // Try synchronous direct_url resolution (deterministic patterns + embedded URLs)
       const resolved = resolveDirectUrl(prov, pid, {
-        sourceUrl: meta.source_url || item.reader_url,
+        sourceUrl: meta.source_url || repaired._source_url || item.reader_url,
         readerUrl: item.reader_url,
         directUrl: meta.direct_url || repaired._direct_url || '',
         format: meta.format || repaired._format || ''
@@ -655,7 +677,7 @@ router.post('/favorites/resolve', ensureSubscriberApi, async (req, res) => {
       title: fav.title,
       author: fav.author || '',
       cover: fav.cover || '',
-      source_url: fav.reader_url || '',
+      source_url: repaired._source_url || fav.reader_url || '',
       direct_url: repaired._direct_url || '',
       format: repaired._format || ''
     };
