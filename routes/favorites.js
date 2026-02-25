@@ -6,7 +6,7 @@ const { ensureAuthenticated } = require('../middleware/auth');
 const { ensureSubscriber } = require('../utils/gate');
 const { buildReaderToken } = require('../utils/buildReaderToken');
 const supabase = require('../lib/supabaseServer');
-const { extractArchiveId, buildOpenUrl, normalizeMeta, isNumericOnly, stripPrefixes, isBorrowRequiredArchive, isEncryptedFile, repairFavoriteMeta, ensureRawProviderId, stripBlPrefix } = require('../utils/bookHelpers');
+const { extractArchiveId, buildOpenUrl, normalizeMeta, isNumericOnly, stripPrefixes, isBorrowRequiredArchive, isEncryptedFile, repairFavoriteMeta, ensureRawProviderId, stripBlPrefix, resolveDirectUrl } = require('../utils/bookHelpers');
 
 // Safe fetch: use globalThis.fetch (Node 18+) or dynamic import node-fetch
 const fetchFn = globalThis.fetch
@@ -163,41 +163,62 @@ router.get('/favorites', ensureSubscriber, async (req, res) => {
       });
     }
 
-    // Map to template format — include openUrl built with shared helper
+    // Map to template format — resolve direct_url, never produce broken tokens
     const favorites = (items || []).map(item => {
-      // Repair favorites with unknown source on-the-fly
       const repaired = repairFavoriteMeta(item);
-      // P0: Always use raw provider_id (never bookKey) for open links
       let provId = repaired._provider_id || item.book_key;
       provId = ensureRawProviderId(provId, 'favorites/list');
-      const meta = {
-        provider: repaired.source || item.source,
+      const provider = (repaired.source || item.source || 'unknown').toLowerCase();
+      const meta = normalizeMeta({
+        provider,
         provider_id: provId,
         title: item.title,
-        author: item.author,
-        cover: item.cover,
-        source_url: item.reader_url,
-        direct_url: repaired._direct_url || ''
-      };
-      const openUrl = buildOpenUrl(meta);
-      const bareKey = stripPrefixes(item.book_key) || item.book_key || '';
-      const unavailable = !openUrl || isNumericOnly(bareKey);
+        author: item.author || '',
+        cover: item.cover || '',
+        source_url: item.reader_url || '',
+        direct_url: repaired._direct_url || '',
+        format: repaired._format || ''
+      });
+
+      // Try synchronous direct_url resolution
+      const resolved = resolveDirectUrl(meta.provider || provider, meta.provider_id || provId, {
+        sourceUrl: meta.source_url || item.reader_url,
+        readerUrl: item.reader_url,
+        directUrl: meta.direct_url || repaired._direct_url || '',
+        format: meta.format || repaired._format || ''
+      });
+
+      let openUrl = null;
+      if (resolved && resolved.direct_url) {
+        // We have direct_url — build /open URL that will create fresh token
+        const resolvedMeta = { ...meta };
+        if (resolved.provider) resolvedMeta.provider = resolved.provider;
+        if (resolved.provider_id) resolvedMeta.provider_id = resolved.provider_id;
+        resolvedMeta.direct_url = resolved.direct_url;
+        resolvedMeta.format = resolved.format || meta.format || 'epub';
+        openUrl = buildOpenUrl(resolvedMeta);
+      } else if (meta.provider && meta.provider !== 'unknown' && (meta.provider_id || provId)) {
+        // No direct_url but have provider info — /open will resolve on-the-fly
+        openUrl = buildOpenUrl(meta);
+      }
+
+      const unavailable = !openUrl;
       if (unavailable) {
-        console.log(`[favorites] unavailable: bookKey=${item.book_key} title="${item.title}" (still shown)`);
+        console.log(`[favorites] unavailable: bookKey=${item.book_key} title="${item.title}"`);
       }
       return {
         bookKey: item.book_key,
-        source: repaired.source || item.source,
+        source: meta.provider || provider,
         title: item.title,
         author: item.author,
         cover: item.cover,
         readerUrl: item.reader_url,
-        openUrl: openUrl,
+        openUrl: openUrl || null,
         availability: unavailable ? 'unavailable' : 'ok',
         category: item.category,
         createdAt: item.created_at
       };
-    }); // Bug B: do NOT filter — return all favorites, even unavailable
+    });
 
     return res.render('favorites', {
       pageTitle: 'My Favorites',

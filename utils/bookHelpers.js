@@ -515,9 +515,83 @@ function scoreRelevance(book, query) {
   return Math.min(100, score);
 }
 
+/**
+ * Synchronously resolve direct_url for a book from stored metadata.
+ * Does NOT make HTTP calls — only uses deterministic URL patterns and
+ * parses embedded URLs from source_url / reader_url.
+ *
+ * @param {string} provider
+ * @param {string} providerId
+ * @param {object} opts - { sourceUrl, readerUrl, directUrl, format }
+ * @returns {{ direct_url: string, format: string, provider?: string, provider_id?: string } | null}
+ */
+function resolveDirectUrl(provider, providerId, opts = {}) {
+  const { sourceUrl, readerUrl, directUrl, format } = opts;
+
+  // Already have a valid direct_url
+  if (directUrl) return { direct_url: directUrl, format: format || 'epub' };
+
+  // Parse from source_url or reader_url if it contains /open?... query params
+  for (const url of [sourceUrl, readerUrl].filter(Boolean)) {
+    if (url.includes('/open?') || url.includes('provider=')) {
+      try {
+        const qIdx = url.indexOf('?');
+        if (qIdx >= 0) {
+          const params = new URLSearchParams(url.slice(qIdx + 1));
+          if (params.get('direct_url')) {
+            return {
+              direct_url: params.get('direct_url'),
+              format: params.get('format') || format || 'epub',
+              provider: params.get('provider') || provider,
+              provider_id: params.get('provider_id') || providerId,
+            };
+          }
+        }
+      } catch (_) { /* ignore parse errors */ }
+    }
+  }
+
+  const prov = (provider || '').toLowerCase();
+
+  // Gutenberg: deterministic URL pattern
+  if (prov === 'gutenberg' && providerId && /^\d+$/.test(providerId)) {
+    return {
+      direct_url: `https://www.gutenberg.org/ebooks/${providerId}.epub3.images`,
+      format: 'epub',
+    };
+  }
+
+  // Archive with known non-numeric ID — deterministic epub download pattern
+  if (prov === 'archive' && providerId && !isNumericOnly(providerId)) {
+    return {
+      direct_url: `https://archive.org/download/${encodeURIComponent(providerId)}/${encodeURIComponent(providerId)}.epub`,
+      format: 'epub',
+      provider: 'archive',
+      provider_id: providerId,
+    };
+  }
+
+  // OpenLibrary items often backed by Archive.org — try to extract archive_id
+  if (prov === 'openlibrary') {
+    for (const url of [sourceUrl, readerUrl].filter(Boolean)) {
+      const archiveMatch = url.match(/archive\.org\/(?:details|download)\/([^/?#]+)/);
+      if (archiveMatch && !isNumericOnly(archiveMatch[1])) {
+        return {
+          direct_url: `https://archive.org/download/${encodeURIComponent(archiveMatch[1])}/${encodeURIComponent(archiveMatch[1])}.epub`,
+          format: 'epub',
+          provider: 'archive',
+          provider_id: archiveMatch[1],
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 module.exports = {
   canonicalBookKey, extractArchiveId, stripPrefixes, buildOpenUrl,
   normalizeMeta, isNumericOnly, isEncryptedFile, isBorrowRequiredArchive,
   scoreRelevance, bookKeyVariants, repairFavoriteMeta,
-  stripBlPrefix, ensureRawProviderId,
+  stripBlPrefix, ensureRawProviderId, resolveDirectUrl,
 };
