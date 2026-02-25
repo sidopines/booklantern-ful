@@ -157,10 +157,8 @@
             <div class="actions">
               <% if (fav.openUrl && fav.availability !== 'unavailable') { %>
                 <a href="<%= fav.openUrl %>" class="read-btn">📖 Read</a>
-              <% } else if (fav.openUrl) { %>
-                <a href="<%= fav.openUrl %>" class="read-btn" style="opacity:0.7;">🔄 Retry</a>
               <% } else { %>
-                <span class="read-btn" style="opacity:0.4;cursor:default;">Unavailable</span>
+                <button class="retry-btn read-btn" data-retry-key="<%= fav.bookKey %>" style="opacity:0.7;cursor:pointer;border:none;background:#6366f1;color:white;padding:6px 12px;border-radius:6px;font-size:13px;">🔄 Retry</button>
               <% } %>
               <button class="remove-btn" data-remove-key="<%= fav.bookKey %>" data-title="<%= fav.title %>">✕</button>
             </div>
@@ -173,6 +171,37 @@
   <%- include('./partials/footer.ejs') %>
 
   <script>
+    // Handle retry resolve button clicks
+    document.querySelectorAll('[data-retry-key]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var bookKey = this.getAttribute('data-retry-key');
+        var self = this;
+        self.textContent = '…';
+        self.disabled = true;
+        fetch('/api/reading/favorites/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ bookKey: bookKey })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok && data.resolved && data.openUrl) {
+            window.location.href = data.openUrl;
+          } else {
+            alert('Could not resolve this book. It may be unavailable.');
+            self.textContent = '🔄 Retry';
+            self.disabled = false;
+          }
+        })
+        .catch(function() {
+          alert('Retry failed. Please try again.');
+          self.textContent = '🔄 Retry';
+          self.disabled = false;
+        });
+      });
+    });
+
     // Handle remove button clicks
     document.querySelectorAll('[data-remove-key]').forEach(function(btn) {
       btn.addEventListener('click', function() {

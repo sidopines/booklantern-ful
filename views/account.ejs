@@ -262,27 +262,89 @@
         let html = '<div class="favorites-grid">';
         for (const item of data.items) {
           const coverUrl = item.cover || '/public/img/book-placeholder.svg';
-          const openUrl = item.openUrl || '/read';
           const title = escapeHtml(item.title || 'Untitled');
           const author = escapeHtml(item.author || 'Unknown author');
           const isUnavailable = item.availability === 'unavailable' || (!item.openUrl);
-          const badge = isUnavailable ? '<span style="position:absolute;top:4px;right:4px;background:#dc2626;color:white;font-size:10px;padding:2px 6px;border-radius:4px;z-index:1;">Unavailable</span>' : '';
-          html += `
-            <a class="fav-card" href="${escapeHtml(openUrl)}" title="${title}" style="position:relative;${isUnavailable ? 'opacity:0.6;' : ''}">
-              ${badge}
+
+          if (isUnavailable) {
+            // Disabled card — no link, shows Retry + Remove
+            html += `
+            <div class="fav-card" data-bookkey="${escapeHtml(item.bookKey)}" title="${title}" style="position:relative;opacity:0.6;cursor:default;">
+              <span style="position:absolute;top:4px;right:4px;background:#dc2626;color:white;font-size:10px;padding:2px 6px;border-radius:4px;z-index:1;">Unavailable</span>
+              <img class="fav-cover" src="${escapeHtml(coverUrl)}" alt="" loading="lazy" data-fallback="/public/img/book-placeholder.svg">
+              <div class="fav-info">
+                <div class="fav-title">${title}</div>
+                <div class="fav-author">${author}</div>
+                <div style="display:flex;gap:4px;margin-top:4px;">
+                  <button class="fav-retry-btn" data-bookkey="${escapeHtml(item.bookKey)}" style="font-size:10px;padding:2px 6px;border:1px solid #6366f1;background:transparent;color:#6366f1;border-radius:4px;cursor:pointer;">Retry</button>
+                  <button class="fav-remove-btn" data-bookkey="${escapeHtml(item.bookKey)}" data-title="${title}" style="font-size:10px;padding:2px 6px;border:1px solid #dc2626;background:transparent;color:#dc2626;border-radius:4px;cursor:pointer;">Remove</button>
+                </div>
+              </div>
+            </div>
+            `;
+          } else {
+            html += `
+            <a class="fav-card" href="${escapeHtml(item.openUrl)}" title="${title}" style="position:relative;">
               <img class="fav-cover" src="${escapeHtml(coverUrl)}" alt="" loading="lazy" data-fallback="/public/img/book-placeholder.svg">
               <div class="fav-info">
                 <div class="fav-title">${title}</div>
                 <div class="fav-author">${author}</div>
               </div>
             </a>
-          `;
+            `;
+          }
         }
         html += '</div>';
         if (data.items.length >= 12) {
           html += '<div style="margin-top:12px;text-align:center;"><a href="/read" class="btn" style="display:inline-block;">View all in library</a></div>';
         }
         container.innerHTML = html;
+
+        // Wire up Retry buttons
+        container.querySelectorAll('.fav-retry-btn').forEach(function(btn) {
+          btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            var bk = this.getAttribute('data-bookkey');
+            var card = this.closest('.fav-card');
+            this.textContent = '…';
+            this.disabled = true;
+            fetch('/api/reading/favorites/resolve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ bookKey: bk })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+              if (d.ok && d.resolved && d.openUrl) {
+                window.location.href = d.openUrl;
+              } else {
+                alert('Could not resolve this book. It may be unavailable.');
+                loadFavorites();
+              }
+            })
+            .catch(function() { alert('Retry failed.'); loadFavorites(); });
+          });
+        });
+
+        // Wire up Remove buttons
+        container.querySelectorAll('.fav-remove-btn').forEach(function(btn) {
+          btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            var bk = this.getAttribute('data-bookkey');
+            var title = this.getAttribute('data-title');
+            if (!confirm('Remove "' + title + '" from favorites?')) return;
+            fetch('/api/reading/favorite', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ bookKey: bk, title: title })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function() { loadFavorites(); })
+            .catch(function() { alert('Remove failed.'); });
+          });
+        });
       } catch (err) {
         console.error('[account] loadFavorites error:', err);
         container.innerHTML = '<div class="fav-empty">Could not load favorites.</div>';

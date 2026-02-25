@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { ensureSubscriberApi } = require('../utils/gate');
-const { canonicalBookKey, buildOpenUrl, extractArchiveId, normalizeMeta, isNumericOnly, stripPrefixes, bookKeyVariants, repairFavoriteMeta, stripBlPrefix, ensureRawProviderId } = require('../utils/bookHelpers');
+const { canonicalBookKey, buildOpenUrl, extractArchiveId, normalizeMeta, isNumericOnly, stripPrefixes, bookKeyVariants, repairFavoriteMeta, stripBlPrefix, ensureRawProviderId, resolveDirectUrl, isEncryptedFile, isBorrowRequiredArchive } = require('../utils/bookHelpers');
 const { buildReaderToken } = require('../utils/buildReaderToken');
 
 // Supabase client for database operations
@@ -345,40 +345,61 @@ router.post('/favorite', ensureSubscriberApi, async (req, res) => {
     });
     source = normalized.provider || source || 'unknown';
 
-    // Check if already favorited — check canonical key AND legacy variants
-    const variants = bookKeyVariants(bookKey);
-    const { data: existing } = await supabase
+    // Compute canonical bookKey for dedup-safe storage
+    const canonKey = canonicalBookKey({
+      provider: source,
+      provider_id: rawProviderId,
+      title,
+      author: author || ''
+    });
+
+    // Check if already favorited — check canonical key AND all legacy variants
+    // Build exhaustive variant list from BOTH the raw bookKey AND the canonical key
+    const rawVariants = bookKeyVariants(bookKey);
+    const canonVariants = bookKeyVariants(canonKey);
+    const variantSet = new Set([...rawVariants, ...canonVariants, canonKey, bookKey]);
+    const variants = [...variantSet];
+
+    const { data: existingRows } = await supabase
       .from('reading_favorites')
       .select('id, book_key')
       .eq('user_id', userId)
-      .in('book_key', variants)
-      .limit(1)
-      .maybeSingle();
+      .in('book_key', variants);
     
-    if (existing) {
-      // Remove favorite (toggle off)
+    if (existingRows && existingRows.length > 0) {
+      // Remove ALL duplicate/variant favorites (toggle off)
+      const ids = existingRows.map(r => r.id);
       await supabase
         .from('reading_favorites')
         .delete()
-        .eq('id', existing.id);
+        .in('id', ids);
       return res.json({ ok: true, favorited: false });
     }
 
-    // Add favorite (toggle on)
+    // Add favorite (toggle on) — upsert with canonical bookKey
+    // First, defensively delete any stale variant rows to prevent unique violations
+    // (handles edge cases where variants didn't catch an old format)
     const { error } = await supabase
       .from('reading_favorites')
-      .insert({
+      .upsert({
         user_id: userId,
-        book_key: bookKey,
+        book_key: canonKey,
         source: source || 'unknown',
         title: title,
         author: author || '',
         cover: cover || '',
         reader_url: readerUrl || '',
         category: category || ''
+      }, {
+        onConflict: 'user_id,book_key',
+        ignoreDuplicates: false
       });
 
     if (error) {
+      // Handle duplicate key race condition gracefully — re-read instead of failing
+      if (error.code === '23505') {
+        return res.json({ ok: true, favorited: true });
+      }
       console.error('[reading/favorite] supabase error:', error);
       return res.status(500).json({ ok: false, error: 'database_error' });
     }
@@ -417,8 +438,10 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
     }
 
     // --- Dedup by canonical bookKey (keep first = most recent) ---
+    // Also collect DB-level duplicate IDs for async cleanup
     const seenCanonical = new Set();
     const dedupedItems = [];
+    const duplicateIds = []; // DB rows to delete (older dupes)
     for (const item of (items || [])) {
       const repaired = repairFavoriteMeta(item);
       let provId = repaired._provider_id || item.book_key;
@@ -447,40 +470,57 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
       };
       const meta = normalizeMeta(rawMeta);
       const cKey = canonicalBookKey(meta);
-      if (seenCanonical.has(cKey)) continue;
+      if (seenCanonical.has(cKey)) {
+        // This is a duplicate — mark for async DB cleanup
+        duplicateIds.push(item.id);
+        continue;
+      }
       seenCanonical.add(cKey);
 
-      // Build /unified-reader?token=... URL when we have enough data
+      // --- Resolve direct_url: only build unified-reader token if we have one ---
       let openUrl = null;
+      let availability = 'ok';
+      let reason = null;
       const prov = meta.provider || provider;
       const pid  = meta.provider_id || provId;
-      if (prov && prov !== 'unknown' && pid) {
+
+      // Try synchronous direct_url resolution (deterministic patterns + embedded URLs)
+      const resolved = resolveDirectUrl(prov, pid, {
+        sourceUrl: meta.source_url || item.reader_url,
+        readerUrl: item.reader_url,
+        directUrl: meta.direct_url || repaired._direct_url || '',
+        format: meta.format || repaired._format || ''
+      });
+
+      if (resolved && resolved.direct_url) {
+        // We have a direct_url — safe to build a unified-reader token
         try {
           const tokenPayload = {
-            provider: prov,
-            provider_id: pid,
+            provider: resolved.provider || prov,
+            provider_id: resolved.provider_id || pid,
             title: meta.title || item.title || '',
             author: meta.author || item.author || '',
             cover_url: meta.cover || meta.cover_url || item.cover || '',
-            format: meta.format || repaired._format || 'epub',
-            direct_url: meta.direct_url || repaired._direct_url || '',
+            format: resolved.format || meta.format || repaired._format || 'epub',
+            direct_url: resolved.direct_url,
             source_url: meta.source_url || item.reader_url || '',
           };
           if (meta.archive_id) tokenPayload.archive_id = meta.archive_id;
           const token = buildReaderToken(tokenPayload);
           openUrl = '/unified-reader?token=' + encodeURIComponent(token);
         } catch (e) {
-          console.warn('[reading/favorites] token build failed, falling back to /open:', e.message);
-          openUrl = buildOpenUrl(meta);
+          console.warn('[reading/favorites] token build failed:', e.message);
+          // Do NOT fall back to buildOpenUrl — mark as unavailable instead
+          openUrl = null;
         }
-      } else {
-        openUrl = buildOpenUrl(meta);
       }
+      // If direct_url could not be resolved, do NOT fall back to /open?... links.
+      // Mark as unavailable so the user gets a Retry button instead of a broken link.
 
-      // Truly unavailable only when we have zero way to open it
-      const unavailable = !openUrl;
-      if (unavailable) {
-        console.log(`[reading/favorites] unavailable: bookKey=${item.book_key} title="${item.title}"`);
+      if (!openUrl) {
+        availability = 'unavailable';
+        reason = 'missing_direct_url';
+        console.log(`[reading/favorites] unavailable: bookKey=${item.book_key} provider=${prov} title="${item.title}"`);
       }
 
       dedupedItems.push({
@@ -491,12 +531,26 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
         cover: item.cover,
         readerUrl: item.reader_url,
         openUrl: openUrl || null,
-        availability: unavailable ? 'unavailable' : 'ok',
-        reason: unavailable ? 'cannot_resolve' : null,
+        availability,
+        reason,
         lastCheckedAt: new Date().toISOString(),
         category: item.category,
         createdAt: item.created_at
       });
+    }
+
+    // Async cleanup: delete DB-level duplicate rows (fire-and-forget)
+    if (duplicateIds.length > 0) {
+      console.log(`[reading/favorites] cleaning up ${duplicateIds.length} duplicate(s) for user=${userId}`);
+      supabase
+        .from('reading_favorites')
+        .delete()
+        .in('id', duplicateIds)
+        .then(({ error: delErr }) => {
+          if (delErr) console.error('[reading/favorites] dedup cleanup error:', delErr);
+          else console.log(`[reading/favorites] cleaned ${duplicateIds.length} duplicate(s)`);
+        })
+        .catch(() => {});
     }
 
     return res.json({
@@ -505,6 +559,191 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
     });
   } catch (err) {
     console.error('[reading/favorites] error:', err);
+    return res.status(500).json({ ok: false, error: 'server_error' });
+  }
+});
+
+// ── Safe fetch for archive resolution (Node 18+) ──
+const _fetchFn = globalThis.fetch
+  ? globalThis.fetch.bind(globalThis)
+  : (...args) => import('node-fetch').then(m => m.default(...args));
+
+/**
+ * Resolve best readable file from Archive.org metadata (epub preferred).
+ * @param {string} identifier
+ * @returns {Promise<{ ok, direct_url?, format?, source_url, borrow_required?, reason? }>}
+ */
+async function _resolveArchiveFile(identifier) {
+  const MAX_EPUB_MB = parseInt(process.env.MAX_EPUB_MB) || 50;
+  const MAX_PDF_MB  = parseInt(process.env.MAX_PDF_MB)  || 200;
+  const sourceUrl = `https://archive.org/details/${identifier}`;
+  try {
+    const metaUrl = `https://archive.org/metadata/${encodeURIComponent(identifier)}`;
+    const metaRes = await _fetchFn(metaUrl, {
+      headers: { 'User-Agent': 'BookLantern/1.0', Accept: 'application/json' },
+      signal: AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined
+    });
+    const meta = metaRes.ok ? await metaRes.json().catch(() => null) : null;
+    if (!meta || !meta.files) return { ok: false, source_url: sourceUrl };
+
+    const borrowCheck = isBorrowRequiredArchive(meta.metadata, meta.files, meta);
+    if (borrowCheck.borrowRequired || borrowCheck.encryptedOnly) {
+      return { ok: false, source_url: sourceUrl, borrow_required: borrowCheck.borrowRequired, reason: borrowCheck.reason };
+    }
+
+    const epubs = [], pdfs = [];
+    for (const f of meta.files) {
+      if (!f.name) continue;
+      const nm = f.name.toLowerCase(), fmt = (f.format || '').toLowerCase();
+      if (isEncryptedFile(f)) continue;
+      const sizeMB = parseInt(f.size || 0) / 1e6;
+      if ((nm.endsWith('.epub') || fmt.includes('epub')) && sizeMB <= MAX_EPUB_MB) epubs.push(f);
+      else if ((nm.endsWith('.pdf') || fmt.includes('pdf')) && sizeMB <= MAX_PDF_MB) pdfs.push(f);
+    }
+    epubs.sort((a, b) => (a.size || 0) - (b.size || 0));
+    pdfs.sort((a, b) => (a.size || 0) - (b.size || 0));
+    const best = epubs[0] || pdfs[0];
+    if (!best) return { ok: false, source_url: sourceUrl };
+
+    const fmt = best.name.toLowerCase().endsWith('.epub') ? 'epub' : 'pdf';
+    return {
+      ok: true,
+      format: fmt,
+      direct_url: `https://archive.org/download/${encodeURIComponent(identifier)}/${encodeURIComponent(best.name)}`,
+      source_url: sourceUrl
+    };
+  } catch (err) {
+    console.error(`[reading/_resolveArchiveFile] error for ${identifier}:`, err.message);
+    return { ok: false, source_url: sourceUrl };
+  }
+}
+
+/**
+ * POST /api/reading/favorites/resolve
+ * Re-resolve a favorite's direct_url (may call external APIs)
+ * Body: { bookKey }
+ */
+router.post('/favorites/resolve', ensureSubscriberApi, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ ok: false, error: 'auth_required' });
+
+    const { bookKey } = req.body || {};
+    if (!bookKey) return res.status(400).json({ ok: false, error: 'bookKey required' });
+
+    // Load the favorite (check all variants)
+    const variants = bookKeyVariants(bookKey);
+    const { data: rows } = await supabase
+      .from('reading_favorites')
+      .select('*')
+      .eq('user_id', userId)
+      .in('book_key', variants)
+      .limit(1);
+
+    const fav = rows && rows.length > 0 ? rows[0] : null;
+    if (!fav) return res.status(404).json({ ok: false, error: 'favorite_not_found' });
+
+    // Repair + normalize
+    const repaired = repairFavoriteMeta(fav);
+    let provider = (repaired.source || fav.source || 'unknown').toLowerCase();
+    let provId = repaired._provider_id || fav.book_key;
+    provId = ensureRawProviderId(provId, 'favorites/resolve');
+
+    const rawMeta = {
+      provider,
+      provider_id: provId,
+      title: fav.title,
+      author: fav.author || '',
+      cover: fav.cover || '',
+      source_url: fav.reader_url || '',
+      direct_url: repaired._direct_url || '',
+      format: repaired._format || ''
+    };
+    const meta = normalizeMeta(rawMeta);
+
+    // 1. Try async archive resolution FIRST (gets actual best file from metadata)
+    const archiveId = extractArchiveId(meta) || meta.archive_id;
+    const effectiveProv = (meta.provider || provider).toLowerCase();
+    const effectivePid = meta.provider_id || provId;
+
+    let resolved = null;
+    if (archiveId && !isNumericOnly(archiveId)) {
+      const archiveResult = await _resolveArchiveFile(archiveId);
+      if (archiveResult.ok) {
+        resolved = {
+          direct_url: archiveResult.direct_url,
+          format: archiveResult.format,
+          provider: 'archive',
+          provider_id: archiveId
+        };
+      }
+    }
+
+    // 2. Fall back to synchronous resolution (deterministic patterns + embedded URLs)
+    if (!resolved) {
+      resolved = resolveDirectUrl(effectiveProv, effectivePid, {
+        sourceUrl: meta.source_url || fav.reader_url,
+        readerUrl: fav.reader_url,
+        directUrl: meta.direct_url,
+        format: meta.format
+      });
+    }
+
+    // 3. Last resort for archive: try async with provider_id directly
+    if (!resolved && effectiveProv === 'archive' && effectivePid && !isNumericOnly(effectivePid)) {
+      const archiveResult = await _resolveArchiveFile(effectivePid);
+      if (archiveResult.ok) {
+        resolved = {
+          direct_url: archiveResult.direct_url,
+          format: archiveResult.format,
+          provider: 'archive',
+          provider_id: effectivePid
+        };
+      }
+    }
+
+    if (resolved && resolved.direct_url) {
+      const rProv = resolved.provider || meta.provider || provider;
+      const rPid  = resolved.provider_id || meta.provider_id || provId;
+
+      // Update stored source if it changed
+      if (rProv !== 'unknown' && rProv !== fav.source) {
+        await supabase
+          .from('reading_favorites')
+          .update({ source: rProv })
+          .eq('id', fav.id);
+      }
+
+      // Build fresh token
+      const tokenPayload = {
+        provider: rProv,
+        provider_id: rPid,
+        title: meta.title || fav.title || '',
+        author: meta.author || fav.author || '',
+        cover_url: meta.cover || meta.cover_url || fav.cover || '',
+        format: resolved.format || 'epub',
+        direct_url: resolved.direct_url,
+        source_url: meta.source_url || fav.reader_url || '',
+      };
+      const archiveId = extractArchiveId(meta);
+      if (archiveId) tokenPayload.archive_id = archiveId;
+      const token = buildReaderToken(tokenPayload);
+      const openUrl = '/unified-reader?token=' + encodeURIComponent(token);
+
+      return res.json({
+        ok: true,
+        resolved: true,
+        openUrl,
+        provider: rProv,
+        providerId: rPid,
+        format: resolved.format,
+        directUrl: resolved.direct_url
+      });
+    }
+
+    return res.json({ ok: false, resolved: false, reason: 'cannot_resolve_direct_url' });
+  } catch (err) {
+    console.error('[reading/favorites/resolve] error:', err);
     return res.status(500).json({ ok: false, error: 'server_error' });
   }
 });
