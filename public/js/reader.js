@@ -948,6 +948,13 @@
     var dataFormat = document.body.getAttribute('data-format') || '';
     if (dataFormat) openParams.set('format', dataFormat);
     if (meta.sourceUrl) openParams.set('source_url', meta.sourceUrl);
+    // P0: Include direct_url so favorites can rebuild tokens later
+    var directUrlAttr = document.body.getAttribute('data-direct-url') || viewer && viewer.getAttribute && viewer.getAttribute('data-direct-url') || currentDirectUrl || '';
+    if (!directUrlAttr) {
+      var epubViewer = document.getElementById('epub-viewer');
+      if (epubViewer) directUrlAttr = epubViewer.getAttribute('data-direct-url') || '';
+    }
+    if (directUrlAttr) openParams.set('direct_url', directUrlAttr);
     var readerOpenUrl = '/open?' + openParams.toString();
     try {
       const response = await fetch('/api/reading/favorite', {
@@ -1218,6 +1225,17 @@
     
     // Store bestPdf globally for fallback
     var currentBestPdf = bestPdf;
+    
+    // P0: If direct_url is empty AND no archive_id, show friendly error
+    // instead of letting ePub.js crash with indexOf on undefined
+    if (!directUrl && !archiveId && !epubUrl) {
+      console.warn('[reader] No direct_url, no archive_id, no epub_url — cannot render');
+      showEpubError(
+        'This book cannot be opened right now. The download link is missing.',
+        sourceUrl || (document.body.getAttribute('data-source-url') || '')
+      );
+      return;
+    }
     
     // If no epubUrl but we have archiveId, use the archive EPUB proxy
     // This handles tokens from favorites that have archive_id but no direct_url initially

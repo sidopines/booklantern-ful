@@ -383,6 +383,24 @@ router.post('/favorite', ensureSubscriberApi, async (req, res) => {
       return res.json({ ok: true, favorited: false });
     }
 
+    // P0: Enrich reader_url with direct_url if not already present
+    let enrichedReaderUrl = readerUrl || '';
+    if (enrichedReaderUrl && !enrichedReaderUrl.includes('direct_url=')) {
+      const resolved = resolveDirectUrl(source, resolvedPid, {
+        sourceUrl: readerUrl || '',
+        readerUrl: readerUrl || '',
+        directUrl: '',
+        format: ''
+      });
+      if (resolved && resolved.direct_url) {
+        const sep = enrichedReaderUrl.includes('?') ? '&' : '?';
+        enrichedReaderUrl += sep + 'direct_url=' + encodeURIComponent(resolved.direct_url);
+        if (resolved.format) {
+          enrichedReaderUrl += '&format=' + encodeURIComponent(resolved.format);
+        }
+      }
+    }
+
     // Add favorite (toggle on) — upsert with canonical bookKey
     // First, defensively delete any stale variant rows to prevent unique violations
     // (handles edge cases where variants didn't catch an old format)
@@ -395,7 +413,7 @@ router.post('/favorite', ensureSubscriberApi, async (req, res) => {
         title: title,
         author: author || '',
         cover: cover || '',
-        reader_url: readerUrl || '',
+        reader_url: enrichedReaderUrl,
         category: category || ''
       }, {
         onConflict: 'user_id,book_key',
@@ -540,9 +558,16 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
       // Mark as unavailable so the user gets a Retry button instead of a broken link.
 
       if (!openUrl) {
+        // P0: Provide a safe fallback URL so the book is still clickable
+        const fallbackOpen = buildOpenUrl(meta);
+        if (fallbackOpen) {
+          openUrl = fallbackOpen;
+        } else if ((meta.source_url || item.reader_url || '').startsWith('http')) {
+          openUrl = '/external?url=' + encodeURIComponent(meta.source_url || item.reader_url);
+        }
         availability = 'unavailable';
-        reason = 'missing_direct_url';
-        console.log(`[reading/favorites] unavailable: bookKey=${item.book_key} provider=${prov} title="${item.title}"`);
+        reason = 'no_direct_url';
+        console.log(`[reading/favorites] unavailable (fallback=${!!openUrl}): bookKey=${item.book_key} provider=${prov} title="${item.title}"`);
       }
 
       dedupedItems.push({

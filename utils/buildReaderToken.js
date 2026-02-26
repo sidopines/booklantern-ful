@@ -30,12 +30,39 @@ function getReaderTokenSecret() {
 /**
  * Very small HMAC-signed token for unified-reader.
  * payload: {provider, provider_id, format, direct_url, title, author, cover_url, back, exp}
+ *
+ * P0: NEVER mint a token with empty direct_url for epub/pdf — the reader will
+ *     crash with "No valid URL provided" or ePub.js indexOf errors.
  */
 function buildReaderToken(payload) {
   const secret = getReaderTokenSecret();
   if (!secret) throw new Error('Cannot sign reader token: no secret configured');
 
   const data = { ...payload };
+
+  // --- P0 strict validation: require a usable direct_url (or archive_id) ---
+  const fmt = (data.format || 'epub').toLowerCase();
+  const hasDirectUrl = data.direct_url && typeof data.direct_url === 'string' && data.direct_url.trim().length > 0;
+  const hasArchiveId = data.archive_id && typeof data.archive_id === 'string' && data.archive_id.trim().length > 0;
+
+  if (!hasDirectUrl && !hasArchiveId) {
+    // Attempt lightweight derivation before rejecting
+    const prov = (data.provider || '').toLowerCase();
+    const pid  = data.provider_id || '';
+    if (prov === 'gutenberg' && /^\d+$/.test(pid)) {
+      data.direct_url = `https://www.gutenberg.org/ebooks/${pid}.epub3.images`;
+    } else if (prov === 'archive' && pid && !/^\d+$/.test(pid)) {
+      data.direct_url = `https://archive.org/download/${encodeURIComponent(pid)}/${encodeURIComponent(pid)}.epub`;
+      if (!data.archive_id) data.archive_id = pid;
+    }
+    // Re-check after derivation
+    const nowHasUrl = data.direct_url && typeof data.direct_url === 'string' && data.direct_url.trim().length > 0;
+    const nowHasAid = data.archive_id && typeof data.archive_id === 'string' && data.archive_id.trim().length > 0;
+    if (!nowHasUrl && !nowHasAid) {
+      throw new Error(`Cannot sign reader token: direct_url is required (provider=${prov}, id=${pid})`);
+    }
+  }
+
   const now = Math.floor(Date.now() / 1000);
   if (!data.iat) data.iat = now;
   // 7-day default expiry (favorites regenerate tokens via /open anyway)
