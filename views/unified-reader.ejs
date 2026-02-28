@@ -125,7 +125,7 @@
         <% 
           // Build PDF proxy URL - use /api/proxy/file for non-archive sources (handles blocked iframes like OpenStax)
           var pdfProxyUrl = safeArchiveId 
-            ? '/api/proxy/pdf?archive=' + encodeURIComponent(safeArchiveId)
+            ? '/api/proxy/pdf?archive_id=' + encodeURIComponent(safeArchiveId)
             : '/api/proxy/file?url=' + encodeURIComponent(safeDirectUrl);
         %>
         <iframe

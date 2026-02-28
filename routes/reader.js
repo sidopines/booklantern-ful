@@ -1825,15 +1825,54 @@ router.get('/api/proxy/epub', ensureSubscriberApi, async (req, res) => {
 });
 
 /**
+ * HEAD /api/proxy/pdf — fast probe to check if PDF is available
+ * Accepts both archive and archive_id query params (treated identically).
+ * Returns 200 if a PDF can be served, 404 if not, 400 if id missing.
+ */
+router.head('/api/proxy/pdf', ensureSubscriberApi, async (req, res) => {
+  const archiveId = req.query.archive || req.query.archive_id;
+  const urlParam = req.query.url;
+
+  if (archiveId) {
+    try {
+      const meta = await fetchArchiveMetadata(archiveId);
+      if (!meta || !meta.files) {
+        return res.status(404).end();
+      }
+      const pdfCandidates = meta.files.filter(f => isValidPdfFile(f));
+      if (!pdfCandidates.length) {
+        return res.status(404).end();
+      }
+      // PDF exists — respond 200 with correct headers
+      res.setHeader('Content-Type', 'application/pdf');
+      console.log('[pdf-proxy] HEAD probe OK for archive:', archiveId);
+      return res.status(200).end();
+    } catch (err) {
+      console.error('[pdf-proxy] HEAD probe error:', err.message);
+      return res.status(502).end();
+    }
+  } else if (urlParam) {
+    // URL mode — just confirm domain is allowed
+    if (!isAllowedProxyDomain(urlParam)) {
+      return res.status(403).end();
+    }
+    res.setHeader('Content-Type', 'application/pdf');
+    return res.status(200).end();
+  }
+  return res.status(400).json({ error: 'missing_archive_id' });
+});
+
+/**
  * GET /api/proxy/pdf?archive=<identifier>&file=<filename> OR ?url=<encoded-url>
  * Proxies PDF files for on-site viewing
- * - archive param: Archive.org identifier
+ * Accepts both "archive" and "archive_id" query params (treated identically).
+ * - archive / archive_id param: Archive.org identifier
  * - file param (optional): Specific PDF filename to use (must end with .pdf)
  * - url param: Direct URL proxy (allowlist validated)
  * Supports Range requests for better compatibility
  */
 router.get('/api/proxy/pdf', ensureSubscriberApi, async (req, res) => {
-  const archiveParam = req.query.archive;
+  const archiveParam = req.query.archive || req.query.archive_id;
   const fileParam = req.query.file;
   const urlParam = req.query.url;
   
@@ -1903,7 +1942,7 @@ router.get('/api/proxy/pdf', ensureSubscriberApi, async (req, res) => {
     targetUrl = urlParam;
     console.log('[pdf-proxy] URL mode:', targetUrl);
   } else {
-    return res.status(400).json({ error: 'Missing archive or url parameter' });
+    return res.status(400).json({ error: 'missing_archive_id' });
   }
   
   try {

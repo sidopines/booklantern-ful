@@ -74,6 +74,57 @@
   }
 
   /**
+   * Get archive_id from the current page's data attributes (for error handlers)
+   * @returns {string} Archive ID or empty string
+   */
+  function getArchiveIdFromPage() {
+    return document.body.getAttribute('data-archive-id') ||
+           (document.getElementById('epub-viewer') || {}).getAttribute?.('data-archive-id') || '';
+  }
+
+  /**
+   * Get bestPdf from the current page's data attributes
+   * @returns {string} Best PDF filename or empty string
+   */
+  function getBestPdfFromPage() {
+    return document.body.getAttribute('data-best-pdf') ||
+           (document.getElementById('epub-viewer') || {}).getAttribute?.('data-best-pdf') || '';
+  }
+
+  /**
+   * Fire-and-forget PDF fallback triggered from global error handlers.
+   * Shows a short toast and switches to PDF if available.
+   * @param {string} archiveId
+   */
+  function triggerPdfFallbackFromError(archiveId) {
+    if (errorShown) return;
+    errorShown = true; // Prevent duplicate triggers
+    var bestPdf = getBestPdfFromPage();
+    tsLog('triggerPdfFallbackFromError:', archiveId, 'bestPdf:', bestPdf || '(auto)');
+    showFallbackToast('Switching to PDF\u2026');
+    tryPdfFallbackWithMessage(archiveId, currentSourceUrl, bestPdf);
+  }
+
+  /**
+   * Show a brief non-blocking toast message (for fallback status)
+   * @param {string} msg
+   */
+  function showFallbackToast(msg) {
+    // Remove existing toast if any
+    var existing = document.getElementById('bl-fallback-toast');
+    if (existing) existing.remove();
+    var toast = document.createElement('div');
+    toast.id = 'bl-fallback-toast';
+    toast.textContent = msg;
+    toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);' +
+      'background:#1e293b;color:#f8fafc;padding:8px 20px;border-radius:6px;font-size:14px;' +
+      'z-index:99999;pointer-events:none;opacity:0.95;transition:opacity .4s;';
+    document.body.appendChild(toast);
+    setTimeout(function() { if (toast.parentNode) toast.style.opacity = '0'; }, 3000);
+    setTimeout(function() { if (toast.parentNode) toast.remove(); }, 3600);
+  }
+
+  /**
    * Get the EPUB render URL for a token (uses same-origin proxy for Archive)
    * @param {Object} token - Token object with provider and URL info
    * @returns {string} URL to use for EPUB rendering
@@ -103,7 +154,7 @@
    */
   function getPdfRenderUrl(token, bestPdfFile) {
     if (isArchiveToken(token)) {
-      let url = '/api/proxy/pdf?archive=' + encodeURIComponent(getArchiveId(token));
+      let url = '/api/proxy/pdf?archive_id=' + encodeURIComponent(getArchiveId(token));
       // If a specific PDF file is provided, use it for deterministic selection
       if (bestPdfFile) {
         url += '&file=' + encodeURIComponent(bestPdfFile);
@@ -262,15 +313,20 @@
   window.onerror = function(message, source, lineno, colno, error) {
     if (!errorShown) {
       const msg = String(message || '');
-      // Log full error details including stack trace for debugging (Problem C improvement)
       console.error('[reader] window.onerror:', msg);
       console.error('[reader] window.onerror stack:', error?.stack || '(no stack)');
       console.error('[reader] window.onerror source:', source, 'line:', lineno, 'col:', colno);
-      // Catch any error during EPUB loading
+      // Catch epub.js crashes (indexOf, Cannot read, etc) — try PDF fallback immediately
       if (msg.includes('indexOf') || msg.includes('undefined') || msg.includes('null') || 
           msg.includes('Cannot read') || msg.includes('epub') || (source && source.includes('epub'))) {
         clearLoadTimeout();
-        showEpubError("This book can't be opened in the reader. Try another edition.", currentSourceUrl);
+        var aid = getArchiveIdFromPage();
+        if (aid) {
+          console.log('[reader] epub.js crash detected, triggering PDF fallback for', aid);
+          triggerPdfFallbackFromError(aid);
+        } else {
+          showEpubError("This book can't be opened in the reader. Try another edition.", currentSourceUrl);
+        }
       }
     }
     return true; // Prevent duplicate console spam
@@ -279,12 +335,17 @@
   window.onunhandledrejection = function(event) {
     if (!errorShown) {
       const reason = event.reason?.message || String(event.reason || '');
-      // Log full rejection details including stack trace for debugging (Problem C improvement)
       console.error('[reader] unhandledrejection:', reason);
       console.error('[reader] unhandledrejection stack:', event.reason?.stack || '(no stack)');
       clearLoadTimeout();
       if (reason.includes('indexOf') || reason.includes('undefined') || reason.includes('null') || reason.includes('Cannot read')) {
-        showEpubError("This book can't be opened in the reader. Try another edition.", currentSourceUrl);
+        var aid = getArchiveIdFromPage();
+        if (aid) {
+          console.log('[reader] unhandled rejection crash, triggering PDF fallback for', aid);
+          triggerPdfFallbackFromError(aid);
+        } else {
+          showEpubError("This book can't be opened in the reader. Try another edition.", currentSourceUrl);
+        }
       } else {
         showEpubError('Failed to process book file. Please try a different edition.', currentSourceUrl);
       }
@@ -368,7 +429,43 @@
       startPdfViewerDirectly(archiveId, bestPdf, true);
       return;
     }
-    
+
+    // PDF-first probe: for archive EPUB pages without bestPdf, do a quick HEAD
+    // to check if PDF is available and prefer it (non-blocking, fast)
+    if (archiveId && isEpubPage && !isPdfPage && !explicitEpub && !bestPdf) {
+      tsLog('Archive item without bestPdf — doing quick PDF HEAD probe');
+      updateLoadingMessage('Preparing book...');
+      setupFavoriteButton();
+      var probeUrl = '/api/proxy/pdf?archive_id=' + encodeURIComponent(archiveId);
+      fetch(probeUrl, { method: 'HEAD', credentials: 'include' })
+        .then(function(probeRes) {
+          if (probeRes.ok) {
+            tsLog('PDF HEAD probe succeeded — starting PDF viewer directly');
+            showFallbackToast('Opening PDF version\u2026');
+            startPdfViewerDirectly(archiveId, '', true, 'Showing PDF version');
+          } else {
+            tsLog('PDF HEAD probe returned', probeRes.status, '— falling back to EPUB');
+            proceedWithEpub();
+          }
+        })
+        .catch(function(err) {
+          tsLog('PDF HEAD probe failed:', err.message, '— falling back to EPUB');
+          proceedWithEpub();
+        });
+      return;
+    }
+
+    proceedWithEpub();
+  }
+
+  /**
+   * Continue with the normal EPUB/PDF/iframe init flow
+   * Extracted so the PDF probe path above can call it as a fallback.
+   */
+  function proceedWithEpub() {
+    const isEpubPage = document.body.getAttribute('data-epub') === 'true';
+    const isPdfPage = document.body.getAttribute('data-pdf') === 'true';
+
     if (isPdfPage) {
       // Setup favorite button for PDF mode
       setupFavoriteButton();
@@ -424,9 +521,11 @@
       return;
     }
     
-    // Build the PDF proxy URL with deterministic file selection
-    const pdfProxyUrl = '/api/proxy/pdf?archive=' + encodeURIComponent(archiveId) + 
-                        '&file=' + encodeURIComponent(bestPdfFile);
+    // Build the PDF proxy URL with deterministic file selection (if known)
+    let pdfProxyUrl = '/api/proxy/pdf?archive_id=' + encodeURIComponent(archiveId);
+    if (bestPdfFile) {
+      pdfProxyUrl += '&file=' + encodeURIComponent(bestPdfFile);
+    }
     
     tsLog('Starting PDF viewer directly with URL:', pdfProxyUrl);
     
@@ -675,7 +774,7 @@
       btn.addEventListener('click', function() {
         var archive = this.getAttribute('data-pdf-archive');
         if (archive) {
-          window.location.href = '/api/proxy/pdf?archive=' + encodeURIComponent(archive);
+          window.location.href = '/api/proxy/pdf?archive_id=' + encodeURIComponent(archive);
         }
       });
     });
@@ -1537,7 +1636,13 @@
       } catch (err) {
         clearLoadTimeout();
         tsLog('ERROR: ePub() constructor failed:', err);
-        showEpubError('Invalid EPUB format. This file cannot be opened in the reader.', sourceUrl);
+        // Try PDF fallback for archive items before showing error
+        if (archiveId) {
+          showFallbackToast('Switching to PDF\u2026');
+          tryPdfFallbackWithMessage(archiveId, sourceUrl, currentBestPdf);
+        } else {
+          showEpubError('Invalid EPUB format. This file cannot be opened in the reader.', sourceUrl);
+        }
         return;
       }
       
@@ -1723,7 +1828,7 @@
         let displayAttempts = 0;
         let consecutiveTimeouts = 0;
         const maxAttempts = MAX_SPINE_ATTEMPTS;
-        const MAX_CONSECUTIVE_TIMEOUTS = 3; // Auto-switch to PDF after 3 timeouts
+        const MAX_CONSECUTIVE_TIMEOUTS = 2; // Auto-switch to PDF after 2 consecutive timeouts
         
         async function tryDisplay(location) {
           displayAttempts++;
@@ -1747,7 +1852,7 @@
             // Early bail: if we've hit N consecutive timeouts, switch to PDF immediately
             if (consecutiveTimeouts >= MAX_CONSECUTIVE_TIMEOUTS && archiveId) {
               tsLog(`${consecutiveTimeouts} consecutive DISPLAY_TIMEOUTs — auto-switching to PDF`);
-              updateLoadingMessage('Switching to PDF version...');
+              showFallbackToast('Switching to PDF\u2026');
               clearLoadTimeout();
               const pdfOk = await tryPdfFallback(archiveId, sourceUrl, currentBestPdf);
               if (pdfOk) return true; // Treated as success (PDF fallback shown)
