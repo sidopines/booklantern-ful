@@ -20,5 +20,8 @@ node_modules/
 # Cache
 .cache/
 
+# Playwright
+test-results/
+
 # Temp scripts
 _commit.sh
