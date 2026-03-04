@@ -36,10 +36,19 @@ function record(name, pass, detail = "") {
 async function checkSearchApi() {
   const name = "GET /api/search?q=islam → 200 + JSON array";
   try {
-    const { status, body } = await http("GET", "/api/search?q=islam", {
-      expectJson: true,
-    });
+    const hdrs = AUTH_COOKIE ? { Cookie: AUTH_COOKIE } : {};
+    const url = `${BASE}/api/search?q=islam`;
+    const res = await fetch(url, { method: "GET", headers: hdrs, redirect: "manual" });
+    const status = res.status;
+
+    // Without auth, gated endpoints may return 401/403 — that's expected
+    if (!AUTH_COOKIE && (status === 401 || status === 403)) {
+      console.log(`  ⏭ SKIP  ${name}  — auth required (${status})`);
+      return;
+    }
+
     if (status !== 200) return record(name, false, `status ${status}`);
+    const body = await res.json();
     const arr = Array.isArray(body) ? body : body?.results;
     if (!Array.isArray(arr))
       return record(name, false, "response is not an array (or .results)");

@@ -6,12 +6,15 @@ Automated HTTP checks that verify key API endpoints are responding correctly.
 
 | # | Endpoint | Assertion |
 |---|----------|-----------|
-| 1 | `GET /api/search?q=islam` | Status 200, JSON array of results |
+| 1 | `GET /api/search?q=islam` | Status 200, JSON array of results (skips on 401/403 without auth) |
 | 2 | `HEAD /api/proxy/pdf?archive_id=cu31924074296231` | Status is **not** 422 |
 | 3 | `HEAD /api/proxy/pdf?archive=cu31924074296231` | Status is **not** 422 |
 | 4 | `GET /api/reading/favorites?limit=10` *(auth required)* | Each item has `open_url` or `external_url`; no duplicate `bookKey` values |
 
-Test 4 is **skipped** unless an `AUTH_COOKIE` env var is provided.
+Tests 1 and 4 are **skipped** unless an `AUTH_COOKIE` env var is provided.
+Without `AUTH_COOKIE`, the search endpoint may return 401/403 due to API
+gating — this is reported as SKIP, not FAIL. With `AUTH_COOKIE`, all checks
+run as full authenticated smoke tests.
 
 ## Running locally
 
