@@ -9,7 +9,8 @@
     "start": "node server.js",
     "dev": "NODE_ENV=development nodemon server.js",
     "postinstall": "node scripts/generate-icons.js",
-    "harvest:doab": "node scripts/harvest-doab.js"
+    "harvest:doab": "node scripts/harvest-doab.js",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
