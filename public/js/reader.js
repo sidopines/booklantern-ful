@@ -1048,11 +1048,8 @@
     if (dataFormat) openParams.set('format', dataFormat);
     if (meta.sourceUrl) openParams.set('source_url', meta.sourceUrl);
     // P0: Include direct_url so favorites can rebuild tokens later
-    var directUrlAttr = document.body.getAttribute('data-direct-url') || viewer && viewer.getAttribute && viewer.getAttribute('data-direct-url') || currentDirectUrl || '';
-    if (!directUrlAttr) {
-      var epubViewer = document.getElementById('epub-viewer');
-      if (epubViewer) directUrlAttr = epubViewer.getAttribute('data-direct-url') || '';
-    }
+    var epubEl = document.getElementById('epub-viewer');
+    var directUrlAttr = document.body.getAttribute('data-direct-url') || (epubEl && epubEl.getAttribute('data-direct-url')) || currentDirectUrl || '';
     if (directUrlAttr) openParams.set('direct_url', directUrlAttr);
     var readerOpenUrl = '/open?' + openParams.toString();
     try {
