@@ -258,7 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Read metadata from button dataset (or fallback to closest card)
     const card = btn.closest('.book-card');
-    const bookKey = btn.dataset.bookKey || (card && card.dataset.archiveId ? 'bl-book-' + card.dataset.archiveId : null);
+    const bookKey = btn.dataset.bookKey || (card && card.dataset.archiveId ? 'bl:archive:' + card.dataset.archiveId : null);
     
     if (!bookKey) {
       console.error('[read-search] toggleFavorite: no bookKey found');
@@ -294,11 +294,14 @@ document.addEventListener('DOMContentLoaded', () => {
       return r.json();
     })
     .then(data => {
+      const cKey = data.canonicalBookKey || bookKey;
       if (data.favorited) {
         btn.classList.add('favorited');
-        favoritedBooks.add(bookKey);
+        favoritedBooks.add(cKey);
+        if (cKey !== bookKey) favoritedBooks.add(bookKey);
       } else {
         btn.classList.remove('favorited');
+        favoritedBooks.delete(cKey);
         favoritedBooks.delete(bookKey);
       }
     })
@@ -388,6 +391,26 @@ document.addEventListener('DOMContentLoaded', () => {
     return null;
   }
   
+  /**
+   * Check if a book is favorited, tolerating key format variants.
+   * The favoritedBooks set should already contain canonical keys,
+   * but this handles edge cases with legacy data.
+   */
+  function isFavoritedKey(bookKey, archiveId) {
+    if (favoritedBooks.has(bookKey)) return true;
+    if (archiveId) {
+      if (favoritedBooks.has('bl:archive:' + archiveId)) return true;
+      if (favoritedBooks.has('bl-book-' + archiveId)) return true;
+      if (favoritedBooks.has('archive-' + archiveId)) return true;
+    }
+    // Check bl: prefix variants
+    var m = bookKey.match(/^bl:([^:]+):(.+)$/);
+    if (m) {
+      if (favoritedBooks.has(m[1] + '-' + m[2])) return true;
+    }
+    return false;
+  }
+
   // Create toast container for unavailable items - NO mention of borrow/restricted
   let toastContainer = document.getElementById('external-toast');
   if (!toastContainer) {
@@ -645,7 +668,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (isArchive && archiveId) {
             const escapedCover = (finalCoverUrl || '').replace(/"/g, '&quot;');
             const bookKey = 'bl:archive:' + archiveId;
-            const isFavorited = favoritedBooks.has(bookKey) || favoritedBooks.has('bl-book-' + archiveId) || favoritedBooks.has('archive-' + archiveId);
+            const isFavorited = isFavoritedKey(bookKey, archiveId);
             const archiveOpenUrl = '/open?provider=archive&provider_id=' + encodeURIComponent(archiveId) + '&archive_id=' + encodeURIComponent(archiveId) + '&source_url=' + encodeURIComponent('https://archive.org/details/' + archiveId) + '&title=' + encodeURIComponent(escapedTitle) + '&author=' + encodeURIComponent(escapedAuthor) + '&cover=' + encodeURIComponent(escapedCover);
             const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${archiveOpenUrl}" aria-label="Add to favorites">
                               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
@@ -672,7 +695,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const escapedUrl = externalUrl.replace(/"/g, '&quot;');
             const escapedCover = (coverUrl || '').replace(/"/g, '&quot;');
             const bookKey = generateBookKey(item);
-            const isFavorited = favoritedBooks.has(bookKey);
+            const isFavorited = isFavoritedKey(bookKey, null);
             const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${escapedUrl}" aria-label="Add to favorites">
                               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
                             </button>`;
@@ -699,7 +722,7 @@ document.addEventListener('DOMContentLoaded', () => {
             url.searchParams.set('ref', location.pathname + location.search);
             const href = url.pathname + url.search;
             const bookKey = generateBookKey(item);
-            const isFavorited = favoritedBooks.has(bookKey);
+            const isFavorited = isFavoritedKey(bookKey, null);
             const escapedCover = (finalCoverUrl || '').replace(/"/g, '&quot;');
             const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${href}" data-source="${item.provider || ''}" aria-label="Add to favorites">
                               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
@@ -723,7 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const possibleArchiveId = extractArchiveId(externalUrl);
             if (possibleArchiveId && !isNumericOnly(possibleArchiveId)) {
               const bookKey = 'bl:archive:' + possibleArchiveId;
-              const isFavorited = favoritedBooks.has(bookKey) || favoritedBooks.has('bl-book-' + possibleArchiveId) || favoritedBooks.has('archive-' + possibleArchiveId);
+              const isFavorited = isFavoritedKey(bookKey, possibleArchiveId);
               const archiveOpenUrl2 = '/open?provider=archive&provider_id=' + encodeURIComponent(possibleArchiveId) + '&archive_id=' + encodeURIComponent(possibleArchiveId) + '&source_url=' + encodeURIComponent('https://archive.org/details/' + possibleArchiveId) + '&title=' + encodeURIComponent(escapedTitle) + '&author=' + encodeURIComponent(escapedAuthor) + '&cover=' + encodeURIComponent(escapedCover);
               const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${archiveOpenUrl2}" aria-label="Add to favorites">
                                 <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
@@ -746,7 +769,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             // Non-archive external URL - still keep on site via fallback
             const bookKey = generateBookKey(item);
-            const isFavorited = favoritedBooks.has(bookKey);
+            const isFavorited = isFavoritedKey(bookKey, null);
             const favBtn = `<button class="favorite-btn${isFavorited ? ' favorited' : ''}" data-favorite-btn="1" data-book-key="${bookKey}" data-title="${escapedTitle}" data-author="${escapedAuthor}" data-cover="${escapedCover}" data-reader-url="${escapedUrl}" aria-label="Add to favorites">
                               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
                             </button>`;

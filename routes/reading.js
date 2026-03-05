@@ -380,7 +380,7 @@ router.post('/favorite', ensureSubscriberApi, async (req, res) => {
         .from('reading_favorites')
         .delete()
         .in('id', ids);
-      return res.json({ ok: true, favorited: false });
+      return res.json({ ok: true, favorited: false, canonicalBookKey: canonKey });
     }
 
     // P0: Enrich reader_url with direct_url if not already present
@@ -444,7 +444,7 @@ router.post('/favorite', ensureSubscriberApi, async (req, res) => {
         .catch(() => {});
     }
 
-    return res.json({ ok: true, favorited: true });
+    return res.json({ ok: true, favorited: true, canonicalBookKey: canonKey });
   } catch (err) {
     console.error('[reading/favorite] error:', err);
     return res.status(500).json({ ok: false, error: 'server_error' });
@@ -571,7 +571,7 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
       }
 
       dedupedItems.push({
-        bookKey: item.book_key,
+        bookKey: cKey,
         source: prov,
         title: item.title,
         author: item.author,
