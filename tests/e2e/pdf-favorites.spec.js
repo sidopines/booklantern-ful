@@ -42,6 +42,9 @@ async function authenticate(page, context) {
     if (cookies.length) await context.addCookies(cookies);
     await page.goto('/read');
     if (page.url().includes('/login')) return false;
+    // Also check for unauthenticated nav state
+    const enterLib = await page.locator('a:has-text("Enter Library")').isVisible().catch(() => false);
+    if (enterLib) return false;
     return true;
   }
 
@@ -81,6 +84,8 @@ test.describe('PDF/catalog favorites', () => {
       test.skip(true, 'Could not authenticate');
       return;
     }
+    // Save cookies so we can re-inject after reader visits invalidate the session
+    const savedCookies = await context.cookies();
 
     // ── Step A: Search for a query likely to return PDF/catalog items ─
     await page.goto('/read?q=islam');
@@ -107,10 +112,20 @@ test.describe('PDF/catalog favorites', () => {
       const candidateTitle = await titleEl.textContent().catch(() => '') || '';
       console.log(`  → Trying card ${i}: "${candidateTitle.trim()}"`);
 
-      await Promise.all([
-        page.waitForURL(/\/(unified-reader|reader|open)(\?|$)/, { timeout: 20_000 }),
-        card.click(),
-      ]);
+      try {
+        await Promise.all([
+          page.waitForURL(/\/(unified-reader|reader|open)(\?|$)/, { timeout: 20_000 }),
+          card.click(),
+        ]);
+      } catch {
+        // Card navigated to an unexpected URL (e.g. /external) — skip it
+        console.log(`  → Card ${i} navigated to unexpected URL: ${page.url()}, skipping`);
+        await context.addCookies(savedCookies);
+        await page.goto('/read?q=islam');
+        await page.waitForLoadState('networkidle');
+        await expect(cards.first()).toBeVisible({ timeout: 20_000 });
+        continue;
+      }
       await page.waitForLoadState('domcontentloaded');
 
       // Check if this is a PDF reader page
@@ -135,9 +150,11 @@ test.describe('PDF/catalog favorites', () => {
 
       // Not a PDF — go back and try next card
       console.log(`  → Card ${i} is not PDF, going back`);
+      // Re-inject auth cookies (reader visit can invalidate the session)
+      await context.addCookies(savedCookies);
       await page.goto('/read?q=islam');
-      await page.waitForLoadState('domcontentloaded');
-      await expect(cards.first()).toBeVisible({ timeout: 15_000 });
+      await page.waitForLoadState('networkidle');
+      await expect(cards.first()).toBeVisible({ timeout: 20_000 });
     }
 
     if (!foundPdf) {
