@@ -180,26 +180,33 @@ router.get('/favorites', ensureSubscriber, async (req, res) => {
         format: repaired._format || ''
       });
 
-      // Try synchronous direct_url resolution
-      const resolved = resolveDirectUrl(meta.provider || provider, meta.provider_id || provId, {
-        sourceUrl: meta.source_url || item.reader_url,
-        readerUrl: item.reader_url,
-        directUrl: meta.direct_url || repaired._direct_url || '',
-        format: meta.format || repaired._format || ''
-      });
+      // Archive items: skip resolveDirectUrl (it guesses EPUB which may not exist).
+      // /open does proper async EPUB/PDF resolution for archive items.
+      const favArchiveId = extractArchiveId(meta) || meta.archive_id;
+      const isArchiveItem = ((meta.provider || provider) === 'archive') || (favArchiveId && !isNumericOnly(favArchiveId));
 
       let openUrl = null;
-      if (resolved && resolved.direct_url) {
-        // We have direct_url — build /open URL that will create fresh token
-        const resolvedMeta = { ...meta };
-        if (resolved.provider) resolvedMeta.provider = resolved.provider;
-        if (resolved.provider_id) resolvedMeta.provider_id = resolved.provider_id;
-        resolvedMeta.direct_url = resolved.direct_url;
-        resolvedMeta.format = resolved.format || meta.format || 'epub';
-        openUrl = buildOpenUrl(resolvedMeta);
-      } else if (meta.provider && meta.provider !== 'unknown' && (meta.provider_id || provId)) {
-        // No direct_url but have provider info — /open will resolve on-the-fly
+      if (isArchiveItem) {
         openUrl = buildOpenUrl(meta);
+      } else {
+        // Non-archive: try synchronous direct_url resolution
+        const resolved = resolveDirectUrl(meta.provider || provider, meta.provider_id || provId, {
+          sourceUrl: meta.source_url || item.reader_url,
+          readerUrl: item.reader_url,
+          directUrl: meta.direct_url || repaired._direct_url || '',
+          format: meta.format || repaired._format || ''
+        });
+
+        if (resolved && resolved.direct_url) {
+          const resolvedMeta = { ...meta };
+          if (resolved.provider) resolvedMeta.provider = resolved.provider;
+          if (resolved.provider_id) resolvedMeta.provider_id = resolved.provider_id;
+          resolvedMeta.direct_url = resolved.direct_url;
+          resolvedMeta.format = resolved.format || meta.format || 'epub';
+          openUrl = buildOpenUrl(resolvedMeta);
+        } else if (meta.provider && meta.provider !== 'unknown' && (meta.provider_id || provId)) {
+          openUrl = buildOpenUrl(meta);
+        }
       }
 
       const unavailable = !openUrl;

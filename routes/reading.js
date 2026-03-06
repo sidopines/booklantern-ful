@@ -524,41 +524,46 @@ router.get('/favorites', ensureSubscriberApi, async (req, res) => {
       const prov = meta.provider || provider;
       const pid  = meta.provider_id || provId;
 
-      // Try synchronous direct_url resolution (deterministic patterns + embedded URLs)
-      const resolved = resolveDirectUrl(prov, pid, {
-        sourceUrl: meta.source_url || repaired._source_url || item.reader_url,
-        readerUrl: item.reader_url,
-        directUrl: meta.direct_url || repaired._direct_url || '',
-        format: meta.format || repaired._format || ''
-      });
+      // Archive items: always use /open URL for proper async EPUB/PDF resolution.
+      // resolveDirectUrl guesses an EPUB URL that may not exist (e.g. PDF-only items).
+      // /open does real Archive.org metadata fetch and picks the correct format.
+      const favArchiveId = extractArchiveId(meta) || meta.archive_id;
+      const isArchiveItem = (prov === 'archive') || (favArchiveId && !isNumericOnly(favArchiveId));
 
-      if (resolved && resolved.direct_url) {
-        // We have a direct_url — safe to build a unified-reader token
-        try {
-          const tokenPayload = {
-            provider: resolved.provider || prov,
-            provider_id: resolved.provider_id || pid,
-            title: meta.title || item.title || '',
-            author: meta.author || item.author || '',
-            cover_url: meta.cover || meta.cover_url || item.cover || '',
-            format: resolved.format || meta.format || repaired._format || 'epub',
-            direct_url: resolved.direct_url,
-            source_url: meta.source_url || item.reader_url || '',
-          };
-          if (meta.archive_id) tokenPayload.archive_id = meta.archive_id;
-          const token = buildReaderToken(tokenPayload);
-          openUrl = '/unified-reader?token=' + encodeURIComponent(token);
-        } catch (e) {
-          console.warn('[reading/favorites] token build failed:', e.message);
-          // Do NOT fall back to buildOpenUrl — mark as unavailable instead
-          openUrl = null;
+      if (isArchiveItem) {
+        openUrl = buildOpenUrl(meta);
+      } else {
+        // Non-archive: try synchronous direct_url resolution (deterministic patterns)
+        const resolved = resolveDirectUrl(prov, pid, {
+          sourceUrl: meta.source_url || repaired._source_url || item.reader_url,
+          readerUrl: item.reader_url,
+          directUrl: meta.direct_url || repaired._direct_url || '',
+          format: meta.format || repaired._format || ''
+        });
+
+        if (resolved && resolved.direct_url) {
+          try {
+            const tokenPayload = {
+              provider: resolved.provider || prov,
+              provider_id: resolved.provider_id || pid,
+              title: meta.title || item.title || '',
+              author: meta.author || item.author || '',
+              cover_url: meta.cover || meta.cover_url || item.cover || '',
+              format: resolved.format || meta.format || repaired._format || 'epub',
+              direct_url: resolved.direct_url,
+              source_url: meta.source_url || item.reader_url || '',
+            };
+            if (meta.archive_id) tokenPayload.archive_id = meta.archive_id;
+            const token = buildReaderToken(tokenPayload);
+            openUrl = '/unified-reader?token=' + encodeURIComponent(token);
+          } catch (e) {
+            console.warn('[reading/favorites] token build failed:', e.message);
+            openUrl = null;
+          }
         }
       }
-      // If direct_url could not be resolved, do NOT fall back to /open?... links.
-      // Mark as unavailable so the user gets a Retry button instead of a broken link.
 
       if (!openUrl) {
-        // P0: Provide a safe fallback URL so the book is still clickable
         const fallbackOpen = buildOpenUrl(meta);
         if (fallbackOpen) {
           openUrl = fallbackOpen;

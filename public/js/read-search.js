@@ -196,9 +196,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return r.json();
       })
       .then(data => {
-        // Populate the favorited set
+        // Populate the favorited set with all variant keys
         if (data.items) {
-          data.items.forEach(item => favoritedBooks.add(item.bookKey));
+          data.items.forEach(item => addFavoritedVariants(item.bookKey));
         }
         
         if (!data.items || data.items.length === 0) {
@@ -231,6 +231,45 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   /**
+   * Add a canonical bookKey plus all its format variants to the favoritedBooks set.
+   * Ensures heart-state sync across different key formats (legacy + canonical).
+   */
+  function addFavoritedVariants(bookKey) {
+    if (!bookKey) return;
+    favoritedBooks.add(bookKey);
+    var m = bookKey.match(/^bl:([^:]+):(.+)$/);
+    if (m) {
+      favoritedBooks.add(m[1] + '-' + m[2]);
+      if (m[1] === 'archive') {
+        favoritedBooks.add('bl-book-' + m[2]);
+        favoritedBooks.add('archive-' + m[2]);
+      }
+    }
+  }
+
+  /**
+   * Sync all visible heart buttons matching a canonical key.
+   * Called after a toggle so every card for the same book reflects the new state.
+   */
+  function syncHeartButtons(canonicalKey, favorited) {
+    if (!canonicalKey) return;
+    document.querySelectorAll('[data-favorite-btn]').forEach(function(btn) {
+      var bk = btn.dataset.bookKey || '';
+      if (bk === canonicalKey || isFavoritedKeyPair(bk, canonicalKey)) {
+        if (favorited) btn.classList.add('favorited');
+        else btn.classList.remove('favorited');
+      }
+    });
+  }
+  function isFavoritedKeyPair(a, b) {
+    if (a === b) return true;
+    var ma = a.match(/^bl:([^:]+):(.+)$/);
+    var mb = b.match(/^bl:([^:]+):(.+)$/);
+    if (ma && mb && ma[2] === mb[2]) return true;
+    return false;
+  }
+
+  /**
    * Lightweight: just populate favoritedBooks set (for search result heart buttons)
    * without rendering the shelf
    */
@@ -239,7 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .then(r => { if (!r.ok) return { items: [] }; return r.json(); })
       .then(data => {
         if (data.items) {
-          data.items.forEach(item => favoritedBooks.add(item.bookKey));
+          data.items.forEach(item => addFavoritedVariants(item.bookKey));
         }
       })
       .catch(() => {});
@@ -297,12 +336,24 @@ document.addEventListener('DOMContentLoaded', () => {
       const cKey = data.canonicalBookKey || bookKey;
       if (data.favorited) {
         btn.classList.add('favorited');
-        favoritedBooks.add(cKey);
-        if (cKey !== bookKey) favoritedBooks.add(bookKey);
+        addFavoritedVariants(cKey);
+        if (cKey !== bookKey) addFavoritedVariants(bookKey);
+        // Sync all heart buttons for the same canonical key
+        syncHeartButtons(cKey, true);
       } else {
         btn.classList.remove('favorited');
+        // Remove all variant keys from the set
         favoritedBooks.delete(cKey);
         favoritedBooks.delete(bookKey);
+        var km = cKey.match(/^bl:([^:]+):(.+)$/);
+        if (km) {
+          favoritedBooks.delete(km[1] + '-' + km[2]);
+          if (km[1] === 'archive') {
+            favoritedBooks.delete('bl-book-' + km[2]);
+            favoritedBooks.delete('archive-' + km[2]);
+          }
+        }
+        syncHeartButtons(cKey, false);
       }
     })
     .catch(err => {

@@ -1068,7 +1068,13 @@
         })
       });
       if (response.ok) {
-        return await response.json();
+        const result = await response.json();
+        // Adopt the canonical key from the server for consistent identity
+        if (result.canonicalBookKey && result.canonicalBookKey !== bookKey) {
+          console.log('[reader] Adopting canonical bookKey:', result.canonicalBookKey, '(was:', bookKey, ')');
+          bookKey = result.canonicalBookKey;
+        }
+        return result;
       }
     } catch (err) {
       console.warn('[reader] Failed to toggle favorite:', err.message);

@@ -325,3 +325,133 @@ test.describe('Favorites deduplication', () => {
     }
   });
 });
+
+// ============================================================================
+// Archive PDF fallback test
+// ============================================================================
+
+const ARCHIVE_PDF_BOOK = {
+  archive_id: 'learnislampdfenglishbookalghazalitheninetyninebeautifulnamesofgod',
+};
+
+test.describe('Archive PDF fallback favorite', () => {
+  test.skip(!HAS_AUTH, 'Skipped: set AUTH_COOKIE or SUPABASE_TOKEN');
+
+  test('favorite opens correctly when archive item has no EPUB (PDF fallback)', async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(120_000);
+
+    // ── Auth ─────────────────────────────────────────────────────────
+    const authed = await authenticate(page, context);
+    if (!authed) {
+      test.skip(true, 'Could not authenticate');
+      return;
+    }
+    const savedCookies = await context.cookies();
+    const archiveId = ARCHIVE_PDF_BOOK.archive_id;
+
+    // ── Pre-cleanup: ensure book is not favorited ────────────────────
+    const preCheck = await page.evaluate(async (bk) => {
+      try {
+        const res = await fetch(`/api/reading/favorite/${encodeURIComponent(bk)}`);
+        return res.ok ? await res.json() : { favorited: false };
+      } catch { return { favorited: false }; }
+    }, `bl:archive:${archiveId}`);
+
+    if (preCheck.favorited) {
+      await page.evaluate(async (aid) => {
+        await fetch('/api/reading/favorite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bookKey: `bl:archive:${aid}`,
+            title: 'PDF fallback test',
+            source: 'archive',
+          }),
+        });
+      }, archiveId);
+      console.log('  → Pre-cleanup: unfavorited existing entry');
+    }
+
+    // ── Step 1: Favorite via API ─────────────────────────────────────
+    const favResult = await page.evaluate(async (aid) => {
+      const r = await fetch('/api/reading/favorite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookKey: `bl:archive:${aid}`,
+          source: 'archive',
+          title: 'Al-Ghazali Ninety-Nine Names of God',
+          author: '',
+          cover: `https://archive.org/services/img/${aid}`,
+          readerUrl: `/open?provider=archive&provider_id=${aid}&archive_id=${aid}&source_url=${encodeURIComponent('https://archive.org/details/' + aid)}`,
+        }),
+      });
+      return r.ok ? await r.json() : { ok: false };
+    }, archiveId);
+
+    expect(favResult.ok, 'favorite API ok').toBe(true);
+    expect(favResult.favorited, 'book is favorited').toBe(true);
+    console.log(`  → Favorited archive PDF book, canonicalKey=${favResult.canonicalBookKey}`);
+
+    // ── Step 2: GET /api/reading/favorites and check openUrl ─────────
+    const favList = await page.evaluate(async () => {
+      const r = await fetch('/api/reading/favorites?limit=50', { credentials: 'include' });
+      return r.ok ? await r.json() : { items: [] };
+    });
+
+    const entry = (favList.items || []).find(
+      (i) => i.bookKey && i.bookKey.includes(archiveId)
+    );
+    expect(entry, 'Favorite entry found in list').toBeTruthy();
+    expect(entry.openUrl, 'openUrl is present').toBeTruthy();
+    console.log(`  → openUrl = ${entry.openUrl.substring(0, 80)}...`);
+
+    // The openUrl must be an /open?... URL (not an inline token with guessed EPUB)
+    // /open will do proper async resolution and pick PDF if EPUB is missing
+    expect(
+      entry.openUrl.startsWith('/open?'),
+      'Archive favorite uses /open URL for proper format resolution'
+    ).toBe(true);
+
+    // The openUrl must NOT contain a guessed .epub direct_url
+    const hasEpubGuess = entry.openUrl.includes(encodeURIComponent(archiveId + '.epub'));
+    expect(hasEpubGuess, 'openUrl should not contain guessed .epub URL').toBe(false);
+
+    // ── Step 3: Open the favorite and verify it loads as PDF ─────────
+    await context.addCookies(savedCookies);
+    await page.goto(entry.openUrl, { timeout: 60_000, waitUntil: 'domcontentloaded' });
+
+    // Should redirect to /unified-reader with a valid token
+    await page.waitForURL(/\/unified-reader/, { timeout: 40_000 });
+    await page.waitForLoadState('domcontentloaded');
+    console.log(`  → Redirected to: ${page.url().substring(0, 80)}...`);
+
+    // Verify the token has format=pdf (check body data-format attribute or URL)
+    const readerFormat = await page.evaluate(() => {
+      return document.body.getAttribute('data-format') || '';
+    });
+    console.log(`  → Reader format: ${readerFormat}`);
+    expect(
+      readerFormat === 'pdf' || page.url().includes('format%22%3A%22pdf') || page.url().includes('format%3Dpdf'),
+      'Reader opened in PDF mode (not EPUB)'
+    ).toBe(true);
+
+    // ── Cleanup: unfavorite ──────────────────────────────────────────
+    await context.addCookies(savedCookies);
+    await page.evaluate(async (aid) => {
+      await fetch('/api/reading/favorite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookKey: `bl:archive:${aid}`,
+          title: 'Al-Ghazali Ninety-Nine Names of God',
+          source: 'archive',
+        }),
+      });
+    }, archiveId);
+    console.log('  → Cleanup: unfavorited');
+  });
+});
