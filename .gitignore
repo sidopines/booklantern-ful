@@ -25,3 +25,8 @@ test-results/
 
 # Temp scripts
 _commit.sh
+
+# E2E env (must never be committed)
+*_e2e_env*
+**/e2e_env*
+.booklantern_e2e_env

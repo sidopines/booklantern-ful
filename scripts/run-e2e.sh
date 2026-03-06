@@ -4,8 +4,13 @@ set -e
 echo "--- sourcing ---"
 source ~/.booklantern_e2e_env
 
+# Pre-flight: never print real cookie values
 echo "--- verifying ---"
-node -e 'console.log("AUTH_COOKIE set?", !!process.env.AUTH_COOKIE); console.log("len:", (process.env.AUTH_COOKIE||"").length)'
+if [ -z "$AUTH_COOKIE" ]; then
+  echo "ERROR: AUTH_COOKIE is not set. Run scripts/update-env.sh first." >&2
+  exit 1
+fi
+echo "AUTH_COOKIE set? true  len: ${#AUTH_COOKIE}"
 
 echo ""
 echo "=== Running npm run e2e ==="
